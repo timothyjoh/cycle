@@ -39,37 +39,44 @@ stdout so the calling agent can monitor, and writes artifacts to
 
 ## Tech Stack
 
-- Authored in JavaScript/TypeScript.
-- Bundled (rollup / esbuild) into a single self-contained file at
-  `.cycle/bin/cycle.js` — no `npm install` required in the consuming repo.
-- Runtime on the consuming repo: **node** + **`claude` CLI** + **git** +
+- **Bun-native.** Authored in TypeScript; bundled via `bun build` into a
+  single self-contained file at `.cycle/bin/cycle.js`.
+- No `npm install` required in the consuming repo — the committed
+  bundle is the engine.
+- Runtime on the consuming repo: **`bun`** + **`claude` CLI** + **git** +
   **`gh`**. Nothing else.
+  - Bun is a one-line install (`curl -fsSL https://bun.sh/install | bash`).
+  - Bun's bundler replaces rollup / esbuild.
+  - Bun's built-in HTTP server will power the future HTML progress
+    viewer without adding a dependency.
 - Ships a minimal Claude Code skill at `.claude/skills/cycle.md` by
   default (opt out via `cycle init --no-skill`).
 - Must run locally, in **GitHub Actions**, and in **ephemeral containers**
-  spun up to handle a batch of work.
+  spun up to handle a batch of work. A compiled-binary distribution
+  (`bun build --compile`) is a future option for contexts where
+  installing Bun is friction; out of MVP scope.
 
 ## Invocation Contract
 
 ```bash
 # Single freeform task
-node .cycle/bin/cycle.js run "fix the login bug on Safari"
+bun .cycle/bin/cycle.js run "fix the login bug on Safari"
 
 # Single issue from a tracker
-node .cycle/bin/cycle.js run --issue JIRA-123
+bun .cycle/bin/cycle.js run --issue JIRA-123
 
 # A batch of issues
-node .cycle/bin/cycle.js run --issues-file issues.json
-cat issues.json | node .cycle/bin/cycle.js run --issues-stdin
+bun .cycle/bin/cycle.js run --issues-file issues.json
+cat issues.json | bun .cycle/bin/cycle.js run --issues-stdin
 
 # Force a specific workflow (skip triage)
-node .cycle/bin/cycle.js run --workflow feature "add CSV export"
+bun .cycle/bin/cycle.js run --workflow feature "add CSV export"
 
 # Triage only, no execution
-node .cycle/bin/cycle.js run --dry-run "…"
+bun .cycle/bin/cycle.js run --dry-run "…"
 
 # Choose merge mode (default: auto)
-node .cycle/bin/cycle.js run --merge-mode stack "…"
+bun .cycle/bin/cycle.js run --merge-mode stack "…"
 ```
 
 - **Blocking.** The parent agent waits until the pending queue is empty.

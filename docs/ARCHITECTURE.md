@@ -17,7 +17,7 @@ local working tree of the repo it's installed in.
                  │  spawn + 1 or more issues
                  ▼
 ┌──────────────────────────────────────┐
-│  cycle (node .cycle/bin/cycle.js)    │
+│  cycle (bun .cycle/bin/cycle.js)     │
 │  ┌────────────────────────────────┐  │
 │  │ ingest issues                  │  │
 │  │   → triage each → [cycles…]    │  │
@@ -60,7 +60,7 @@ Contracts:
 ```
 .cycle/
 ├── bin/
-│   └── cycle.js          # Single-file bundled engine (rollup / esbuild)
+│   └── cycle.js          # Single-file bundled engine (bun build)
 ├── workflows/
 │   ├── research.yaml
 │   ├── bug.yaml
@@ -88,28 +88,41 @@ Contracts:
 
 ### Runtime requirements
 
-- **node** (≥ 18) — to execute bundled `cycle.js`
+- **Bun** (≥ 1.0) — to execute bundled `cycle.js`
 - **`claude` CLI** — for the `claudecode` agent
 - **git** and **`gh`** — branches, commits, PRs, auto-merge
 - Optional: **`codex`** — if a workflow routes a step through Codex
 - Optional: **tracker API access** (Jira / Linear / GitHub) — only when
   `--issue` needs a remote fetch
 
-No `npm install` in the consuming repo. No persistent services. No
-daemon.
+No `npm install` in the consuming repo — the committed `cycle.js`
+bundle is the engine. No persistent services. No daemon.
+
+### Why Bun
+
+- Built-in bundler (`bun build`) replaces rollup / esbuild — one tool
+  instead of a build toolchain.
+- Built-in TypeScript runtime — no transpile step during development.
+- Built-in HTTP server (`Bun.serve`) will power the future HTML
+  progress viewer without adding a web framework dependency.
+- Fast startup matters when cycle is invoked frequently (e.g., a CI
+  job per issue).
+- A compiled-binary distribution (`bun build --compile`) is available
+  if we later need a zero-runtime path for specific deployment
+  contexts; out of MVP scope.
 
 ## 3. Invocation Contract
 
 ### CLI
 
 ```bash
-node .cycle/bin/cycle.js run "<task text>"
-node .cycle/bin/cycle.js run --issue <ticket-id>
-node .cycle/bin/cycle.js run --issues-file <path>
-cat issues.json | node .cycle/bin/cycle.js run --issues-stdin
-node .cycle/bin/cycle.js run --workflow <name> "<task text>"
-node .cycle/bin/cycle.js run --dry-run "<task text>"
-node .cycle/bin/cycle.js run --merge-mode {auto|stack} "…"
+bun .cycle/bin/cycle.js run "<task text>"
+bun .cycle/bin/cycle.js run --issue <ticket-id>
+bun .cycle/bin/cycle.js run --issues-file <path>
+cat issues.json | bun .cycle/bin/cycle.js run --issues-stdin
+bun .cycle/bin/cycle.js run --workflow <name> "<task text>"
+bun .cycle/bin/cycle.js run --dry-run "<task text>"
+bun .cycle/bin/cycle.js run --merge-mode {auto|stack} "…"
 ```
 
 Flags (strawman):
@@ -495,7 +508,7 @@ customize (signed commits, PR templates, assigned reviewers, labels).
 Example: parent agent invokes cycle with 7 Jira issues, 3 of them big.
 
 1. Parent runs
-   `node .cycle/bin/cycle.js run --issues-file jira-todo.json`.
+   `bun .cycle/bin/cycle.js run --issues-file jira-todo.json`.
 2. cycle writes 7 markdown files into `docs/cycle/issues/tbd/` (one per
    Jira card). Emits `engine.start`.
 3. Scan: each file is moved to `queued/` and a line is appended to
@@ -535,7 +548,7 @@ the next cycle. Humans merge the stack bottom-up later.
 **Crash recovery:** if the engine crashes after cycle `0044` merges,
 `tbd.jsonl` still has `JIRA-125`–`JIRA-127`, `log.jsonl` records
 everything that did happen, and the `triaged/`/`queued/` folders reflect
-true state. Re-invoking `node .cycle/bin/cycle.js run` with no
+true state. Re-invoking `bun .cycle/bin/cycle.js run` with no
 arguments picks up automatically — starting with any cycle left
 mid-flight (detected from the log), then continuing through the queue.
 
@@ -605,7 +618,7 @@ The skill is deliberately narrow. It contains:
 
 - Metadata (name, description, when-to-use).
 - The exact invocation recipe
-  (`node .cycle/bin/cycle.js run …`) with the flag surface.
+  (`bun .cycle/bin/cycle.js run …`) with the flag surface.
 - Guidance on parsing JSONL events from stdout and relaying progress
   in plain English (e.g., "triaging JIRA-123", "cycle 0042 building,
   attempt 2", "verify failed, restarting").
@@ -626,15 +639,17 @@ in the future TUI / HTML viewer, not the skill.
 ### GitHub Actions
 
 A workflow file (e.g., `.github/workflows/cycle-on-issue.yml`) triggers
-on an issue label or comment, spins up a container with node + `claude`
-+ repo checkout, and invokes
-`node .cycle/bin/cycle.js run --issue ${{ github.event.issue.number }}`.
+on an issue label or comment, spins up a container (usually
+`ubuntu-latest`) with `bun` + `claude` + repo checkout, and invokes
+`bun .cycle/bin/cycle.js run --issue ${{ github.event.issue.number }}`.
+Bun install is a single `curl` in the workflow (or use the
+`oven-sh/setup-bun` action).
 
 ### Ephemeral bug-fix containers
 
 Same pattern as Actions, via any orchestrator (Daytona, devcontainers,
 custom Docker). Self-contained `.cycle/bin/` means the container only
-needs node + `claude` + `gh` preinstalled.
+needs `bun` + `claude` + `gh` preinstalled.
 
 ---
 
