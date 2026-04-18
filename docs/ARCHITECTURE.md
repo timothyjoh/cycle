@@ -140,8 +140,8 @@ Flags (strawman):
 {"ts":"…","event":"issue.ingested","issue_id":"JIRA-123","path":"docs/cycle/issues/queued/JIRA-123.md"}
 {"ts":"…","event":"tbd.pop","issue_id":"JIRA-123"}
 {"ts":"…","event":"triage.start","issue_id":"JIRA-123","attempt":1}
-{"ts":"…","event":"triage.decision","issue_id":"JIRA-123","cycles":[{"cycle_id":"0042","workflow":"feature","title":"…"},{"cycle_id":"0043","workflow":"feature","title":"…"}]}
-{"ts":"…","event":"cycle.start","cycle_id":"0042","workflow":"feature","title":"…","issue_id":"JIRA-123"}
+{"ts":"…","event":"triage.decision","issue_id":"JIRA-123","plan":[{"workflow":"feature","title":"…"},{"workflow":"feature","title":"…"}]}
+{"ts":"…","event":"cycle.start","cycle_id":"0042","workflow":"feature","title":"…","issue_id":"JIRA-123","attempt":1}
 {"ts":"…","event":"step.start","cycle_id":"0042","step":"spec","agent":"claudecode"}
 {"ts":"…","event":"step.end","cycle_id":"0042","step":"spec","status":"ok","duration_ms":12345,"artifact":"docs/cycle/0042-feature-safari-login/SPEC.md"}
 {"ts":"…","event":"commit","cycle_id":"0042","sha":"…"}
@@ -152,11 +152,23 @@ Flags (strawman):
 {"ts":"…","event":"engine.stop","status":"ok"}
 ```
 
-Failure variants:
+Cycle-attempt / abandon variants:
+
+```jsonl
+{"ts":"…","event":"cycle.attempt.failed","cycle_id":"0042","attempt":1,"reason":"verify_failed"}
+{"ts":"…","event":"cycle.start","cycle_id":"0042","workflow":"feature","attempt":2}
+{"ts":"…","event":"cycle.abandoned","cycle_id":"0042","attempts":3,"preservation_branch":"cycle/abandoned/0042-feature-safari-login","pr_url":"…"}
+{"ts":"…","event":"issue.blocked","issue_id":"JIRA-123","blocked_cycle":"0042","path":"docs/cycle/issues/blocked/JIRA-123.md"}
+```
+
+Triage failure / rate-limit variants:
 
 ```jsonl
 {"ts":"…","event":"triage.failed","issue_id":"JIRA-123","attempt":1,"reason":"invalid_json"}
 {"ts":"…","event":"triage.abandoned","issue_id":"JIRA-123","attempts":3,"path":"docs/cycle/issues/failed/JIRA-123.md"}
+{"ts":"…","event":"rate_limit.hit","retry_after_s":120,"tokens_remaining":0}
+{"ts":"…","event":"rate_limit.resumed"}
+{"ts":"…","event":"engine.paused","reason":"rate_limit","retry_after":"2026-04-18T20:00:00Z"}
 ```
 
 The schema is flat and additive — new `event` types can be introduced
@@ -181,26 +193,42 @@ timestamps.
      in `tbd/`, `queued/`, or is an unmerged cycle, re-append the line
      to the tail of `tbd.jsonl` and continue to the next entry. (Cycle
      detection: after a full pass where no issue can progress, abort.)
-   - **Triage** the `queued/` file → list of 1+ cycles, each tagged
-     with a workflow (`bug` / `feature` / `research`) and a spec.
+   - **Triage** the `queued/` file → a *plan* of 1+ cycles, each
+     tagged with a workflow (`bug` / `feature` / `research`) and a
+     spec. No cycle IDs assigned yet.
      - On triage failure: increment `triage_attempts` in frontmatter,
        re-append to `tbd.jsonl`. After 3 attempts, move the file to
        `failed/` with a `FAILURE.md` note; emit `triage.abandoned`.
-   - **Allocate cycle IDs** by scanning `log.jsonl` for the highest
-     existing ID and incrementing.
-   - **Write `TRIAGE.md`** into the first cycle's artifact dir;
-     populate `cycles:` in the issue frontmatter; `mv` the issue file
-     from `queued/` to `triaged/`.
-   - **Cycle sub-loop** (for each cycle from the triage):
-     - Create the branch (off `main` in `auto` mode, off the prior
-       cycle's branch in `stack` mode).
+   - **Write `TRIAGE.md`** (populated once the first cycle ID is
+     assigned); `mv` the issue file from `queued/` to `triaged/`.
+   - **Cycle sub-loop** (for each planned cycle):
+     - **Allocate the cycle ID** by scanning `log.jsonl` for the
+       highest existing ID and incrementing. Append it to the issue's
+       frontmatter `cycles:`.
      - Create `docs/cycle/<cycle-id>-<workflow>-<slug>/`.
-     - Load the named workflow YAML; execute its steps in order.
-     - Open a PR. Under `auto`, enable `gh pr merge --squash --auto`
-       and poll until the PR lands on `main` before starting the next
-       cycle. Under `stack`, proceed immediately.
-     - Emit `cycle.end`. If this was the last cycle from this issue,
-       append `completed_at:` to the issue file in `triaged/`.
+     - **Attempt loop** (up to `max_cycle_attempts`, default 3):
+       - Create the branch (off `main` in `auto` mode, off the prior
+         cycle's branch in `stack` mode). On attempts 2+, delete the
+         prior attempt's branch first and wipe the artifact dir.
+       - Load the workflow YAML; execute its steps in order. Each
+         step honors its own `on_fail: retry:N` policy.
+       - On a code-level failure (verify fails, review unresolvable,
+         build fails, merge conflict): emit `cycle.attempt.failed`
+         and loop.
+       - On success: open a PR. Under `auto`, enable
+         `gh pr merge --squash --auto` and poll until the PR lands
+         on `main` before proceeding. Under `stack`, proceed
+         immediately. Emit `cycle.end`, break the attempt loop.
+     - On exhausted attempts: push final-attempt branch to
+       `cycle/abandoned/<cycle-id>-<slug>`, open a `Failed Attempt: …`
+       PR (no auto-merge), emit `cycle.abandoned`, then break out of
+       the cycle sub-loop — the issue's remaining planned cycles are
+       skipped (they consume no IDs). Move the issue file to
+       `blocked/` with `BLOCKED.md`; emit `issue.blocked`. In `stack`
+       mode the engine halts entirely (default `--on-abandon halt`).
+     - On issue completion (all planned cycles merged): append
+       `completed_at:` to the issue file in `triaged/`; emit
+       `issue.completed`.
 5. **Re-scan `tbd/`.** If new files appeared during the run, loop back
    to step 4.
 6. **Finalize.** When `tbd.jsonl` is empty and `tbd/` is empty, emit
@@ -216,7 +244,7 @@ whatever's still in the folders and `tbd.jsonl`.
 Triage runs per issue as it's popped from `tbd.jsonl` (unless
 `--workflow` is set, which skips triage and forces that workflow on a
 single synthetic cycle per issue). It's a `claudecode` invocation whose
-prompt asks for structured JSON output:
+prompt asks for structured JSON output — a *plan* of cycles without IDs:
 
 ```json
 {
@@ -228,10 +256,12 @@ prompt asks for structured JSON output:
 }
 ```
 
-The decision is logged to `log.jsonl` as `triage.decision`; the
-human-readable write-up lands at
+The decision is logged to `log.jsonl` as `triage.decision` (`plan: […]`);
+cycle IDs are assigned lazily, one at a time, as each planned cycle
+actually begins work. This means skipped cycles (an abandoned cycle's
+siblings) never consume IDs. The human-readable write-up lands at
 `docs/cycle/<first-cycle-id>-<workflow>-<slug>/TRIAGE.md` — one triage
-doc per issue, named after the first cycle it produced.
+doc per issue, named after the first cycle that actually ran.
 
 ### Workflows
 
@@ -368,6 +398,7 @@ docs/cycle/issues/
 ├── tbd/            # Inbox — new files dropped by agents or by the CLI
 ├── queued/         # Ingested into tbd.jsonl, awaiting triage
 ├── triaged/        # Decomposed into cycles; frontmatter records them
+├── blocked/        # A cycle exhausted its attempts; siblings skipped
 └── failed/         # Triage exhausted its retries
 ```
 
@@ -378,6 +409,10 @@ State transitions:
   frontmatter.
 - `queued/` → `failed/`: triage failed 3 times; `FAILURE.md` written
   alongside.
+- `triaged/` → `blocked/`: a cycle from this issue exhausted its
+  attempts; remaining planned cycles are skipped. `BLOCKED.md` written
+  alongside; `blocked_at:` and `blocked_cycle:` populated in
+  frontmatter. A human moves the file back to `tbd/` to retry.
 
 Issue file naming: `<id>.md` (e.g., `JIRA-123.md`). For freeform text
 input, the engine generates `txt-<YYYYMMDD-HHMMSS>-<short-slug>.md`.
@@ -522,14 +557,30 @@ instead of stopping.
 
 ## 10. Failure Modes
 
-| Failure | Behavior (strawman) |
-|---|---|
-| `verify` step fails after `fix` | Re-enter `fix` once; if still failing, fail the cycle |
-| `review` produces must-fixes that `fix` can't resolve | Fail the cycle |
-| Push / PR creation fails | Fail the cycle; artifacts and branch remain locally |
-| In `auto` mode, PR doesn't auto-merge within timeout | Fail the cycle; leave the PR open |
-| Triage produces invalid classification | Increment `triage_attempts` in frontmatter, re-append to `tbd.jsonl`. After 3 attempts, move to `failed/` and emit `triage.abandoned` |
-| Mid-queue cycle fails | **TBD** — stop the whole queue, skip and continue, or retry? See [`BRIEF.md`](../BRIEF.md) §Open Questions #4 |
+Two layers of retry:
+
+- **Step-level** (`on_fail: retry:N` in workflow YAML) for transient
+  step issues.
+- **Cycle-level** (`max_cycle_attempts: 3` per workflow) — on a
+  code-level gate failure, the attempt is abandoned and a fresh
+  attempt starts from a clean branch with wiped artifacts.
+
+| Failure | Category | Behavior |
+|---|---|---|
+| `verify` fails after step-level retries | Code-level gate | **Attempt failure.** Abandon attempt; restart fresh. |
+| `review` produces unresolvable must-fixes after `fix` | Code-level gate | **Attempt failure.** |
+| `build` fails after step-level retries | Code-level gate | **Attempt failure.** |
+| Merge conflict on rebase / auto-merge | Code-level gate | **Attempt failure.** |
+| 3 cycle attempts exhausted | — | Push to `cycle/abandoned/<cycle-id>-<slug>`; open `Failed Attempt: …` PR; move issue to `blocked/`; skip remaining planned cycles of the issue; `cycle.abandoned` + `issue.blocked` events. `auto` mode continues to next issue; `stack` mode halts. |
+| Rate limit (short) | External transient | In-process exponential backoff (30s → 5m cap). No attempt consumed. |
+| Rate limit (long) | External transient | Emit `engine.paused`; exit code 42. Caller re-invokes later. Opt-in `--rate-limit-behavior sleep` stays in-process. |
+| Push network error | Infrastructure | Exponential backoff, retry up to 3 times. No attempt consumed. |
+| Push auth / permission error | Environment | Fail fast — engine exits non-zero. |
+| `git` operation error (dirty tree, detached HEAD) | Environment | Fail fast. |
+| `claude` CLI auth / setup error | Environment | Fail fast. |
+| `claude` CLI transient network error | External transient | Backoff + retry. |
+| Engine uncaught exception | Internal | Crash. Resume on next invocation via `tbd.jsonl` + `log.jsonl`. |
+| Triage produces invalid classification | — | Increment `triage_attempts`; re-append to `tbd.jsonl`. After 3 attempts, move to `failed/` with `FAILURE.md`; emit `triage.abandoned`. |
 
 ## 11. Integration Surfaces
 
@@ -564,7 +615,6 @@ needs node + `claude` + `gh` preinstalled.
 
 Tracked in [`BRIEF.md`](../BRIEF.md) §Open Questions. Summary:
 
-4. Queue failure handling (stop / skip / retry).
 5. Skill packaging (first-class vs nice-to-have).
 6. `init` scope (confirm the layout).
 7. Definition of Done for cycle's own MVP.
@@ -578,3 +628,9 @@ Resolved since the last revision:
    persistent identity; no run ID. See §6.
 3. ✅ Resume semantics — re-invoking `cycle run` with no arguments
    continues consuming `tbd.jsonl`. No explicit `--resume` flag needed.
+4. ✅ Queue failure handling — 3 attempts per cycle (fresh branch +
+   wiped artifacts between attempts). On exhaustion: preservation
+   branch + `Failed Attempt: …` PR; issue moves to `blocked/`;
+   remaining planned cycles skip (no IDs consumed). `auto` mode
+   continues to next issue; `stack` mode halts. Rate limits orthogonal
+   (backoff for short, `engine.paused` + exit 42 for long). See §10.

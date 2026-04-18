@@ -124,8 +124,10 @@ workflow: feature               # optional; force workflow, skip triage classifi
 depends_on: [JIRA-100]          # optional; defer until these are in triaged/
 added_at: 2026-04-18T10:15:00Z
 triage_attempts: 0              # engine-managed
-cycles: [0042, 0043]            # populated after triage
+cycles: [0042, 0043]            # populated as cycle IDs are assigned
 completed_at: 2026-04-18T12:47:00Z  # populated when all cycles merged
+blocked_at: 2026-04-18T14:30:00Z    # populated if issue moved to blocked/
+blocked_cycle: 0042             # which cycle caused the block, if any
 ---
 ```
 
@@ -135,7 +137,8 @@ Body of the markdown = issue description. A template lives at
 ## Triage (lazy, per issue)
 
 When an issue is popped from `tbd.jsonl`, the engine runs triage on its
-file in `queued/`. Triage produces a structured classification:
+file in `queued/`. Triage produces a structured classification — a *plan*
+of cycles, without IDs. IDs are allocated lazily at `cycle.start`:
 
 ```json
 {
@@ -147,9 +150,11 @@ file in `queued/`. Triage produces a structured classification:
 }
 ```
 
-On success: write `TRIAGE.md` into the first cycle's artifact dir,
-populate `cycles:` in the issue frontmatter, move the file to
-`triaged/`, and run the cycles in order.
+On success: write `TRIAGE.md` into the first cycle's artifact dir, move
+the issue file to `triaged/`, and run the planned cycles in order. Each
+cycle gets the next sequential ID (scanned from `log.jsonl`) at its
+start, and that ID is appended to the issue's frontmatter `cycles:` as
+it's assigned.
 
 On failure (invalid JSON, agent refusal, etc.): increment
 `triage_attempts` in frontmatter, re-attempt on the next loop iteration.
@@ -199,6 +204,83 @@ tracker.
 
 Git worktrees are deferred — future optional feature, not MVP.
 
+## Cycle Attempts & Failure Handling
+
+The engine is a "dark factory" — when a cycle can't pass its quality
+gates, it's abandoned and retried from scratch rather than nursed along
+in a bad state.
+
+### Two layers of retry
+
+- **Step-level** (`on_fail: retry:N` in workflow YAML) — transient step
+  failures (flaky test, network hiccup). Tuned per step.
+- **Cycle-level** (max 3 attempts, configured per workflow) — "the AI
+  went down a bad path" failures that step-level retries can't fix. An
+  attempt runs the workflow end-to-end; on failure it's abandoned and a
+  fresh one starts.
+
+### What counts as an attempt failure
+
+| Triggers an attempt failure | Handled separately |
+|---|---|
+| `verify` fails after step-level retries | Rate limit → pause/resume (no attempt consumed) |
+| `review` produces unresolvable must-fixes | Push network error → step-level retry |
+| `build` fails after step-level retries | Git/auth errors → fail fast (engine exits) |
+| Merge conflict on rebase / auto-merge | Engine uncaught exception → crash, resume later |
+
+### Attempt mechanics
+
+- **Branch.** Delete local + remote; re-create from the base between
+  attempts. Fresh slate.
+- **Artifacts.** Wipe `docs/cycle/<cycle-id>-<workflow>-<slug>/`
+  between attempts. No context carryover — the AI may repeat a
+  mistake, but that's by design; try again differently.
+- **Cycle ID.** Same ID across all attempts (cycle 0042 attempted
+  three times), with `attempt: N` in log events.
+
+### When 3 attempts are exhausted
+
+- Push the final attempt's branch to `cycle/abandoned/<cycle-id>-<slug>`.
+- Open a PR titled `Failed Attempt: <title>` (cold storage with GitHub
+  visibility — not intended to merge).
+- Move the issue file from `triaged/` to `blocked/` with `blocked_at:`
+  and `blocked_cycle:` in frontmatter; write a `BLOCKED.md` note.
+- **Skip the remaining planned cycles of that issue.** They never
+  started, so they consume no IDs — the next issue's first cycle gets
+  the next sequential ID cleanly.
+- Emit `cycle.abandoned` and `issue.blocked` events.
+
+### Mode interaction
+
+- **`--merge-mode auto` — default `--on-abandon continue`.** Next issue
+  starts; queue keeps flowing.
+- **`--merge-mode stack` — default `--on-abandon halt`.** Stack
+  dependencies make a mid-stack abandon ambiguous; let a human sort it
+  out.
+
+### Rate limits
+
+Rate limits are orthogonal to attempt counting:
+
+- **Short transient (minutes).** In-process exponential backoff
+  (30s → 60s → 120s → 300s, ~5 min cap). Emits `rate_limit.hit` /
+  `rate_limit.resumed`.
+- **Long exhaustion (hours).** Engine emits `engine.paused` with a
+  `retry_after` hint, then exits with code `42`. A parent agent or
+  cron re-invokes later; the engine picks up from `tbd.jsonl` and
+  `log.jsonl`. Opt-in `--rate-limit-behavior sleep` keeps the process
+  alive instead (for containers with nothing else to do).
+- **Proactive awareness.** The engine tracks `anthropic-ratelimit-*`
+  response headers and pauses preemptively if the next call would
+  exceed the window.
+
+### Configurability
+
+`max_cycle_attempts` is set per workflow in `.cycle/workflows/*.yaml`
+(default 3). No CLI override — each workflow's policy is baked in.
+
+---
+
 ## Artifacts & State
 
 **Engine state (`.cycle/`).**
@@ -207,8 +289,9 @@ Git worktrees are deferred — future optional feature, not MVP.
 - `.cycle/tbd.jsonl` — pending untriaged issues. One line per issue;
   mutated as the engine consumes work.
 
-**Issues (`docs/cycle/issues/`).** Four folders — `tbd/`, `queued/`,
-`triaged/`, `failed/` — plus a `TEMPLATE.md`. See Issue Ingestion.
+**Issues (`docs/cycle/issues/`).** Five folders — `tbd/`, `queued/`,
+`triaged/`, `blocked/`, `failed/` — plus a `TEMPLATE.md`. See Issue
+Ingestion and Cycle Attempts & Failure Handling.
 
 **Per-cycle artifacts (`docs/cycle/<cycle-id>-<workflow>-<slug>/`).**
 E.g., `docs/cycle/0042-feature-safari-login/`, containing SPEC.md,
@@ -266,15 +349,20 @@ arguments continues consuming whatever is still in `tbd.jsonl`. No
 explicit `--resume` flag needed. A crashed engine leaves its pending
 queue in place for the next invocation.
 
+**Queue failure handling (Open Q #4).**
+Cycles get 3 attempts; each attempt is a fresh workflow run from a
+clean branch and wiped artifacts. After 3 exhausted attempts, the
+branch is preserved under `cycle/abandoned/…` with a
+`Failed Attempt: …`-titled PR, the issue file moves to `blocked/`, and
+remaining planned cycles of the same issue are skipped. In `auto` mode
+the queue continues; in `stack` mode it halts. Rate limits are
+orthogonal: short transients back off in-process; long exhaustion
+exits with code 42 for the caller to re-invoke later. See Cycle
+Attempts & Failure Handling.
+
 ---
 
 ## Open Questions
-
-### 4. Queue failure handling
-- If cycle 3 of 12 fails (unresolvable review findings, verify fails
-  after retry, push fails), does the engine stop the whole queue and
-  exit non-zero? Skip the failed cycle and continue? Retry?
-- Does the answer differ between `auto` and `stack` merge modes?
 
 ### 5. Skill packaging
 - Is a Claude Code skill a first-class deliverable alongside the CLI, or
