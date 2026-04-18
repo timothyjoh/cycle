@@ -407,11 +407,56 @@ fancy visualization are left to the caller. See Claude Code Skill.
 and committed by default (users can `.gitignore` for local-only
 state). `cycle init --force` overwrites existing files.
 
+**Definition of Done (Open Q #7).**
+MVP ships after **Phase 4** — by which point cycle can be left
+running unattended against a batch of real issues. Phase 5 is
+post-MVP polish. MVP is validated on **both** the cycle repo itself
+(brownfield dog-food) and a dedicated greenfield test repo. See
+Phase Plan below.
+
 ---
 
-## Open Questions
+## Phase Plan
 
-### 7. Definition of Done for the cycle project itself
-- MVP = can invoke `bug` and `feature` workflows against a simple test
-  repo and produce a PR?
-- How many phases of work to reach MVP?
+**Phase 1 — Walking skeleton.**
+`cycle init` scaffolds everything. `bun .cycle/bin/cycle.js run
+"text"` runs a single freeform task end-to-end. One workflow
+implemented (`feature` — spec → plan → build → verify → commit →
+pr); `review` / `fix` can be stubs. Task flows through
+`tbd/ → queued/ → triaged/`. Branch, commit, PR, auto-merge. JSONL
+events on stdout; `log.jsonl` + `tbd.jsonl` populated. Skill shipped.
+
+**Phase 2 — Full default workflow library.**
+`bug` and `research` workflows implemented. Triage classifies between
+all three. `review` + `fix` fully wired in `feature`.
+
+**Phase 3 — Batch ingestion.**
+`--issue <id>` (tracker fetch), `--issues-file`, `--issues-stdin`.
+External agents dropping files into `tbd/`. Multi-cycle triage
+(decomposing a single issue into multiple cycles). Queue iteration
+across many issues. `depends_on:` sequencing. Pre-emptive `tbd/`
+rescans.
+
+**Phase 4 — Failure resilience. ⛳ MVP line.**
+3-attempt abandon-and-restart with fresh branches and wiped
+artifacts. `blocked/` folder. `Failed Attempt:` preservation PR.
+Triage retry + `failed/` folder after 3 attempts. Rate-limit handling
+(short in-process backoff, long `engine.paused` + exit 42).
+`--on-abandon` flag.
+
+**Phase 5 — Polish & secondary modes (post-MVP).**
+`--merge-mode stack` with stacked branches. Custom-workflow
+extensibility verified. `.github/workflows/cycle-on-issue.yml`
+example. README and usage docs. Known-good CI container image or
+install recipe.
+
+**MVP validation.**
+- **Brownfield dog-food.** Cycle runs in the cycle repo itself on an
+  issue like "add a new prompt template" or "refactor the triage
+  parser" — proving it works in a brownfield codebase.
+- **Greenfield test repo.** Cycle runs in a separate minimal repo
+  from a seeded BRIEF-sized task — proving it works on a fresh
+  codebase.
+
+Both paths must produce merged PRs without manual intervention for
+MVP to be considered done.

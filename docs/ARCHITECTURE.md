@@ -655,9 +655,8 @@ needs `bun` + `claude` + `gh` preinstalled.
 
 ## 12. Open Architectural Questions
 
-Tracked in [`BRIEF.md`](../BRIEF.md) §Open Questions. Summary:
-
-7. Definition of Done for cycle's own MVP.
+All resolved. See [`BRIEF.md`](../BRIEF.md) §Resolved Decisions and
+§Phase Plan.
 
 Resolved since the last revision:
 
@@ -683,3 +682,8 @@ Resolved since the last revision:
    and `docs/cycle/issues/`. `log.jsonl` and `tbd.jsonl` created on
    first run and committed by default. `cycle init --force`
    overwrites existing files. See §2.
+7. ✅ Definition of Done — MVP ships after Phase 4 (full failure
+   resilience; safe to leave unattended). Phase 5 is post-MVP
+   polish. Validated on both the cycle repo (brownfield dog-food)
+   and a greenfield test repo. See [`BRIEF.md`](../BRIEF.md)
+   §Phase Plan.
