@@ -657,7 +657,6 @@ needs `bun` + `claude` + `gh` preinstalled.
 
 Tracked in [`BRIEF.md`](../BRIEF.md) §Open Questions. Summary:
 
-6. `init` scope (confirm the layout).
 7. Definition of Done for cycle's own MVP.
 
 Resolved since the last revision:
@@ -680,3 +679,7 @@ Resolved since the last revision:
    slash command and description-triggered invocation. Exit-42
    rescheduling, historical log queries, and visualization deferred
    to callers / future viewer tooling. See §11.
+6. ✅ `init` scope — touches `.cycle/`, `.claude/skills/cycle.md`,
+   and `docs/cycle/issues/`. `log.jsonl` and `tbd.jsonl` created on
+   first run and committed by default. `cycle init --force`
+   overwrites existing files. See §2.

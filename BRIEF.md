@@ -395,17 +395,21 @@ Attempts & Failure Handling.
 progress to the user. Exit-42 rescheduling, log-history queries, and
 fancy visualization are left to the caller. See Claude Code Skill.
 
+**Init scope (Open Q #6).**
+`cycle init` touches three top-level directories:
+- `.cycle/` — `bin/cycle.js`, `workflows/*.yaml`, `prompts/*.md`,
+  `scripts/*.sh`, `CLAUDE.md`
+- `.claude/skills/cycle.md` — by default (opt out via `--no-skill`)
+- `docs/cycle/issues/` — `TEMPLATE.md` plus empty `tbd/`, `queued/`,
+  `triaged/`, `blocked/`, `failed/` directories
+
+`log.jsonl` and `tbd.jsonl` are created at first run under `.cycle/`
+and committed by default (users can `.gitignore` for local-only
+state). `cycle init --force` overwrites existing files.
+
 ---
 
 ## Open Questions
-
-### 6. `init` scope
-What exactly does `cycle init` install? Strawman:
-  - `.cycle/bin/cycle.js` (bundled engine)
-  - `.cycle/workflows/*.yaml` (default workflows)
-  - `.cycle/prompts/*.md` (default prompt templates)
-  - `.cycle/CLAUDE.md` (config docs for Claude Code)
-  - A skill file under `.claude/skills/` if skill packaging is included
 
 ### 7. Definition of Done for the cycle project itself
 - MVP = can invoke `bug` and `feature` workflows against a simple test
