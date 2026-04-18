@@ -76,30 +76,89 @@ node .cycle/bin/cycle.js run --merge-mode stack "…"
 - **Per-cycle artifacts** under `docs/cycle/<cycle-id>-<workflow>-<slug>/`.
 - **Each cycle produces its own commits, branch, and PR.**
 
+## Issue Ingestion
+
+Every issue is materialized as a markdown file with YAML frontmatter
+inside a three-stage folder state machine that shadows `tbd.jsonl`:
+
+- **`docs/cycle/issues/tbd/`** — inbox. External agents drop new issue
+  files here; cycle itself writes here when CLI input is provided.
+- **`docs/cycle/issues/queued/`** — the engine has noticed the file and
+  added its line to `tbd.jsonl`; awaiting triage.
+- **`docs/cycle/issues/triaged/`** — triage has decomposed the issue
+  into cycles. Frontmatter `cycles:` is populated; `completed_at:` is
+  appended when every cycle has merged.
+- **`docs/cycle/issues/failed/`** — triage exhausted its retries.
+  Move a file back to `tbd/` to try again.
+
+**CLI input is uniform with file-based input.** `cycle run --issue
+JIRA-123`, `cycle run --issues-file …`, and `cycle run "freeform"` all
+materialize files in `tbd/` first, then the engine processes them via
+the same scan loop. One code path, one audit trail.
+
+### Scan lifecycle
+
+The engine scans `tbd/` at two moments:
+
+1. On `engine.start` — picks up anything dropped since last run.
+2. Before emitting `engine.stop` — if new files appear, keep running
+   instead of exiting.
+
+For each new file: **move first to `queued/`, then append** to
+`tbd.jsonl` (dedup by `id`). Move-first ordering makes crashes
+recoverable — a file in `queued/` with no matching `tbd.jsonl` line is
+re-added on the next scan.
+
+Ordering: FIFO by file mtime; optional `priority:` frontmatter (higher
+first, ties broken by mtime).
+
+### Frontmatter schema
+
+```yaml
+---
+id: JIRA-123                    # required, unique identifier
+source: jira                    # text | jira | linear | github | file
+title: "Safari login broken"    # required
+priority: 5                     # optional; higher = sooner
+workflow: feature               # optional; force workflow, skip triage classification
+depends_on: [JIRA-100]          # optional; defer until these are in triaged/
+added_at: 2026-04-18T10:15:00Z
+triage_attempts: 0              # engine-managed
+cycles: [0042, 0043]            # populated after triage
+completed_at: 2026-04-18T12:47:00Z  # populated when all cycles merged
+---
+```
+
+Body of the markdown = issue description. A template lives at
+`docs/cycle/issues/TEMPLATE.md` for external agents to copy.
+
 ## Triage (lazy, per issue)
 
-Incoming issues are first appended to `.cycle/tbd.jsonl` — the pending
-untriaged queue. The engine then loops:
+When an issue is popped from `tbd.jsonl`, the engine runs triage on its
+file in `queued/`. Triage produces a structured classification:
 
-1. Pop the next issue from `tbd.jsonl`.
-2. Run triage on it — a structured classification step that produces 1+
-   cycles:
-   ```json
-   {
-     "issue_id": "JIRA-123",
-     "cycles": [
-       { "workflow": "feature", "title": "…", "spec": "…" },
-       { "workflow": "bug",     "title": "…", "spec": "…" }
-     ]
-   }
-   ```
-3. Allocate cycle IDs and run each cycle in order.
-4. Repeat until `tbd.jsonl` is empty.
+```json
+{
+  "issue_id": "JIRA-123",
+  "cycles": [
+    { "workflow": "feature", "title": "…", "spec": "…" },
+    { "workflow": "bug",     "title": "…", "spec": "…" }
+  ]
+}
+```
 
-Triage happens lazily (just before an issue's cycles run) rather than
-upfront. This keeps `tbd.jsonl` meaningful as a visible backlog and makes
-crash-resume trivial: whatever's left in `tbd.jsonl` plus whatever's in
-`.cycle/log.jsonl` tells the engine exactly where to pick up.
+On success: write `TRIAGE.md` into the first cycle's artifact dir,
+populate `cycles:` in the issue frontmatter, move the file to
+`triaged/`, and run the cycles in order.
+
+On failure (invalid JSON, agent refusal, etc.): increment
+`triage_attempts` in frontmatter, re-attempt on the next loop iteration.
+After 3 attempts, move to `failed/` with a `FAILURE.md` note.
+
+Triage is lazy — it runs per issue, just before that issue's cycles. The
+backlog in `tbd.jsonl` + `tbd/` stays meaningful as a visible queue.
+Crash-resume is trivial: whatever's in the folders and `tbd.jsonl` when
+the engine restarts is the remaining work.
 
 ## Default Workflow Library
 
@@ -142,20 +201,20 @@ Git worktrees are deferred — future optional feature, not MVP.
 
 ## Artifacts & State
 
-Two engine-owned state files at the repo root (in `.cycle/`):
+**Engine state (`.cycle/`).**
+- `.cycle/log.jsonl` — global append-only event log. Source of truth for
+  everything that has happened. Never rewritten.
+- `.cycle/tbd.jsonl` — pending untriaged issues. One line per issue;
+  mutated as the engine consumes work.
 
-- **`.cycle/log.jsonl`** — global append-only event log. Source of truth
-  for everything that has happened (triage decisions, step starts/ends,
-  commits, PRs, merges). Never rewritten.
-- **`.cycle/tbd.jsonl`** — pending untriaged issues. Each line is one
-  issue. Mutated as the engine consumes work: entries are removed when
-  an issue is triaged; appended when a new invocation ingests issues.
+**Issues (`docs/cycle/issues/`).** Four folders — `tbd/`, `queued/`,
+`triaged/`, `failed/` — plus a `TEMPLATE.md`. See Issue Ingestion.
 
-Per-cycle artifacts (durable, committed into the PR) live at
-`docs/cycle/<cycle-id>-<workflow>-<slug>/` — e.g.,
-`docs/cycle/0042-feature-safari-login/` — containing SPEC.md, PLAN.md,
-REVIEW.md, FINDINGS.md, etc. Maintainers can keep or prune later; default
-is to keep as a paper trail.
+**Per-cycle artifacts (`docs/cycle/<cycle-id>-<workflow>-<slug>/`).**
+E.g., `docs/cycle/0042-feature-safari-login/`, containing SPEC.md,
+PLAN.md, REVIEW.md, FINDINGS.md, TRIAGE.md (on the first cycle of a
+triage), etc. Committed into that cycle's PR. Maintainers can keep or
+prune later; default is to keep as a paper trail.
 
 Cycle IDs are 4-digit zero-padded integers (`0001` through `9999`),
 globally unique within the project repo, allocated at cycle start by
