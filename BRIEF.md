@@ -71,30 +71,35 @@ node .cycle/bin/cycle.js run --dry-run "…"
 node .cycle/bin/cycle.js run --merge-mode stack "…"
 ```
 
-- **Blocking.** The parent agent waits for completion of the *whole queue*.
-- **stdout = JSONL events** (including queue progress — cycle K of N).
-- **Artifacts in `docs/cycle/<run-id>/`** for the paper trail.
+- **Blocking.** The parent agent waits until the pending queue is empty.
+- **stdout = JSONL events** (mirrored to `.cycle/log.jsonl`).
+- **Per-cycle artifacts** under `docs/cycle/<cycle-id>-<workflow>-<slug>/`.
 - **Each cycle produces its own commits, branch, and PR.**
 
-## Triage
+## Triage (lazy, per issue)
 
-Cycle's first step on each incoming issue is triage — a structured
-classification that outputs one or more cycles:
+Incoming issues are first appended to `.cycle/tbd.jsonl` — the pending
+untriaged queue. The engine then loops:
 
-```json
-{
-  "issue_id": "JIRA-123",
-  "cycles": [
-    { "workflow": "feature", "title": "…", "spec": "…" },
-    { "workflow": "feature", "title": "…", "spec": "…" },
-    { "workflow": "bug",     "title": "…", "spec": "…" }
-  ]
-}
-```
+1. Pop the next issue from `tbd.jsonl`.
+2. Run triage on it — a structured classification step that produces 1+
+   cycles:
+   ```json
+   {
+     "issue_id": "JIRA-123",
+     "cycles": [
+       { "workflow": "feature", "title": "…", "spec": "…" },
+       { "workflow": "bug",     "title": "…", "spec": "…" }
+     ]
+   }
+   ```
+3. Allocate cycle IDs and run each cycle in order.
+4. Repeat until `tbd.jsonl` is empty.
 
-Small issues produce a single-entry list. Larger issues decompose into
-multiple. All entries from all issues flatten into one ordered queue that
-the engine then processes sequentially.
+Triage happens lazily (just before an issue's cycles run) rather than
+upfront. This keeps `tbd.jsonl` meaningful as a visible backlog and makes
+crash-resume trivial: whatever's left in `tbd.jsonl` plus whatever's in
+`.cycle/log.jsonl` tells the engine exactly where to pick up.
 
 ## Default Workflow Library
 
@@ -137,12 +142,28 @@ Git worktrees are deferred — future optional feature, not MVP.
 
 ## Artifacts & State
 
-- Per-run artifacts at `docs/cycle/<run-id>/`, with per-cycle
-  subdirectories (SPEC.md, PLAN.md, REVIEW.md, FINDINGS.md, TRIAGE.md,
-  etc.).
-- Committed into each cycle's PR. Maintainers can prune later; default is
-  to keep as a paper trail of changes and fixes over time.
-- Per-run event log (exact location TBD — see Open Questions).
+Two engine-owned state files at the repo root (in `.cycle/`):
+
+- **`.cycle/log.jsonl`** — global append-only event log. Source of truth
+  for everything that has happened (triage decisions, step starts/ends,
+  commits, PRs, merges). Never rewritten.
+- **`.cycle/tbd.jsonl`** — pending untriaged issues. Each line is one
+  issue. Mutated as the engine consumes work: entries are removed when
+  an issue is triaged; appended when a new invocation ingests issues.
+
+Per-cycle artifacts (durable, committed into the PR) live at
+`docs/cycle/<cycle-id>-<workflow>-<slug>/` — e.g.,
+`docs/cycle/0042-feature-safari-login/` — containing SPEC.md, PLAN.md,
+REVIEW.md, FINDINGS.md, etc. Maintainers can keep or prune later; default
+is to keep as a paper trail.
+
+Cycle IDs are 4-digit zero-padded integers (`0001` through `9999`),
+globally unique within the project repo, allocated at cycle start by
+scanning `log.jsonl` for the highest existing ID.
+
+These files also form the read contract for future tooling — a TUI and a
+bun-backed HTML viewer that render queue progress from `tbd.jsonl` +
+`log.jsonl` in real time.
 
 ## Configuration
 
@@ -172,21 +193,23 @@ base. Default `--merge-mode auto` auto-merges via
 human-review workflows. Queue execution is sequential. No worktrees in
 MVP.
 
+**State model (Open Q #2).**
+Two global files at `.cycle/`: `log.jsonl` (append-only event history,
+source of truth) and `tbd.jsonl` (pending untriaged issues, mutated as
+consumed). No per-run subdirectory, no per-run ID. Cycles are the only
+persistent identity: 4-digit zero-padded, globally unique within the
+repo. Per-cycle artifacts at
+`docs/cycle/<cycle-id>-<workflow>-<slug>/`.
+
+**Resume semantics (Open Q #3).**
+Largely falls out of the state model: re-invoking `cycle run` with no
+arguments continues consuming whatever is still in `tbd.jsonl`. No
+explicit `--resume` flag needed. A crashed engine leaves its pending
+queue in place for the next invocation.
+
 ---
 
 ## Open Questions
-
-### 2. State log location
-- One log per run at `.cycle/runs/<run-id>/events.jsonl`, plus a
-  `.cycle/index.jsonl` global index?
-- Or one append-only global log like cc-pipeline's `pipeline.jsonl`?
-
-### 3. Resume semantics
-- Should `cycle run --resume <run-id>` pick up an interrupted queue from
-  its events log (e.g., start from cycle K+1 if cycle K completed)?
-- Or is every invocation fresh — the caller re-issues the remaining
-  issues?
-- More relevant now that a single invocation can be long (12-cycle queues).
 
 ### 4. Queue failure handling
 - If cycle 3 of 12 fails (unresolvable review findings, verify fails

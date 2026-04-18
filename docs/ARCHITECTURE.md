@@ -43,10 +43,12 @@ Contracts:
 - **In:** one or more *issues*. An issue is any unit of work — free-text
   task, Jira card, GH issue, PRD, BRIEF. Provided positionally
   (`"task text"`), via `--issue <id>` (fetched from a tracker), via a
-  file (`--issues-file`), or on stdin (`--issues-stdin`).
-- **Out:** JSONL event stream on stdout; durable artifacts under
-  `docs/cycle/<run-id>/`; one branch, commit set, and PR per cycle in the
-  queue; a final exit code.
+  file (`--issues-file`), or on stdin (`--issues-stdin`). Ingested
+  issues are appended to `.cycle/tbd.jsonl` and consumed lazily.
+- **Out:** JSONL event stream on stdout (mirrored to `.cycle/log.jsonl`);
+  durable per-cycle artifacts under `docs/cycle/<cycle-id>-<workflow>-<slug>/`;
+  one branch, commit set, and PR per cycle in the queue; a final exit
+  code.
 
 ## 2. Distribution & Runtime
 
@@ -119,64 +121,76 @@ Flags (strawman):
 | `--dry-run` | Run triage only; print the queue; don't execute |
 | `--merge-mode {auto\|stack}` | Default `auto` (merge each cycle to main), alternate `stack` (stacked branches, no auto-merge) |
 | `--base <branch>` | Override the PR base branch (default `main`) |
-| `--run-id <id>` | Override the auto-generated run ID |
 | `--no-pr` | Commit locally but don't push or open PRs |
 
 ### Execution model
 
-- **Blocking.** The parent caller `spawn`s cycle and waits for exit. One
-  invocation = one run of the entire queue.
-- **stdout = JSONL.** Every significant event is one JSON line.
+- **Blocking.** The parent caller `spawn`s cycle and waits for exit. The
+  engine runs until `tbd.jsonl` is empty or a failure stops the queue.
+- **stdout = JSONL** (mirrored to `.cycle/log.jsonl`). Every significant
+  event is one JSON line.
 - **stderr = freeform.** Human-legible log output, errors, stack traces.
-- **Exit code.** `0` on success, non-zero on any queue failure.
+- **Exit code.** `0` on success, non-zero on any failure.
 
 ### JSONL event schema (strawman)
 
 ```jsonl
-{"ts":"…","event":"run.start","run_id":"…","issues":[…]}
-{"ts":"…","event":"triage.start","issue":"JIRA-123"}
-{"ts":"…","event":"triage.decision","issue":"JIRA-123","cycles":[…]}
-{"ts":"…","event":"queue.built","total_cycles":12}
-{"ts":"…","event":"cycle.start","cycle_id":"…","index":1,"total":12,"workflow":"feature","title":"…"}
-{"ts":"…","event":"step.start","cycle_id":"…","step":"spec","agent":"claudecode"}
-{"ts":"…","event":"step.end","cycle_id":"…","step":"spec","status":"ok","duration_ms":12345,"artifact":"docs/cycle/<run-id>/cycle-01-…/SPEC.md"}
-{"ts":"…","event":"commit","cycle_id":"…","sha":"…"}
-{"ts":"…","event":"pr.opened","cycle_id":"…","url":"…","number":42}
-{"ts":"…","event":"pr.merged","cycle_id":"…","sha":"…"}
-{"ts":"…","event":"cycle.end","cycle_id":"…","status":"ok"}
-{"ts":"…","event":"run.end","status":"ok","duration_ms":…}
+{"ts":"…","event":"engine.start","issues_ingested":7}
+{"ts":"…","event":"tbd.pop","issue_id":"JIRA-123"}
+{"ts":"…","event":"triage.start","issue_id":"JIRA-123"}
+{"ts":"…","event":"triage.decision","issue_id":"JIRA-123","cycles":[{"cycle_id":"0042","workflow":"feature","title":"…"},{"cycle_id":"0043","workflow":"feature","title":"…"}]}
+{"ts":"…","event":"cycle.start","cycle_id":"0042","workflow":"feature","title":"…"}
+{"ts":"…","event":"step.start","cycle_id":"0042","step":"spec","agent":"claudecode"}
+{"ts":"…","event":"step.end","cycle_id":"0042","step":"spec","status":"ok","duration_ms":12345,"artifact":"docs/cycle/0042-feature-safari-login/SPEC.md"}
+{"ts":"…","event":"commit","cycle_id":"0042","sha":"…"}
+{"ts":"…","event":"pr.opened","cycle_id":"0042","url":"…","number":142}
+{"ts":"…","event":"pr.merged","cycle_id":"0042","sha":"…"}
+{"ts":"…","event":"cycle.end","cycle_id":"0042","status":"ok"}
+{"ts":"…","event":"engine.stop","status":"ok"}
 ```
 
 The schema is flat and additive — new `event` types can be introduced
-without breaking parsers that ignore unknowns.
+without breaking parsers that ignore unknowns. There is no per-run ID;
+engine lifecycle is marked by `engine.start` / `engine.stop` with
+timestamps.
 
 ## 4. Execution Model
 
-### Run lifecycle
+### Engine lifecycle
 
-1. **Parse args.** Normalize the input into an ordered list of issues.
-2. **Bootstrap run.** Allocate `run-id`; create `docs/cycle/<run-id>/`
-   and the run event log; emit `run.start`.
-3. **Triage loop.** For each issue, run the triage step. Output is a
-   list of 1+ cycles, each tagged with a workflow (`bug` / `feature` /
-   `research`) and a spec.
-4. **Build queue.** Flatten all per-issue cycle lists into a single
-   ordered queue. Emit `queue.built`.
-5. **Cycle loop.** For each cycle in the queue:
-   - Create the branch (off `main` in `auto` mode, off the prior
-     cycle's branch in `stack` mode).
-   - Load the named workflow YAML; execute its steps in order.
-   - Open a PR. Under `auto`, enable `gh pr merge --squash --auto` and
-     wait for the merge to land on `main` before starting the next
-     cycle. Under `stack`, exit immediately after opening the PR; the
-     next cycle starts off the current cycle's branch.
-6. **Finalize.** Emit `run.end` and exit.
+1. **Parse args.** Normalize input into an ordered list of issues;
+   append each line to `.cycle/tbd.jsonl`.
+2. **Start.** Emit `engine.start`.
+3. **Process loop** (until `tbd.jsonl` is empty):
+   - **Pop** the next issue from `tbd.jsonl`; emit `tbd.pop`.
+   - **Triage** that issue → list of 1+ cycles, each tagged with a
+     workflow (`bug` / `feature` / `research`) and a spec.
+   - **Allocate cycle IDs** by scanning `log.jsonl` for the highest
+     existing ID and incrementing.
+   - **Cycle sub-loop** (for each cycle from the triage):
+     - Create the branch (off `main` in `auto` mode, off the prior
+       cycle's branch in `stack` mode).
+     - Create `docs/cycle/<cycle-id>-<workflow>-<slug>/`.
+     - Load the named workflow YAML; execute its steps in order.
+     - Open a PR. Under `auto`, enable
+       `gh pr merge --squash --auto` and poll until the PR lands on
+       `main` before starting the next cycle. Under `stack`, proceed
+       immediately; the next cycle starts off this cycle's branch.
+     - Emit `cycle.end`.
+4. **Finalize.** When `tbd.jsonl` is empty, emit `engine.stop` and
+   exit 0.
+
+Triage is lazy (per issue, just before its cycles run) rather than
+upfront. This keeps `tbd.jsonl` a meaningful live backlog and makes
+crash-resume trivial — re-invoking `cycle run` with no arguments picks
+up whatever's still pending in `tbd.jsonl` and `log.jsonl`.
 
 ### Triage
 
-Triage is the always-first step for each incoming issue unless
-`--workflow` is set. It's a `claudecode` invocation whose prompt asks for
-a structured JSON output:
+Triage runs per issue as it's popped from `tbd.jsonl` (unless
+`--workflow` is set, which skips triage and forces that workflow on a
+single synthetic cycle per issue). It's a `claudecode` invocation whose
+prompt asks for structured JSON output:
 
 ```json
 {
@@ -188,8 +202,10 @@ a structured JSON output:
 }
 ```
 
-Triage artifacts land at `docs/cycle/<run-id>/triage/<issue-id>.md` (human
-version) and are parsed into queue entries.
+The decision is logged to `log.jsonl` as `triage.decision`; the
+human-readable write-up lands at
+`docs/cycle/<first-cycle-id>-<workflow>-<slug>/TRIAGE.md` — one triage
+doc per issue, named after the first cycle it produced.
 
 ### Workflows
 
@@ -288,45 +304,59 @@ must-fixes.
 
 ## 6. State & Artifacts
 
-### Per-run artifact directory (durable)
+### Engine state (in `.cycle/`)
+
+Two global files, both at the repo root under `.cycle/`:
+
+- **`.cycle/log.jsonl`** — append-only event history, mirrored from
+  stdout. Source of truth for everything that has happened: triage
+  decisions, step starts/ends, commits, PRs, merges, engine lifecycle.
+  Never rewritten. Used to reconstruct cycle state, allocate the next
+  cycle ID, and power the future TUI / HTML viewer.
+- **`.cycle/tbd.jsonl`** — pending untriaged issues. One issue per
+  line. Mutated: entries are appended on ingest, removed when an issue
+  is popped for triage. Remains populated if the engine crashes — the
+  next invocation picks up where it left off.
+
+Entry schema for `tbd.jsonl`:
+
+```json
+{"id":"JIRA-123","source":"jira","title":"…","body":"…","added_at":"2026-04-18T10:15:00Z"}
+```
+
+Where `source` is one of `text|jira|linear|github|file`, and `id` is the
+caller's reference (ticket key, UUID, or a generated token like
+`txt-a9f3` for freeform task text).
+
+### Per-cycle artifact directory (durable)
 
 ```
-docs/cycle/<run-id>/
-├── RUN.md                        # Queue summary + final state
-├── triage/
-│   ├── JIRA-123.md
-│   └── JIRA-124.md
-├── cycle-01-feature-safari-login/
-│   ├── SPEC.md
-│   ├── PLAN.md
-│   ├── REVIEW.md
-│   └── …
-├── cycle-02-feature-csv-export/
-│   └── …
-└── cycle-03-bug-timeout/
-    └── …
+docs/cycle/0042-feature-safari-login/
+├── TRIAGE.md     # Only on the first cycle emitted from a given triage
+├── SPEC.md
+├── RESEARCH.md
+├── PLAN.md
+├── REVIEW.md
+├── FINDINGS.md   # research workflow only
+└── …
 ```
 
 Each cycle directory is committed as part of that cycle's PR. Maintainers
 can keep or prune `docs/cycle/` later.
 
-### Per-run event log (engine-private)
-
-`.cycle/runs/<run-id>/events.jsonl` — the same JSONL stream emitted to
-stdout, persisted so an agent can introspect after the fact.
-
-> **Open:** location and whether there's also a global index. See
-> [`BRIEF.md`](../BRIEF.md) §Open Questions #2.
-
-### Run ID
-
-Generated at run start. Proposed format: `YYYYMMDD-HHMMSS-<slug>`, where
-`<slug>` is derived from the first issue's title.
-
 ### Cycle ID
 
-Per cycle. Proposed format: `<NN>-<workflow>-<slug>` where `NN` is the
-two-digit queue index and `<slug>` comes from the cycle title.
+4-digit zero-padded integer (`0001`–`9999`), globally unique within the
+project repo. Allocated at cycle start by scanning `log.jsonl` for the
+highest existing cycle ID and incrementing. Widening beyond 4 digits is
+trivial if a project ever approaches 10k cycles.
+
+### No run ID
+
+A "run" is just one process execution of the engine — a temporal
+boundary, not a persistent identity. Engine lifecycle is marked in
+`log.jsonl` by `engine.start` / `engine.stop` events with timestamps; no
+ID is minted. Cycles are the only persistent identity the system needs.
 
 ## 7. Branching & Merge Modes
 
@@ -376,26 +406,37 @@ Example: parent agent invokes cycle with 7 Jira issues, 3 of them big.
 
 1. Parent runs
    `node .cycle/bin/cycle.js run --issues-file jira-todo.json`.
-2. cycle allocates run-id `20260418-1015-jira-batch`, creates
-   `docs/cycle/20260418-1015-jira-batch/` and the event log. Emits
-   `run.start`.
-3. Triage processes each of the 7 issues. 4 classify as single `bug` or
-   `feature` cycles; 3 decompose into multi-cycle lists. Flattened total:
-   12 cycles in the queue. Emits `queue.built`.
-4. Engine enters the cycle loop. For cycle 1 (say `feature`):
-   - Creates branch `cycle/feature/safari-login` off `main`.
-   - Runs `spec → research → plan → build → review → fix → verify →
-     commit → pr`. Each step emits `step.start` / `step.end`.
-   - Opens PR, enables `gh pr merge --squash --auto`.
-   - Polls until the PR merges (CI passes → auto-merge lands on `main`).
-   - Emits `pr.merged` and `cycle.end`.
-5. Engine moves to cycle 2, which branches off the updated `main`
-   (including cycle 1's code). Same pattern.
-6. When the 12th cycle merges, emits `run.end` with status `ok`, exit 0.
+2. cycle appends all 7 issues to `.cycle/tbd.jsonl` and emits
+   `engine.start`.
+3. Process loop begins. Pops the first issue (e.g., `JIRA-123`); emits
+   `tbd.pop`.
+4. Triage classifies `JIRA-123` as a single `feature` cycle. Logs
+   `triage.decision`. Engine scans `log.jsonl`, finds the previous
+   highest cycle ID was `0041`, so this cycle gets `0042`.
+5. Cycle `0042` runs:
+   - Branch `cycle/feature/safari-login` created off `main`.
+   - `docs/cycle/0042-feature-safari-login/` created.
+   - Workflow steps run:
+     `spec → research → plan → build → review → fix → verify → commit → pr`.
+     Each emits `step.start` / `step.end`.
+   - PR opened; `gh pr merge --squash --auto` enabled.
+   - Engine polls until the PR lands on `main`. Emits `pr.merged` and
+     `cycle.end`.
+6. Engine loops back. Pops `JIRA-124`. Triage decomposes it into 3
+   cycles (IDs `0043`, `0044`, `0045`). Each runs in turn, branched off
+   the updated `main`.
+7. And so on, until `tbd.jsonl` is empty. Total across the 7 issues:
+   12 cycles executed, 12 PRs merged. Emits `engine.stop` with status
+   `ok`. Exit 0.
 
 If invoked with `--merge-mode stack`: each cycle's PR is opened with the
 prior cycle's branch as its base, no polling, the engine moves straight
-to the next cycle. Humans merge bottom-up later.
+to the next cycle. Humans merge the stack bottom-up later.
+
+If the engine crashes after cycle 5 merges: `tbd.jsonl` still has the
+un-popped issues, `log.jsonl` records everything that did happen.
+Re-invoking `node .cycle/bin/cycle.js run` with no arguments picks up
+from the next pending issue automatically.
 
 ## 9. Extensibility
 
@@ -453,8 +494,6 @@ needs node + `claude` + `gh` preinstalled.
 
 Tracked in [`BRIEF.md`](../BRIEF.md) §Open Questions. Summary:
 
-2. State log location (per-run vs global).
-3. Resume semantics (`--resume` vs always-fresh).
 4. Queue failure handling (stop / skip / retry).
 5. Skill packaging (first-class vs nice-to-have).
 6. `init` scope (confirm the layout).
@@ -463,5 +502,9 @@ Tracked in [`BRIEF.md`](../BRIEF.md) §Open Questions. Summary:
 Resolved since the last revision:
 
 1. ✅ Branching & PR strategy — default `auto` (branch off main,
-   auto-merge), alternate `stack` (stacked branches, human review). See
-   §7.
+   auto-merge), alternate `stack` (stacked branches, human review). See §7.
+2. ✅ State log — global `.cycle/log.jsonl` (append-only) plus
+   `.cycle/tbd.jsonl` (pending untriaged issues). Cycle ID is the only
+   persistent identity; no run ID. See §6.
+3. ✅ Resume semantics — re-invoking `cycle run` with no arguments
+   continues consuming `tbd.jsonl`. No explicit `--resume` flag needed.
