@@ -44,7 +44,8 @@ stdout so the calling agent can monitor, and writes artifacts to
   `.cycle/bin/cycle.js` — no `npm install` required in the consuming repo.
 - Runtime on the consuming repo: **node** + **`claude` CLI** + **git** +
   **`gh`**. Nothing else.
-- Also packageable as a Claude Code skill that wraps the CLI.
+- Ships a minimal Claude Code skill at `.claude/skills/cycle.md` by
+  default (opt out via `cycle init --no-skill`).
 - Must run locally, in **GitHub Actions**, and in **ephemeral containers**
   spun up to handle a batch of work.
 
@@ -314,6 +315,26 @@ or override workflows. Steps reference prompt templates in
 `.cycle/prompts/`. Agents per step (`claudecode`, `codex`, `bash`) are
 configurable.
 
+## Claude Code Skill
+
+`cycle init` installs `.claude/skills/cycle.md` by default (opt out
+with `--no-skill`). The skill is deliberately minimal — it exists so
+any Claude Code session in the repo can discover cycle, invoke it
+correctly, and relay its JSONL progress to the user. The CLI remains
+authoritative.
+
+Invocation flavors supported by the skill:
+- **Slash command.** `/cycle "fix the safari login bug"`, `/cycle --issue JIRA-123`, etc.
+- **Description-triggered.** User says "use cycle to work through these tickets" and Claude Code recognizes the intent.
+
+What the skill **does not** do (left to the caller):
+- Rescheduling after an exit-code-42 (rate-limit pause).
+- Querying `log.jsonl` / `tbd.jsonl` for historical status.
+- Pretty-printing or visualization beyond plain progress relay.
+
+These are intentionally out of scope for MVP — the skill stays narrow
+so it doesn't drift from the CLI.
+
 ## What cycle is NOT
 
 - **Not** a project vision driver. No BRIEF → Epic → Phase loop of its
@@ -360,15 +381,16 @@ orthogonal: short transients back off in-process; long exhaustion
 exits with code 42 for the caller to re-invoke later. See Cycle
 Attempts & Failure Handling.
 
+**Skill packaging (Open Q #5).**
+`cycle init` installs `.claude/skills/cycle.md` by default (opt out via
+`--no-skill`). Skill is minimal: supports both slash-command
+(`/cycle …`) and description-triggered invocation, and relays JSONL
+progress to the user. Exit-42 rescheduling, log-history queries, and
+fancy visualization are left to the caller. See Claude Code Skill.
+
 ---
 
 ## Open Questions
-
-### 5. Skill packaging
-- Is a Claude Code skill a first-class deliverable alongside the CLI, or
-  nice-to-have?
-- How does the skill surface a long-running queue invocation within a
-  single parent agent turn?
 
 ### 6. `init` scope
 What exactly does `cycle init` install? Strawman:

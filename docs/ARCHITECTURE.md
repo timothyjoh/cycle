@@ -82,7 +82,8 @@ Contracts:
 └── CLAUDE.md             # Config docs for agents working on this repo
 .claude/
 └── skills/
-    └── cycle.md          # (optional) Claude Code skill wrapping the CLI
+    └── cycle.md          # Claude Code skill; shipped by default
+                          # (opt out with `cycle init --no-skill`)
 ```
 
 ### Runtime requirements
@@ -592,9 +593,35 @@ agent is effectively pinned until cycle exits.
 
 ### Claude Code skill
 
-A thin skill at `.claude/skills/cycle.md` tells Claude Code "when the
-user asks to run cycle on an issue or batch, invoke
-`node .cycle/bin/cycle.js run …`." Optional; the CLI is authoritative.
+A minimal skill at `.claude/skills/cycle.md` is installed by default by
+`cycle init` (opt out via `--no-skill`). Two invocation flavors:
+
+- **Slash command** — `/cycle "fix the safari login bug"`,
+  `/cycle --issue JIRA-123`.
+- **Description-triggered** — the user says "use cycle to work through
+  these tickets" and Claude Code recognizes the intent.
+
+The skill is deliberately narrow. It contains:
+
+- Metadata (name, description, when-to-use).
+- The exact invocation recipe
+  (`node .cycle/bin/cycle.js run …`) with the flag surface.
+- Guidance on parsing JSONL events from stdout and relaying progress
+  in plain English (e.g., "triaging JIRA-123", "cycle 0042 building,
+  attempt 2", "verify failed, restarting").
+- Exit-code legend (`0` success, `42` rate-limit-paused, non-zero
+  failure).
+
+What the skill explicitly **does not** do (deferred / caller's
+responsibility):
+
+- Rescheduling a follow-up invocation after exit-code-42.
+- Historical queries against `log.jsonl` / `tbd.jsonl`.
+- Pretty-printing or visualization beyond progress relay.
+
+This keeps the skill resilient against CLI drift — it only needs
+updating when the invocation surface changes. Richer wrapping belongs
+in the future TUI / HTML viewer, not the skill.
 
 ### GitHub Actions
 
@@ -615,7 +642,6 @@ needs node + `claude` + `gh` preinstalled.
 
 Tracked in [`BRIEF.md`](../BRIEF.md) §Open Questions. Summary:
 
-5. Skill packaging (first-class vs nice-to-have).
 6. `init` scope (confirm the layout).
 7. Definition of Done for cycle's own MVP.
 
@@ -634,3 +660,8 @@ Resolved since the last revision:
    remaining planned cycles skip (no IDs consumed). `auto` mode
    continues to next issue; `stack` mode halts. Rate limits orthogonal
    (backoff for short, `engine.paused` + exit 42 for long). See §10.
+5. ✅ Skill packaging — minimal `.claude/skills/cycle.md` shipped by
+   default (`cycle init --no-skill` opts out). Supports `/cycle …`
+   slash command and description-triggered invocation. Exit-42
+   rescheduling, historical log queries, and visualization deferred
+   to callers / future viewer tooling. See §11.
