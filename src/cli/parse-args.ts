@@ -2,12 +2,25 @@ import { parseArgs as nodeParseArgs } from "node:util";
 
 export type RunArgs = {
   command: "run";
-  text: string;
+  text: string | null;
   workflow: string;
   dryRun: boolean;
 };
 
-export function parseArgs(argv: string[]): RunArgs {
+export type DropArgs = {
+  command: "drop";
+  text: string;
+};
+
+export type ParsedArgs = RunArgs | DropArgs;
+
+export function parseArgs(argv: string[]): ParsedArgs {
+  if (argv[0] === "drop") {
+    const text = argv.slice(1).join(" ").trim();
+    if (!text) throw new Error("drop requires task text");
+    return { command: "drop", text };
+  }
+
   if (argv[0] !== "run") throw new Error(`unknown command: ${argv[0] ?? "(none)"}`);
 
   const { values, positionals } = nodeParseArgs({
@@ -20,11 +33,10 @@ export function parseArgs(argv: string[]): RunArgs {
   });
 
   const text = positionals.join(" ").trim();
-  if (!text) throw new Error("run requires a task text positional");
 
   return {
     command: "run",
-    text,
+    text: text === "" ? null : text,
     workflow: String(values.workflow),
     dryRun: Boolean(values["dry-run"]),
   };

@@ -7446,6 +7446,11 @@ async function getVersion() {
 // src/cli/parse-args.ts
 import { parseArgs as nodeParseArgs } from "node:util";
 function parseArgs(argv2) {
+  if (argv2[0] === "drop") {
+    const text2 = argv2.slice(1).join(" ").trim();
+    if (!text2) throw new Error("drop requires task text");
+    return { command: "drop", text: text2 };
+  }
   if (argv2[0] !== "run") throw new Error(`unknown command: ${argv2[0] ?? "(none)"}`);
   const { values, positionals } = nodeParseArgs({
     args: argv2.slice(1),
@@ -7456,10 +7461,9 @@ function parseArgs(argv2) {
     allowPositionals: true
   });
   const text = positionals.join(" ").trim();
-  if (!text) throw new Error("run requires a task text positional");
   return {
     command: "run",
-    text,
+    text: text === "" ? null : text,
     workflow: String(values.workflow),
     dryRun: Boolean(values["dry-run"])
   };
@@ -7485,13 +7489,13 @@ function freeformId(text, now = /* @__PURE__ */ new Date()) {
 
 // src/issue/materialize.ts
 async function materializeFreeformIssue(text, repoRoot, now = /* @__PURE__ */ new Date()) {
-  const id2 = freeformId(text, now);
+  const id = freeformId(text, now);
   const dir = join(repoRoot, "docs", "cycle", "issues", "tbd");
   await mkdir(dir, { recursive: true });
-  const path = join(dir, `${id2}.md`);
+  const path = join(dir, `${id}.md`);
   const frontmatter = [
     "---",
-    `id: ${id2}`,
+    `id: ${id}`,
     "source: text",
     `title: "${text.replace(/"/g, '\\"')}"`,
     `added_at: ${now.toISOString()}`,
@@ -7502,7 +7506,7 @@ async function materializeFreeformIssue(text, repoRoot, now = /* @__PURE__ */ ne
     ""
   ].join("\n");
   await writeFile(path, frontmatter, "utf8");
-  return { path, id: id2 };
+  return { path, id };
 }
 
 // src/engine/scan.ts
@@ -7530,7 +7534,7 @@ async function scanTbd(repoRoot) {
   } catch {
     return [];
   }
-  const ingested2 = [];
+  const ingested = [];
   for (const f of files) {
     const src = join2(tbd, f);
     const dst = join2(queued, f);
@@ -7545,9 +7549,9 @@ async function scanTbd(repoRoot) {
       added_at: fm.added_at
     };
     await appendFile(join2(cycleDir, "tbd.jsonl"), JSON.stringify(entry) + "\n", "utf8");
-    ingested2.push(entry);
+    ingested.push(entry);
   }
-  return ingested2;
+  return ingested;
 }
 
 // src/engine/log.ts
@@ -7576,8 +7580,8 @@ async function allocateCycleId(repoRoot) {
       if (!line) continue;
       try {
         const e = JSON.parse(line);
-        const id2 = typeof e.cycle_id === "string" ? parseInt(e.cycle_id, 10) : NaN;
-        if (!Number.isNaN(id2) && id2 > highest) highest = id2;
+        const id = typeof e.cycle_id === "string" ? parseInt(e.cycle_id, 10) : NaN;
+        if (!Number.isNaN(id) && id > highest) highest = id;
       } catch {
       }
     }
@@ -7703,19 +7707,19 @@ async function runCycle(repoRoot, opts) {
   };
   for (const step of wf.steps) {
     await log2.emit("step.start", { cycle_id: cycleId, step: step.name, agent: step.agent });
-    let r2;
+    let r;
     if (step.agent === "bash") {
-      r2 = await execBashStep(repoRoot, step.command, cycleEnv);
+      r = await execBashStep(repoRoot, step.command, cycleEnv);
     } else if (step.agent === "claudecode") {
-      r2 = await execClaudecodeStep(repoRoot, step.prompt, cycleEnv);
-      if (r2.status === "ok" && step.name) {
-        await writeFile2(join9(artifactDir, `${step.name.toUpperCase()}.md`), r2.stdout, "utf8");
+      r = await execClaudecodeStep(repoRoot, step.prompt, cycleEnv);
+      if (r.status === "ok" && step.name) {
+        await writeFile2(join9(artifactDir, `${step.name.toUpperCase()}.md`), r.stdout, "utf8");
       }
     } else {
       throw new Error(`unknown agent: ${step.agent}`);
     }
-    await log2.emit("step.end", { cycle_id: cycleId, step: step.name, status: r2.status, exit_code: r2.exitCode });
-    if (r2.status === "failed") {
+    await log2.emit("step.end", { cycle_id: cycleId, step: step.name, status: r.status, exit_code: r.exitCode });
+    if (r.status === "failed") {
       await log2.emit("cycle.end", { cycle_id: cycleId, status: "failed", failing_step: step.name });
       return { cycleId, status: "failed", failingStep: step.name };
     }
@@ -7738,17 +7742,44 @@ if (argv[0] === "init") {
 }
 var args = parseArgs(argv);
 var cwd = process.cwd();
-var log = await createLogger(cwd);
-await log.emit("engine.start", {});
-var { id } = await materializeFreeformIssue(args.text, cwd);
-var ingested = await scanTbd(cwd);
-var issue = ingested.find((i) => i.id === id);
-if (!issue) throw new Error("freshly materialized issue not picked up by scan");
-await log.emit("issue.ingested", { issue_id: issue.id, path: issue.path });
-if (args.dryRun) {
-  await log.emit("engine.stop", { status: "ok", dry_run: true });
+if (args.command === "drop") {
+  const { id, path } = await materializeFreeformIssue(args.text, cwd);
+  console.log(JSON.stringify({ event: "issue.dropped", issue_id: id, path }));
   process.exit(0);
 }
-var r = await runCycle(cwd, { issueId: issue.id, title: issue.title, workflow: args.workflow });
-await log.emit("engine.stop", { status: r.status });
-process.exit(r.status === "ok" ? 0 : 1);
+var log = await createLogger(cwd);
+await log.emit("engine.start", {});
+if (args.text) {
+  await materializeFreeformIssue(args.text, cwd);
+}
+var cyclesProcessed = 0;
+var cyclesFailed = 0;
+while (true) {
+  const ingested = await scanTbd(cwd);
+  if (ingested.length === 0) break;
+  for (const issue of ingested) {
+    await log.emit("issue.ingested", { issue_id: issue.id, path: issue.path });
+    if (args.dryRun) {
+      continue;
+    }
+    const r = await runCycle(cwd, {
+      issueId: issue.id,
+      title: issue.title,
+      workflow: args.workflow
+    });
+    if (r.status === "ok") {
+      cyclesProcessed++;
+    } else {
+      cyclesFailed++;
+      await log.emit("issue.failed", { issue_id: issue.id, failing_step: r.failingStep });
+    }
+  }
+}
+var overall = cyclesFailed > 0 ? "partial" : "ok";
+await log.emit("engine.stop", {
+  status: args.dryRun ? "ok" : overall,
+  dry_run: args.dryRun,
+  cycles_processed: cyclesProcessed,
+  cycles_failed: cyclesFailed
+});
+process.exit(cyclesFailed === 0 ? 0 : 1);
