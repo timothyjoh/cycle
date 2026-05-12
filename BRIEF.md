@@ -39,44 +39,49 @@ stdout so the calling agent can monitor, and writes artifacts to
 
 ## Tech Stack
 
-- **Bun-native.** Authored in TypeScript; bundled via `bun build` into a
+- **Node-native.** Authored in TypeScript; bundled via `esbuild` into a
   single self-contained file at `.cycle/bin/cycle.js`.
 - No `npm install` required in the consuming repo — the committed
   bundle is the engine.
-- Runtime on the consuming repo: **`bun`** + **`claude` CLI** + **git** +
-  **`gh`**. Nothing else.
-  - Bun is a one-line install (`curl -fsSL https://bun.sh/install | bash`).
-  - Bun's bundler replaces rollup / esbuild.
-  - Bun's built-in HTTP server will power the future HTML progress
-    viewer without adding a dependency.
+- Runtime on the consuming repo: **`node`** (≥ 22.6; ≥ 24 LTS
+  recommended) + **`claude` CLI** + **git** + **`gh`**. Nothing else.
+  - Node is the default JavaScript runtime on every CI image, container
+    base, and developer machine — zero install friction.
+  - **No TS → JS transpile in the dev loop.** Node 22.6+ executes `.ts`
+    files directly via `--experimental-strip-types`; Node 23.6+ strips
+    types by default. Type-checking runs separately (`tsc --noEmit`).
+  - `esbuild` produces the single-file `.cycle/bin/cycle.js` bundle —
+    one devDependency, no broader build toolchain.
+  - Node's built-in `node:http` server will power the future HTML
+    progress viewer without adding a web framework dependency.
 - Ships a minimal Claude Code skill at `.claude/skills/cycle.md` by
   default (opt out via `cycle init --no-skill`).
 - Must run locally, in **GitHub Actions**, and in **ephemeral containers**
-  spun up to handle a batch of work. A compiled-binary distribution
-  (`bun build --compile`) is a future option for contexts where
-  installing Bun is friction; out of MVP scope.
+  spun up to handle a batch of work. A single-executable distribution
+  via Node SEA (`node --experimental-sea-config`) is a future option for
+  contexts where requiring Node is friction; out of MVP scope.
 
 ## Invocation Contract
 
 ```bash
 # Single freeform task
-bun .cycle/bin/cycle.js run "fix the login bug on Safari"
+node .cycle/bin/cycle.js run "fix the login bug on Safari"
 
 # Single issue from a tracker
-bun .cycle/bin/cycle.js run --issue JIRA-123
+node .cycle/bin/cycle.js run --issue JIRA-123
 
 # A batch of issues
-bun .cycle/bin/cycle.js run --issues-file issues.json
-cat issues.json | bun .cycle/bin/cycle.js run --issues-stdin
+node .cycle/bin/cycle.js run --issues-file issues.json
+cat issues.json | node .cycle/bin/cycle.js run --issues-stdin
 
 # Force a specific workflow (skip triage)
-bun .cycle/bin/cycle.js run --workflow feature "add CSV export"
+node .cycle/bin/cycle.js run --workflow feature "add CSV export"
 
 # Triage only, no execution
-bun .cycle/bin/cycle.js run --dry-run "…"
+node .cycle/bin/cycle.js run --dry-run "…"
 
 # Choose merge mode (default: auto)
-bun .cycle/bin/cycle.js run --merge-mode stack "…"
+node .cycle/bin/cycle.js run --merge-mode stack "…"
 ```
 
 - **Blocking.** The parent agent waits until the pending queue is empty.
@@ -312,7 +317,7 @@ globally unique within the project repo, allocated at cycle start by
 scanning `log.jsonl` for the highest existing ID.
 
 These files also form the read contract for future tooling — a TUI and a
-bun-backed HTML viewer that render queue progress from `tbd.jsonl` +
+Node-backed HTML viewer that render queue progress from `tbd.jsonl` +
 `log.jsonl` in real time.
 
 ## Configuration
@@ -419,7 +424,7 @@ Phase Plan below.
 ## Phase Plan
 
 **Phase 1 — Walking skeleton.**
-`cycle init` scaffolds everything. `bun .cycle/bin/cycle.js run
+`cycle init` scaffolds everything. `node .cycle/bin/cycle.js run
 "text"` runs a single freeform task end-to-end. One workflow
 implemented (`feature` — spec → plan → build → verify → commit →
 pr); `review` / `fix` can be stubs. Task flows through
