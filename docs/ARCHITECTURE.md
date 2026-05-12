@@ -17,7 +17,7 @@ local working tree of the repo it's installed in.
                  │  spawn + 1 or more issues
                  ▼
 ┌──────────────────────────────────────┐
-│  cycle (bun .cycle/bin/cycle.js)     │
+│  cycle (node .cycle/bin/cycle.js)    │
 │  ┌────────────────────────────────┐  │
 │  │ ingest issues                  │  │
 │  │   → triage each → [cycles…]    │  │
@@ -60,7 +60,7 @@ Contracts:
 ```
 .cycle/
 ├── bin/
-│   └── cycle.js          # Single-file bundled engine (bun build)
+│   └── cycle.js          # Single-file bundled engine (esbuild)
 ├── workflows/
 │   ├── research.yaml
 │   ├── bug.yaml
@@ -88,7 +88,10 @@ Contracts:
 
 ### Runtime requirements
 
-- **Bun** (≥ 1.0) — to execute bundled `cycle.js`
+- **Node.js** (≥ 22.6; ≥ 24 LTS recommended) — to execute bundled
+  `cycle.js`. The bundle is plain JavaScript, so no runtime flags are
+  required. Dev-loop `.ts` execution uses Node's native type stripping
+  (`--experimental-strip-types` on 22.6+; default on 23.6+).
 - **`claude` CLI** — for the `claudecode` agent
 - **git** and **`gh`** — branches, commits, PRs, auto-merge
 - Optional: **`codex`** — if a workflow routes a step through Codex
@@ -98,31 +101,38 @@ Contracts:
 No `npm install` in the consuming repo — the committed `cycle.js`
 bundle is the engine. No persistent services. No daemon.
 
-### Why Bun
+### Why Node + esbuild
 
-- Built-in bundler (`bun build`) replaces rollup / esbuild — one tool
-  instead of a build toolchain.
-- Built-in TypeScript runtime — no transpile step during development.
-- Built-in HTTP server (`Bun.serve`) will power the future HTML
+- **Universally present.** Node is on every CI image, every container
+  base, and every developer machine. Zero runtime-install friction —
+  no extra `curl` step in GitHub Actions or ephemeral containers.
+- **Native TypeScript execution — no TS → JS transpile in the dev
+  loop.** Node 22.6+ runs `.ts` files directly via
+  `--experimental-strip-types`; Node 23.6+ strips types by default.
+  Type-checking is a separate `tsc --noEmit` step, not a runtime
+  prerequisite.
+- **`esbuild` for distribution.** A single devDependency produces the
+  bundled `.cycle/bin/cycle.js` — one tool, one command, no broader
+  toolchain (rollup + plugins + ts-loader) required.
+- **Built-in HTTP server.** `node:http` will power the future HTML
   progress viewer without adding a web framework dependency.
-- Fast startup matters when cycle is invoked frequently (e.g., a CI
-  job per issue).
-- A compiled-binary distribution (`bun build --compile`) is available
-  if we later need a zero-runtime path for specific deployment
-  contexts; out of MVP scope.
+- A **single-executable distribution** via Node SEA
+  (`node --experimental-sea-config`) is available if we later need a
+  zero-runtime path for specific deployment contexts; out of MVP
+  scope.
 
 ## 3. Invocation Contract
 
 ### CLI
 
 ```bash
-bun .cycle/bin/cycle.js run "<task text>"
-bun .cycle/bin/cycle.js run --issue <ticket-id>
-bun .cycle/bin/cycle.js run --issues-file <path>
-cat issues.json | bun .cycle/bin/cycle.js run --issues-stdin
-bun .cycle/bin/cycle.js run --workflow <name> "<task text>"
-bun .cycle/bin/cycle.js run --dry-run "<task text>"
-bun .cycle/bin/cycle.js run --merge-mode {auto|stack} "…"
+node .cycle/bin/cycle.js run "<task text>"
+node .cycle/bin/cycle.js run --issue <ticket-id>
+node .cycle/bin/cycle.js run --issues-file <path>
+cat issues.json | node .cycle/bin/cycle.js run --issues-stdin
+node .cycle/bin/cycle.js run --workflow <name> "<task text>"
+node .cycle/bin/cycle.js run --dry-run "<task text>"
+node .cycle/bin/cycle.js run --merge-mode {auto|stack} "…"
 ```
 
 Flags (strawman):
@@ -508,7 +518,7 @@ customize (signed commits, PR templates, assigned reviewers, labels).
 Example: parent agent invokes cycle with 7 Jira issues, 3 of them big.
 
 1. Parent runs
-   `bun .cycle/bin/cycle.js run --issues-file jira-todo.json`.
+   `node .cycle/bin/cycle.js run --issues-file jira-todo.json`.
 2. cycle writes 7 markdown files into `docs/cycle/issues/tbd/` (one per
    Jira card). Emits `engine.start`.
 3. Scan: each file is moved to `queued/` and a line is appended to
@@ -548,7 +558,7 @@ the next cycle. Humans merge the stack bottom-up later.
 **Crash recovery:** if the engine crashes after cycle `0044` merges,
 `tbd.jsonl` still has `JIRA-125`–`JIRA-127`, `log.jsonl` records
 everything that did happen, and the `triaged/`/`queued/` folders reflect
-true state. Re-invoking `bun .cycle/bin/cycle.js run` with no
+true state. Re-invoking `node .cycle/bin/cycle.js run` with no
 arguments picks up automatically — starting with any cycle left
 mid-flight (detected from the log), then continuing through the queue.
 
@@ -618,7 +628,7 @@ The skill is deliberately narrow. It contains:
 
 - Metadata (name, description, when-to-use).
 - The exact invocation recipe
-  (`bun .cycle/bin/cycle.js run …`) with the flag surface.
+  (`node .cycle/bin/cycle.js run …`) with the flag surface.
 - Guidance on parsing JSONL events from stdout and relaying progress
   in plain English (e.g., "triaging JIRA-123", "cycle 0042 building,
   attempt 2", "verify failed, restarting").
@@ -640,16 +650,16 @@ in the future TUI / HTML viewer, not the skill.
 
 A workflow file (e.g., `.github/workflows/cycle-on-issue.yml`) triggers
 on an issue label or comment, spins up a container (usually
-`ubuntu-latest`) with `bun` + `claude` + repo checkout, and invokes
-`bun .cycle/bin/cycle.js run --issue ${{ github.event.issue.number }}`.
-Bun install is a single `curl` in the workflow (or use the
-`oven-sh/setup-bun` action).
+`ubuntu-latest`) with `node` + `claude` + repo checkout, and invokes
+`node .cycle/bin/cycle.js run --issue ${{ github.event.issue.number }}`.
+Node is preinstalled on `ubuntu-latest`; use `actions/setup-node` only
+to pin a specific version.
 
 ### Ephemeral bug-fix containers
 
 Same pattern as Actions, via any orchestrator (Daytona, devcontainers,
 custom Docker). Self-contained `.cycle/bin/` means the container only
-needs `bun` + `claude` + `gh` preinstalled.
+needs `node` + `claude` + `gh` preinstalled.
 
 ---
 
