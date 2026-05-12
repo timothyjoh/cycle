@@ -11,7 +11,7 @@
     "src/defaults/"
   ],
   "scripts": {
-    "test": "node --test --experimental-strip-types tests/",
+    "test": "node --test --experimental-strip-types --test-reporter=spec",
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.mjs",
     "smoke": "node dist/cycle.js --version"
