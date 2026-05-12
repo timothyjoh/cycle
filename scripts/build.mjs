@@ -1,9 +1,14 @@
 import { build } from "esbuild";
-import { chmod, cp, rm } from "node:fs/promises";
+import { chmod, cp, rm, readFile } from "node:fs/promises";
 
 await rm("dist", { recursive: true, force: true });
 
+const pkg = JSON.parse(await readFile("package.json", "utf8"));
+
 await build({
+  define: {
+    __CYCLE_VERSION__: JSON.stringify(pkg.version),
+  },
   entryPoints: ["src/cli.ts"],
   bundle: true,
   platform: "node",
