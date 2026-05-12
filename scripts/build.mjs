@@ -1,5 +1,7 @@
 import { build } from "esbuild";
-import { chmod } from "node:fs/promises";
+import { chmod, cp, rm } from "node:fs/promises";
+
+await rm("dist", { recursive: true, force: true });
 
 await build({
   entryPoints: ["src/cli.ts"],
@@ -18,3 +20,7 @@ await build({
 });
 
 await chmod("dist/cycle.js", 0o755);
+
+// Stage src/defaults alongside the bundle so init can find them
+// regardless of execution context (local-dev or installed npm pkg).
+await cp("src/defaults", "dist/defaults", { recursive: true });

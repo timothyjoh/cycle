@@ -36,13 +36,17 @@ async function locateEngineBundle(): Promise<string> {
 }
 
 async function locateDefaultsDir(): Promise<string> {
+  // When running from a bundled dist/cycle.js: dist/defaults sits beside it.
+  // When running from local source (src/cli/init.ts): src/defaults is two up.
+  // When running from npm-installed @cycleai/cli: dist/defaults too.
   const candidates = [
-    join(HERE, "..", "..", "src", "defaults"),
-    join(HERE, "..", "defaults"),
-    join(HERE, "defaults"),
+    join(HERE, "defaults"),               // dist/defaults next to dist/cycle.js
+    join(HERE, "..", "defaults"),         // dist/../defaults
+    join(HERE, "..", "..", "src", "defaults"),  // local dev from src/cli/
+    join(HERE, "..", "src", "defaults"),  // local dev from src/
   ];
   for (const c of candidates) {
     try { await stat(c); return c; } catch { /* try next */ }
   }
-  throw new Error("init: could not locate src/defaults");
+  throw new Error(`init: could not locate defaults; tried ${candidates.join(", ")}`);
 }
