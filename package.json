@@ -1,0 +1,30 @@
+{
+  "name": "@cycleai/cli",
+  "version": "0.0.1",
+  "description": "cycle — issue-driven workflow engine for autonomous code changes",
+  "type": "module",
+  "bin": {
+    "cycle": "./dist/cycle.js"
+  },
+  "files": [
+    "dist/",
+    "src/defaults/"
+  ],
+  "scripts": {
+    "test": "node --test --experimental-strip-types tests/",
+    "typecheck": "tsc --noEmit",
+    "build": "node scripts/build.mjs",
+    "smoke": "node dist/cycle.js --version"
+  },
+  "engines": {
+    "node": ">=22.6"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.6.0"
+  }
+}
