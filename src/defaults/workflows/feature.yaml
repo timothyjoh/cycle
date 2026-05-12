@@ -1,0 +1,24 @@
+name: feature
+description: Full SDLC pass for a single cycle of work.
+steps:
+  - name: spec
+    agent: claudecode
+    prompt: prompts/spec.md
+  - name: research
+    agent: claudecode
+    prompt: prompts/research.md
+  - name: plan
+    agent: claudecode
+    prompt: prompts/plan.md
+  - name: build
+    agent: claudecode
+    prompt: prompts/build.md
+  - name: verify
+    agent: bash
+    command: scripts/verify.sh
+  - name: commit
+    agent: bash
+    command: scripts/commit.sh
+  - name: pr
+    agent: bash
+    command: scripts/pr.sh
