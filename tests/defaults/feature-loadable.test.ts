@@ -11,7 +11,7 @@ test("default feature.yaml loads via the engine", async () => {
     await mkdir(join(root, ".cycle/workflows"), { recursive: true });
     await copyFile("src/defaults/workflows/feature.yaml", join(root, ".cycle/workflows/feature.yaml"));
     const w = await loadWorkflow(root, "feature");
-    assert.equal(w.steps.length, 7);
+    assert.equal(w.steps.length, 9);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
