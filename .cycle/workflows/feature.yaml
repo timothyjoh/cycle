@@ -13,6 +13,13 @@ steps:
   - name: build
     agent: claudecode
     prompt: prompts/build.md
+  - name: review
+    agent: claudecode
+    prompt: prompts/review.md
+  - name: fix
+    agent: claudecode
+    prompt: prompts/fix.md
+    skip_unless: MUST-FIX.md
   - name: verify
     agent: bash
     command: scripts/verify.sh
