@@ -14,7 +14,8 @@
     "test": "node --test --experimental-strip-types --test-reporter=spec",
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.mjs",
-    "smoke": "node dist/cycle.js --version"
+    "smoke": "node dist/cycle.js --version",
+    "sync-defaults": "node scripts/sync-defaults.mjs"
   },
   "engines": {
     "node": ">=22.6"
