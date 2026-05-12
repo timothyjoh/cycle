@@ -4,6 +4,9 @@
 set -euo pipefail
 
 if [ -f package.json ] && grep -q '"test"' package.json; then
+  if [ ! -d node_modules ]; then
+    npm install
+  fi
   npm test
 elif [ -f Cargo.toml ]; then
   cargo test

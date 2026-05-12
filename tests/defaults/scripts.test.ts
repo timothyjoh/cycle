@@ -11,3 +11,9 @@ for (const s of ["verify.sh", "commit.sh", "pr.sh"]) {
     assert.ok((st.mode & 0o111) !== 0, `${s} should be executable`);
   });
 }
+
+test("verify.sh installs deps when node_modules is missing", async () => {
+  const body = await readFile("src/defaults/scripts/verify.sh", "utf8");
+  assert.match(body, /npm install/, "verify.sh should invoke npm install");
+  assert.match(body, /node_modules/, "verify.sh should reference node_modules");
+});
