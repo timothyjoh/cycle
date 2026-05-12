@@ -11,6 +11,13 @@ if (argv[0] === "--version") {
   process.exit(0);
 }
 
+if (argv[0] === "init") {
+  const { runInit } = await import("./cli/init.ts");
+  const force = argv.includes("--force");
+  await runInit({ targetRoot: process.cwd(), force });
+  process.exit(0);
+}
+
 const args = parseArgs(argv);
 const cwd = process.cwd();
 
