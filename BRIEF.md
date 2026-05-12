@@ -31,7 +31,7 @@ stdout so the calling agent can monitor, and writes artifacts to
 | Driver | `BRIEF.md` → Epics → Phases (project vision) | 1+ issues per invocation (task, Jira card, GH issue, PRD, BRIEF) |
 | Greenfield only? | Effectively yes | Works on brownfield and greenfield |
 | Who invokes it | Human runs `npx cc-pipeline run` | Another agent (Claude Code, OpenClaw, …) or a CI job |
-| Install model | `node_modules` via `npx` | Single bundled file committed into `.cycle/bin/` |
+| Install model | `node_modules` via `npx` | `npx @cycleai/cli init` once; single bundled file committed into `.cycle/bin/` |
 | UI | TUI | None — JSONL events on stdout for programmatic monitoring |
 | Workflow shape | One fixed linear workflow | Library of named workflows; triage picks per cycle |
 | Unit of work | Phase within a project vision | Cycle — one workflow run against one scoped piece of an issue |
@@ -39,10 +39,20 @@ stdout so the calling agent can monitor, and writes artifacts to
 
 ## Tech Stack
 
+- **Bootstrap.** `npx @cycleai/cli init` scaffolds the repo once. The
+  npm package ships the prebuilt engine bundle as a static asset; `init`
+  copies it into `.cycle/bin/cycle.js`. Upgrades: `npx @cycleai/cli@latest
+  init --upgrade` refreshes the bundle and skill, leaving user-customized
+  workflows / prompts / scripts in place (3-way merge; `--force`
+  overwrites everything). The npm package name is also reserved as
+  `@cycle-afk` as a backup scope.
 - **Node-native.** Authored in TypeScript; bundled via `esbuild` into a
-  single self-contained file at `.cycle/bin/cycle.js`.
-- No `npm install` required in the consuming repo — the committed
-  bundle is the engine.
+  single self-contained file at `.cycle/bin/cycle.js`. The bundle file
+  starts with a `#!/usr/bin/env node` shebang and is committed
+  executable, so the canonical invocation is `./.cycle/bin/cycle.js` —
+  no `node …` prefix needed.
+- No `npm install` required in the consuming repo after init — the
+  committed bundle is the engine.
 - Runtime on the consuming repo: **`node`** (≥ 22.6; ≥ 24 LTS
   recommended) + **`claude` CLI** + **git** + **`gh`**. Nothing else.
   - Node is the default JavaScript runtime on every CI image, container
@@ -63,31 +73,60 @@ stdout so the calling agent can monitor, and writes artifacts to
 
 ## Invocation Contract
 
-```bash
-# Single freeform task
-node .cycle/bin/cycle.js run "fix the login bug on Safari"
+The canonical command form uses the shebang on the committed bundle:
 
-# Single issue from a tracker
-node .cycle/bin/cycle.js run --issue JIRA-123
+```bash
+# Single freeform task (blocking; parent waits until queue empty)
+./.cycle/bin/cycle.js run "fix the login bug on Safari"
+
+# Single issue from a tracker (engine shells out to fetch-issue.sh)
+./.cycle/bin/cycle.js run --issue JIRA-123
 
 # A batch of issues
-node .cycle/bin/cycle.js run --issues-file issues.json
-cat issues.json | node .cycle/bin/cycle.js run --issues-stdin
+./.cycle/bin/cycle.js run --issues-file issues.json
+cat issues.json | ./.cycle/bin/cycle.js run --issues-stdin
 
 # Force a specific workflow (skip triage)
-node .cycle/bin/cycle.js run --workflow feature "add CSV export"
+./.cycle/bin/cycle.js run --workflow feature "add CSV export"
 
 # Triage only, no execution
-node .cycle/bin/cycle.js run --dry-run "…"
+./.cycle/bin/cycle.js run --dry-run "…"
 
 # Choose merge mode (default: auto)
-node .cycle/bin/cycle.js run --merge-mode stack "…"
+./.cycle/bin/cycle.js run --merge-mode stack "…"
+
+# Detached daemon mode — process the queue in the background
+./.cycle/bin/cycle.js run --detach --issues-file issues.json
+
+# Daemon control (only meaningful while a detached daemon is alive)
+./.cycle/bin/cycle.js status            # one-shot JSON snapshot
+./.cycle/bin/cycle.js attach            # tail .cycle/log.jsonl live
+./.cycle/bin/cycle.js stop              # graceful drain
+./.cycle/bin/cycle.js stop --force      # SIGTERM
 ```
 
-- **Blocking.** The parent agent waits until the pending queue is empty.
+Windows / cross-platform fallback: `node .cycle/bin/cycle.js run …`
+works identically — the shebang is just a convenience on Unix.
+
+- **Blocking by default.** The parent agent waits until the pending
+  queue is empty. CI jobs and ephemeral containers want this.
+- **`--detach` for interactive / long-queue use.** Spawns a daemon,
+  writes its PID to `.cycle/cycle.pid`, exits immediately. A second
+  `run --detach` invocation in the same repo refuses with a pointer to
+  `cycle attach` / `cycle stop`. One daemon per repo.
 - **stdout = JSONL events** (mirrored to `.cycle/log.jsonl`).
+- **`status` / `attach` / `stop` are JSON-out by default** so agents
+  can consume them; `--human` formats for terminals.
 - **Per-cycle artifacts** under `docs/cycle/<cycle-id>-<workflow>-<slug>/`.
 - **Each cycle produces its own commits, branch, and PR.**
+
+### Auth and credentials
+
+Cycle does not document an env-var contract, run preflight credential
+checks, or ship a `doctor` subcommand. Callers (developer's local
+config, CI secrets, container env) are responsible for ensuring
+`claude` and `gh` are pre-authenticated and any `.cycle/scripts/*.sh`
+have the env vars they need.
 
 ## Issue Ingestion
 
@@ -108,6 +147,13 @@ inside a three-stage folder state machine that shadows `tbd.jsonl`:
 JIRA-123`, `cycle run --issues-file …`, and `cycle run "freeform"` all
 materialize files in `tbd/` first, then the engine processes them via
 the same scan loop. One code path, one audit trail.
+
+**`--issue <id>` delegates fetch to a script.** The engine shells out to
+`.cycle/scripts/fetch-issue.sh <id>`, which is responsible for talking
+to Jira / Linear / GH and writing the markdown file into `tbd/`. Default
+scripts ship for the common trackers (dispatching on the id prefix);
+projects can override per repo. Credentials live in env vars the script
+reads, not in the engine — see Auth and credentials above.
 
 ### Scan lifecycle
 
@@ -330,22 +376,63 @@ configurable.
 ## Claude Code Skill
 
 `cycle init` installs `.claude/skills/cycle.md` by default (opt out
-with `--no-skill`). The skill is deliberately minimal — it exists so
-any Claude Code session in the repo can discover cycle, invoke it
-correctly, and relay its JSONL progress to the user. The CLI remains
-authoritative.
+with `--no-skill`). The skill is **non-prescriptive**: it enumerates
+cycle's CLI surface (subcommands, flags, exit codes, JSONL event
+names, common invocation patterns) and lets Claude route natural
+language to the right command shape per request. The skill is not a
+hard-coded dispatch table — there's no "if user says X then run Y"
+logic, just a reference doc + behavioral guidance.
 
-Invocation flavors supported by the skill:
-- **Slash command.** `/cycle "fix the safari login bug"`, `/cycle --issue JIRA-123`, etc.
-- **Description-triggered.** User says "use cycle to work through these tickets" and Claude Code recognizes the intent.
+Invocation flavors:
+- **Slash command.** `/cycle "fix the safari login bug"`,
+  `/cycle --issue JIRA-123`, `/cycle status`, etc. Claude maps the
+  surface form to the right local or `npx` invocation:
+  - Bootstrap-class actions (`init`, `init --upgrade`) → `npx
+    @cycleai/cli …`
+  - Runtime actions (`run`, `status`, `attach`, `stop`) →
+    `./.cycle/bin/cycle.js …`
+- **Description-triggered.** User says "use cycle to work through
+  these tickets" and Claude Code recognizes the intent.
 
-What the skill **does not** do (left to the caller):
-- Rescheduling after an exit-code-42 (rate-limit pause).
-- Querying `log.jsonl` / `tbd.jsonl` for historical status.
-- Pretty-printing or visualization beyond plain progress relay.
+### Narration model
 
-These are intentionally out of scope for MVP — the skill stays narrow
-so it doesn't drift from the CLI.
+The skill follows a **hybrid push / pull** model so long-running queues
+don't drown the chat:
+
+- **Push proactively** on major milestones and anything needing human
+  attention: `engine.start`, `engine.stop`, `engine.paused`,
+  `cycle.start`, `cycle.end`, `cycle.attempt.failed`,
+  `cycle.abandoned`, `triage.abandoned`, `issue.completed`,
+  `issue.blocked`, `rate_limit.hit`, `rate_limit.resumed`, fatal exits.
+- **Pull on demand** for routine progress (`step.start`, `step.end`,
+  individual `commit` / `pr.opened` events). When the user asks
+  "what's going on?", Claude summarizes from `cycle status` + a tail
+  of `.cycle/log.jsonl`.
+
+### Reattach on new session
+
+When a new Claude Code session opens in a repo with a live cycle
+daemon (PID file present, process alive), the skill instructs Claude
+to run `cycle status` on the *first* cycle-related prompt and lead
+with a snapshot (current cycle ID, queue depth, last event) before
+acting on the user's request. No always-on SessionStart hook — the
+check is gated by the user's intent, not the session lifecycle.
+
+### Detach defaults
+
+For any multi-issue invocation or any `--issues-file` / `--issues-stdin`
+input, the skill invokes cycle with `--detach`. Short single-task runs
+remain foreground so the user sees output inline. This is a skill-side
+heuristic, not an engine policy — humans calling cycle directly can
+mix and match.
+
+### What the skill does NOT do
+
+- Reschedule a follow-up invocation after exit-code-42 (left to
+  cron / caller).
+- Pretty-print or visualize beyond progress relay — the future TUI /
+  HTML viewer is its own surface.
+- Validate auth or credentials — see Auth and credentials above.
 
 ## What cycle is NOT
 
@@ -353,8 +440,10 @@ so it doesn't drift from the CLI.
   own. A list of issues is supplied per invocation.
 - **Not** a TUI. Progress is JSONL on stdout; humans monitor *through*
   the invoking agent.
-- **Not** a long-running daemon. One invocation processes a queue and
-  exits.
+- **Not** a service. Default mode is a blocking subprocess that
+  processes a queue and exits. The `--detach` flag turns it into a
+  one-per-repo daemon for interactive use, but there's still no
+  always-on background process across machines or repos.
 
 ---
 
@@ -419,12 +508,60 @@ post-MVP polish. MVP is validated on **both** the cycle repo itself
 (brownfield dog-food) and a dedicated greenfield test repo. See
 Phase Plan below.
 
+**Bootstrap & upgrade (Open Q #8).**
+The CLI ships as the npm package `@cycleai/cli` (backup scope
+`@cycle-afk`). `npx @cycleai/cli init` is the one-time bootstrap; the
+prebuilt engine bundle ships *inside* the package and `init` copies it
+to `.cycle/bin/cycle.js` (with `#!/usr/bin/env node` shebang, committed
+executable). Engine version = npm package version, atomic. Upgrades:
+`npx @cycleai/cli@latest init --upgrade` rewrites the engine bundle and
+skill, leaving user-customized workflows / prompts / scripts intact via
+a 3-way merge; `--force` overwrites everything.
+
+**Daemon mode (Open Q #9).**
+Engine grows an opt-in `--detach` flag. Blocking remains the default
+to preserve the CI / ephemeral-container exit-code contract. A
+detached run writes `.cycle/cycle.pid`; a second `run --detach` in the
+same repo refuses with a pointer to `cycle attach` / `cycle stop`.
+One daemon per repo. Control surface: `cycle attach` (tail
+`.cycle/log.jsonl` from EOF; Ctrl-C detaches without killing),
+`cycle status` (one-shot JSON snapshot), `cycle stop` (graceful drain),
+`cycle stop --force` (SIGTERM). All three are JSON-out by default;
+`--human` flag formats for terminals.
+
+**Skill behavior (Open Q #10).**
+The Claude Code skill is non-prescriptive — it enumerates cycle's CLI
+surface and lets Claude route. Narration is hybrid: push on major
+milestones and anything failure-related, pull on demand for routine
+events. On a new session entering a repo with a live daemon, the
+skill prompts Claude to run `cycle status` on the first cycle-related
+prompt and lead with a snapshot. Detach is the skill's default for
+multi-issue runs; foreground for short single-task runs. See Claude
+Code Skill.
+
+**Issue fetch (Open Q #11).**
+`--issue <id>` delegates the actual tracker fetch to
+`.cycle/scripts/fetch-issue.sh`, which writes a markdown file into
+`tbd/`. Default scripts ship for the common trackers (dispatch on id
+prefix). Engine has no built-in tracker SDKs and no bundled
+credentials — credentials live in env vars the script reads. See
+Issue Ingestion.
+
+**Auth (Open Q #12).**
+Cycle defers credential management entirely to the caller. No
+documented env-var contract from the engine, no preflight check, no
+`cycle doctor` subcommand. The deployment environment (developer
+machine, GitHub Actions secrets, container env) is responsible for
+ensuring `claude`, `gh`, and any fetch / commit / pr / merge scripts
+are pre-authenticated. See Auth and credentials.
+
 ---
 
 ## Phase Plan
 
 **Phase 1 — Walking skeleton.**
-`cycle init` scaffolds everything. `node .cycle/bin/cycle.js run
+`npx @cycleai/cli init` scaffolds everything (engine bundle, default
+workflows, prompts, scripts, skill). `./.cycle/bin/cycle.js run
 "text"` runs a single freeform task end-to-end. One workflow
 implemented (`feature` — spec → plan → build → verify → commit →
 pr); `review` / `fix` can be stubs. Task flows through
@@ -447,13 +584,17 @@ rescans.
 artifacts. `blocked/` folder. `Failed Attempt:` preservation PR.
 Triage retry + `failed/` folder after 3 attempts. Rate-limit handling
 (short in-process backoff, long `engine.paused` + exit 42).
-`--on-abandon` flag.
+`--on-abandon` flag. `--detach` daemon mode with `cycle attach` /
+`status` / `stop` control surface and `.cycle/cycle.pid` lock —
+needed because "left running unattended against a batch of real
+issues" implies multi-hour runs the user shouldn't have to babysit
+in the foreground.
 
 **Phase 5 — Polish & secondary modes (post-MVP).**
 `--merge-mode stack` with stacked branches. Custom-workflow
-extensibility verified. `.github/workflows/cycle-on-issue.yml`
-example. README and usage docs. Known-good CI container image or
-install recipe.
+extensibility verified. `init --upgrade` 3-way merge path battle-tested.
+`.github/workflows/cycle-on-issue.yml` example. README and usage
+docs. Known-good CI container image or install recipe.
 
 **MVP validation.**
 - **Brownfield dog-food.** Cycle runs in the cycle repo itself on an
