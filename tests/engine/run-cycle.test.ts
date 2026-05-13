@@ -253,3 +253,140 @@ test("logs cycle.checkout status=failed when base branch does not exist", async 
     await rm(bin, { recursive: true, force: true });
   }
 });
+
+test("pulls origin/<CYCLE_BASE> between cycles so second cycle branches off refreshed base", async () => {
+  const originRoot = await mkdtemp(join(tmpdir(), "cycle-origin-"));
+  const workRoot = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    git(originRoot, ["init", "-b", "main"]);
+    git(originRoot, ["config", "user.email", "t@t"]);
+    git(originRoot, ["config", "user.name", "t"]);
+    git(originRoot, ["config", "receive.denyCurrentBranch", "ignore"]);
+    git(originRoot, ["commit", "--allow-empty", "-m", "init"]);
+
+    // Clone origin into workRoot. Remove the empty mkdtemp dir first so clone can create it.
+    await rm(workRoot, { recursive: true, force: true });
+    const clone = spawnSync("git", ["clone", originRoot, workRoot], { encoding: "utf8" });
+    if (clone.status !== 0) throw new Error(`clone failed: ${clone.stderr}`);
+    git(workRoot, ["config", "user.email", "t@t"]);
+    git(workRoot, ["config", "user.name", "t"]);
+
+    await mkdir(join(workRoot, ".cycle/workflows"), { recursive: true });
+    await mkdir(join(workRoot, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(workRoot, ".cycle/workflows/feature.yaml"),
+      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n`, "utf8");
+    await writeFile(join(workRoot, ".cycle/prompts/spec.md"), "spec body", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const sharedEnv = { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" };
+
+    // Advance origin BEFORE cycle 1 finishes so cycle 1's post-cycle pull
+    // moves local main forward. (Mirrors the real bug: a prior cycle's PR
+    // gets merged remotely before the next cycle starts locally.)
+    git(originRoot, ["commit", "--allow-empty", "-m", "advance"]);
+    const originTip = git(originRoot, ["rev-parse", "main"]).trim();
+    const localBeforeCycle1 = git(workRoot, ["rev-parse", "main"]).trim();
+    assert.notEqual(localBeforeCycle1, originTip);
+
+    const r1 = await runCycle(workRoot, { issueId: "T1", title: "first", workflow: "feature", env: sharedEnv });
+    assert.equal(r1.status, "ok");
+
+    // After cycle 1's finally-block pull, local main must equal origin tip.
+    const localMainAfterCycle1 = git(workRoot, ["rev-parse", "main"]).trim();
+    assert.equal(localMainAfterCycle1, originTip, "local main refreshed to origin tip after cycle 1 pull");
+
+    const r2 = await runCycle(workRoot, { issueId: "T2", title: "second", workflow: "feature", env: sharedEnv });
+    assert.equal(r2.status, "ok");
+
+    // Cycle 2's branch must descend from the refreshed origin tip, not the stale pre-pull SHA.
+    const cycle2Branch = "cycle/feature/second";
+    const mergeBase = git(workRoot, ["merge-base", cycle2Branch, "main"]).trim();
+    assert.equal(mergeBase, originTip,
+      "cycle 2 branched from refreshed main, not the stale local tip");
+
+    const log = await readFile(join(workRoot, ".cycle/log.jsonl"), "utf8");
+    assert.match(log, /"event":"cycle.base_pull","cycle_id":"0001","status":"ok","base":"main"/);
+    assert.match(log, /"event":"cycle.base_pull","cycle_id":"0002","status":"ok","base":"main"/);
+  } finally {
+    await rm(originRoot, { recursive: true, force: true });
+    await rm(workRoot, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("logs cycle.base_pull status=failed when origin remote is missing", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    await mkdir(join(root, ".cycle/workflows"), { recursive: true });
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/workflows/feature.yaml"),
+      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n`, "utf8");
+    await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await runCycle(root, {
+      issueId: "TEST-1",
+      title: "spec the thing",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.match(log, /"event":"cycle.checkout","cycle_id":"0001","status":"ok","base":"main"/);
+    assert.match(log, /"event":"cycle.base_pull","cycle_id":"0001","status":"failed","base":"main"/);
+    assert.match(log, /"reason":"git fetch origin main failed:/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("logs cycle.base_pull status=skipped when prior checkout failed", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    await mkdir(join(root, ".cycle/workflows"), { recursive: true });
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/workflows/feature.yaml"),
+      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n`, "utf8");
+    await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await runCycle(root, {
+      issueId: "TEST-1",
+      title: "spec the thing",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "no-such-base" },
+    });
+    assert.equal(r.status, "ok");
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.match(log, /"event":"cycle.checkout","cycle_id":"0001","status":"failed","base":"no-such-base"/);
+    assert.match(log, /"event":"cycle.base_pull","cycle_id":"0001","status":"skipped","base":"no-such-base","reason":"checkout failed"/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});

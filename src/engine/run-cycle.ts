@@ -3,7 +3,7 @@ import { loadWorkflow } from "./workflow.ts";
 import { createLogger } from "./log.ts";
 import { execBashStep } from "./exec-bash.ts";
 import { execClaudecodeStep } from "./exec-claudecode.ts";
-import { createCycleBranch, checkoutBase } from "./branch.ts";
+import { createCycleBranch, checkoutBase, pullBase } from "./branch.ts";
 import { slugify } from "../issue/id.ts";
 import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
@@ -68,11 +68,24 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
     return { cycleId, status: "ok" as const };
   } finally {
     const headBefore = await currentBranch(repoRoot);
+    let checkoutOk = false;
     try {
       await checkoutBase(repoRoot, cycleEnv.CYCLE_BASE);
+      checkoutOk = true;
       await log.emit("cycle.checkout", { cycle_id: cycleId, status: "ok", base: cycleEnv.CYCLE_BASE, head_before: headBefore });
     } catch (err) {
       await log.emit("cycle.checkout", { cycle_id: cycleId, status: "failed", base: cycleEnv.CYCLE_BASE, head_before: headBefore, reason: (err as Error).message });
+    }
+
+    if (!checkoutOk) {
+      await log.emit("cycle.base_pull", { cycle_id: cycleId, status: "skipped", base: cycleEnv.CYCLE_BASE, reason: "checkout failed" });
+    } else {
+      try {
+        const { shaBefore, shaAfter } = await pullBase(repoRoot, cycleEnv.CYCLE_BASE);
+        await log.emit("cycle.base_pull", { cycle_id: cycleId, status: "ok", base: cycleEnv.CYCLE_BASE, sha_before: shaBefore, sha_after: shaAfter });
+      } catch (err) {
+        await log.emit("cycle.base_pull", { cycle_id: cycleId, status: "failed", base: cycleEnv.CYCLE_BASE, reason: (err as Error).message });
+      }
     }
   }
 }

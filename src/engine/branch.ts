@@ -25,3 +25,21 @@ export async function createCycleBranch(repoRoot: string, opts: { cycleId: strin
 export async function checkoutBase(repoRoot: string, base: string): Promise<void> {
   await git(repoRoot, ["checkout", base]);
 }
+
+function revParse(repoRoot: string, ref: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const child = spawn("git", ["rev-parse", ref], { cwd: repoRoot, shell: false });
+    let stdout = "";
+    child.stdout.on("data", d => { stdout += d.toString(); });
+    child.on("close", code => resolve(code === 0 ? stdout.trim() : null));
+    child.on("error", () => resolve(null));
+  });
+}
+
+export async function pullBase(repoRoot: string, base: string): Promise<{ shaBefore: string | null; shaAfter: string | null }> {
+  const shaBefore = await revParse(repoRoot, base);
+  await git(repoRoot, ["fetch", "origin", base]);
+  await git(repoRoot, ["merge", "--ff-only", "FETCH_HEAD"]);
+  const shaAfter = await revParse(repoRoot, base);
+  return { shaBefore, shaAfter };
+}

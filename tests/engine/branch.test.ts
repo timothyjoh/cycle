@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { createCycleBranch, checkoutBase } from "../../src/engine/branch.ts";
+import { createCycleBranch, checkoutBase, pullBase } from "../../src/engine/branch.ts";
 
 function git(cwd: string, args: string[]) {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -59,6 +59,81 @@ test("checkoutBase rejects when base branch does not exist", async () => {
     await assert.rejects(
       () => checkoutBase(root, "no-such-branch"),
       (err: Error) => /git checkout no-such-branch failed/.test(err.message),
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("pullBase fast-forwards local base to origin tip", async () => {
+  const originRoot = await mkdtemp(join(tmpdir(), "cycle-origin-"));
+  let workRoot = "";
+  try {
+    git(originRoot, ["init", "-b", "main"]);
+    git(originRoot, ["config", "user.email", "t@t"]);
+    git(originRoot, ["config", "user.name", "t"]);
+    git(originRoot, ["config", "receive.denyCurrentBranch", "ignore"]);
+    git(originRoot, ["commit", "--allow-empty", "-m", "init"]);
+
+    workRoot = await mkdtemp(join(tmpdir(), "cycle-work-"));
+    // Clone via spawnSync since `cwd` for clone target is the parent.
+    const clone = spawnSync("git", ["clone", originRoot, workRoot], { encoding: "utf8" });
+    if (clone.status !== 0) throw new Error(`clone failed: ${clone.stderr}`);
+    git(workRoot, ["config", "user.email", "t@t"]);
+    git(workRoot, ["config", "user.name", "t"]);
+    const shaBeforeLocal = git(workRoot, ["rev-parse", "main"]).trim();
+
+    git(originRoot, ["commit", "--allow-empty", "-m", "advance"]);
+    const shaOrigin = git(originRoot, ["rev-parse", "main"]).trim();
+    assert.notEqual(shaBeforeLocal, shaOrigin);
+
+    const { shaBefore, shaAfter } = await pullBase(workRoot, "main");
+    assert.equal(shaBefore, shaBeforeLocal);
+    assert.equal(shaAfter, shaOrigin);
+    assert.equal(git(workRoot, ["rev-parse", "main"]).trim(), shaOrigin);
+  } finally {
+    await rm(originRoot, { recursive: true, force: true });
+    if (workRoot) await rm(workRoot, { recursive: true, force: true });
+  }
+});
+
+test("pullBase is a no-op when local already matches origin", async () => {
+  const originRoot = await mkdtemp(join(tmpdir(), "cycle-origin-"));
+  let workRoot = "";
+  try {
+    git(originRoot, ["init", "-b", "main"]);
+    git(originRoot, ["config", "user.email", "t@t"]);
+    git(originRoot, ["config", "user.name", "t"]);
+    git(originRoot, ["config", "receive.denyCurrentBranch", "ignore"]);
+    git(originRoot, ["commit", "--allow-empty", "-m", "init"]);
+
+    workRoot = await mkdtemp(join(tmpdir(), "cycle-work-"));
+    const clone = spawnSync("git", ["clone", originRoot, workRoot], { encoding: "utf8" });
+    if (clone.status !== 0) throw new Error(`clone failed: ${clone.stderr}`);
+    git(workRoot, ["config", "user.email", "t@t"]);
+    git(workRoot, ["config", "user.name", "t"]);
+    const shaLocal = git(workRoot, ["rev-parse", "main"]).trim();
+
+    const { shaBefore, shaAfter } = await pullBase(workRoot, "main");
+    assert.equal(shaBefore, shaLocal);
+    assert.equal(shaAfter, shaLocal);
+  } finally {
+    await rm(originRoot, { recursive: true, force: true });
+    if (workRoot) await rm(workRoot, { recursive: true, force: true });
+  }
+});
+
+test("pullBase rejects with stderr when no origin remote configured", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    await assert.rejects(
+      () => pullBase(root, "main"),
+      (err: Error) => /git fetch origin main failed/.test(err.message),
     );
   } finally {
     await rm(root, { recursive: true, force: true });
