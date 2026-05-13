@@ -36,9 +36,15 @@ if (args.text) {
   await materializeFreeformIssue(args.text, cwd);
 }
 
+// Halt-on-failure policy: during dogfood + early use, each cycle failure
+// is a real bug worth eyes on before the queue advances. We do NOT
+// continue past a failed cycle. The remaining queue stays in tbd.jsonl /
+// queued/ for the next invocation to pick up after the human fixes the
+// root cause and re-cycles the failed issue.
 let cyclesProcessed = 0;
-let cyclesFailed = 0;
-while (true) {
+let halted: { issueId: string; failingStep: string | undefined } | null = null;
+
+outer: while (true) {
   const ingested = await scanTbd(cwd);
   if (ingested.length === 0) break;
 
@@ -57,18 +63,17 @@ while (true) {
     if (r.status === "ok") {
       cyclesProcessed++;
     } else {
-      cyclesFailed++;
       await log.emit("issue.failed", { issue_id: issue.id, failing_step: r.failingStep });
-      // continue draining the rest of the queue (AFK-friendly)
+      halted = { issueId: issue.id, failingStep: r.failingStep };
+      break outer;
     }
   }
 }
 
-const overall = cyclesFailed > 0 ? "partial" : "ok";
 await log.emit("engine.stop", {
-  status: args.dryRun ? "ok" : overall,
+  status: args.dryRun ? "ok" : halted ? "halted" : "ok",
   dry_run: args.dryRun,
   cycles_processed: cyclesProcessed,
-  cycles_failed: cyclesFailed,
+  ...(halted ? { halted_at_issue: halted.issueId, failing_step: halted.failingStep } : {}),
 });
-process.exit(cyclesFailed === 0 ? 0 : 1);
+process.exit(halted ? 1 : 0);
