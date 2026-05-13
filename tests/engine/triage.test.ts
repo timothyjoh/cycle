@@ -502,7 +502,18 @@ test("whole-pass failure: only raw fails all attempts → engine.paused", async 
 
     const paused = events.find((e) => e.event === "engine.paused");
     assert.ok(paused, "engine.paused must fire on whole-pass failure");
-    assert.equal(paused?.fields.reason, "triage_failed");
+    assert.equal(paused?.fields.reason, "all_triage_failed");
+    assert.deepEqual(paused?.fields.raw_ids, ["only"]);
+    const lastErrors = paused?.fields.last_errors as Array<{
+      raw_id: string;
+      error: string;
+    }>;
+    assert.equal(Array.isArray(lastErrors), true);
+    assert.equal(lastErrors.length, 1);
+    assert.equal(lastErrors[0].raw_id, "only");
+    assert.equal(typeof lastErrors[0].error, "string");
+    assert.ok(lastErrors[0].error.length > 0);
+    assert.equal("failed" in (paused?.fields as object), false);
 
     const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
     assert.deepEqual(failedFiles, ["only.md"]);
@@ -512,6 +523,126 @@ test("whole-pass failure: only raw fails all attempts → engine.paused", async 
     );
     const { fm } = parseFrontmatter(failedBody);
     assert.equal(fm.triage_attempts, 3);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("engine.paused last_errors order matches raw_ids order across multiple failed raws", async () => {
+  const root = await setupRepo();
+  try {
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/raw-a.md"),
+      rawBody("raw-a", "A task"),
+      "utf8",
+    );
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/raw-b.md"),
+      rawBody("raw-b", "B task"),
+      "utf8",
+    );
+    const deps: TriageDeps = {
+      runAgent: async (prompt) => {
+        if (prompt.includes("=== raw: raw-a ===")) {
+          return { exitCode: 0, stdout: "BAD-A-OUT-not-json", stderr: "" };
+        }
+        return { exitCode: 0, stdout: "BAD-B-OUT-not-json", stderr: "" };
+      },
+    };
+    const { log, events } = makeLog();
+    const result = await runTriage(root, makeConfig(), log, deps);
+    assert.equal(result.status, "paused");
+
+    const paused = events.find((e) => e.event === "engine.paused");
+    assert.ok(paused, "engine.paused must fire on whole-pass failure");
+    assert.deepEqual(paused?.fields.raw_ids, ["raw-a", "raw-b"]);
+    const lastErrors = paused?.fields.last_errors as Array<{
+      raw_id: string;
+      error: string;
+    }>;
+    assert.equal(lastErrors.length, 2);
+    assert.equal(lastErrors[0].raw_id, "raw-a");
+    assert.equal(lastErrors[1].raw_id, "raw-b");
+    assert.match(lastErrors[0].error, /BAD-A-OUT/);
+    assert.match(lastErrors[1].error, /BAD-B-OUT/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("engine.paused last_errors truncates errors longer than 2000 chars", async () => {
+  const root = await setupRepo();
+  try {
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/big.md"),
+      rawBody("big", "big task"),
+      "utf8",
+    );
+    const huge = "X".repeat(3000);
+    const deps: TriageDeps = {
+      runAgent: async () => ({
+        exitCode: 1,
+        stdout: "",
+        stderr: huge,
+      }),
+    };
+    const { log, events } = makeLog();
+    const result = await runTriage(root, makeConfig(), log, deps);
+    assert.equal(result.status, "paused");
+
+    const paused = events.find((e) => e.event === "engine.paused");
+    const lastErrors = paused?.fields.last_errors as Array<{
+      raw_id: string;
+      error: string;
+    }>;
+    assert.equal(lastErrors.length, 1);
+    assert.ok(
+      lastErrors[0].error.length <= 2000,
+      `expected length ≤ 2000, got ${lastErrors[0].error.length}`,
+    );
+    assert.equal(lastErrors[0].error.endsWith("…"), true);
+    assert.equal(lastErrors[0].error.startsWith("agent exited 1: X"), true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("engine.paused last_errors at boundary length 2000 is not truncated", async () => {
+  const root = await setupRepo();
+  try {
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/edge.md"),
+      rawBody("edge", "edge task"),
+      "utf8",
+    );
+    // Validator path: `lastError = validation.reason`. The reason for an
+    // unparseable stdout starts with the literal prefix
+    // `stdout is not valid JSON: Unexpected token 'Y', "YYY..." is not valid JSON`.
+    // We hit that path with valid-looking but non-JSON input and pad the stdout
+    // to make the final error message exactly 2000 chars. Since computing the
+    // exact pad length depends on JSON parser quirks, instead rely on the
+    // simpler agent-throw path which produces `agent failed: <message>` and
+    // we can size precisely.
+    const prefix = "agent failed: ";
+    const target = 2000;
+    const payload = "Y".repeat(target - prefix.length);
+    const deps: TriageDeps = {
+      runAgent: async () => {
+        throw new Error(payload);
+      },
+    };
+    const { log, events } = makeLog();
+    const result = await runTriage(root, makeConfig(), log, deps);
+    assert.equal(result.status, "paused");
+
+    const paused = events.find((e) => e.event === "engine.paused");
+    const lastErrors = paused?.fields.last_errors as Array<{
+      raw_id: string;
+      error: string;
+    }>;
+    assert.equal(lastErrors.length, 1);
+    assert.equal(lastErrors[0].error.length, 2000);
+    assert.equal(lastErrors[0].error.endsWith("…"), false);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
