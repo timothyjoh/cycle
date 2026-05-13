@@ -25,6 +25,10 @@ This step runs only when a MUST-FIX.md exists from the review step
 3. Run the "Verify" check for each fix.
 4. Run the full test suite after all fixes.
 5. Confirm all tests pass.
+6. Run the project's coverage command (in this repo: `npm run test:coverage`;
+   otherwise per `CLAUDE.md`). Coverage must **not decrease** vs the
+   pre-fix baseline reported in BUILD.md. If a fix landed without a
+   matching test, add one before declaring done.
 
 ## Rules
 
@@ -61,6 +65,7 @@ If you cannot fix something, check it off anyway and mark it failed:
 ```
 
 Also output a one-paragraph **summary to stdout** describing which
-tasks you addressed, the final test-suite outcome, and any tasks you
-could not fix. The engine captures stdout and writes it to FIX.md in
-the same artifact directory.
+tasks you addressed, the final test-suite outcome, the final coverage
+numbers (line / branch / function) and how they compare to BUILD.md's
+baseline, and any tasks you could not fix. The engine captures stdout
+and writes it to FIX.md in the same artifact directory.
