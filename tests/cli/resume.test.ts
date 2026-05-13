@@ -18,11 +18,16 @@ function gitSync(cwd: string, args: string[]): void {
   if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
 }
 
-async function writeWorkflows(root: string): Promise<void> {
+async function writeWorkflows(
+  root: string,
+  opts: { maxConsecutiveFailures?: number; maxCycleAttempts?: number } = {},
+): Promise<void> {
+  const maxConsecutive = opts.maxConsecutiveFailures ?? 2;
+  const maxCycleAttempts = opts.maxCycleAttempts ?? 3;
   await writeFile(
     join(root, ".cycle/workflows.yml"),
     `engine:
-  max_consecutive_failures: 2
+  max_consecutive_failures: ${maxConsecutive}
   base_branch: main
 triage:
   agent: claudecode
@@ -30,7 +35,7 @@ triage:
   max_turns: 10
 workflows:
   - name: feature
-    max_cycle_attempts: 3
+    max_cycle_attempts: ${maxCycleAttempts}
     steps:
       - name: spec
         agent: bash
@@ -310,13 +315,13 @@ test("resume: fresh start when last cycle.end is failed (no resume events)", asy
   }
 });
 
-test("resume: resumed cycle fails non-terminally drains for retry and halts", async () => {
+test("resume: resumed cycle fails non-terminally → retry-drain, no halt, loop re-pops row", async () => {
   const distPath = await ensureDist();
   const { originRoot, workRoot } = await setupRepoWithOrigin();
   try {
     await mkdir(join(workRoot, ".cycle"), { recursive: true });
     await writeWorkflows(workRoot);
-    // build.sh exits 1 so the resumed cycle fails on step "build".
+    // build.sh exits 1 on every call → all retries fail until terminal.
     await writeStepScripts(workRoot, { failStep: "build" });
     await seedTodo(workRoot, "alpha", "first task", { attempt: 0 });
     gitSync(workRoot, ["checkout", "-b", "cycle/feature/first-task"]);
@@ -328,26 +333,25 @@ test("resume: resumed cycle fails non-terminally drains for retry and halts", as
       encoding: "utf8",
       env: { ...process.env, CYCLE_BASE: "main" },
     });
-    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstderr: ${r.stderr}`);
+    // threshold default 2, single terminal failure → engine.stop ok, exit 0.
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\nstderr: ${r.stderr}`);
 
     const events = parseEvents(await readFile(join(workRoot, ".cycle/log.jsonl"), "utf8"));
     assert.ok(events.find((e) => e.event === "engine.resume"), "engine.resume emitted");
     assert.ok(events.find((e) => e.event === "cycle.resume"), "cycle.resume emitted");
-    const cycleEnd = events.find((e) => e.event === "cycle.end" && e.cycle_id === "0042") as Record<string, unknown>;
-    assert.equal(cycleEnd?.status, "failed");
-    assert.equal(cycleEnd?.failing_step, "build");
-    const drained = events.find((e) => e.event === "queue.drained" && e.cycle_id === "0042") as Record<string, unknown>;
-    assert.equal(drained?.outcome, "retry");
-    const issueFailed = events.find((e) => e.event === "issue.failed") as Record<string, unknown>;
-    assert.equal(issueFailed?.issue_id, "alpha");
-    assert.equal(issueFailed?.failing_step, "build");
-    const stop = events.find((e) => e.event === "engine.stop") as Record<string, unknown>;
-    assert.equal(stop?.status, "halted");
+    const drained = events.filter((e) => e.event === "queue.drained");
+    // 2 retries (resume + main-loop second attempt) and 1 terminal (third attempt).
+    assert.equal(drained.length, 3);
+    assert.equal(drained[0].outcome, "retry");
+    assert.equal(drained[1].outcome, "retry");
+    assert.equal(drained[2].outcome, "terminal");
+    assert.ok(!events.find((e) => e.event === "engine.halted"), "engine.halted must not emit under threshold");
+    const stops = events.filter((e) => e.event === "engine.stop");
+    const stop = stops[stops.length - 1] as Record<string, unknown>;
+    assert.equal(stop?.status, "ok");
 
     const tbd = await readFile(join(workRoot, ".cycle/tbd.jsonl"), "utf8");
-    const row = tbd.trim().split("\n").map((l) => JSON.parse(l)).find((r: Record<string, unknown>) => r.id === "alpha");
-    assert.equal(row.status, "pending");
-    assert.equal(row.attempt, 1);
+    assert.equal(tbd.trim(), "", "row drained terminally");
   } finally {
     await rm(originRoot, { recursive: true, force: true });
     await rm(workRoot, { recursive: true, force: true });
@@ -359,7 +363,8 @@ test("resume: resumed cycle fails on final attempt drains terminally", async () 
   const { originRoot, workRoot } = await setupRepoWithOrigin();
   try {
     await mkdir(join(workRoot, ".cycle"), { recursive: true });
-    await writeWorkflows(workRoot);
+    // threshold 1 so the single terminal failure halts the engine.
+    await writeWorkflows(workRoot, { maxConsecutiveFailures: 1 });
     await writeStepScripts(workRoot, { failStep: "build" });
     // attempt:2 + max_cycle_attempts:3 → terminal on this failure (attempt+1 == max).
     await seedTodo(workRoot, "alpha", "first task", { attempt: 2 });
@@ -508,6 +513,48 @@ test("resume: base refresh failure emits warning and skips resume", async () => 
     assert.ok(!events.find((e) => e.event === "cycle.resume"), "no cycle.resume after base failure");
     assert.ok(!events.find((e) => e.event === "engine.resume"), "no engine.resume after base failure");
   } finally {
+    await rm(workRoot, { recursive: true, force: true });
+  }
+});
+
+test("halt: resume-terminal + main-loop-terminal accumulate to threshold 2", async () => {
+  const distPath = await ensureDist();
+  const { originRoot, workRoot } = await setupRepoWithOrigin();
+  try {
+    await mkdir(join(workRoot, ".cycle"), { recursive: true });
+    await writeWorkflows(workRoot, { maxConsecutiveFailures: 2, maxCycleAttempts: 1 });
+    await writeStepScripts(workRoot, { failStep: "verify" });
+    await seedTodo(workRoot, "alpha", "alpha task", { attempt: 0 });
+    await seedTodo(workRoot, "beta", "beta task", { status: "pending", cycle_id: null });
+    gitSync(workRoot, ["checkout", "-b", "cycle/feature/alpha-task"]);
+    gitSync(workRoot, ["checkout", "main"]);
+    await seedLogInFlight(workRoot, "0042", "alpha", "feature", "alpha task");
+
+    const r = spawnSync("node", [distPath, "run"], {
+      cwd: workRoot,
+      encoding: "utf8",
+      env: { ...process.env, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstderr: ${r.stderr}`);
+
+    const events = parseEvents(await readFile(join(workRoot, ".cycle/log.jsonl"), "utf8"));
+    const halted = events.find((e) => e.event === "engine.halted") as Record<string, unknown>;
+    assert.ok(halted, "engine.halted emitted");
+    assert.equal(halted.reason, "max_consecutive_failures");
+    assert.equal(halted.threshold, 2);
+    const failedCycles = halted.failed_cycles as string[];
+    assert.equal(failedCycles.length, 2, "two terminal failures contribute to counter");
+    assert.equal(failedCycles[0], "0042", "first failure is the resumed cycle");
+    assert.notEqual(failedCycles[1], "0042", "second failure is a freshly-allocated main-loop cycle");
+
+    const drained = events.filter((e) => e.event === "queue.drained");
+    assert.equal(drained.length, 2);
+    assert.equal(drained[0].outcome, "terminal");
+    assert.equal(drained[0].cycle_id, "0042");
+    assert.equal(drained[1].outcome, "terminal");
+    assert.equal(drained[1].cycle_id, failedCycles[1]);
+  } finally {
+    await rm(originRoot, { recursive: true, force: true });
     await rm(workRoot, { recursive: true, force: true });
   }
 });
