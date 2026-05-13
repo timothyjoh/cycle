@@ -134,6 +134,7 @@ async function terminalDrain(
       failed_at: new Date().toISOString(),
       ...(failingStep ? { failed_step: failingStep } : {}),
       failed_attempts: failedAttempts,
+      last_cycle_id: cycleId,
     }));
   } catch (e) {
     mutateErr = e as Error;

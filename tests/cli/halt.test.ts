@@ -259,8 +259,48 @@ test("halt: propagateBlocked moves dependent to blocked/ when parent fails, no h
     const blockedBody = await readFile(join(root, "docs/cycle/issues/blocked/B.md"), "utf8");
     assert.match(blockedBody, /blocked_by: \[A\]/);
 
+    const failedBody = await readFile(join(root, "docs/cycle/issues/failed/A.md"), "utf8");
+    const cycleStart = events.find((e) => e.event === "cycle.start") as Record<string, unknown>;
+    const cycleId = cycleStart.cycle_id as string;
+    assert.match(failedBody, /^failed_at: /m);
+    assert.match(failedBody, /^failed_step: verify/m);
+    assert.match(failedBody, /^failed_attempts: 1/m);
+    assert.match(failedBody, new RegExp(`^last_cycle_id: "${cycleId}"$`, "m"));
+
     const queue = await readFile(join(root, ".cycle/tbd.jsonl"), "utf8");
     assert.equal(queue.trim(), "", "queue drained of both rows");
+    assert.ok(!events.find((e) => e.event === "engine.halted"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("halt: propagateBlocked stamps immediate-only blocked_by on 3-node chain A ← B ← C", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-halt-"));
+  try {
+    const dist = await ensureDist();
+    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": verifyScript(["A"]) });
+    await seedTodo(root, "A", "a task");
+    await seedTodo(root, "B", "b task", { depends_on: ["A"] });
+    await seedTodo(root, "C", "c task", { depends_on: ["B"] });
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
+
+    const events = await readEvents(root);
+    const propagated = events.find((e) => e.event === "queue.propagate_blocked") as Record<string, unknown>;
+    assert.ok(propagated, "queue.propagate_blocked emitted");
+    assert.deepEqual((propagated.blocked as string[]).sort(), ["B", "C"]);
+
+    const blockedFiles = (await readdir(join(root, "docs/cycle/issues/blocked"))).sort();
+    assert.deepEqual(blockedFiles, ["B.md", "C.md"]);
+    const b = await readFile(join(root, "docs/cycle/issues/blocked/B.md"), "utf8");
+    const c = await readFile(join(root, "docs/cycle/issues/blocked/C.md"), "utf8");
+    assert.match(b, /^blocked_by: \[A\]$/m);
+    assert.match(c, /^blocked_by: \[B\]$/m);
+    assert.match(b, /^blocked_at: /m);
+    assert.match(c, /^blocked_at: /m);
+
     assert.ok(!events.find((e) => e.event === "engine.halted"));
   } finally {
     await rm(root, { recursive: true, force: true });
