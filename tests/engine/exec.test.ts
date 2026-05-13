@@ -12,6 +12,11 @@ test("resolveAgent returns the registered codex module", () => {
   assert.equal(typeof mod.runStep, "function");
 });
 
+test("resolveAgent returns the registered gemini module", () => {
+  const mod = resolveAgent("gemini");
+  assert.equal(typeof mod.runStep, "function");
+});
+
 test("resolveAgent throws UnknownAgentError for an unregistered name", () => {
   let caught: unknown;
   try {
@@ -24,4 +29,5 @@ test("resolveAgent throws UnknownAgentError for an unregistered name", () => {
   assert.match(msg, /"foo"/);
   assert.match(msg, /claudecode/);
   assert.match(msg, /codex/);
+  assert.match(msg, /gemini/);
 });

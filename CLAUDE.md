@@ -31,7 +31,7 @@ Project conventions for cycle. Read before touching code or running the workflow
 
 ## Architecture quick reference
 
-- Engine source: `src/engine/` (run-cycle, scan, log, log-tail, branch, exec, exec-bash, exec-claudecode, exec-codex, child-env, workflow, cycle-id, queue, frontmatter, blocked, reflection). The per-step `agent:` field in `workflows.yml` is resolved through `resolveAgent(name)` in `exec.ts`; unknown names throw `UnknownAgentError` and surface as `step.end status:failed` (workflow) or `engine.paused {reason:"all_triage_failed"}` (triage). Registered agents: `claudecode`, `codex`.
+- Engine source: `src/engine/` (run-cycle, scan, log, log-tail, branch, exec, exec-bash, exec-claudecode, exec-codex, exec-gemini, child-env, workflow, cycle-id, queue, frontmatter, blocked, reflection). The per-step `agent:` field in `workflows.yml` is resolved through `resolveAgent(name)` in `exec.ts`; unknown names throw `UnknownAgentError` and surface as `step.end status:failed` (workflow) or `engine.paused {reason:"all_triage_failed"}` (triage). Registered agents: `claudecode`, `codex`, `gemini`.
 - CLI surface: `src/cli.ts`, `src/cli/{parse-args,init}.ts`.
 - Default workflow + prompts + scripts that ship into consumer repos: `src/defaults/`.
   Workflow + engine + triage config now live in a single `workflows.yml` (replaces the `workflows/` subdirectory).
