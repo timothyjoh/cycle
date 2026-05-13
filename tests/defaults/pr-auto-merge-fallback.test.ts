@@ -57,3 +57,53 @@ test("pr.sh: fallback exit code captured via || idiom, not post-if $?", () => {
     /gh pr merge "\$\{pr_number\}" --squash --delete-branch \|\| fallback_rc=\$\?/,
   );
 });
+
+test("pr.sh: deletes orphaned remote ref after successful fallback merge", () => {
+  const src = readFileSync(PR_SH, "utf8");
+  assert.match(
+    src,
+    /gh api -X DELETE "?repos\/[^\s"]*\/git\/refs\/heads\/\$\{branch\}"?/,
+    "pr.sh must issue an explicit DELETE to git/refs/heads/${branch} after fallback merge",
+  );
+});
+
+test("pr.sh: ref deletion call is positioned after the fallback gh pr merge", () => {
+  const src = readFileSync(PR_SH, "utf8");
+  const mergeIdx = src.search(/gh pr merge "\$\{pr_number\}" --squash --delete-branch/);
+  const deleteIdx = src.search(/gh api -X DELETE "?repos\/[^\s"]*\/git\/refs\/heads\//);
+  assert.ok(mergeIdx >= 0, "fallback merge call missing");
+  assert.ok(deleteIdx >= 0, "ref delete call missing");
+  assert.ok(
+    deleteIdx > mergeIdx,
+    `ref delete (${deleteIdx}) must appear after fallback merge (${mergeIdx})`,
+  );
+});
+
+test("pr.sh: ref deletion gated on fallback merge success (fallback_rc -eq 0)", () => {
+  const src = readFileSync(PR_SH, "utf8");
+  const gateRegex =
+    /if \[ "\$\{fallback_rc\}" -eq 0 \];\s*then[\s\S]*?gh api -X DELETE[\s\S]*?echo "\$\{pr_url\}"/;
+  assert.match(
+    src,
+    gateRegex,
+    "DELETE must live inside the fallback success branch, before echo ${pr_url}",
+  );
+});
+
+test("pr.sh: ref deletion failure warns to stderr with pr.sh: prefix and still exits 0", () => {
+  const src = readFileSync(PR_SH, "utf8");
+  assert.match(
+    src,
+    /pr\.sh: failed to delete remote branch/,
+    "ref-deletion failure must emit a pr.sh:-prefixed warning",
+  );
+  const successBlock = src.match(
+    /if \[ "\$\{fallback_rc\}" -eq 0 \];\s*then[\s\S]*?echo "\$\{pr_url\}"\s*\n\s*exit 0/,
+  );
+  assert.ok(successBlock, "fallback success block not found");
+  assert.match(
+    successBlock[0],
+    /pr\.sh: failed to delete remote branch/,
+    "ref-deletion warning must live inside the fallback success block (before echo ${pr_url}; exit 0)",
+  );
+});

@@ -41,6 +41,15 @@ case "${err}" in
     fallback_rc=0
     gh pr merge "${pr_number}" --squash --delete-branch || fallback_rc=$?
     if [ "${fallback_rc}" -eq 0 ]; then
+      # gh pr merge --delete-branch is a no-op on the synchronous merge path
+      # (it only fires when GitHub schedules an async auto-merge). Delete the
+      # remote ref explicitly so cycle/feature/* branches don't pile up.
+      repo_slug=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+      delete_rc=0
+      gh api -X DELETE "repos/${repo_slug}/git/refs/heads/${branch}" >/dev/null 2>&1 || delete_rc=$?
+      if [ "${delete_rc}" -ne 0 ]; then
+        echo "pr.sh: failed to delete remote branch ${branch} (exit ${delete_rc}); merge succeeded, continuing" >&2
+      fi
       echo "${pr_url}"
       exit 0
     fi
