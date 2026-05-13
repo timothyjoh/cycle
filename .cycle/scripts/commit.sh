@@ -64,9 +64,9 @@ fi
 . "$(dirname "$0")/lib/closes.sh"
 issue_file=""
 if [ -n "${CYCLE_ISSUE_ID:-}" ]; then
-  for d in docs/cycle/issues/triaged docs/cycle/issues/queued; do
-    if [ -f "$d/${CYCLE_ISSUE_ID}.md" ]; then issue_file="$d/${CYCLE_ISSUE_ID}.md"; break; fi
-  done
+  if [ -f "docs/cycle/issues/todo/${CYCLE_ISSUE_ID}.md" ]; then
+    issue_file="docs/cycle/issues/todo/${CYCLE_ISSUE_ID}.md"
+  fi
 fi
 repo_slug="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
 closes="$(closes_block "$issue_file" "$repo_slug")"

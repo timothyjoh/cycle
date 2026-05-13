@@ -9,7 +9,7 @@ Read these to know what you're working on:
 
 1. **`.cycle/log.jsonl` — last line with `"event":"cycle.start"`**: gives
    you `cycle_id`, `workflow`, `title`, and `issue_id`.
-2. **Issue file**: `docs/cycle/issues/queued/<issue_id>.md` — the source
+2. **Issue file**: `docs/cycle/issues/todo/<issue_id>.md` — the source
    work item (YAML frontmatter + body). This is your primary input.
 3. **Project Brief**: `BRIEF.md` (and `docs/ARCHITECTURE.md` if present)
    — read for context, but scope from the issue.

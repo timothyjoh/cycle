@@ -18,7 +18,7 @@ export async function runInit(opts: { targetRoot: string; force: boolean }) {
   await cp(join(defaults, "prompts"), join(t, ".cycle/prompts"), { recursive: true });
   await cp(join(defaults, "scripts"), join(t, ".cycle/scripts"), { recursive: true });
 
-  for (const sub of ["tbd", "queued", "triaged", "blocked", "failed"]) {
+  for (const sub of ["raw", "todo", "done", "blocked", "failed"]) {
     await mkdir(join(t, "docs/cycle/issues", sub), { recursive: true });
   }
 }

@@ -43,13 +43,13 @@ Contracts:
 - **In:** one or more *issues*. An issue is any unit of work — free-text
   task, Jira card, GH issue, PRD, BRIEF. Any entry point (positional
   `"task text"`, `--issue <id>`, `--issues-file`, `--issues-stdin`, or
-  files dropped into `docs/cycle/issues/tbd/` by an external agent)
-  materializes as a markdown file in the `tbd/` inbox. The engine's
+  files dropped into `docs/cycle/issues/raw/` by an external agent)
+  materializes as a markdown file in the `raw/` inbox. The engine's
   scan loop then picks them up.
 - **Out:** JSONL event stream on stdout (mirrored to `.cycle/log.jsonl`);
   durable per-cycle artifacts under `docs/cycle/<cycle-id>-<workflow>-<slug>/`;
   one branch, commit set, and PR per cycle; issue files advance through
-  `tbd/ → queued/ → triaged/` as state changes; a final exit code.
+  `raw/ → todo/ → done/` as state changes; a final exit code.
 
 ## 2. Distribution & Runtime
 
@@ -235,7 +235,7 @@ Subcommands:
 
 ```jsonl
 {"ts":"…","event":"engine.start"}
-{"ts":"…","event":"issue.ingested","issue_id":"JIRA-123","path":"docs/cycle/issues/queued/JIRA-123.md"}
+{"ts":"…","event":"issue.ingested","issue_id":"JIRA-123","path":"docs/cycle/issues/todo/JIRA-123.md"}
 {"ts":"…","event":"tbd.pop","issue_id":"JIRA-123"}
 {"ts":"…","event":"triage.start","issue_id":"JIRA-123","attempt":1}
 {"ts":"…","event":"triage.decision","issue_id":"JIRA-123","plan":[{"workflow":"feature","title":"…"},{"workflow":"feature","title":"…"}]}
@@ -279,26 +279,26 @@ timestamps.
 ### Engine lifecycle
 
 1. **Parse args.** For any CLI-supplied input, materialize a markdown
-   file in `docs/cycle/issues/tbd/` (filename derived from `id`, or a
+   file in `docs/cycle/issues/raw/` (filename derived from `id`, or a
    `txt-<ts>-<slug>` for freeform text).
 2. **Start.** Emit `engine.start`.
-3. **Scan `tbd/`.** For each file not yet reflected in `tbd.jsonl`:
-   `mv` it to `queued/`, then append a line to `tbd.jsonl` (dedup by
+3. **Scan `raw/`.** For each file not yet reflected in `tbd.jsonl`:
+   `mv` it to `todo/`, then append a line to `tbd.jsonl` (dedup by
    `id`). Emit one `issue.ingested` per file.
 4. **Process loop** (until `tbd.jsonl` is empty):
    - **Pop** the next issue from `tbd.jsonl`; emit `tbd.pop`.
    - **Skip if blocked** by `depends_on:` — if any dependency is still
-     in `tbd/`, `queued/`, or is an unmerged cycle, re-append the line
+     in `raw/`, `todo/`, or is an unmerged cycle, re-append the line
      to the tail of `tbd.jsonl` and continue to the next entry. (Cycle
      detection: after a full pass where no issue can progress, abort.)
-   - **Triage** the `queued/` file → a *plan* of 1+ cycles, each
+   - **Triage** the `todo/` file → a *plan* of 1+ cycles, each
      tagged with a workflow (`bug` / `feature` / `research`) and a
      spec. No cycle IDs assigned yet.
      - On triage failure: increment `triage_attempts` in frontmatter,
        re-append to `tbd.jsonl`. After 3 attempts, move the file to
        `failed/` with a `FAILURE.md` note; emit `triage.abandoned`.
    - **Write `TRIAGE.md`** (populated once the first cycle ID is
-     assigned); `mv` the issue file from `queued/` to `triaged/`.
+     assigned); the issue file stays in `todo/` until cycle completion.
    - **Cycle sub-loop** (for each planned cycle):
      - **Allocate the cycle ID** by scanning `log.jsonl` for the
        highest existing ID and incrementing. Append it to the issue's
@@ -324,16 +324,16 @@ timestamps.
        skipped (they consume no IDs). Move the issue file to
        `blocked/` with `BLOCKED.md`; emit `issue.blocked`. In `stack`
        mode the engine halts entirely (default `--on-abandon halt`).
-     - On issue completion (all planned cycles merged): append
-       `completed_at:` to the issue file in `triaged/`; emit
+     - On issue completion (all planned cycles merged): move the issue
+       file from `todo/` to `done/` and append `completed_at:`; emit
        `issue.completed`.
-5. **Re-scan `tbd/`.** If new files appeared during the run, loop back
+5. **Re-scan `raw/`.** If new files appeared during the run, loop back
    to step 4.
-6. **Finalize.** When `tbd.jsonl` is empty and `tbd/` is empty, emit
+6. **Finalize.** When `tbd.jsonl` is empty and `raw/` is empty, emit
    `engine.stop` and exit 0.
 
 Triage is lazy (per issue, just before its cycles run). The backlog in
-`tbd/` + `tbd.jsonl` stays a meaningful live queue. Crash-resume is
+`raw/` + `tbd.jsonl` stays a meaningful live queue. Crash-resume is
 trivial — re-invoking `cycle run` with no arguments picks up from
 whatever's still in the folders and `tbd.jsonl`.
 
@@ -627,9 +627,9 @@ Example: parent agent invokes cycle with 7 Jira issues, 3 of them big.
 
 1. Parent runs
    `./.cycle/bin/cycle.js run --issues-file jira-todo.json`.
-2. cycle writes 7 markdown files into `docs/cycle/issues/tbd/` (one per
+2. cycle writes 7 markdown files into `docs/cycle/issues/raw/` (one per
    Jira card). Emits `engine.start`.
-3. Scan: each file is moved to `queued/` and a line is appended to
+3. Scan: each file is moved to `todo/` and a line is appended to
    `.cycle/tbd.jsonl`. Emits 7 `issue.ingested` events.
 4. Process loop begins. Pops the first line from `tbd.jsonl` (say
    `JIRA-123`); emits `tbd.pop`.
@@ -637,8 +637,8 @@ Example: parent agent invokes cycle with 7 Jira issues, 3 of them big.
    `triage.decision`. Engine scans `log.jsonl`, finds the previous
    highest cycle ID was `0041`, so this cycle gets `0042`. Writes
    `TRIAGE.md` into `docs/cycle/0042-feature-safari-login/`, updates
-   the issue file's `cycles: [0042]` frontmatter, moves the file to
-   `triaged/`.
+   the issue file's `cycles: [0042]` frontmatter. The file stays in
+   `todo/` until cycle completion.
 6. Cycle `0042` runs:
    - Branch `cycle/feature/safari-login` created off `main`.
    - `docs/cycle/0042-feature-safari-login/` gets its workflow
@@ -649,14 +649,14 @@ Example: parent agent invokes cycle with 7 Jira issues, 3 of them big.
    - PR opened; `gh pr merge --squash --auto` enabled.
    - Engine polls until the PR lands on `main`. Emits `pr.merged` and
      `cycle.end`.
-   - Since `0042` was the only cycle from `JIRA-123`, the engine
-     appends `completed_at:` to the issue file in `triaged/` and emits
-     `issue.completed`.
+   - Since `0042` was the only cycle from `JIRA-123`, the engine moves
+     the issue file from `todo/` to `done/`, appends `completed_at:`,
+     and emits `issue.completed`.
 7. Engine loops back. Pops `JIRA-124`. Triage decomposes into 3
    cycles (`0043`, `0044`, `0045`). Each runs in turn, branched off the
    updated `main`. After `0045` merges, `JIRA-124.md` gets its
    `completed_at:`.
-8. And so on, until `tbd.jsonl` is empty. Final scan of `tbd/` —
+8. And so on, until `tbd.jsonl` is empty. Final scan of `raw/` —
    nothing new. Emits `engine.stop` with status `ok`. Exit 0.
 
 **`--merge-mode stack`:** each cycle's PR is opened with the prior
@@ -665,13 +665,13 @@ the next cycle. Humans merge the stack bottom-up later.
 
 **Crash recovery:** if the engine crashes after cycle `0044` merges,
 `tbd.jsonl` still has `JIRA-125`–`JIRA-127`, `log.jsonl` records
-everything that did happen, and the `triaged/`/`queued/` folders reflect
+everything that did happen, and the `todo/`/`done/` folders reflect
 true state. Re-invoking `./.cycle/bin/cycle.js run` with no
 arguments picks up automatically — starting with any cycle left
 mid-flight (detected from the log), then continuing through the queue.
 
 **External agent drop:** while the engine is processing cycle `0042`,
-another agent drops `JIRA-200.md` into `tbd/`. The engine sees it on
+another agent drops `JIRA-200.md` into `raw/`. The engine sees it on
 the next scan (after the current queue empties) and keeps running
 instead of stopping.
 

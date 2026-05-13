@@ -18,7 +18,7 @@ test("'run' drains two pre-dropped issues in one invocation (dry-run)", async ()
       spawnSync("npm", ["run", "build"], { cwd: REPO, stdio: "inherit" });
     }
 
-    // pre-populate tbd/ with two dropped issues
+    // pre-populate raw/ with two dropped issues
     spawnSync("node", [distPath, "drop", "task alpha"], { cwd: root, stdio: "inherit" });
     spawnSync("node", [distPath, "drop", "task beta"], { cwd: root, stdio: "inherit" });
 
@@ -91,7 +91,7 @@ test("'run' halts on cycle failure and leaves remaining queue intact", async () 
   }
 });
 
-test("'drop' materializes an issue to tbd/ without running", async () => {
+test("'drop' materializes an issue to raw/ without running", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
     const distPath = join(REPO, "dist", "cycle.js");
@@ -107,9 +107,10 @@ test("'drop' materializes an issue to tbd/ without running", async () => {
     assert.equal(out.event, "issue.dropped");
     assert.match(out.issue_id, /^txt-\d{8}-\d{6}-park-this-for-later$/);
 
-    // tbd/ has the file, no log.jsonl (drop is engine-side silent)
-    const tbdFile = await readFile(out.path, "utf8");
-    assert.match(tbdFile, /park this for later/);
+    // raw/ has the file, no log.jsonl (drop is engine-side silent)
+    const rawFile = await readFile(out.path, "utf8");
+    assert.match(rawFile, /park this for later/);
+    assert.match(out.path, /\/docs\/cycle\/issues\/raw\//);
     try {
       await readFile(join(root, ".cycle/log.jsonl"), "utf8");
       assert.fail("drop should not write log.jsonl");

@@ -33,7 +33,7 @@ Project conventions for cycle. Read before touching code or running the workflow
 - CLI surface: `src/cli.ts`, `src/cli/{parse-args,init}.ts`.
 - Default workflow + prompts + scripts that ship into consumer repos: `src/defaults/`.
 - After editing `src/defaults/`, run `npm run sync-defaults`.
-- Issue state machine: `docs/cycle/issues/{tbd,queued,triaged,blocked,failed}/`.
+- Issue state machine: `docs/cycle/issues/{raw,todo,done,blocked,failed}/`. See `docs/RFC-001-issue-lifecycle.md` for the authoritative lifecycle.
 - Append-only audit log: `.cycle/log.jsonl`.
 
 ## Subprocess discipline
@@ -44,5 +44,5 @@ Project conventions for cycle. Read before touching code or running the workflow
 ## Workflow defaults
 
 - Force `--workflow feature` until triage + multi-cycle decomposition land.
-- Multi-loop run halts on first cycle failure; remaining queue stays in `tbd/`.
+- Multi-loop run halts on first cycle failure; remaining queue stays in `todo/`.
 - See `BRIEF.md` and `docs/ARCHITECTURE.md` for the full system design.

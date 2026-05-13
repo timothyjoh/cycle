@@ -20,7 +20,7 @@ You are a documentarian, not an evaluator.
    `workflow`, `title`, `issue_id`.
 2. **SPEC.md**: `docs/cycle/<cycle_id>-<workflow>-<slug>/SPEC.md` — read
    this first; it tells you what the change area is.
-3. **Issue file**: `docs/cycle/issues/queued/<issue_id>.md`.
+3. **Issue file**: `docs/cycle/issues/todo/<issue_id>.md`.
 4. **Repo conventions**: any `CLAUDE.md` / `AGENTS.md` at the repo root.
 5. **Reference Documentation**: if `BRIEF.md` has a `## Reference
    Documentation` section, read every file listed there.
