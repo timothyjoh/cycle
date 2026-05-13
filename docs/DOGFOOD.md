@@ -64,6 +64,11 @@ Auto-merge is a repo setting that needs to be enabled in
 **Mitigation:** enabled before next run, or fall back to immediate
 merge (no `--auto`).
 
+**Resolved in cycle 0006 (GH #5).** `pr.sh` now detects the
+`enablePullRequestAutoMerge` / `Auto merge is not allowed for this
+repository` signature and falls back to synchronous
+`gh pr merge --squash --delete-branch`.
+
 ### 3. `commit.sh` over-staged via `git add -A`
 
 The commit grabbed two unintended things along with the README:
