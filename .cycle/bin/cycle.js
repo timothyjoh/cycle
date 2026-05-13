@@ -7372,33 +7372,33 @@ var init_exports = {};
 __export(init_exports, {
   runInit: () => runInit
 });
-import { cp, mkdir as mkdir5, stat, chmod, copyFile } from "node:fs/promises";
+import { cp, mkdir as mkdir7, stat as stat2, chmod, copyFile } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname3, join as join10 } from "node:path";
+import { dirname as dirname5, join as join14 } from "node:path";
 async function runInit(opts) {
   const t = opts.targetRoot;
   const enginePath = await locateEngineBundle();
-  await mkdir5(join10(t, ".cycle/bin"), { recursive: true });
-  await copyFile(enginePath, join10(t, ".cycle/bin/cycle.js"));
-  await chmod(join10(t, ".cycle/bin/cycle.js"), 493);
+  await mkdir7(join14(t, ".cycle/bin"), { recursive: true });
+  await copyFile(enginePath, join14(t, ".cycle/bin/cycle.js"));
+  await chmod(join14(t, ".cycle/bin/cycle.js"), 493);
   const defaults = await locateDefaultsDir();
-  await mkdir5(join10(t, ".cycle"), { recursive: true });
-  await copyFile(join10(defaults, "workflows.yml"), join10(t, ".cycle/workflows.yml"));
-  await cp(join10(defaults, "prompts"), join10(t, ".cycle/prompts"), { recursive: true });
-  await cp(join10(defaults, "scripts"), join10(t, ".cycle/scripts"), { recursive: true });
+  await mkdir7(join14(t, ".cycle"), { recursive: true });
+  await copyFile(join14(defaults, "workflows.yml"), join14(t, ".cycle/workflows.yml"));
+  await cp(join14(defaults, "prompts"), join14(t, ".cycle/prompts"), { recursive: true });
+  await cp(join14(defaults, "scripts"), join14(t, ".cycle/scripts"), { recursive: true });
   for (const sub of ["raw", "todo", "done", "blocked", "failed"]) {
-    await mkdir5(join10(t, "docs/cycle/issues", sub), { recursive: true });
+    await mkdir7(join14(t, "docs/cycle/issues", sub), { recursive: true });
   }
 }
 async function locateEngineBundle() {
   const candidates = [
-    join10(HERE, "..", "..", "dist", "cycle.js"),
-    join10(HERE, "..", "dist", "cycle.js"),
-    join10(HERE, "cycle.js")
+    join14(HERE, "..", "..", "dist", "cycle.js"),
+    join14(HERE, "..", "dist", "cycle.js"),
+    join14(HERE, "cycle.js")
   ];
   for (const c of candidates) {
     try {
-      await stat(c);
+      await stat2(c);
       return c;
     } catch {
     }
@@ -7407,18 +7407,18 @@ async function locateEngineBundle() {
 }
 async function locateDefaultsDir() {
   const candidates = [
-    join10(HERE, "defaults"),
+    join14(HERE, "defaults"),
     // dist/defaults next to dist/cycle.js
-    join10(HERE, "..", "defaults"),
+    join14(HERE, "..", "defaults"),
     // dist/../defaults
-    join10(HERE, "..", "..", "src", "defaults"),
+    join14(HERE, "..", "..", "src", "defaults"),
     // local dev from src/cli/
-    join10(HERE, "..", "src", "defaults")
+    join14(HERE, "..", "src", "defaults")
     // local dev from src/
   ];
   for (const c of candidates) {
     try {
-      await stat(c);
+      await stat2(c);
       return c;
     } catch {
     }
@@ -7429,9 +7429,13 @@ var HERE;
 var init_init = __esm({
   "src/cli/init.ts"() {
     "use strict";
-    HERE = dirname3(fileURLToPath2(import.meta.url));
+    HERE = dirname5(fileURLToPath2(import.meta.url));
   }
 });
+
+// src/cli.ts
+import { readFile as readFile9, readdir as readdir3, rename as rename6, mkdir as mkdir8 } from "node:fs/promises";
+import { join as join15 } from "node:path";
 
 // src/version.ts
 import { readFile } from "node:fs/promises";
@@ -7510,81 +7514,676 @@ async function materializeFreeformIssue(text, repoRoot, now = /* @__PURE__ */ ne
   return { path, id };
 }
 
-// src/engine/scan.ts
-import { readdir, rename, readFile as readFile2, appendFile, mkdir as mkdir2 } from "node:fs/promises";
-import { join as join2 } from "node:path";
-function parseFrontmatter(body) {
-  const m = body.match(/^---\n([\s\S]*?)\n---/);
-  if (!m) throw new Error("no frontmatter");
-  const out = {};
-  for (const line of m[1].split("\n")) {
-    const kv = line.match(/^(\w+):\s*(.+)$/);
-    if (kv) out[kv[1]] = kv[2].replace(/^"(.*)"$/, "$1");
+// src/engine/triage.ts
+import { spawn } from "node:child_process";
+import { readFile as readFile4, writeFile as writeFile4, readdir, mkdir as mkdir3, rename as rename3, unlink } from "node:fs/promises";
+import { join as join3, dirname as dirname3 } from "node:path";
+
+// src/engine/frontmatter.ts
+import { readFile as readFile2, writeFile as writeFile2, rename } from "node:fs/promises";
+var FM_RE = /^---\n([\s\S]*?)\n---\n/;
+function parseScalar(raw) {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    const inner = trimmed.slice(1, -1).trim();
+    if (inner === "") return [];
+    return inner.split(",").map((p) => p.trim().replace(/^"(.*)"$/s, "$1"));
   }
-  return out;
+  if (/^-?\d+$/.test(trimmed)) return Number(trimmed);
+  return trimmed.replace(/^"((?:[^"\\]|\\.)*)"$/s, (_, inner) => inner.replace(/\\"/g, '"'));
 }
-async function readKnownIds(jsonlPath) {
-  const ids = /* @__PURE__ */ new Set();
+function parseFrontmatter(body) {
+  const m = body.match(FM_RE);
+  if (!m) throw new Error("no frontmatter");
+  const fm = {};
+  for (const line of m[1].split("\n")) {
+    if (!line.trim()) continue;
+    const kv = line.match(/^(\w+):\s*(.*)$/);
+    if (kv) fm[kv[1]] = parseScalar(kv[2]);
+  }
+  const bodyAfter = body.slice(m[0].length);
+  return { fm, bodyAfter };
+}
+function needsQuote(s) {
+  if (s === "") return true;
+  if (/^[\s]/.test(s) || /[\s]$/.test(s)) return true;
+  if (/[:"#\n]/.test(s)) return true;
+  if (/^-?\d+$/.test(s)) return true;
+  return false;
+}
+function serializeValue(v) {
+  if (Array.isArray(v)) {
+    return "[" + v.map((s) => needsQuote(s) ? `"${s.replace(/"/g, '\\"')}"` : s).join(", ") + "]";
+  }
+  if (typeof v === "number") return String(v);
+  if (needsQuote(v)) return `"${v.replace(/"/g, '\\"')}"`;
+  return v;
+}
+function serializeFrontmatter(fm, bodyAfter) {
+  const lines = ["---"];
+  for (const [k, v] of Object.entries(fm)) {
+    lines.push(`${k}: ${serializeValue(v)}`);
+  }
+  lines.push("---");
+  return lines.join("\n") + "\n" + bodyAfter;
+}
+async function mutateFrontmatter(path, patch) {
+  const body = await readFile2(path, "utf8");
+  const { fm, bodyAfter } = parseFrontmatter(body);
+  const next = patch({ ...fm });
+  const out = serializeFrontmatter(next, bodyAfter);
+  const tmp = path + ".tmp";
+  await writeFile2(tmp, out, "utf8");
+  await rename(tmp, path);
+}
+
+// src/engine/queue.ts
+import { readFile as readFile3, writeFile as writeFile3, rename as rename2, appendFile, mkdir as mkdir2, stat } from "node:fs/promises";
+import { join as join2 } from "node:path";
+function queuePath(repoRoot) {
+  return join2(repoRoot, ".cycle", "tbd.jsonl");
+}
+async function ensureCycleDir(repoRoot) {
+  await mkdir2(join2(repoRoot, ".cycle"), { recursive: true });
+}
+function isLegacyLine(parsed) {
+  if (!parsed || typeof parsed !== "object") return false;
+  const obj = parsed;
+  if (typeof obj.id !== "string") return false;
+  return obj.status === void 0;
+}
+function isQueueRow(parsed) {
+  if (!parsed || typeof parsed !== "object") return false;
+  const obj = parsed;
+  if (typeof obj.id !== "string") return false;
+  if (typeof obj.title !== "string") return false;
+  if (obj.status !== "pending" && obj.status !== "in_progress") return false;
+  if (typeof obj.attempt !== "number") return false;
+  if (!Array.isArray(obj.depends_on)) return false;
+  if (typeof obj.triaged_at !== "string") return false;
+  return true;
+}
+async function readQueue(repoRoot) {
+  const path = queuePath(repoRoot);
   let raw;
   try {
-    raw = await readFile2(jsonlPath, "utf8");
+    raw = await readFile3(path, "utf8");
   } catch (e) {
-    if (e.code === "ENOENT") return ids;
+    if (e.code === "ENOENT") return [];
     throw e;
   }
+  const rows = [];
   for (const line of raw.split("\n")) {
     if (!line.trim()) continue;
+    let parsed;
     try {
-      const obj = JSON.parse(line);
-      if (obj && typeof obj.id === "string") ids.add(obj.id);
+      parsed = JSON.parse(line);
     } catch {
+      continue;
+    }
+    if (!isQueueRow(parsed)) continue;
+    rows.push(parsed);
+  }
+  return rows;
+}
+async function writeQueue(repoRoot, rows) {
+  await ensureCycleDir(repoRoot);
+  const path = queuePath(repoRoot);
+  const body = rows.map((r) => JSON.stringify(r)).join("\n") + (rows.length ? "\n" : "");
+  const tmp = path + ".tmp";
+  await writeFile3(tmp, body, "utf8");
+  await rename2(tmp, path);
+}
+async function appendRow(repoRoot, row) {
+  await ensureCycleDir(repoRoot);
+  await appendFile(queuePath(repoRoot), JSON.stringify(row) + "\n", "utf8");
+}
+async function pickArchivePath(repoRoot) {
+  const base = join2(repoRoot, ".cycle", "tbd.jsonl.bootstrap-archive");
+  try {
+    await stat(base);
+  } catch {
+    return base;
+  }
+  for (let i = 1; i < 1e3; i++) {
+    const candidate = `${base}.${i}`;
+    try {
+      await stat(candidate);
+    } catch {
+      return candidate;
     }
   }
-  return ids;
+  throw new Error("too many bootstrap archives");
 }
-async function scanRaw(repoRoot) {
-  const raw = join2(repoRoot, "docs/cycle/issues/raw");
-  const todo = join2(repoRoot, "docs/cycle/issues/todo");
-  const cycleDir = join2(repoRoot, ".cycle");
-  const jsonlPath = join2(cycleDir, "tbd.jsonl");
-  await mkdir2(todo, { recursive: true });
-  await mkdir2(cycleDir, { recursive: true });
+async function bootstrapArchiveIfLegacy(repoRoot) {
+  const path = queuePath(repoRoot);
+  let raw;
+  try {
+    raw = await readFile3(path, "utf8");
+  } catch (e) {
+    if (e.code === "ENOENT") return false;
+    throw e;
+  }
+  let hasLegacy = false;
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (isLegacyLine(parsed)) {
+      hasLegacy = true;
+      break;
+    }
+  }
+  if (!hasLegacy) return false;
+  const archive = await pickArchivePath(repoRoot);
+  await rename2(path, archive);
+  return true;
+}
+async function popNextPending(repoRoot) {
+  const rows = await readQueue(repoRoot);
+  for (const row of rows) {
+    if (row.status === "pending") return row;
+  }
+  return null;
+}
+async function markInProgress(repoRoot, id, cycleId) {
+  const rows = await readQueue(repoRoot);
+  let touched = false;
+  for (const r of rows) {
+    if (r.id !== id) continue;
+    if (r.status === "in_progress" && r.cycle_id && r.cycle_id !== cycleId) {
+      throw new Error(
+        `markInProgress: row ${id} already in_progress for cycle ${r.cycle_id}, refusing to overwrite with ${cycleId}`
+      );
+    }
+    r.status = "in_progress";
+    r.cycle_id = cycleId;
+    touched = true;
+  }
+  if (!touched) throw new Error(`markInProgress: id not found: ${id}`);
+  await writeQueue(repoRoot, rows);
+}
+async function drainOk(repoRoot, id) {
+  const rows = await readQueue(repoRoot);
+  const next = rows.filter((r) => r.id !== id);
+  await writeQueue(repoRoot, next);
+}
+async function drainFailedRetry(repoRoot, id) {
+  const rows = await readQueue(repoRoot);
+  for (const r of rows) {
+    if (r.id === id) {
+      r.attempt += 1;
+      r.status = "pending";
+      delete r.cycle_id;
+    }
+  }
+  await writeQueue(repoRoot, rows);
+}
+async function drainFailedTerminal(repoRoot, id) {
+  const rows = await readQueue(repoRoot);
+  const next = rows.filter((r) => r.id !== id);
+  await writeQueue(repoRoot, next);
+}
+
+// src/engine/child-env.ts
+import { dirname as dirname2, delimiter } from "node:path";
+function buildChildEnv(extra) {
+  const nodeBinDir = dirname2(process.execPath);
+  const basePath = extra.PATH ?? process.env.PATH ?? "";
+  const path = basePath ? `${nodeBinDir}${delimiter}${basePath}` : nodeBinDir;
+  return { ...process.env, ...extra, PATH: path };
+}
+
+// src/engine/triage.ts
+var MAX_ATTEMPTS = 3;
+async function runTriage(repoRoot, cfg2, log2, deps = {}) {
+  if (cfg2.triage.agent !== "claudecode") {
+    throw new Error(`unsupported triage agent: ${cfg2.triage.agent}`);
+  }
+  const runAgent = deps.runAgent ?? runClaudecodeAgent;
+  await bootstrapArchiveIfLegacy(repoRoot);
+  const rawDir2 = join3(repoRoot, "docs/cycle/issues/raw");
+  await mkdir3(rawDir2, { recursive: true });
+  const raws = await loadRaws(rawDir2);
+  await log2.emit("triage.start", { count: raws.length });
+  if (raws.length === 0) {
+    await log2.emit("triage.end", { processed: 0, failed: 0 });
+    return { status: "ok", processed: [], failed: [] };
+  }
+  const promptTemplate = await readFile4(
+    join3(repoRoot, ".cycle", cfg2.triage.prompt),
+    "utf8"
+  );
+  const processed = [];
+  const failed = [];
+  let lastOrdering = null;
+  for (const raw of raws) {
+    let succeeded = false;
+    let lastError = "";
+    for (let attempt = raw.attempts; attempt < MAX_ATTEMPTS; attempt++) {
+      const queueRows = await readQueue(repoRoot);
+      const todoListing = await listTodos(repoRoot);
+      const feedback = lastError ? `PREVIOUS ATTEMPT FAILED VALIDATION:
+${lastError}` : "";
+      const renderedPrompt = renderPrompt(
+        promptTemplate,
+        [raw],
+        queueRows,
+        todoListing,
+        feedback
+      );
+      let agentResult;
+      try {
+        agentResult = await runAgent(renderedPrompt, cfg2.triage, repoRoot);
+      } catch (e) {
+        lastError = `agent failed: ${e.message}`;
+        await bumpAttempts(raw.srcPath, attempt + 1);
+        await log2.emit("triage.raw.failed", {
+          raw_id: raw.id,
+          attempt: attempt + 1,
+          reason: lastError
+        });
+        continue;
+      }
+      if (agentResult.exitCode !== 0) {
+        lastError = `agent exited ${agentResult.exitCode}: ${agentResult.stderr.trim()}`;
+        await bumpAttempts(raw.srcPath, attempt + 1);
+        await log2.emit("triage.raw.failed", {
+          raw_id: raw.id,
+          attempt: attempt + 1,
+          reason: lastError
+        });
+        continue;
+      }
+      const validation = validateOutput(agentResult.stdout, [raw], queueRows, cfg2);
+      if (!validation.ok) {
+        lastError = validation.reason;
+        await bumpAttempts(raw.srcPath, attempt + 1);
+        await log2.emit("triage.raw.failed", {
+          raw_id: raw.id,
+          attempt: attempt + 1,
+          reason: lastError
+        });
+        continue;
+      }
+      try {
+        await applyRaw(repoRoot, raw, validation.parsed);
+      } catch (e) {
+        lastError = `apply failed: ${e.message}`;
+        await bumpAttempts(raw.srcPath, attempt + 1);
+        await log2.emit("triage.raw.failed", {
+          raw_id: raw.id,
+          attempt: attempt + 1,
+          reason: lastError
+        });
+        continue;
+      }
+      lastOrdering = validation.parsed.ordering;
+      await log2.emit("triage.raw.ok", {
+        raw_id: raw.id,
+        children: validation.parsed.children.filter((c) => c.raw_id === raw.id).map((c) => c.id)
+      });
+      processed.push(raw.id);
+      succeeded = true;
+      break;
+    }
+    if (!succeeded) {
+      failed.push(raw.id);
+      await moveToFailed(repoRoot, raw);
+    }
+  }
+  if (lastOrdering) {
+    await rewriteOrdering(repoRoot, lastOrdering, log2);
+  }
+  if (failed.length === raws.length) {
+    await log2.emit("engine.paused", { reason: "triage_failed", failed });
+    return { status: "paused", processed, failed };
+  }
+  await log2.emit("triage.end", {
+    processed: processed.length,
+    failed: failed.length
+  });
+  return { status: "ok", processed, failed };
+}
+async function loadRaws(rawDir2) {
   let files = [];
   try {
-    files = (await readdir(raw)).filter((f) => f.endsWith(".md"));
+    files = (await readdir(rawDir2)).filter((f) => f.endsWith(".md")).sort();
   } catch {
     return [];
   }
-  const knownIds = await readKnownIds(jsonlPath);
-  const ingested = [];
+  const raws = [];
   for (const f of files) {
-    const src = join2(raw, f);
-    const dst = join2(todo, f);
-    const body = await readFile2(src, "utf8");
-    const fm = parseFrontmatter(body);
-    await rename(src, dst);
-    const entry = {
-      id: fm.id,
-      source: fm.source,
-      title: fm.title,
-      path: dst,
-      added_at: fm.added_at
+    const srcPath = join3(rawDir2, f);
+    const body = await readFile4(srcPath, "utf8");
+    const { fm, bodyAfter } = parseFrontmatter(body);
+    const id = String(fm.id);
+    const attempts = typeof fm.triage_attempts === "number" ? fm.triage_attempts : 0;
+    raws.push({ id, body: bodyAfter, fm, srcPath, attempts });
+  }
+  return raws;
+}
+async function listTodos(repoRoot) {
+  const todoDir2 = join3(repoRoot, "docs/cycle/issues/todo");
+  try {
+    return (await readdir(todoDir2)).filter((f) => f.endsWith(".md")).sort();
+  } catch {
+    return [];
+  }
+}
+function renderPrompt(template, raws, queueRows, todoListing, retryFeedback) {
+  const rawsBlock = raws.map((r) => {
+    const fmSerialized = serializeFrontmatter(r.fm, r.body);
+    return `=== raw: ${r.id} ===
+${fmSerialized}`;
+  }).join("\n");
+  const tbd = queueRows.map((r) => JSON.stringify(r)).join("\n");
+  const todoText = todoListing.join("\n");
+  return template.replace("{{RAWS_BLOCK}}", rawsBlock).replace("{{TBD_JSONL}}", tbd).replace("{{TODO_LISTING}}", todoText).replace("{{RETRY_FEEDBACK}}", retryFeedback);
+}
+function validateOutput(rawStdout, raws, queueRows, cfg2) {
+  let parsed;
+  try {
+    parsed = JSON.parse(rawStdout);
+  } catch (e) {
+    return { ok: false, reason: `stdout is not valid JSON: ${e.message}` };
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false, reason: "stdout is not a JSON object" };
+  }
+  const obj = parsed;
+  if (!Array.isArray(obj.ordering)) {
+    return {
+      ok: false,
+      reason: `ordering: expected array, got ${typeof obj.ordering}`
     };
-    if (!knownIds.has(entry.id)) {
-      await appendFile(jsonlPath, JSON.stringify(entry) + "\n", "utf8");
-      knownIds.add(entry.id);
-      ingested.push(entry);
+  }
+  for (let i = 0; i < obj.ordering.length; i++) {
+    if (typeof obj.ordering[i] !== "string") {
+      return { ok: false, reason: `ordering[${i}]: expected string` };
     }
   }
-  return ingested;
+  if (!Array.isArray(obj.children)) {
+    return {
+      ok: false,
+      reason: `children: expected array, got ${typeof obj.children}`
+    };
+  }
+  if (!Array.isArray(obj.decomposed_parents)) {
+    return {
+      ok: false,
+      reason: `decomposed_parents: expected array, got ${typeof obj.decomposed_parents}`
+    };
+  }
+  for (let i = 0; i < obj.decomposed_parents.length; i++) {
+    if (typeof obj.decomposed_parents[i] !== "string") {
+      return {
+        ok: false,
+        reason: `decomposed_parents[${i}]: expected string`
+      };
+    }
+  }
+  const children = [];
+  const stringFields = [
+    "raw_id",
+    "slug",
+    "id",
+    "title",
+    "workflow",
+    "body"
+  ];
+  for (let i = 0; i < obj.children.length; i++) {
+    const c = obj.children[i];
+    if (!c || typeof c !== "object" || Array.isArray(c)) {
+      return { ok: false, reason: `children[${i}]: expected object` };
+    }
+    const co = c;
+    for (const field of stringFields) {
+      if (typeof co[field] !== "string") {
+        return {
+          ok: false,
+          reason: `children[${i}].${field}: expected string, got ${typeof co[field]}`
+        };
+      }
+    }
+    if (!Array.isArray(co.depends_on)) {
+      return {
+        ok: false,
+        reason: `children[${i}].depends_on: expected array, got ${typeof co.depends_on}`
+      };
+    }
+    for (let j = 0; j < co.depends_on.length; j++) {
+      if (typeof co.depends_on[j] !== "string") {
+        return {
+          ok: false,
+          reason: `children[${i}].depends_on[${j}]: expected string`
+        };
+      }
+    }
+    const child = co;
+    if (child.id !== child.raw_id && child.id !== `${child.raw_id}-${child.slug}`) {
+      return {
+        ok: false,
+        reason: `children[${i}].id: expected ${child.raw_id} or ${child.raw_id}-${child.slug}, got ${child.id}`
+      };
+    }
+    if (!cfg2.workflows.some((w) => w.name === child.workflow)) {
+      return {
+        ok: false,
+        reason: `children[${i}].workflow: ${child.workflow} not in configured workflows`
+      };
+    }
+    if (!raws.some((r) => r.id === child.raw_id)) {
+      return {
+        ok: false,
+        reason: `children[${i}].raw_id: ${child.raw_id} not in current batch`
+      };
+    }
+    children.push(child);
+  }
+  for (const p of obj.decomposed_parents) {
+    if (!raws.some((r) => r.id === p)) {
+      return {
+        ok: false,
+        reason: `decomposed_parents: ${p} not in current batch`
+      };
+    }
+  }
+  const seen = /* @__PURE__ */ new Set();
+  for (let i = 0; i < children.length; i++) {
+    if (seen.has(children[i].id)) {
+      return {
+        ok: false,
+        reason: `children[${i}].id: duplicate ${children[i].id}`
+      };
+    }
+    seen.add(children[i].id);
+  }
+  const queueIds = new Set(queueRows.map((r) => r.id));
+  for (let i = 0; i < children.length; i++) {
+    if (queueIds.has(children[i].id)) {
+      return {
+        ok: false,
+        reason: `children[${i}].id: ${children[i].id} collides with existing queue row`
+      };
+    }
+  }
+  const pendingIds = new Set(
+    queueRows.filter((r) => r.status === "pending").map((r) => r.id)
+  );
+  const childIds = new Set(children.map((c) => c.id));
+  const orderingArr = obj.ordering;
+  const orderingSeen = /* @__PURE__ */ new Set();
+  for (let i = 0; i < orderingArr.length; i++) {
+    const id = orderingArr[i];
+    if (orderingSeen.has(id)) {
+      return { ok: false, reason: `ordering[${i}]: duplicate ${id}` };
+    }
+    orderingSeen.add(id);
+    if (!pendingIds.has(id) && !childIds.has(id)) {
+      return {
+        ok: false,
+        reason: `ordering[${i}]: ${id} not in current pending and not in new children`
+      };
+    }
+  }
+  return {
+    ok: true,
+    parsed: {
+      ordering: orderingArr,
+      children,
+      decomposed_parents: obj.decomposed_parents
+    }
+  };
+}
+async function applyRaw(repoRoot, raw, parsed) {
+  const children = parsed.children.filter((c) => c.raw_id === raw.id);
+  const appliedTodos = [];
+  const appliedIds = [];
+  const todoDir2 = join3(repoRoot, "docs/cycle/issues/todo");
+  const doneDir2 = join3(repoRoot, "docs/cycle/issues/done");
+  await mkdir3(todoDir2, { recursive: true });
+  try {
+    const triagedAt = (/* @__PURE__ */ new Date()).toISOString();
+    for (const child of children) {
+      const todoPath = join3(todoDir2, `${child.id}.md`);
+      const fm = {
+        id: child.id,
+        title: child.title,
+        workflow: child.workflow,
+        depends_on: child.depends_on,
+        triaged_at: triagedAt,
+        source: "triage"
+      };
+      if (child.id !== raw.id) fm.parent = raw.id;
+      const bodyTail = child.body.endsWith("\n") ? child.body : child.body + "\n";
+      const todoContent = serializeFrontmatter(fm, bodyTail);
+      await atomicWrite(todoPath, todoContent);
+      appliedTodos.push(todoPath);
+      const row = {
+        id: child.id,
+        title: child.title,
+        status: "pending",
+        attempt: 0,
+        depends_on: child.depends_on,
+        triaged_at: triagedAt
+      };
+      if (child.id !== raw.id) row.parent = raw.id;
+      await appendRow(repoRoot, row);
+      appliedIds.push(child.id);
+    }
+    await mkdir3(doneDir2, { recursive: true });
+    await rename3(raw.srcPath, join3(doneDir2, `${raw.id}_raw.md`));
+  } catch (e) {
+    for (const todo of appliedTodos) {
+      try {
+        await unlink(todo);
+      } catch {
+      }
+    }
+    if (appliedIds.length > 0) {
+      try {
+        const rows = await readQueue(repoRoot);
+        const idSet = new Set(appliedIds);
+        const next = rows.filter((r) => !idSet.has(r.id));
+        await writeQueue(repoRoot, next);
+      } catch {
+      }
+    }
+    throw e;
+  }
+}
+async function atomicWrite(path, content) {
+  await mkdir3(dirname3(path), { recursive: true });
+  const tmp = path + ".tmp";
+  await writeFile4(tmp, content, "utf8");
+  try {
+    await rename3(tmp, path);
+  } catch (e) {
+    try {
+      await unlink(tmp);
+    } catch {
+    }
+    throw e;
+  }
+}
+async function bumpAttempts(srcPath, attempts) {
+  try {
+    await mutateFrontmatter(srcPath, (fm) => ({
+      ...fm,
+      triage_attempts: attempts
+    }));
+  } catch {
+  }
+}
+async function moveToFailed(repoRoot, raw) {
+  const failedDir2 = join3(repoRoot, "docs/cycle/issues/failed");
+  await mkdir3(failedDir2, { recursive: true });
+  try {
+    await mutateFrontmatter(raw.srcPath, (fm) => ({
+      ...fm,
+      triage_attempts: MAX_ATTEMPTS,
+      failed_at: (/* @__PURE__ */ new Date()).toISOString(),
+      failed_step: "triage"
+    }));
+  } catch {
+  }
+  try {
+    await rename3(raw.srcPath, join3(failedDir2, `${raw.id}.md`));
+  } catch {
+  }
+}
+async function rewriteOrdering(repoRoot, ordering, log2) {
+  const rows = await readQueue(repoRoot);
+  const inProgress = rows.filter((r) => r.status === "in_progress");
+  const pending = rows.filter((r) => r.status === "pending");
+  const byId = new Map(pending.map((r) => [r.id, r]));
+  const ordered = [];
+  for (const id of ordering) {
+    const row = byId.get(id);
+    if (row) {
+      ordered.push(row);
+      byId.delete(id);
+    }
+  }
+  for (const [id, row] of byId) {
+    await log2.emit("triage.warning", { reason: "ordering_omitted", id });
+    ordered.push(row);
+  }
+  await writeQueue(repoRoot, [...inProgress, ...ordered]);
+}
+async function runClaudecodeAgent(prompt, _cfg, repoRoot) {
+  return new Promise((resolve2, reject) => {
+    const child = spawn("claude", ["-p", prompt], {
+      cwd: repoRoot,
+      env: buildChildEnv({}),
+      shell: false
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d) => {
+      stdout += d.toString();
+    });
+    child.stderr.on("data", (d) => {
+      stderr += d.toString();
+    });
+    child.on("close", (code) => {
+      resolve2({ exitCode: code ?? -1, stdout, stderr });
+    });
+    child.on("error", (err) => reject(err));
+  });
 }
 
 // src/engine/log.ts
-import { appendFile as appendFile2, mkdir as mkdir3 } from "node:fs/promises";
-import { join as join3 } from "node:path";
+import { appendFile as appendFile2, mkdir as mkdir4 } from "node:fs/promises";
+import { join as join4 } from "node:path";
 async function createLogger(repoRoot, sink = console.log) {
-  const path = join3(repoRoot, ".cycle", "log.jsonl");
-  await mkdir3(join3(repoRoot, ".cycle"), { recursive: true });
+  const path = join4(repoRoot, ".cycle", "log.jsonl");
+  await mkdir4(join4(repoRoot, ".cycle"), { recursive: true });
   return {
     async emit(event, fields) {
       const line = JSON.stringify({ ts: (/* @__PURE__ */ new Date()).toISOString(), event, ...fields });
@@ -7595,12 +8194,12 @@ async function createLogger(repoRoot, sink = console.log) {
 }
 
 // src/engine/cycle-id.ts
-import { readFile as readFile3 } from "node:fs/promises";
-import { join as join4 } from "node:path";
+import { readFile as readFile5 } from "node:fs/promises";
+import { join as join5 } from "node:path";
 async function allocateCycleId(repoRoot) {
   let highest = 0;
   try {
-    const log2 = await readFile3(join4(repoRoot, ".cycle/log.jsonl"), "utf8");
+    const log2 = await readFile5(join5(repoRoot, ".cycle/log.jsonl"), "utf8");
     for (const line of log2.split("\n")) {
       if (!line) continue;
       try {
@@ -7617,13 +8216,13 @@ async function allocateCycleId(repoRoot) {
 
 // src/engine/workflow.ts
 var import_yaml = __toESM(require_dist(), 1);
-import { readFile as readFile4 } from "node:fs/promises";
-import { join as join5 } from "node:path";
+import { readFile as readFile6 } from "node:fs/promises";
+import { join as join6 } from "node:path";
 async function loadConfig(repoRoot) {
-  const path = join5(repoRoot, ".cycle/workflows.yml");
+  const path = join6(repoRoot, ".cycle/workflows.yml");
   let body;
   try {
-    body = await readFile4(path, "utf8");
+    body = await readFile6(path, "utf8");
   } catch {
     throw new Error(`workflows.yml missing: ${path}`);
   }
@@ -7648,30 +8247,19 @@ async function loadConfig(repoRoot) {
   return parsed;
 }
 async function loadWorkflow(repoRoot, name) {
-  const cfg = await loadConfig(repoRoot);
-  const wf = cfg.workflows.find((w) => w.name === name);
+  const cfg2 = await loadConfig(repoRoot);
+  const wf = cfg2.workflows.find((w) => w.name === name);
   if (!wf) throw new Error(`unknown workflow: ${name}`);
   return wf;
 }
 
 // src/engine/exec-bash.ts
-import { spawn } from "node:child_process";
-import { join as join6 } from "node:path";
-
-// src/engine/child-env.ts
-import { dirname as dirname2, delimiter } from "node:path";
-function buildChildEnv(extra) {
-  const nodeBinDir = dirname2(process.execPath);
-  const basePath = extra.PATH ?? process.env.PATH ?? "";
-  const path = basePath ? `${nodeBinDir}${delimiter}${basePath}` : nodeBinDir;
-  return { ...process.env, ...extra, PATH: path };
-}
-
-// src/engine/exec-bash.ts
+import { spawn as spawn2 } from "node:child_process";
+import { join as join7 } from "node:path";
 function execBashStep(repoRoot, command, env) {
   return new Promise((resolve2) => {
-    const abs = join6(repoRoot, ".cycle", command);
-    const child = spawn("/bin/bash", [abs], {
+    const abs = join7(repoRoot, ".cycle", command);
+    const child = spawn2("/bin/bash", [abs], {
       cwd: repoRoot,
       env: buildChildEnv(env),
       shell: false
@@ -7696,14 +8284,14 @@ function execBashStep(repoRoot, command, env) {
 }
 
 // src/engine/exec-claudecode.ts
-import { spawn as spawn2 } from "node:child_process";
-import { readFile as readFile5 } from "node:fs/promises";
-import { join as join7 } from "node:path";
+import { spawn as spawn3 } from "node:child_process";
+import { readFile as readFile7 } from "node:fs/promises";
+import { join as join8 } from "node:path";
 async function execClaudecodeStep(repoRoot, promptPath, env) {
-  const abs = join7(repoRoot, ".cycle", promptPath);
-  const prompt = await readFile5(abs, "utf8");
+  const abs = join8(repoRoot, ".cycle", promptPath);
+  const prompt = await readFile7(abs, "utf8");
   return new Promise((resolve2) => {
-    const child = spawn2("claude", ["-p", prompt], {
+    const child = spawn3("claude", ["-p", prompt], {
       cwd: repoRoot,
       env: buildChildEnv(env),
       shell: false
@@ -7728,12 +8316,12 @@ async function execClaudecodeStep(repoRoot, promptPath, env) {
 }
 
 // src/engine/branch.ts
-import { spawn as spawn3 } from "node:child_process";
-import { mkdir as mkdir4 } from "node:fs/promises";
-import { join as join8 } from "node:path";
+import { spawn as spawn4 } from "node:child_process";
+import { mkdir as mkdir5 } from "node:fs/promises";
+import { join as join9 } from "node:path";
 function git(repoRoot, args2) {
   return new Promise((resolve2, reject) => {
-    const child = spawn3("git", args2, { cwd: repoRoot, shell: false });
+    const child = spawn4("git", args2, { cwd: repoRoot, shell: false });
     let stderr = "";
     child.stderr.on("data", (d) => {
       stderr += d.toString();
@@ -7744,11 +8332,32 @@ function git(repoRoot, args2) {
     });
   });
 }
+async function branchExists(repoRoot, branch) {
+  return new Promise((resolve2) => {
+    const child = spawn4("git", ["rev-parse", "--verify", `refs/heads/${branch}`], {
+      cwd: repoRoot,
+      shell: false
+    });
+    child.on("close", (code) => resolve2(code === 0));
+    child.on("error", () => resolve2(false));
+  });
+}
 async function createCycleBranch(repoRoot, opts) {
   const branch = `cycle/${opts.workflow}/${opts.slug}`;
-  await git(repoRoot, ["checkout", "-b", branch]);
-  const artifactDir = join8(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
-  await mkdir4(artifactDir, { recursive: true });
+  if (await branchExists(repoRoot, branch)) {
+    await git(repoRoot, ["checkout", branch]);
+  } else {
+    await git(repoRoot, ["checkout", "-b", branch]);
+  }
+  const artifactDir = join9(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
+  await mkdir5(artifactDir, { recursive: true });
+  return { branch, artifactDir };
+}
+async function checkoutCycleBranch(repoRoot, opts) {
+  const branch = `cycle/${opts.workflow}/${opts.slug}`;
+  await git(repoRoot, ["checkout", branch]);
+  const artifactDir = join9(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
+  await mkdir5(artifactDir, { recursive: true });
   return { branch, artifactDir };
 }
 async function checkoutBase(repoRoot, base) {
@@ -7756,7 +8365,7 @@ async function checkoutBase(repoRoot, base) {
 }
 function revParse(repoRoot, ref) {
   return new Promise((resolve2) => {
-    const child = spawn3("git", ["rev-parse", ref], { cwd: repoRoot, shell: false });
+    const child = spawn4("git", ["rev-parse", ref], { cwd: repoRoot, shell: false });
     let stdout = "";
     child.stdout.on("data", (d) => {
       stdout += d.toString();
@@ -7773,13 +8382,131 @@ async function pullBase(repoRoot, base) {
   return { shaBefore, shaAfter };
 }
 
+// src/engine/reflection.ts
+import { mkdir as mkdir6, readdir as readdir2, rename as rename4, unlink as unlink2, writeFile as writeFile5 } from "node:fs/promises";
+import { dirname as dirname4, join as join10 } from "node:path";
+var FENCE_RE = /^```(?:json)?\s*\n([\s\S]*?)\n```\s*$/;
+async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2) {
+  const rawDir2 = join10(repoRoot, "docs/cycle/issues/raw");
+  let stripped = stdout.trim();
+  const fence = stripped.match(FENCE_RE);
+  if (fence) stripped = fence[1].trim();
+  let parsed;
+  try {
+    parsed = JSON.parse(stripped);
+  } catch (err) {
+    await log2.emit("reflection.skipped", {
+      cycle_id: cycleId,
+      reason: "parse_error",
+      message: err.message
+    });
+    return { written: [], skipped: 0 };
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || !Array.isArray(parsed.sharp_edges)) {
+    await log2.emit("reflection.skipped", {
+      cycle_id: cycleId,
+      reason: "parse_error",
+      message: "missing sharp_edges array"
+    });
+    return { written: [], skipped: 0 };
+  }
+  const entries = parsed.sharp_edges;
+  await mkdir6(rawDir2, { recursive: true });
+  const existing = await readdir2(rawDir2);
+  const re = new RegExp(`^refl-${cycleId}-.+\\.md$`);
+  for (const name of existing) {
+    if (re.test(name)) {
+      try {
+        await unlink2(join10(rawDir2, name));
+      } catch {
+      }
+    }
+  }
+  const written = [];
+  let skipped = 0;
+  const usedSlugs = /* @__PURE__ */ new Set();
+  const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+  for (let i = 0; i < entries.length; i++) {
+    const raw = entries[i];
+    const invalid = validateEntry(raw);
+    if (invalid) {
+      await log2.emit("reflection.skipped", {
+        cycle_id: cycleId,
+        reason: "invalid_entry",
+        entry_index: i,
+        field: invalid
+      });
+      skipped++;
+      continue;
+    }
+    const e = raw;
+    let slug = slugify(e.title);
+    if (slug === "") slug = "entry";
+    let unique = slug;
+    let n = 2;
+    while (usedSlugs.has(unique)) {
+      unique = `${slug}-${n}`;
+      n++;
+    }
+    usedSlugs.add(unique);
+    const id = `refl-${cycleId}-${unique}`;
+    const content = serializeFrontmatter(
+      {
+        id,
+        source: "reflection",
+        title: e.title,
+        added_at: nowIso,
+        triage_attempts: 0,
+        priority_hint: e.priority_hint,
+        origin_cycle_id: cycleId
+      },
+      "\n" + e.body + "\n"
+    );
+    await atomicWrite2(join10(rawDir2, `${id}.md`), content);
+    written.push(id);
+    await log2.emit("reflection.surfaced", {
+      cycle_id: cycleId,
+      raw_id: id,
+      title: e.title,
+      priority_hint: e.priority_hint
+    });
+  }
+  await log2.emit("reflection.summary", {
+    cycle_id: cycleId,
+    count: written.length,
+    skipped
+  });
+  return { written, skipped };
+}
+function validateEntry(e) {
+  if (!e || typeof e !== "object") return "entry";
+  if (typeof e.title !== "string" || e.title.trim() === "") return "title";
+  if (typeof e.body !== "string" || e.body.trim() === "") return "body";
+  if (typeof e.priority_hint !== "number" || !Number.isFinite(e.priority_hint)) return "priority_hint";
+  return null;
+}
+async function atomicWrite2(path, content) {
+  await mkdir6(dirname4(path), { recursive: true });
+  const tmp = path + ".tmp";
+  await writeFile5(tmp, content, "utf8");
+  try {
+    await rename4(tmp, path);
+  } catch (e) {
+    try {
+      await unlink2(tmp);
+    } catch {
+    }
+    throw e;
+  }
+}
+
 // src/engine/run-cycle.ts
-import { spawn as spawn4 } from "node:child_process";
-import { writeFile as writeFile2 } from "node:fs/promises";
-import { join as join9 } from "node:path";
+import { spawn as spawn5 } from "node:child_process";
+import { writeFile as writeFile6 } from "node:fs/promises";
+import { join as join11 } from "node:path";
 function currentBranch(repoRoot) {
   return new Promise((resolve2) => {
-    const child = spawn4("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoRoot, shell: false });
+    const child = spawn5("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoRoot, shell: false });
     let stdout = "";
     child.stdout.on("data", (d) => {
       stdout += d.toString();
@@ -7789,12 +8516,24 @@ function currentBranch(repoRoot) {
   });
 }
 async function runCycle(repoRoot, opts) {
-  const cycleId = await allocateCycleId(repoRoot);
+  const cycleId = opts.cycleId ?? await allocateCycleId(repoRoot);
   const log2 = await createLogger(repoRoot);
   const slug = slugify(opts.title);
   const wf = await loadWorkflow(repoRoot, opts.workflow);
-  await log2.emit("cycle.start", { cycle_id: cycleId, workflow: opts.workflow, title: opts.title, issue_id: opts.issueId });
-  const { artifactDir } = await createCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug });
+  let artifactDir;
+  if (opts.resume) {
+    await log2.emit("cycle.resume", {
+      cycle_id: cycleId,
+      workflow: opts.workflow,
+      title: opts.title,
+      issue_id: opts.issueId,
+      start_step_index: opts.resume.startStepIndex
+    });
+    ({ artifactDir } = await checkoutCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+  } else {
+    await log2.emit("cycle.start", { cycle_id: cycleId, workflow: opts.workflow, title: opts.title, issue_id: opts.issueId });
+    ({ artifactDir } = await createCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+  }
   const cycleEnv = {
     CYCLE_ID: cycleId,
     CYCLE_TITLE: opts.title,
@@ -7803,7 +8542,9 @@ async function runCycle(repoRoot, opts) {
     ...opts.env ?? {}
   };
   try {
-    for (const step of wf.steps) {
+    const startIdx = opts.resume?.startStepIndex ?? 0;
+    for (let i = startIdx; i < wf.steps.length; i++) {
+      const step = wf.steps[i];
       await log2.emit("step.start", { cycle_id: cycleId, step: step.name, agent: step.agent });
       let r;
       if (step.agent === "bash") {
@@ -7811,13 +8552,20 @@ async function runCycle(repoRoot, opts) {
       } else if (step.agent === "claudecode") {
         r = await execClaudecodeStep(repoRoot, step.prompt, cycleEnv);
         if (r.status === "ok" && step.name) {
-          await writeFile2(join9(artifactDir, `${step.name.toUpperCase()}.md`), r.stdout, "utf8");
+          await writeFile6(join11(artifactDir, `${step.name.toUpperCase()}.md`), r.stdout, "utf8");
+        }
+        if (r.status === "ok" && step.name === "reflection") {
+          await ingestReflection(repoRoot, cycleId, slug, r.stdout, log2);
         }
       } else {
         throw new Error(`unknown agent: ${step.agent}`);
       }
       await log2.emit("step.end", { cycle_id: cycleId, step: step.name, status: r.status, exit_code: r.exitCode });
       if (r.status === "failed") {
+        if (step.name === "reflection") {
+          await log2.emit("reflection.skipped", { cycle_id: cycleId, reason: "exec_failed", exit_code: r.exitCode });
+          continue;
+        }
         await log2.emit("cycle.end", { cycle_id: cycleId, status: "failed", failing_step: step.name });
         return { cycleId, status: "failed", failingStep: step.name };
       }
@@ -7847,6 +8595,129 @@ async function runCycle(repoRoot, opts) {
   }
 }
 
+// src/engine/blocked.ts
+import { rename as rename5 } from "node:fs/promises";
+import { join as join12 } from "node:path";
+async function propagateBlocked(repoRoot, failedId, log2) {
+  const todoDir2 = join12(repoRoot, "docs/cycle/issues/todo");
+  const blockedDir = join12(repoRoot, "docs/cycle/issues/blocked");
+  const rows = await readQueue(repoRoot);
+  const visited = /* @__PURE__ */ new Set([failedId]);
+  const orderedMoves = [];
+  let frontier = /* @__PURE__ */ new Set([failedId]);
+  while (frontier.size > 0) {
+    const next = /* @__PURE__ */ new Set();
+    for (const r of rows) {
+      if (visited.has(r.id)) continue;
+      const preds = r.depends_on.filter((d) => frontier.has(d));
+      if (preds.length === 0) continue;
+      orderedMoves.push({ row: r, predecessors: preds });
+      visited.add(r.id);
+      next.add(r.id);
+    }
+    frontier = next;
+  }
+  const blocked = [];
+  const rollback = [];
+  try {
+    for (const { row, predecessors } of orderedMoves) {
+      const src = join12(todoDir2, `${row.id}.md`);
+      const dst = join12(blockedDir, `${row.id}.md`);
+      await mutateFrontmatter(src, (fm) => ({
+        ...fm,
+        blocked_at: (/* @__PURE__ */ new Date()).toISOString(),
+        blocked_by: predecessors
+      }));
+      await rename5(src, dst);
+      rollback.push(async () => {
+        try {
+          await rename5(dst, src);
+        } catch {
+        }
+      });
+      blocked.push(row.id);
+    }
+    if (orderedMoves.length > 0) {
+      const movedIds = new Set(orderedMoves.map((m) => m.row.id));
+      await writeQueue(repoRoot, rows.filter((r) => !movedIds.has(r.id)));
+    }
+  } catch (err) {
+    for (const undo of rollback.reverse()) await undo();
+    throw err;
+  }
+  if (log2) {
+    for (const m of orderedMoves) {
+      await log2.emit("issue.blocked", { issue_id: m.row.id, blocked_by: m.predecessors });
+    }
+    await log2.emit("queue.propagate_blocked", { issue_id: failedId, blocked });
+  }
+  return { blocked };
+}
+
+// src/engine/log-tail.ts
+import { readFile as readFile8 } from "node:fs/promises";
+import { join as join13 } from "node:path";
+function parseLogTail(text) {
+  const events = [];
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      events.push(JSON.parse(line));
+    } catch {
+    }
+  }
+  let lastStartIdx = -1;
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].event === "cycle.start") {
+      lastStartIdx = i;
+      break;
+    }
+  }
+  if (lastStartIdx < 0) return null;
+  const start = events[lastStartIdx];
+  const cycleId = typeof start.cycle_id === "string" ? start.cycle_id : "";
+  if (!cycleId) return null;
+  for (let i = lastStartIdx + 1; i < events.length; i++) {
+    if (events[i].event === "cycle.end" && events[i].cycle_id === cycleId) {
+      return null;
+    }
+  }
+  const completedSteps = [];
+  for (let i = lastStartIdx + 1; i < events.length; i++) {
+    const e = events[i];
+    if (e.event !== "step.end") continue;
+    if (e.cycle_id !== cycleId) continue;
+    if (e.status !== "ok") continue;
+    const name = e.step;
+    if (typeof name === "string" && !completedSteps.includes(name)) {
+      completedSteps.push(name);
+    }
+  }
+  const rawIssue = start.issue_id;
+  const rawWf = start.workflow;
+  const rawTitle = start.title;
+  const issueId = typeof rawIssue === "string" ? rawIssue : "";
+  const workflow = typeof rawWf === "string" ? rawWf : "";
+  const title = typeof rawTitle === "string" ? rawTitle : "";
+  return {
+    cycleId,
+    issueId,
+    workflow,
+    title,
+    startTs: start.ts,
+    completedSteps
+  };
+}
+async function readLogTail(repoRoot) {
+  try {
+    const text = await readFile8(join13(repoRoot, ".cycle", "log.jsonl"), "utf8");
+    return parseLogTail(text);
+  } catch (e) {
+    if (e.code === "ENOENT") return null;
+    throw e;
+  }
+}
+
 // src/cli.ts
 var argv = process.argv.slice(2);
 if (argv[0] === "--version") {
@@ -7871,34 +8742,262 @@ await log.emit("engine.start", {});
 if (args.text) {
   await materializeFreeformIssue(args.text, cwd);
 }
-var cyclesProcessed = 0;
-var halted = null;
-outer: while (true) {
-  const ingested = await scanRaw(cwd);
-  if (ingested.length === 0) break;
-  for (const issue of ingested) {
-    await log.emit("issue.ingested", { issue_id: issue.id, path: issue.path });
-    if (args.dryRun) {
-      continue;
-    }
-    const r = await runCycle(cwd, {
-      issueId: issue.id,
-      title: issue.title,
-      workflow: args.workflow
+var todoDir = join15(cwd, "docs/cycle/issues/todo");
+var doneDir = join15(cwd, "docs/cycle/issues/done");
+var failedDir = join15(cwd, "docs/cycle/issues/failed");
+var rawDir = join15(cwd, "docs/cycle/issues/raw");
+await mkdir8(doneDir, { recursive: true });
+await mkdir8(failedDir, { recursive: true });
+var cfg = args.dryRun ? null : await loadConfig(cwd);
+if (!args.dryRun && cfg) {
+  const triageResult = await runTriage(cwd, cfg, log);
+  if (triageResult.status === "paused") {
+    await log.emit("engine.stop", {
+      status: "halted",
+      dry_run: false,
+      cycles_processed: 0,
+      reason: "triage_failed"
     });
-    if (r.status === "ok") {
-      cyclesProcessed++;
-    } else {
-      await log.emit("issue.failed", { issue_id: issue.id, failing_step: r.failingStep });
-      halted = { issueId: issue.id, failingStep: r.failingStep };
-      break outer;
+    process.exit(1);
+  }
+}
+async function rawHasFiles() {
+  try {
+    const entries = await readdir3(rawDir);
+    return entries.some((f) => f.endsWith(".md"));
+  } catch {
+    return false;
+  }
+}
+var cyclesProcessed = 0;
+var consecutiveFailures = 0;
+var failedCycles = [];
+var halted = false;
+var haltReason = null;
+var lastHaltContext;
+var maxConsecutiveFailures = cfg?.engine?.max_consecutive_failures ?? 2;
+async function terminalDrain(cwd2, log2, todoPath, failedDir2, cycleId, issueId, failingStep, failedAttempts) {
+  let mutateErr = null;
+  try {
+    await mutateFrontmatter(todoPath, (fm) => ({
+      ...fm,
+      failed_at: (/* @__PURE__ */ new Date()).toISOString(),
+      ...failingStep ? { failed_step: failingStep } : {},
+      failed_attempts: failedAttempts
+    }));
+  } catch (e) {
+    mutateErr = e;
+  }
+  try {
+    await rename6(todoPath, join15(failedDir2, `${issueId}.md`));
+  } catch (e) {
+    if (e.code !== "ENOENT") throw e;
+  }
+  if (mutateErr) {
+    await log2.emit("queue.drain_warning", {
+      cycle_id: cycleId,
+      issue_id: issueId,
+      reason: `mutateFrontmatter failed: ${mutateErr.message}`
+    });
+  }
+  await drainFailedTerminal(cwd2, issueId);
+  await propagateBlocked(cwd2, issueId, log2);
+  await log2.emit("queue.drained", { cycle_id: cycleId, issue_id: issueId, outcome: "terminal" });
+  await log2.emit("issue.failed", { issue_id: issueId, failing_step: failingStep });
+}
+async function drainSuccess(cwd2, log2, todoPath, doneDir2, cycleId, issueId) {
+  await drainOk(cwd2, issueId);
+  try {
+    await rename6(todoPath, join15(doneDir2, `${issueId}.md`));
+  } catch {
+  }
+  await log2.emit("queue.drained", { cycle_id: cycleId, issue_id: issueId, outcome: "ok" });
+}
+async function drainRetry(cwd2, log2, cycleId, issueId, failingStep) {
+  await drainFailedRetry(cwd2, issueId);
+  await log2.emit("queue.drained", { cycle_id: cycleId, issue_id: issueId, outcome: "retry" });
+  await log2.emit("issue.failed", { issue_id: issueId, failing_step: failingStep });
+}
+async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, failedDir2) {
+  const base = process.env.CYCLE_BASE ?? "main";
+  let baseOk = true;
+  try {
+    await checkoutBase(cwd2, base);
+    await pullBase(cwd2, base);
+  } catch (err) {
+    baseOk = false;
+    await log2.emit("engine.warning", {
+      reason: "resume_base_refresh_failed",
+      message: err.message
+    });
+  }
+  const rows = await readQueue(cwd2);
+  const row = rows.find((r) => r.id === tail.issueId);
+  const mismatch = !row || row.status !== "in_progress" || row.cycle_id !== void 0 && row.cycle_id !== tail.cycleId;
+  if (mismatch) {
+    await log2.emit("engine.warning", {
+      reason: "resume_row_mismatch",
+      cycle_id: tail.cycleId,
+      issue_id: tail.issueId,
+      row_status: row?.status ?? "missing",
+      row_cycle_id: row?.cycle_id ?? null
+    });
+    return { processed: 0, outcome: "skipped" };
+  }
+  if (!baseOk) return { processed: 0, outcome: "skipped" };
+  let workflowName = tail.workflow || args2.workflow;
+  try {
+    const body = await readFile9(join15(todoDir2, `${tail.issueId}.md`), "utf8");
+    const { fm } = parseFrontmatter(body);
+    if (typeof fm.workflow === "string" && fm.workflow.length > 0) {
+      workflowName = fm.workflow;
+    }
+  } catch {
+  }
+  const wfDef = cfg2.workflows.find((w) => w.name === workflowName);
+  if (!wfDef) {
+    await log2.emit("engine.warning", {
+      reason: "resume_workflow_missing",
+      workflow: workflowName
+    });
+    return { processed: 0, outcome: "skipped" };
+  }
+  const stepNames = wfDef.steps.map((s) => s.name);
+  let startStepIndex = stepNames.length;
+  for (let i = 0; i < stepNames.length; i++) {
+    if (!tail.completedSteps.includes(stepNames[i])) {
+      startStepIndex = i;
+      break;
     }
   }
+  await markInProgress(cwd2, tail.issueId, tail.cycleId);
+  await log2.emit("engine.resume", {
+    cycle_id: tail.cycleId,
+    issue_id: tail.issueId,
+    from_step: stepNames[startStepIndex] ?? null,
+    completed_steps: tail.completedSteps
+  });
+  const rawMax = wfDef.max_cycle_attempts ?? 3;
+  const maxAttempts = rawMax < 1 ? 1 : rawMax;
+  const rr = await runCycle(cwd2, {
+    cycleId: tail.cycleId,
+    issueId: tail.issueId,
+    title: tail.title,
+    workflow: workflowName,
+    resume: { startStepIndex }
+  });
+  const todoPath = join15(todoDir2, `${tail.issueId}.md`);
+  if (rr.status === "ok") {
+    await drainSuccess(cwd2, log2, todoPath, doneDir2, tail.cycleId, tail.issueId);
+    return { processed: 1, outcome: "ok" };
+  }
+  if (row.attempt + 1 < maxAttempts) {
+    await drainRetry(cwd2, log2, tail.cycleId, tail.issueId, rr.failingStep);
+    return { processed: 0, outcome: "retry", issueId: tail.issueId, failingStep: rr.failingStep };
+  }
+  await terminalDrain(cwd2, log2, todoPath, failedDir2, tail.cycleId, tail.issueId, rr.failingStep, row.attempt + 1);
+  return { processed: 0, outcome: "terminal", issueId: tail.issueId, failingStep: rr.failingStep };
+}
+if (!args.dryRun && cfg) {
+  const tail = await readLogTail(cwd);
+  if (tail) {
+    const result = await runResumeOnce(cwd, log, cfg, args, tail, todoDir, doneDir, failedDir);
+    cyclesProcessed += result.processed;
+    if (result.outcome === "ok") {
+      consecutiveFailures = 0;
+      failedCycles = [];
+      lastHaltContext = void 0;
+    } else if (result.outcome === "terminal") {
+      consecutiveFailures += 1;
+      failedCycles.push(tail.cycleId);
+      lastHaltContext = { issueId: result.issueId, failingStep: result.failingStep };
+      if (consecutiveFailures >= maxConsecutiveFailures) {
+        halted = true;
+        haltReason = "max_consecutive_failures";
+      }
+    }
+  }
+}
+if (args.dryRun) {
+  const rows = await readQueue(cwd);
+  for (const row of rows) {
+    if (row.status !== "pending") continue;
+    const todoPath = join15(todoDir, `${row.id}.md`);
+    await log.emit("issue.ingested", { issue_id: row.id, path: todoPath });
+  }
+  await log.emit("engine.stop", {
+    status: "ok",
+    dry_run: true,
+    cycles_processed: 0
+  });
+  process.exit(0);
+}
+while (!halted) {
+  if (cfg && await rawHasFiles()) {
+    const r2 = await runTriage(cwd, cfg, log);
+    if (r2.status === "paused") {
+      halted = true;
+      haltReason = "triage_failed";
+      lastHaltContext = { issueId: "", failingStep: "triage" };
+      break;
+    }
+  }
+  const row = await popNextPending(cwd);
+  if (!row) break;
+  const todoPath = join15(todoDir, `${row.id}.md`);
+  await log.emit("issue.ingested", { issue_id: row.id, path: todoPath });
+  let workflowName = args.workflow;
+  try {
+    const body = await readFile9(todoPath, "utf8");
+    const { fm } = parseFrontmatter(body);
+    if (typeof fm.workflow === "string" && fm.workflow.length > 0) {
+      workflowName = fm.workflow;
+    }
+  } catch {
+  }
+  const wfCfg = cfg?.workflows.find((w) => w.name === workflowName);
+  const rawMax = wfCfg?.max_cycle_attempts ?? 3;
+  const maxAttempts = rawMax < 1 ? 1 : rawMax;
+  const cycleId = await allocateCycleId(cwd);
+  await markInProgress(cwd, row.id, cycleId);
+  const r = await runCycle(cwd, {
+    cycleId,
+    issueId: row.id,
+    title: row.title,
+    workflow: workflowName
+  });
+  if (r.status === "ok") {
+    await drainSuccess(cwd, log, todoPath, doneDir, cycleId, row.id);
+    cyclesProcessed++;
+    consecutiveFailures = 0;
+    failedCycles = [];
+    lastHaltContext = void 0;
+  } else if (row.attempt + 1 < maxAttempts) {
+    await drainRetry(cwd, log, cycleId, row.id, r.failingStep);
+  } else {
+    await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, r.failingStep, row.attempt + 1);
+    consecutiveFailures += 1;
+    failedCycles.push(cycleId);
+    lastHaltContext = { issueId: row.id, failingStep: r.failingStep };
+    if (consecutiveFailures >= maxConsecutiveFailures) {
+      halted = true;
+      haltReason = "max_consecutive_failures";
+      break;
+    }
+  }
+}
+if (halted && haltReason === "max_consecutive_failures" && failedCycles.length > 0) {
+  await log.emit("engine.halted", {
+    failed_cycles: failedCycles,
+    reason: "max_consecutive_failures",
+    threshold: maxConsecutiveFailures
+  });
 }
 await log.emit("engine.stop", {
   status: args.dryRun ? "ok" : halted ? "halted" : "ok",
   dry_run: args.dryRun,
   cycles_processed: cyclesProcessed,
-  ...halted ? { halted_at_issue: halted.issueId, failing_step: halted.failingStep } : {}
+  ...halted && haltReason === "triage_failed" ? { reason: "triage_failed" } : {},
+  ...halted && lastHaltContext ? { halted_at_issue: lastHaltContext.issueId, failing_step: lastHaltContext.failingStep } : {}
 });
 process.exit(halted ? 1 : 0);
