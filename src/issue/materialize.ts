@@ -14,6 +14,7 @@ export async function materializeFreeformIssue(text: string, repoRoot: string, n
     `title: "${text.replace(/"/g, '\\"')}"`,
     `added_at: ${now.toISOString()}`,
     "triage_attempts: 0",
+    "priority: 3",
     "---",
     "",
     text,

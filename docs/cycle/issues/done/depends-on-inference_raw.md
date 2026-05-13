@@ -1,9 +1,9 @@
 ---
 id: depends-on-inference
 source: text
-title: "Improve triage's depends_on inference quality"
-added_at: 2026-05-13T03:44:00Z
-triage_attempts: 0
+title: Improve triage's depends_on inference quality
+added_at: "2026-05-13T03:44:00Z"
+triage_attempts: 1
 priority: 6
 ---
 
