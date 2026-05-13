@@ -12,6 +12,21 @@ function git(cwd: string, args: string[]) {
   return r.stdout;
 }
 
+function workflowYml(stepsBody: string): string {
+  return `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+${stepsBody}`;
+}
+
 test("runs a 2-step workflow end-to-end and writes log + artifacts", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
@@ -21,12 +36,17 @@ test("runs a 2-step workflow end-to-end and writes log + artifacts", async () =>
     git(root, ["config", "user.name", "t"]);
     git(root, ["commit", "--allow-empty", "-m", "init"]);
 
-    await mkdir(join(root, ".cycle/workflows"), { recursive: true });
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await mkdir(join(root, ".cycle/scripts"), { recursive: true });
 
-    await writeFile(join(root, ".cycle/workflows/feature.yaml"),
-      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n  - name: note\n    agent: bash\n    command: scripts/note.sh\n`, "utf8");
+    await writeFile(join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+      - name: note
+        agent: bash
+        command: scripts/note.sh
+`), "utf8");
     await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
     const note = join(root, ".cycle/scripts/note.sh");
     await writeFile(note, "#!/bin/bash\necho NOTED ${CYCLE_ID} ${CYCLE_TITLE}\n", "utf8");
@@ -65,11 +85,13 @@ test("checks out base branch after successful cycle", async () => {
     git(root, ["config", "user.name", "t"]);
     git(root, ["commit", "--allow-empty", "-m", "init"]);
 
-    await mkdir(join(root, ".cycle/workflows"), { recursive: true });
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
 
-    await writeFile(join(root, ".cycle/workflows/feature.yaml"),
-      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n`, "utf8");
+    await writeFile(join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`), "utf8");
     await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
 
     const fake = join(bin, "claude");
@@ -110,12 +132,17 @@ test("checks out base branch after failed cycle", async () => {
     git(root, ["config", "user.name", "t"]);
     git(root, ["commit", "--allow-empty", "-m", "init"]);
 
-    await mkdir(join(root, ".cycle/workflows"), { recursive: true });
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await mkdir(join(root, ".cycle/scripts"), { recursive: true });
 
-    await writeFile(join(root, ".cycle/workflows/feature.yaml"),
-      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n  - name: boom\n    agent: bash\n    command: scripts/boom.sh\n`, "utf8");
+    await writeFile(join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+      - name: boom
+        agent: bash
+        command: scripts/boom.sh
+`), "utf8");
     await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
     const boom = join(root, ".cycle/scripts/boom.sh");
     await writeFile(boom, "#!/bin/bash\necho boom\nexit 1\n", "utf8");
@@ -160,11 +187,13 @@ test("injects CYCLE_ISSUE_ID into bash step env", async () => {
     git(root, ["config", "user.name", "t"]);
     git(root, ["commit", "--allow-empty", "-m", "init"]);
 
-    await mkdir(join(root, ".cycle/workflows"), { recursive: true });
     await mkdir(join(root, ".cycle/scripts"), { recursive: true });
     await writeFile(
-      join(root, ".cycle/workflows/feature.yaml"),
-      `name: feature\nsteps:\n  - name: echo\n    agent: bash\n    command: scripts/echo.sh\n`,
+      join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: echo
+        agent: bash
+        command: scripts/echo.sh
+`),
       "utf8",
     );
     const echo = join(root, ".cycle/scripts/echo.sh");
@@ -198,8 +227,11 @@ test("injects CYCLE_ISSUE_ID into bash step env", async () => {
     );
     await chmod(check, 0o755);
     await writeFile(
-      join(root, ".cycle/workflows/feature.yaml"),
-      `name: feature\nsteps:\n  - name: check\n    agent: bash\n    command: scripts/check.sh\n`,
+      join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: check
+        agent: bash
+        command: scripts/check.sh
+`),
       "utf8",
     );
     const r2 = await runCycle(root, {
@@ -224,10 +256,12 @@ test("logs cycle.checkout status=failed when base branch does not exist", async 
     git(root, ["config", "user.name", "t"]);
     git(root, ["commit", "--allow-empty", "-m", "init"]);
 
-    await mkdir(join(root, ".cycle/workflows"), { recursive: true });
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
-    await writeFile(join(root, ".cycle/workflows/feature.yaml"),
-      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n`, "utf8");
+    await writeFile(join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`), "utf8");
     await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
 
     const fake = join(bin, "claude");
@@ -272,10 +306,12 @@ test("pulls origin/<CYCLE_BASE> between cycles so second cycle branches off refr
     git(workRoot, ["config", "user.email", "t@t"]);
     git(workRoot, ["config", "user.name", "t"]);
 
-    await mkdir(join(workRoot, ".cycle/workflows"), { recursive: true });
     await mkdir(join(workRoot, ".cycle/prompts"), { recursive: true });
-    await writeFile(join(workRoot, ".cycle/workflows/feature.yaml"),
-      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n`, "utf8");
+    await writeFile(join(workRoot, ".cycle/workflows.yml"),
+      workflowYml(`      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`), "utf8");
     await writeFile(join(workRoot, ".cycle/prompts/spec.md"), "spec body", "utf8");
 
     const fake = join(bin, "claude");
@@ -327,10 +363,12 @@ test("logs cycle.base_pull status=failed when origin remote is missing", async (
     git(root, ["config", "user.name", "t"]);
     git(root, ["commit", "--allow-empty", "-m", "init"]);
 
-    await mkdir(join(root, ".cycle/workflows"), { recursive: true });
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
-    await writeFile(join(root, ".cycle/workflows/feature.yaml"),
-      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n`, "utf8");
+    await writeFile(join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`), "utf8");
     await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
 
     const fake = join(bin, "claude");
@@ -364,10 +402,12 @@ test("logs cycle.base_pull status=skipped when prior checkout failed", async () 
     git(root, ["config", "user.name", "t"]);
     git(root, ["commit", "--allow-empty", "-m", "init"]);
 
-    await mkdir(join(root, ".cycle/workflows"), { recursive: true });
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
-    await writeFile(join(root, ".cycle/workflows/feature.yaml"),
-      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n`, "utf8");
+    await writeFile(join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`), "utf8");
     await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
 
     const fake = join(bin, "claude");

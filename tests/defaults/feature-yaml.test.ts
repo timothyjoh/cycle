@@ -4,7 +4,10 @@ import { readFile } from "node:fs/promises";
 import YAML from "yaml";
 
 test("default feature workflow has expected step sequence", async () => {
-  const y = YAML.parse(await readFile("src/defaults/workflows/feature.yaml", "utf8"));
-  const names = y.steps.map((s: { name: string }) => s.name);
+  const y = YAML.parse(await readFile("src/defaults/workflows.yml", "utf8"));
+  const feature = y.workflows.find((w: { name: string }) => w.name === "feature");
+  assert.ok(feature, "workflows.yml should contain a feature workflow");
+  const names = feature.steps.map((s: { name: string }) => s.name);
   assert.deepEqual(names, ["spec", "research", "plan", "build", "review", "fix", "verify", "commit", "pr"]);
+  assert.equal(feature.steps.length, 9, "regression guard: step count should be 9");
 });

@@ -55,12 +55,26 @@ test("'run' halts on cycle failure and leaves remaining queue intact", async () 
     spawnSync("git", ["config", "user.name", "t"], { cwd: root, stdio: "ignore" });
     spawnSync("git", ["commit", "--allow-empty", "-m", "init"], { cwd: root, stdio: "ignore" });
 
-    const wfDir = join(root, ".cycle/workflows");
+    const cycleDir = join(root, ".cycle");
     const scriptsDir = join(root, ".cycle/scripts");
-    await mkdir(wfDir, { recursive: true });
+    await mkdir(cycleDir, { recursive: true });
     await mkdir(scriptsDir, { recursive: true });
-    await writeFile(join(wfDir, "feature.yaml"),
-      "name: feature\nsteps:\n  - name: boom\n    agent: bash\n    command: scripts/boom.sh\n", "utf8");
+    await writeFile(join(cycleDir, "workflows.yml"),
+      `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: boom
+        agent: bash
+        command: scripts/boom.sh
+`, "utf8");
     const boom = join(scriptsDir, "boom.sh");
     await writeFile(boom, "#!/bin/bash\nexit 42\n", "utf8");
     await chmod(boom, 0o755);

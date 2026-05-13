@@ -14,7 +14,11 @@ test("init scaffolds .cycle/bin/cycle.js (exec), workflows, prompts, scripts", a
     assert.ok((sb.mode & 0o111) !== 0, "cycle.js should be exec");
     const head = (await readFile(bin, "utf8")).slice(0, 30);
     assert.match(head, /^#!\/usr\/bin\/env node/);
-    await stat(join(root, ".cycle/workflows/feature.yaml"));
+    await stat(join(root, ".cycle/workflows.yml"));
+    await assert.rejects(
+      () => stat(join(root, ".cycle/workflows")),
+      (e: NodeJS.ErrnoException) => e.code === "ENOENT",
+    );
     await stat(join(root, ".cycle/prompts/spec.md"));
     await stat(join(root, ".cycle/scripts/verify.sh"));
     for (const sub of ["raw", "todo", "done", "blocked", "failed"]) {
