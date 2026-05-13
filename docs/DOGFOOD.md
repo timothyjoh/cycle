@@ -26,7 +26,9 @@ Total claudecode time: ~103s. Verify failed before the engine reached
 
 - Invocation pattern `./.cycle/bin/cycle.js run "<text>"` correctly
   materialized the freeform task into `docs/cycle/issues/tbd/`,
-  scanned it to `queued/`, and started the cycle.
+  scanned it to `queued/`, and started the cycle. (Folder names
+  reflect pre-RFC-001 lifecycle; today these are `raw/` and `todo/`.
+  See `docs/RFC-001-issue-lifecycle.md` § 12 BB-1.)
 - JSONL event stream (`.cycle/log.jsonl`) gave full visibility into
   every step start/end and the failure point. Made manual recovery
   trivial.
