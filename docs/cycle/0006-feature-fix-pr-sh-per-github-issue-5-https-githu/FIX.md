@@ -1,0 +1,1 @@
+Fix complete. Task 1 addressed: replaced post-`if` `$?` capture in `src/defaults/scripts/pr.sh:41-48` with `|| fallback_rc=$?` idiom so the stderr diagnostic prints the real exit code on fallback failure. Synced to `.cycle/scripts/pr.sh` (byte-equal). Added regression-guard test in `tests/defaults/pr-auto-merge-fallback.test.ts`. Full suite: **50/50 pass**. No tasks unresolved.
