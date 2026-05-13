@@ -76,6 +76,8 @@ policy. Either use `git add --intent-to-add` + commit only files that
 match the cycle's expected change surface, or add common transients
 to `.gitignore` defaults that `cycle init` ships.
 
+**Resolved in cycle 0005 (GH #4).**
+
 ### 4. No engine-side recovery after a step failure
 
 When `verify` failed, the engine emitted `cycle.end status=failed` and
