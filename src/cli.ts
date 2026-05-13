@@ -1,9 +1,9 @@
-import { readFile, rename, mkdir } from "node:fs/promises";
+import { readFile, readdir, rename, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { getVersion } from "./version.ts";
 import { parseArgs } from "./cli/parse-args.ts";
 import { materializeFreeformIssue } from "./issue/materialize.ts";
-import { scanRaw } from "./engine/scan.ts";
+import { runTriage } from "./engine/triage.ts";
 import { createLogger } from "./engine/log.ts";
 import { runCycle } from "./engine/run-cycle.ts";
 import { allocateCycleId } from "./engine/cycle-id.ts";
@@ -48,13 +48,36 @@ if (args.text) {
   await materializeFreeformIssue(args.text, cwd);
 }
 
-await scanRaw(cwd);
-
 const todoDir = join(cwd, "docs/cycle/issues/todo");
 const doneDir = join(cwd, "docs/cycle/issues/done");
 const failedDir = join(cwd, "docs/cycle/issues/failed");
+const rawDir = join(cwd, "docs/cycle/issues/raw");
 await mkdir(doneDir, { recursive: true });
 await mkdir(failedDir, { recursive: true });
+
+const cfg = args.dryRun ? null : await loadConfig(cwd);
+
+if (!args.dryRun && cfg) {
+  const triageResult = await runTriage(cwd, cfg, log);
+  if (triageResult.status === "paused") {
+    await log.emit("engine.stop", {
+      status: "halted",
+      dry_run: false,
+      cycles_processed: 0,
+      reason: "triage_failed",
+    });
+    process.exit(1);
+  }
+}
+
+async function rawHasFiles(): Promise<boolean> {
+  try {
+    const entries = await readdir(rawDir);
+    return entries.some((f) => f.endsWith(".md"));
+  } catch {
+    return false;
+  }
+}
 
 let cyclesProcessed = 0;
 let halted: { issueId: string; failingStep: string | undefined } | null = null;
@@ -75,6 +98,14 @@ if (args.dryRun) {
 }
 
 while (true) {
+  if (cfg && (await rawHasFiles())) {
+    const r = await runTriage(cwd, cfg, log);
+    if (r.status === "paused") {
+      halted = { issueId: "", failingStep: "triage" };
+      break;
+    }
+  }
+
   const row = await popNextPending(cwd);
   if (!row) break;
 
@@ -92,7 +123,6 @@ while (true) {
     // todo file missing or unparseable — fall back to CLI default
   }
 
-  const cfg = await loadConfig(cwd).catch(() => null);
   const wfCfg = cfg?.workflows.find((w) => w.name === workflowName);
   const rawMax = wfCfg?.max_cycle_attempts ?? 3;
   const maxAttempts = rawMax < 1 ? 1 : rawMax;

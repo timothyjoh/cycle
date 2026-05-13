@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, appendFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -13,16 +13,35 @@ async function ensureDist(): Promise<string> {
   return distPath;
 }
 
-test("'run' drains two pre-dropped issues in one invocation (dry-run)", async () => {
+async function seedTodoAndRow(root: string, id: string, title: string): Promise<void> {
+  await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
+  await mkdir(join(root, ".cycle"), { recursive: true });
+  await writeFile(
+    join(root, "docs/cycle/issues/todo", `${id}.md`),
+    `---\nid: ${id}\ntitle: "${title}"\nworkflow: feature\ndepends_on: []\ntriaged_at: 2026-05-13T00:00:00Z\nsource: triage\n---\n\n${title}\n`,
+    "utf8",
+  );
+  await appendFile(
+    join(root, ".cycle/tbd.jsonl"),
+    JSON.stringify({
+      id,
+      title,
+      status: "pending",
+      attempt: 0,
+      depends_on: [],
+      triaged_at: "2026-05-13T00:00:00Z",
+    }) + "\n",
+    "utf8",
+  );
+}
+
+test("'run' lists pending rows in dry-run mode", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
     const distPath = await ensureDist();
+    await seedTodoAndRow(root, "alpha", "task alpha");
+    await seedTodoAndRow(root, "beta", "task beta");
 
-    // pre-populate raw/ with two dropped issues
-    spawnSync("node", [distPath, "drop", "task alpha"], { cwd: root, stdio: "inherit" });
-    spawnSync("node", [distPath, "drop", "task beta"], { cwd: root, stdio: "inherit" });
-
-    // run with --dry-run; should ingest both, not execute cycles
     const r = spawnSync("node", [distPath, "run", "--dry-run"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `cycle run exit: ${r.status}\nstderr: ${r.stderr}`);
 
@@ -74,9 +93,9 @@ workflows:
     await writeFile(boom, "#!/bin/bash\nexit 42\n", "utf8");
     await chmod(boom, 0o755);
 
-    // Drop two issues.
-    spawnSync("node", [distPath, "drop", "task first"], { cwd: root, stdio: "ignore" });
-    spawnSync("node", [distPath, "drop", "task second"], { cwd: root, stdio: "ignore" });
+    await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
+    await seedTodoAndRow(root, "first", "task first");
+    await seedTodoAndRow(root, "second", "task second");
 
     // Run — first cycle should fail at boom, second cycle should NOT start.
     const r = spawnSync("node", [distPath, "run"], { cwd: root, encoding: "utf8" });
