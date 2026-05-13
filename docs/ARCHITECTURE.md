@@ -339,37 +339,68 @@ whatever's still in the folders and `tbd.jsonl`.
 
 ### Triage
 
-Triage runs per issue as it's popped from `tbd.jsonl` (unless
-`--workflow` is set, which skips triage and forces that workflow on a
-single synthetic cycle per issue). It's a `claudecode` invocation whose
-prompt asks for structured JSON output — a *plan* of cycles without IDs:
+> **Authoritative spec:** [`../docs/RFC-001-issue-lifecycle.md`](../RFC-001-issue-lifecycle.md) §5. This section is a summary.
+
+Triage is an **engine-internal subroutine** with a configurable agent.
+Not a workflow — no cycle id, no branch, no PR, no artifact directory.
+
+Triggers:
+1. At `engine.start`, if `log.jsonl` shows no in-flight cycle.
+2. Between cycles, before each pop, when `raw/` is non-empty.
+
+For each file in `raw/`, the agent enriches with codebase context,
+decomposes large issues into vertical-slice children, picks a workflow,
+and emits structured JSON:
 
 ```json
 {
-  "issue_id": "JIRA-123",
-  "cycles": [
-    { "workflow": "feature", "title": "…", "spec": "…" },
-    { "workflow": "bug",     "title": "…", "spec": "…" }
-  ]
+  "ordering": ["Jira-007-fix-login-cookie", "Jira-007-add-2fa-flow"],
+  "children": [
+    {
+      "raw_id": "Jira-007",
+      "id": "Jira-007-fix-login-cookie",
+      "slug": "fix-login-cookie",
+      "title": "Fix login cookie expiry on Safari 17",
+      "workflow": "feature",
+      "depends_on": [],
+      "body": "## Context\n…\n## Acceptance\n- …"
+    }
+  ],
+  "decomposed_parents": ["Jira-007"]
 }
 ```
 
-The decision is logged to `log.jsonl` as `triage.decision` (`plan: […]`);
-cycle IDs are assigned lazily, one at a time, as each planned cycle
-actually begins work. This means skipped cycles (an abandoned cycle's
-siblings) never consume IDs. The human-readable write-up lands at
-`docs/cycle/<first-cycle-id>-<workflow>-<slug>/TRIAGE.md` — one triage
-doc per issue, named after the first cycle that actually ran.
+Engine atomically: writes `todo/<id>.md` files, moves
+`raw/<id>.md → done/<id>_raw.md`, appends ordered lines to
+`tbd.jsonl`, may rewrite `tbd.jsonl` if triage reorders existing pending
+rows (in-progress rows are fenced and cannot be moved).
+
+Configured in `workflows.yml` top section: `agent`, `prompt`,
+`max_turns`. Per-raw retry up to 3 attempts. After exhaustion: raw
+file → `failed/` with `triage_attempts: 3`. If ALL raws fail in one
+pass: `engine.paused` and exit.
 
 ### Workflows
 
-A workflow is a YAML file declaring an ordered list of steps:
+Workflows live in **a single `workflows.yml`** at the root of `.cycle/`,
+alongside engine config and triage config:
 
 ```yaml
-# .cycle/workflows/feature.yaml
-name: feature
-description: Full SDLC pass for a single cycle of work.
-steps:
+# .cycle/workflows.yml
+engine:
+  max_consecutive_failures: 2
+  base_branch: master
+
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+
+workflows:
+  - name: feature
+    description: Full SDLC pass for a single cycle of work.
+    max_cycle_attempts: 3
+    steps:
   - name: spec
     agent: claudecode
     prompt: prompts/spec.md
@@ -467,11 +498,14 @@ Three files, both at the repo root under `.cycle/`:
   decisions, step starts/ends, commits, PRs, merges, issue lifecycle,
   engine lifecycle. Never rewritten. Used to reconstruct cycle state,
   allocate the next cycle ID, and power the future TUI / HTML viewer.
-- **`.cycle/tbd.jsonl`** — pending untriaged issues. One issue per
-  line. Mutated: entries are appended on ingest (dedup by `id`),
-  removed when an issue is popped for triage, re-appended on retry.
-  Remains populated if the engine crashes — the next invocation picks
-  up where it left off.
+- **`.cycle/tbd.jsonl`** — live priority-ordered work queue (post-triage).
+  One **todo** per line. Rows drain on cycle completion: removed when a
+  cycle ends `ok` (file → `done/`) or when attempts exhaust (file →
+  `failed/`). On in_progress transition, the row's status flips and
+  `cycle_id` is written. Remains populated if the engine crashes — the
+  next invocation reads `log.jsonl` first to resume any in-flight cycle,
+  then proceeds with the pending rows. See
+  [`RFC-001-issue-lifecycle.md`](../RFC-001-issue-lifecycle.md) §6.
 - **`.cycle/cycle.pid`** — present only while a `--detach` daemon is
   alive. Contains the daemon PID. `cycle status` / `attach` / `stop`
   read it to locate the running process; `cycle run --detach` refuses
@@ -479,47 +513,41 @@ Three files, both at the repo root under `.cycle/`:
   daemon removes the file on graceful exit; a stale file (PID is dead)
   is auto-cleaned by the next invocation. Generally gitignored.
 
-Entry schema for `tbd.jsonl` (mirrors key frontmatter fields for quick
-access; the file in `queued/` is the source of truth for the full
-issue):
+Row schema for `tbd.jsonl` (one line per pending or in-progress todo;
+the file under `todo/` is the source of truth for body + extended
+frontmatter):
 
 ```json
-{"id":"JIRA-123","source":"jira","title":"…","path":"docs/cycle/issues/queued/JIRA-123.md","priority":5,"added_at":"2026-04-18T10:15:00Z"}
+{"id":"Jira-007-fix-login-cookie","parent":"Jira-007","title":"…","status":"pending","attempt":0,"depends_on":[],"triaged_at":"2026-05-13T02:30:00Z"}
 ```
 
-Where `source` is one of `text|jira|linear|github|file`, and `id` is
-the caller's reference (ticket key, UUID, or a generated token like
-`txt-<ts>-<slug>` for freeform task text).
+When a row flips to `status: "in_progress"`, the engine writes
+`"cycle_id": "0042"` to cross-reference `log.jsonl`.
 
 ### Issue state machine (`docs/cycle/issues/`)
 
-Four folders shadow `tbd.jsonl`, giving every issue a durable,
+> **Authoritative spec:** [`../RFC-001-issue-lifecycle.md`](../RFC-001-issue-lifecycle.md) §2.
+
+Five folders shadow `tbd.jsonl`, giving every issue a durable,
 git-visible state:
 
 ```
 docs/cycle/issues/
 ├── TEMPLATE.md     # Frontmatter reference for agents creating issues
-├── tbd/            # Inbox — new files dropped by agents or by the CLI
-├── queued/         # Ingested into tbd.jsonl, awaiting triage
-├── triaged/        # Decomposed into cycles; frontmatter records them
-├── blocked/        # A cycle exhausted its attempts; siblings skipped
-└── failed/         # Triage exhausted its retries
+├── raw/            # Inbox — new files dropped by agents, CLI, tracker fetch, reflection
+├── todo/           # Triaged + enriched, vertical-slice, ready to cycle
+├── done/           # Successful cycles' files; decomposed parents (suffix `_raw`)
+├── failed/         # Cycles that exhausted 3 attempts
+└── blocked/        # depends_on chain reached a failed item
 ```
 
 State transitions:
-- `tbd/` → `queued/`: engine scan moves the file and appends to
-  `tbd.jsonl`.
-- `queued/` → `triaged/`: triage succeeded; `cycles:` populated in
-  frontmatter.
-- `queued/` → `failed/`: triage failed 3 times; `FAILURE.md` written
-  alongside.
-- `triaged/` → `blocked/`: a cycle from this issue exhausted its
-  attempts; remaining planned cycles are skipped. `BLOCKED.md` written
-  alongside; `blocked_at:` and `blocked_cycle:` populated in
-  frontmatter. A human moves the file back to `tbd/` to retry.
+- `raw/` → triage subroutine → `todo/` (enriched) + `done/<id>_raw.md` (original)
+- `todo/` → `done/`: cycle ended ok; tbd.jsonl row removed
+- `todo/` → `failed/`: cycle exhausted `max_cycle_attempts`; row removed; `propagateBlocked` may move dependents
+- `todo/` → `blocked/`: `depends_on` chain reached a failed item; `blocked_by:` written into frontmatter
 
-Issue file naming: `<id>.md` (e.g., `JIRA-123.md`). For freeform text
-input, the engine generates `txt-<YYYYMMDD-HHMMSS>-<short-slug>.md`.
+Issue file naming: `<id>.md` (e.g., `Jira-007.md` in `raw/`, `Jira-007-fix-login-cookie.md` in `todo/`). For freeform text input the engine generates `txt-<YYYYMMDD-HHMMSS>-<short-slug>.md`.
 
 ### Per-cycle artifact directory (durable)
 

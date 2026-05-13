@@ -130,99 +130,58 @@ have the env vars they need.
 
 ## Issue Ingestion
 
-Every issue is materialized as a markdown file with YAML frontmatter
-inside a three-stage folder state machine that shadows `tbd.jsonl`:
+> **Authoritative spec:** [`docs/RFC-001-issue-lifecycle.md`](docs/RFC-001-issue-lifecycle.md).
+> This section is a short summary; the RFC supersedes any prior detail in BRIEF.
 
-- **`docs/cycle/issues/tbd/`** — inbox. External agents drop new issue
-  files here; cycle itself writes here when CLI input is provided.
-- **`docs/cycle/issues/queued/`** — the engine has noticed the file and
-  added its line to `tbd.jsonl`; awaiting triage.
-- **`docs/cycle/issues/triaged/`** — triage has decomposed the issue
-  into cycles. Frontmatter `cycles:` is populated; `completed_at:` is
-  appended when every cycle has merged.
-- **`docs/cycle/issues/failed/`** — triage exhausted its retries.
-  Move a file back to `tbd/` to try again.
+Issues land in `docs/cycle/issues/raw/` (the inbox). Triage runs at
+engine start (and between cycles when `raw/` is non-empty), enriches
+each raw issue with codebase context, decomposes large issues into
+vertical-slice children, and writes them to `docs/cycle/issues/todo/`
+with `workflow:` frontmatter naming which workflow to run.
 
-**CLI input is uniform with file-based input.** `cycle run --issue
-JIRA-123`, `cycle run --issues-file …`, and `cycle run "freeform"` all
-materialize files in `tbd/` first, then the engine processes them via
-the same scan loop. One code path, one audit trail.
+The folder state machine:
 
-**`--issue <id>` delegates fetch to a script.** The engine shells out to
-`.cycle/scripts/fetch-issue.sh <id>`, which is responsible for talking
-to Jira / Linear / GH and writing the markdown file into `tbd/`. Default
-scripts ship for the common trackers (dispatching on the id prefix);
-projects can override per repo. Credentials live in env vars the script
-reads, not in the engine — see Auth and credentials above.
+- **`raw/`** — inbox. Strives to be empty when the engine is running.
+- **`todo/`** — triaged, enriched, vertical-slice work items.
+- **`done/`** — successful cycles land here. Decomposed parents land
+  here too, with `_raw` suffix.
+- **`failed/`** — cycles that exhausted 3 attempts.
+- **`blocked/`** — items whose `depends_on` chain reached a failed item.
 
-### Scan lifecycle
+Live queue lives in `.cycle/tbd.jsonl` — a priority-ordered, status-aware
+index that **drains** on cycle completion (rows removed on `cycle.end`
+ok / N-attempt failure). Audit log is separate: `.cycle/log.jsonl`,
+append-only.
 
-The engine scans `tbd/` at two moments:
+CLI / tracker / agent intake all materialize a file in `raw/`. Uniform
+input path. `--issue <id>` delegates to `.cycle/scripts/fetch-issue.sh`
+which writes the markdown into `raw/`.
 
-1. On `engine.start` — picks up anything dropped since last run.
-2. Before emitting `engine.stop` — if new files appear, keep running
-   instead of exiting.
+## Triage
 
-For each new file: **move first to `queued/`, then append** to
-`tbd.jsonl` (dedup by `id`). Move-first ordering makes crashes
-recoverable — a file in `queued/` with no matching `tbd.jsonl` line is
-re-added on the next scan.
+> **Authoritative spec:** [`docs/RFC-001-issue-lifecycle.md`](docs/RFC-001-issue-lifecycle.md) §5.
 
-Ordering: FIFO by file mtime; optional `priority:` frontmatter (higher
-first, ties broken by mtime).
+Triage is an **engine-internal subroutine** (not a workflow). Spawns a
+configurable agent (claudecode by default) with a triage prompt, parses
+JSON output describing enriched children + ordering, applies the queue
+mutations atomically.
 
-### Frontmatter schema
-
+Configurable in `workflows.yml`:
 ```yaml
----
-id: JIRA-123                    # required, unique identifier
-source: jira                    # text | jira | linear | github | file
-title: "Safari login broken"    # required
-priority: 5                     # optional; higher = sooner
-workflow: feature               # optional; force workflow, skip triage classification
-depends_on: [JIRA-100]          # optional; defer until these are in triaged/
-added_at: 2026-04-18T10:15:00Z
-triage_attempts: 0              # engine-managed
-cycles: [0042, 0043]            # populated as cycle IDs are assigned
-completed_at: 2026-04-18T12:47:00Z  # populated when all cycles merged
-blocked_at: 2026-04-18T14:30:00Z    # populated if issue moved to blocked/
-blocked_cycle: 0042             # which cycle caused the block, if any
----
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
 ```
 
-Body of the markdown = issue description. A template lives at
-`docs/cycle/issues/TEMPLATE.md` for external agents to copy.
+Triage **always enriches** (even when no decomposition is needed) and
+**always picks a workflow** for each child. Original raw file moves to
+`done/<id>_raw.md` after triage emits children. Children land in `todo/`
+as `<parent>-<slug>.md` with `parent:` frontmatter linking them.
 
-## Triage (lazy, per issue)
-
-When an issue is popped from `tbd.jsonl`, the engine runs triage on its
-file in `queued/`. Triage produces a structured classification — a *plan*
-of cycles, without IDs. IDs are allocated lazily at `cycle.start`:
-
-```json
-{
-  "issue_id": "JIRA-123",
-  "cycles": [
-    { "workflow": "feature", "title": "…", "spec": "…" },
-    { "workflow": "bug",     "title": "…", "spec": "…" }
-  ]
-}
-```
-
-On success: write `TRIAGE.md` into the first cycle's artifact dir, move
-the issue file to `triaged/`, and run the planned cycles in order. Each
-cycle gets the next sequential ID (scanned from `log.jsonl`) at its
-start, and that ID is appended to the issue's frontmatter `cycles:` as
-it's assigned.
-
-On failure (invalid JSON, agent refusal, etc.): increment
-`triage_attempts` in frontmatter, re-attempt on the next loop iteration.
-After 3 attempts, move to `failed/` with a `FAILURE.md` note.
-
-Triage is lazy — it runs per issue, just before that issue's cycles. The
-backlog in `tbd.jsonl` + `tbd/` stays meaningful as a visible queue.
-Crash-resume is trivial: whatever's in the folders and `tbd.jsonl` when
-the engine restarts is the remaining work.
+Per-raw retry up to 3 attempts. After exhaustion: `raw/<id>.md` →
+`failed/<id>.md` with `triage_attempts: 3`. If ALL raws fail in one
+pass, engine emits `engine.paused` and exits.
 
 ## Default Workflow Library
 
