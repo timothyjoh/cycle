@@ -7753,8 +7753,8 @@ if (args.text) {
   await materializeFreeformIssue(args.text, cwd);
 }
 var cyclesProcessed = 0;
-var cyclesFailed = 0;
-while (true) {
+var halted = null;
+outer: while (true) {
   const ingested = await scanTbd(cwd);
   if (ingested.length === 0) break;
   for (const issue of ingested) {
@@ -7770,16 +7770,16 @@ while (true) {
     if (r.status === "ok") {
       cyclesProcessed++;
     } else {
-      cyclesFailed++;
       await log.emit("issue.failed", { issue_id: issue.id, failing_step: r.failingStep });
+      halted = { issueId: issue.id, failingStep: r.failingStep };
+      break outer;
     }
   }
 }
-var overall = cyclesFailed > 0 ? "partial" : "ok";
 await log.emit("engine.stop", {
-  status: args.dryRun ? "ok" : overall,
+  status: args.dryRun ? "ok" : halted ? "halted" : "ok",
   dry_run: args.dryRun,
   cycles_processed: cyclesProcessed,
-  cycles_failed: cyclesFailed
+  ...halted ? { halted_at_issue: halted.issueId, failing_step: halted.failingStep } : {}
 });
-process.exit(cyclesFailed === 0 ? 0 : 1);
+process.exit(halted ? 1 : 0);

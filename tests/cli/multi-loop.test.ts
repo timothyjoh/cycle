@@ -38,6 +38,59 @@ test("'run' drains two pre-dropped issues in one invocation (dry-run)", async ()
   }
 });
 
+test("'run' halts on cycle failure and leaves remaining queue intact", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    const distPath = join(REPO, "dist", "cycle.js");
+    try {
+      await readFile(distPath, "utf8");
+    } catch {
+      spawnSync("npm", ["run", "build"], { cwd: REPO, stdio: "inherit" });
+    }
+
+    // Bootstrap a git repo + a workflow whose first step always fails.
+    // (Engine requires a git repo + workflow file to run a cycle.)
+    spawnSync("git", ["init", "-b", "main"], { cwd: root, stdio: "ignore" });
+    spawnSync("git", ["config", "user.email", "t@t"], { cwd: root, stdio: "ignore" });
+    spawnSync("git", ["config", "user.name", "t"], { cwd: root, stdio: "ignore" });
+    spawnSync("git", ["commit", "--allow-empty", "-m", "init"], { cwd: root, stdio: "ignore" });
+
+    const wfDir = join(root, ".cycle/workflows");
+    const scriptsDir = join(root, ".cycle/scripts");
+    await mkdir(wfDir, { recursive: true });
+    await mkdir(scriptsDir, { recursive: true });
+    await writeFile(join(wfDir, "feature.yaml"),
+      "name: feature\nsteps:\n  - name: boom\n    agent: bash\n    command: scripts/boom.sh\n", "utf8");
+    const boom = join(scriptsDir, "boom.sh");
+    await writeFile(boom, "#!/bin/bash\nexit 42\n", "utf8");
+    await chmod(boom, 0o755);
+
+    // Drop two issues.
+    spawnSync("node", [distPath, "drop", "task first"], { cwd: root, stdio: "ignore" });
+    spawnSync("node", [distPath, "drop", "task second"], { cwd: root, stdio: "ignore" });
+
+    // Run — first cycle should fail at boom, second cycle should NOT start.
+    const r = spawnSync("node", [distPath, "run"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 1, "cycle run should exit 1 on halt");
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const events = log.trim().split("\n").map(l => JSON.parse(l));
+
+    const cycleStarts = events.filter(e => e.event === "cycle.start");
+    assert.equal(cycleStarts.length, 1, "second cycle must NOT have started");
+
+    const issueFailed = events.find(e => e.event === "issue.failed");
+    assert.ok(issueFailed, "issue.failed event expected");
+
+    const stop = events.findLast((e: { event: string }) => e.event === "engine.stop");
+    assert.equal(stop.status, "halted");
+    assert.equal(stop.cycles_processed, 0);
+    assert.ok(stop.halted_at_issue);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("'drop' materializes an issue to tbd/ without running", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
