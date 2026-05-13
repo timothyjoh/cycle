@@ -39,6 +39,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
     CYCLE_ID: cycleId,
     CYCLE_TITLE: opts.title,
     CYCLE_BASE: process.env.CYCLE_BASE ?? "main",
+    ...(opts.issueId ? { CYCLE_ISSUE_ID: opts.issueId } : {}),
     ...(opts.env ?? {}),
   };
 
