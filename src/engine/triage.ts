@@ -97,6 +97,7 @@ export async function runTriage(
 
   const processed: string[] = [];
   const failed: string[] = [];
+  const lastErrors: string[] = []; // index-aligned with `failed`
   let lastOrdering: string[] | null = null;
 
   // Per-raw invocation: each raw gets its own agent call and its own 3-attempt
@@ -191,6 +192,7 @@ export async function runTriage(
 
     if (!succeeded) {
       failed.push(raw.id);
+      lastErrors.push(lastError);
       await moveToFailed(repoRoot, raw);
     }
   }
@@ -200,7 +202,19 @@ export async function runTriage(
   }
 
   if (failed.length === raws.length) {
-    await log.emit("engine.paused", { reason: "triage_failed", failed });
+    const MAX_ERR_LEN = 2000;
+    const truncate = (s: string) =>
+      s.length > MAX_ERR_LEN ? s.slice(0, MAX_ERR_LEN - 1) + "…" : s;
+    const raw_ids = failed;
+    const last_errors = failed.map((raw_id, i) => ({
+      raw_id,
+      error: truncate(lastErrors[i] ?? ""),
+    }));
+    await log.emit("engine.paused", {
+      reason: "all_triage_failed",
+      raw_ids,
+      last_errors,
+    });
     return { status: "paused", processed, failed };
   }
 
