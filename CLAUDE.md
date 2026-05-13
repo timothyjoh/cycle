@@ -32,6 +32,7 @@ Project conventions for cycle. Read before touching code or running the workflow
 - Engine source: `src/engine/` (run-cycle, scan, log, branch, exec-bash, exec-claudecode, child-env, workflow, cycle-id).
 - CLI surface: `src/cli.ts`, `src/cli/{parse-args,init}.ts`.
 - Default workflow + prompts + scripts that ship into consumer repos: `src/defaults/`.
+  Workflow + engine + triage config now live in a single `workflows.yml` (replaces the `workflows/` subdirectory).
 - After editing `src/defaults/`, run `npm run sync-defaults`.
 - Issue state machine: `docs/cycle/issues/{raw,todo,done,blocked,failed}/`. See `docs/RFC-001-issue-lifecycle.md` for the authoritative lifecycle.
 - Append-only audit log: `.cycle/log.jsonl`.

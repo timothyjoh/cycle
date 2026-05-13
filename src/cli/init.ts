@@ -14,7 +14,8 @@ export async function runInit(opts: { targetRoot: string; force: boolean }) {
   await chmod(join(t, ".cycle/bin/cycle.js"), 0o755);
 
   const defaults = await locateDefaultsDir();
-  await cp(join(defaults, "workflows"), join(t, ".cycle/workflows"), { recursive: true });
+  await mkdir(join(t, ".cycle"), { recursive: true });
+  await copyFile(join(defaults, "workflows.yml"), join(t, ".cycle/workflows.yml"));
   await cp(join(defaults, "prompts"), join(t, ".cycle/prompts"), { recursive: true });
   await cp(join(defaults, "scripts"), join(t, ".cycle/scripts"), { recursive: true });
 

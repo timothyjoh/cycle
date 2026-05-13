@@ -6,8 +6,14 @@
 // re-invoking cycle on this repo.
 import { cp, rm } from "node:fs/promises";
 
+// workflows.yml replaces the legacy .cycle/workflows/ directory. Tear that
+// down first so a re-sync on a stale tree converges to the single-file shape.
+await rm(".cycle/workflows.yml", { force: true });
+await rm(".cycle/workflows", { recursive: true, force: true });
+await cp("src/defaults/workflows.yml", ".cycle/workflows.yml");
+console.log("synced src/defaults/workflows.yml → .cycle/workflows.yml");
+
 const pairs = [
-  ["src/defaults/workflows", ".cycle/workflows"],
   ["src/defaults/prompts", ".cycle/prompts"],
   ["src/defaults/scripts", ".cycle/scripts"],
 ];
