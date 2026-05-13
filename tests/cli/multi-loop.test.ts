@@ -7,16 +7,16 @@ import { spawnSync } from "node:child_process";
 
 const REPO = process.cwd();
 
+async function ensureDist(): Promise<string> {
+  const distPath = join(REPO, "dist", "cycle.js");
+  await readFile(distPath, "utf8");
+  return distPath;
+}
+
 test("'run' drains two pre-dropped issues in one invocation (dry-run)", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
-    // build dist/cycle.js first if missing
-    const distPath = join(REPO, "dist", "cycle.js");
-    try {
-      await readFile(distPath, "utf8");
-    } catch {
-      spawnSync("npm", ["run", "build"], { cwd: REPO, stdio: "inherit" });
-    }
+    const distPath = await ensureDist();
 
     // pre-populate raw/ with two dropped issues
     spawnSync("node", [distPath, "drop", "task alpha"], { cwd: root, stdio: "inherit" });
@@ -41,12 +41,7 @@ test("'run' drains two pre-dropped issues in one invocation (dry-run)", async ()
 test("'run' halts on cycle failure and leaves remaining queue intact", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
-    const distPath = join(REPO, "dist", "cycle.js");
-    try {
-      await readFile(distPath, "utf8");
-    } catch {
-      spawnSync("npm", ["run", "build"], { cwd: REPO, stdio: "inherit" });
-    }
+    const distPath = await ensureDist();
 
     // Bootstrap a git repo + a workflow whose first step always fails.
     // (Engine requires a git repo + workflow file to run a cycle.)
@@ -108,12 +103,7 @@ workflows:
 test("'drop' materializes an issue to raw/ without running", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
-    const distPath = join(REPO, "dist", "cycle.js");
-    try {
-      await readFile(distPath, "utf8");
-    } catch {
-      spawnSync("npm", ["run", "build"], { cwd: REPO, stdio: "inherit" });
-    }
+    const distPath = await ensureDist();
 
     const r = spawnSync("node", [distPath, "drop", "park this for later"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0);

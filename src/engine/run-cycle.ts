@@ -23,11 +23,12 @@ export type RunCycleOpts = {
   issueId: string;
   title: string;
   workflow: string;
+  cycleId?: string;
   env?: Record<string, string>;
 };
 
 export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
-  const cycleId = await allocateCycleId(repoRoot);
+  const cycleId = opts.cycleId ?? (await allocateCycleId(repoRoot));
   const log = await createLogger(repoRoot);
   const slug = slugify(opts.title);
   const wf = await loadWorkflow(repoRoot, opts.workflow);

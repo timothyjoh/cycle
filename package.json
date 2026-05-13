@@ -11,7 +11,9 @@
     "src/defaults/"
   ],
   "scripts": {
+    "pretest": "node scripts/build.mjs",
     "test": "node --test --experimental-strip-types --test-reporter=spec",
+    "pretest:coverage": "node scripts/build.mjs",
     "test:coverage": "node --test --experimental-strip-types --experimental-test-coverage --test-coverage-exclude='dist/**' --test-coverage-exclude='tests/**' --test-coverage-exclude='scripts/**' --test-reporter=spec",
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.mjs",

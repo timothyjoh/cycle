@@ -11,10 +11,10 @@ Project conventions for cycle. Read before touching code or running the workflow
 
 | Command | Purpose |
 |---|---|
-| `npm test` | Run the full test suite (Node's native test runner, spec reporter). Required to pass before commit. |
-| `npm run test:coverage` | Run tests with native `--experimental-test-coverage`. Excludes `dist/`, `tests/`, `scripts/` so the report reflects real `src/` coverage. **Required check during `build` and `fix` steps.** |
+| `npm test` | Run the full test suite (Node's native test runner, spec reporter). Auto-builds `dist/cycle.js` first via `pretest`. Required to pass before commit. |
+| `npm run test:coverage` | Run tests with native `--experimental-test-coverage`. Auto-builds `dist/` first via `pretest:coverage`. Excludes `dist/`, `tests/`, `scripts/` so the report reflects real `src/` coverage. **Required check during `build` and `fix` steps.** |
 | `npm run typecheck` | `tsc --noEmit` — no warnings allowed. |
-| `npm run build` | esbuild bundle of `src/cli.ts` → `dist/cycle.js` (the shebang executable that ships). |
+| `npm run build` | esbuild bundle of `src/cli.ts` → `dist/cycle.js` (the shebang executable that ships). Runs automatically via `pretest` / `pretest:coverage`; manual invocation rarely needed. |
 | `npm run sync-defaults` | Copy `src/defaults/` → `.cycle/`. Run after editing any default workflow YAML, prompt, or script so the dogfooded engine sees the change. |
 
 ## Coverage policy
@@ -29,12 +29,13 @@ Project conventions for cycle. Read before touching code or running the workflow
 
 ## Architecture quick reference
 
-- Engine source: `src/engine/` (run-cycle, scan, log, branch, exec-bash, exec-claudecode, child-env, workflow, cycle-id).
+- Engine source: `src/engine/` (run-cycle, scan, log, branch, exec-bash, exec-claudecode, child-env, workflow, cycle-id, queue, frontmatter, blocked).
 - CLI surface: `src/cli.ts`, `src/cli/{parse-args,init}.ts`.
 - Default workflow + prompts + scripts that ship into consumer repos: `src/defaults/`.
   Workflow + engine + triage config now live in a single `workflows.yml` (replaces the `workflows/` subdirectory).
 - After editing `src/defaults/`, run `npm run sync-defaults`.
 - Issue state machine: `docs/cycle/issues/{raw,todo,done,blocked,failed}/`. See `docs/RFC-001-issue-lifecycle.md` for the authoritative lifecycle.
+- Queue authority: `src/engine/queue.ts` owns `.cycle/tbd.jsonl` as a live drain-queue (one row per pending/in-progress issue: `{id, parent?, title, status, attempt, depends_on, triaged_at, cycle_id?}`). Engine pops the next pending row, runs the cycle, then drains on `cycle.end`: success removes the row and moves the file `todo/→done/`; transient failure bumps `attempt` and resets `status: pending`; terminal failure (attempt ≥ `max_cycle_attempts`) removes the row, stamps `failed_at`/`failed_step`/`failed_attempts` into the file's frontmatter, moves it `todo/→failed/`, and calls `propagateBlocked` (BB-6 fills the body). Engine reads `workflow:` from the popped todo's frontmatter and falls back to the CLI default. First start with a legacy `tbd.jsonl` archives it to `.cycle/tbd.jsonl.bootstrap-archive` once.
 - Append-only audit log: `.cycle/log.jsonl`.
 
 ## Subprocess discipline
