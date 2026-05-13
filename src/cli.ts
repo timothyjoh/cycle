@@ -16,8 +16,16 @@ import {
   readQueue,
 } from "./engine/queue.ts";
 import { loadConfig } from "./engine/workflow.ts";
+import type { CycleConfig } from "./engine/workflow.ts";
 import { parseFrontmatter, mutateFrontmatter } from "./engine/frontmatter.ts";
 import { propagateBlocked } from "./engine/blocked.ts";
+import { readLogTail } from "./engine/log-tail.ts";
+import type { InFlightCycle } from "./engine/log-tail.ts";
+import { checkoutBase, pullBase } from "./engine/branch.ts";
+import type { Logger } from "./engine/log.ts";
+import type { RunArgs } from "./cli/parse-args.ts";
+
+type HaltedState = { issueId: string; failingStep: string | undefined };
 
 const argv = process.argv.slice(2);
 if (argv[0] === "--version") {
@@ -82,6 +90,187 @@ async function rawHasFiles(): Promise<boolean> {
 let cyclesProcessed = 0;
 let halted: { issueId: string; failingStep: string | undefined } | null = null;
 
+async function terminalDrain(
+  cwd: string,
+  log: Logger,
+  todoPath: string,
+  failedDir: string,
+  cycleId: string,
+  issueId: string,
+  failingStep: string | undefined,
+  failedAttempts: number,
+): Promise<void> {
+  let mutateErr: Error | null = null;
+  try {
+    await mutateFrontmatter(todoPath, (fm) => ({
+      ...fm,
+      failed_at: new Date().toISOString(),
+      ...(failingStep ? { failed_step: failingStep } : {}),
+      failed_attempts: failedAttempts,
+    }));
+  } catch (e) {
+    mutateErr = e as Error;
+  }
+  try {
+    await rename(todoPath, join(failedDir, `${issueId}.md`));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+  }
+  if (mutateErr) {
+    await log.emit("queue.drain_warning", {
+      cycle_id: cycleId,
+      issue_id: issueId,
+      reason: `mutateFrontmatter failed: ${mutateErr.message}`,
+    });
+  }
+  await drainFailedTerminal(cwd, issueId);
+  await propagateBlocked(cwd, issueId, log);
+  await log.emit("queue.drained", { cycle_id: cycleId, issue_id: issueId, outcome: "terminal" });
+  await log.emit("issue.failed", { issue_id: issueId, failing_step: failingStep });
+}
+
+async function drainSuccess(
+  cwd: string,
+  log: Logger,
+  todoPath: string,
+  doneDir: string,
+  cycleId: string,
+  issueId: string,
+): Promise<void> {
+  await drainOk(cwd, issueId);
+  try {
+    await rename(todoPath, join(doneDir, `${issueId}.md`));
+  } catch {
+    // file may already have been moved by the workflow itself; tolerate
+  }
+  await log.emit("queue.drained", { cycle_id: cycleId, issue_id: issueId, outcome: "ok" });
+}
+
+async function drainRetry(
+  cwd: string,
+  log: Logger,
+  cycleId: string,
+  issueId: string,
+  failingStep: string | undefined,
+): Promise<void> {
+  await drainFailedRetry(cwd, issueId);
+  await log.emit("queue.drained", { cycle_id: cycleId, issue_id: issueId, outcome: "retry" });
+  await log.emit("issue.failed", { issue_id: issueId, failing_step: failingStep });
+}
+
+async function runResumeOnce(
+  cwd: string,
+  log: Logger,
+  cfg: CycleConfig,
+  args: RunArgs,
+  tail: InFlightCycle,
+  todoDir: string,
+  doneDir: string,
+  failedDir: string,
+): Promise<{ processed: number; halted: HaltedState | null }> {
+  const base = process.env.CYCLE_BASE ?? "main";
+  let baseOk = true;
+  try {
+    await checkoutBase(cwd, base);
+    await pullBase(cwd, base);
+  } catch (err) {
+    baseOk = false;
+    await log.emit("engine.warning", {
+      reason: "resume_base_refresh_failed",
+      message: (err as Error).message,
+    });
+  }
+
+  const rows = await readQueue(cwd);
+  const row = rows.find((r) => r.id === tail.issueId);
+  const mismatch =
+    !row ||
+    row.status !== "in_progress" ||
+    (row.cycle_id !== undefined && row.cycle_id !== tail.cycleId);
+
+  if (mismatch) {
+    await log.emit("engine.warning", {
+      reason: "resume_row_mismatch",
+      cycle_id: tail.cycleId,
+      issue_id: tail.issueId,
+      row_status: row?.status ?? "missing",
+      row_cycle_id: row?.cycle_id ?? null,
+    });
+    return { processed: 0, halted: null };
+  }
+
+  if (!baseOk) return { processed: 0, halted: null };
+
+  let workflowName = tail.workflow || args.workflow;
+  try {
+    const body = await readFile(join(todoDir, `${tail.issueId}.md`), "utf8");
+    const { fm } = parseFrontmatter(body);
+    if (typeof fm.workflow === "string" && fm.workflow.length > 0) {
+      workflowName = fm.workflow;
+    }
+  } catch {
+    // fall back to tail.workflow / args.workflow
+  }
+
+  const wfDef = cfg.workflows.find((w) => w.name === workflowName);
+  if (!wfDef) {
+    await log.emit("engine.warning", {
+      reason: "resume_workflow_missing",
+      workflow: workflowName,
+    });
+    return { processed: 0, halted: null };
+  }
+
+  const stepNames = wfDef.steps.map((s) => s.name);
+  let startStepIndex = stepNames.length;
+  for (let i = 0; i < stepNames.length; i++) {
+    if (!tail.completedSteps.includes(stepNames[i])) {
+      startStepIndex = i;
+      break;
+    }
+  }
+
+  await markInProgress(cwd, tail.issueId, tail.cycleId);
+  await log.emit("engine.resume", {
+    cycle_id: tail.cycleId,
+    issue_id: tail.issueId,
+    from_step: stepNames[startStepIndex] ?? null,
+    completed_steps: tail.completedSteps,
+  });
+
+  const rawMax = wfDef.max_cycle_attempts ?? 3;
+  const maxAttempts = rawMax < 1 ? 1 : rawMax;
+
+  const rr = await runCycle(cwd, {
+    cycleId: tail.cycleId,
+    issueId: tail.issueId,
+    title: tail.title,
+    workflow: workflowName,
+    resume: { startStepIndex },
+  });
+
+  const todoPath = join(todoDir, `${tail.issueId}.md`);
+  if (rr.status === "ok") {
+    await drainSuccess(cwd, log, todoPath, doneDir, tail.cycleId, tail.issueId);
+    return { processed: 1, halted: null };
+  }
+  if (row!.attempt + 1 < maxAttempts) {
+    await drainRetry(cwd, log, tail.cycleId, tail.issueId, rr.failingStep);
+    return { processed: 0, halted: { issueId: tail.issueId, failingStep: rr.failingStep } };
+  }
+  await terminalDrain(cwd, log, todoPath, failedDir, tail.cycleId, tail.issueId, rr.failingStep, row!.attempt + 1);
+  return { processed: 0, halted: { issueId: tail.issueId, failingStep: rr.failingStep } };
+}
+
+if (!args.dryRun && cfg) {
+  const tail = await readLogTail(cwd);
+  if (tail) {
+    const result = await runResumeOnce(cwd, log, cfg, args, tail, todoDir, doneDir, failedDir);
+    cyclesProcessed += result.processed;
+    halted = result.halted;
+  }
+}
+
 if (args.dryRun) {
   const rows = await readQueue(cwd);
   for (const row of rows) {
@@ -97,7 +286,7 @@ if (args.dryRun) {
   process.exit(0);
 }
 
-while (true) {
+while (!halted) {
   if (cfg && (await rawHasFiles())) {
     const r = await runTriage(cwd, cfg, log);
     if (r.status === "paused") {
@@ -138,49 +327,14 @@ while (true) {
   });
 
   if (r.status === "ok") {
-    await drainOk(cwd, row.id);
-    try {
-      await rename(todoPath, join(doneDir, `${row.id}.md`));
-    } catch {
-      // file may already have been moved by the workflow itself; tolerate
-    }
-    await log.emit("queue.drained", { cycle_id: cycleId, issue_id: row.id, outcome: "ok" });
+    await drainSuccess(cwd, log, todoPath, doneDir, cycleId, row.id);
     cyclesProcessed++;
   } else if (row.attempt + 1 < maxAttempts) {
-    await drainFailedRetry(cwd, row.id);
-    await log.emit("queue.drained", { cycle_id: cycleId, issue_id: row.id, outcome: "retry" });
-    await log.emit("issue.failed", { issue_id: row.id, failing_step: r.failingStep });
+    await drainRetry(cwd, log, cycleId, row.id, r.failingStep);
     halted = { issueId: row.id, failingStep: r.failingStep };
     break;
   } else {
-    const failedAttempts = row.attempt + 1;
-    let mutateErr: Error | null = null;
-    try {
-      await mutateFrontmatter(todoPath, (fm) => ({
-        ...fm,
-        failed_at: new Date().toISOString(),
-        failed_step: r.failingStep,
-        failed_attempts: failedAttempts,
-      }));
-    } catch (e) {
-      mutateErr = e as Error;
-    }
-    try {
-      await rename(todoPath, join(failedDir, `${row.id}.md`));
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-    }
-    if (mutateErr) {
-      await log.emit("queue.drain_warning", {
-        cycle_id: cycleId,
-        issue_id: row.id,
-        reason: `mutateFrontmatter failed: ${mutateErr.message}`,
-      });
-    }
-    await drainFailedTerminal(cwd, row.id);
-    await propagateBlocked(cwd, row.id, log);
-    await log.emit("queue.drained", { cycle_id: cycleId, issue_id: row.id, outcome: "terminal" });
-    await log.emit("issue.failed", { issue_id: row.id, failing_step: r.failingStep });
+    await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, r.failingStep, row.attempt + 1);
     halted = { issueId: row.id, failingStep: r.failingStep };
     break;
   }

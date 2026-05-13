@@ -194,6 +194,48 @@ test("markInProgress: mutates only matching id", async () => {
   }
 });
 
+test("markInProgress: re-mark with same cycleId is idempotent", async () => {
+  const root = await setupRoot();
+  try {
+    await writeQueue(root, [row("A")]);
+    await markInProgress(root, "A", "0007");
+    await markInProgress(root, "A", "0007");
+    const rows = await readQueue(root);
+    assert.equal(rows[0].status, "in_progress");
+    assert.equal(rows[0].cycle_id, "0007");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("markInProgress: re-mark with different cycleId while still in_progress throws", async () => {
+  const root = await setupRoot();
+  try {
+    await writeQueue(root, [row("A", { status: "in_progress", cycle_id: "0007" })]);
+    await assert.rejects(
+      () => markInProgress(root, "A", "0042"),
+      /already in_progress for cycle 0007/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("markInProgress: re-mark after drainFailedRetry succeeds (status pending re-stamps cycle_id)", async () => {
+  const root = await setupRoot();
+  try {
+    await writeQueue(root, [row("A", { status: "in_progress", cycle_id: "0007", attempt: 0 })]);
+    await drainFailedRetry(root, "A");
+    await markInProgress(root, "A", "0042");
+    const rows = await readQueue(root);
+    assert.equal(rows[0].status, "in_progress");
+    assert.equal(rows[0].cycle_id, "0042");
+    assert.equal(rows[0].attempt, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("markInProgress: throws when id not found", async () => {
   const root = await setupRoot();
   try {
