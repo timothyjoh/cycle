@@ -35,17 +35,17 @@ async function readKnownIds(jsonlPath: string): Promise<Set<string>> {
   return ids;
 }
 
-export async function scanTbd(repoRoot: string): Promise<TbdEntry[]> {
-  const tbd = join(repoRoot, "docs/cycle/issues/tbd");
-  const queued = join(repoRoot, "docs/cycle/issues/queued");
+export async function scanRaw(repoRoot: string): Promise<TbdEntry[]> {
+  const raw = join(repoRoot, "docs/cycle/issues/raw");
+  const todo = join(repoRoot, "docs/cycle/issues/todo");
   const cycleDir = join(repoRoot, ".cycle");
   const jsonlPath = join(cycleDir, "tbd.jsonl");
-  await mkdir(queued, { recursive: true });
+  await mkdir(todo, { recursive: true });
   await mkdir(cycleDir, { recursive: true });
 
   let files: string[] = [];
   try {
-    files = (await readdir(tbd)).filter(f => f.endsWith(".md"));
+    files = (await readdir(raw)).filter(f => f.endsWith(".md"));
   } catch {
     return [];
   }
@@ -53,8 +53,8 @@ export async function scanTbd(repoRoot: string): Promise<TbdEntry[]> {
   const knownIds = await readKnownIds(jsonlPath);
   const ingested: TbdEntry[] = [];
   for (const f of files) {
-    const src = join(tbd, f);
-    const dst = join(queued, f);
+    const src = join(raw, f);
+    const dst = join(todo, f);
     const body = await readFile(src, "utf8");
     const fm = parseFrontmatter(body);
     await rename(src, dst);

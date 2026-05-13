@@ -58,8 +58,8 @@ test("stages cycle artifact dir, issue file, and source change", async () => {
   try {
     await mkdir(join(root, "docs/cycle/0099-feature-test"), { recursive: true });
     await writeFile(join(root, "docs/cycle/0099-feature-test/SPEC.md"), "spec\n");
-    await mkdir(join(root, "docs/cycle/issues/queued"), { recursive: true });
-    await writeFile(join(root, "docs/cycle/issues/queued/test-issue.md"), "issue\n");
+    await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
+    await writeFile(join(root, "docs/cycle/issues/todo/test-issue.md"), "issue\n");
     await mkdir(join(root, "src"), { recursive: true });
     await writeFile(join(root, "src/app.ts"), "export {};\n");
 
@@ -70,7 +70,7 @@ test("stages cycle artifact dir, issue file, and source change", async () => {
     const files = commitFiles(root);
     assert.deepEqual(files, [
       "docs/cycle/0099-feature-test/SPEC.md",
-      "docs/cycle/issues/queued/test-issue.md",
+      "docs/cycle/issues/todo/test-issue.md",
       "src/app.ts",
     ]);
   } finally {
@@ -83,8 +83,8 @@ test("rejects .claude lock, dist artifact, and 160000 gitlink", async () => {
   try {
     await mkdir(join(root, "docs/cycle/0099-feature-test"), { recursive: true });
     await writeFile(join(root, "docs/cycle/0099-feature-test/SPEC.md"), "spec\n");
-    await mkdir(join(root, "docs/cycle/issues/queued"), { recursive: true });
-    await writeFile(join(root, "docs/cycle/issues/queued/test-issue.md"), "issue\n");
+    await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
+    await writeFile(join(root, "docs/cycle/issues/todo/test-issue.md"), "issue\n");
     await mkdir(join(root, "src"), { recursive: true });
     await writeFile(join(root, "src/app.ts"), "export {};\n");
 
@@ -164,20 +164,20 @@ test("exits 0 with nothing-to-commit when only transients are present", async ()
   }
 });
 
-test("triaged issue file is staged just like queued", async () => {
+test("todo/ issue file is staged by the porcelain walk", async () => {
   const root = await makeRepo();
   try {
     await mkdir(join(root, "docs/cycle/0099-feature-test"), { recursive: true });
     await writeFile(join(root, "docs/cycle/0099-feature-test/SPEC.md"), "spec\n");
-    await mkdir(join(root, "docs/cycle/issues/triaged"), { recursive: true });
-    await writeFile(join(root, "docs/cycle/issues/triaged/test-issue.md"), "issue\n");
+    await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
+    await writeFile(join(root, "docs/cycle/issues/todo/test-issue.md"), "issue\n");
 
     const r = runScript(root, { CYCLE_ID: "0099", CYCLE_TITLE: "t" });
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     const files = commitFiles(root);
     assert.ok(
-      files.includes("docs/cycle/issues/triaged/test-issue.md"),
-      `expected triaged issue file in commit: ${files}`,
+      files.includes("docs/cycle/issues/todo/test-issue.md"),
+      `expected todo/ issue file in commit: ${files}`,
     );
   } finally {
     await rm(root, { recursive: true, force: true });

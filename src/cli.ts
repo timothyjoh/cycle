@@ -1,7 +1,7 @@
 import { getVersion } from "./version.ts";
 import { parseArgs } from "./cli/parse-args.ts";
 import { materializeFreeformIssue } from "./issue/materialize.ts";
-import { scanTbd } from "./engine/scan.ts";
+import { scanRaw } from "./engine/scan.ts";
 import { createLogger } from "./engine/log.ts";
 import { runCycle } from "./engine/run-cycle.ts";
 
@@ -30,8 +30,8 @@ if (args.command === "drop") {
 const log = await createLogger(cwd);
 await log.emit("engine.start", {});
 
-// If freeform text was supplied on this invocation, materialize it into tbd/
-// before draining. Without text, drain whatever's already in tbd/.
+// If freeform text was supplied on this invocation, materialize it into raw/
+// before draining. Without text, drain whatever's already in raw/.
 if (args.text) {
   await materializeFreeformIssue(args.text, cwd);
 }
@@ -39,13 +39,13 @@ if (args.text) {
 // Halt-on-failure policy: during dogfood + early use, each cycle failure
 // is a real bug worth eyes on before the queue advances. We do NOT
 // continue past a failed cycle. The remaining queue stays in tbd.jsonl /
-// queued/ for the next invocation to pick up after the human fixes the
+// todo/ for the next invocation to pick up after the human fixes the
 // root cause and re-cycles the failed issue.
 let cyclesProcessed = 0;
 let halted: { issueId: string; failingStep: string | undefined } | null = null;
 
 outer: while (true) {
-  const ingested = await scanTbd(cwd);
+  const ingested = await scanRaw(cwd);
   if (ingested.length === 0) break;
 
   for (const issue of ingested) {

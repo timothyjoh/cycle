@@ -219,9 +219,9 @@ exit 0
 test("commit.sh: appends Closes #N body when issue URL matches repo", async () => {
   const root = await makeCommitRepo();
   try {
-    await mkdir(join(root, "docs/cycle/issues/triaged"), { recursive: true });
+    await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
     await writeFile(
-      join(root, "docs/cycle/issues/triaged/foo.md"),
+      join(root, "docs/cycle/issues/todo/foo.md"),
       "Reproduces https://github.com/acme/cycle/issues/99 in the wild.\n",
     );
     await mkdir(join(root, "src"), { recursive: true });
@@ -254,8 +254,8 @@ test("commit.sh: appends Closes #N body when issue URL matches repo", async () =
 test("commit.sh: byte-identical message when issue body has no qualifying URL", async () => {
   const root = await makeCommitRepo();
   try {
-    await mkdir(join(root, "docs/cycle/issues/triaged"), { recursive: true });
-    await writeFile(join(root, "docs/cycle/issues/triaged/foo.md"), "No urls here.\n");
+    await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
+    await writeFile(join(root, "docs/cycle/issues/todo/foo.md"), "No urls here.\n");
     await mkdir(join(root, "src"), { recursive: true });
     await writeFile(join(root, "src/app.ts"), "export {};\n");
 
@@ -285,9 +285,9 @@ test("commit.sh: byte-identical message when issue body has no qualifying URL", 
 test("commit.sh: cross-repo URL produces no Closes line", async () => {
   const root = await makeCommitRepo();
   try {
-    await mkdir(join(root, "docs/cycle/issues/triaged"), { recursive: true });
+    await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
     await writeFile(
-      join(root, "docs/cycle/issues/triaged/foo.md"),
+      join(root, "docs/cycle/issues/todo/foo.md"),
       "Refs https://github.com/someone/else/issues/5 unrelated.\n",
     );
     await mkdir(join(root, "src"), { recursive: true });
@@ -391,9 +391,9 @@ exit 0
 test("pr.sh: PR body appends Closes #N when issue URL matches repo", async () => {
   const root = await makePrRepo();
   try {
-    await mkdir(join(root, "docs/cycle/issues/triaged"), { recursive: true });
+    await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
     await writeFile(
-      join(root, "docs/cycle/issues/triaged/foo.md"),
+      join(root, "docs/cycle/issues/todo/foo.md"),
       "Refs https://github.com/acme/cycle/issues/99 here.\n",
     );
     const { shim, bodyFile, log } = await installPrGhShim(root, "acme/cycle");
@@ -429,8 +429,8 @@ test("pr.sh: PR body appends Closes #N when issue URL matches repo", async () =>
 test("pr.sh: PR body is byte-identical to legacy when no qualifying URL", async () => {
   const root = await makePrRepo();
   try {
-    await mkdir(join(root, "docs/cycle/issues/triaged"), { recursive: true });
-    await writeFile(join(root, "docs/cycle/issues/triaged/foo.md"), "No urls.\n");
+    await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
+    await writeFile(join(root, "docs/cycle/issues/todo/foo.md"), "No urls.\n");
     const { shim, bodyFile } = await installPrGhShim(root, "acme/cycle");
     const r = spawnSync("bash", [".cycle/scripts/pr.sh"], {
       cwd: root,
@@ -455,9 +455,9 @@ test("pr.sh: PR body is byte-identical to legacy when no qualifying URL", async 
 test("pr.sh: cross-repo URL is omitted from PR body", async () => {
   const root = await makePrRepo();
   try {
-    await mkdir(join(root, "docs/cycle/issues/triaged"), { recursive: true });
+    await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
     await writeFile(
-      join(root, "docs/cycle/issues/triaged/foo.md"),
+      join(root, "docs/cycle/issues/todo/foo.md"),
       "Refs https://github.com/someone/else/issues/5 only.\n",
     );
     const { shim, bodyFile } = await installPrGhShim(root, "acme/cycle");

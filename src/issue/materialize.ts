@@ -4,7 +4,7 @@ import { freeformId } from "./id.ts";
 
 export async function materializeFreeformIssue(text: string, repoRoot: string, now: Date = new Date()) {
   const id = freeformId(text, now);
-  const dir = join(repoRoot, "docs", "cycle", "issues", "tbd");
+  const dir = join(repoRoot, "docs", "cycle", "issues", "raw");
   await mkdir(dir, { recursive: true });
   const path = join(dir, `${id}.md`);
   const frontmatter = [

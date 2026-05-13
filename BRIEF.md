@@ -261,7 +261,7 @@ in a bad state.
 - Push the final attempt's branch to `cycle/abandoned/<cycle-id>-<slug>`.
 - Open a PR titled `Failed Attempt: <title>` (cold storage with GitHub
   visibility — not intended to merge).
-- Move the issue file from `triaged/` to `blocked/` with `blocked_at:`
+- Move the issue file from `todo/` to `blocked/` with `blocked_at:`
   and `blocked_cycle:` in frontmatter; write a `BLOCKED.md` note.
 - **Skip the remaining planned cycles of that issue.** They never
   started, so they consume no IDs — the next issue's first cycle gets
