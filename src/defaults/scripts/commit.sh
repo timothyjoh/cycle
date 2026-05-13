@@ -51,6 +51,17 @@ while IFS= read -r line; do
     git reset -q HEAD -- "$path" 2>/dev/null || true
     continue
   fi
+  # Paths missing from the working tree can't be staged via `git add <path>`
+  # (the pathspec must match a worktree entry). For already-staged deletions
+  # (D in column 1) the index is correct; skip. For unstaged worktree
+  # deletions (D in column 2), `git add -u` accepts the missing path and
+  # records the removal.
+  if [ ! -e "$path" ]; then
+    case "$xy" in
+      D*) continue ;;
+      *D) git add -u -- "$path"; continue ;;
+    esac
+  fi
   git add -- "$path"
 done < <(git status --porcelain --untracked-files=all)
 

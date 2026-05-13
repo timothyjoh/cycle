@@ -1,5 +1,7 @@
 # cycle MVP — Dogfood-Ready Implementation Plan
 
+> **Historical plan (pre-RFC-001).** References to `tbd/`, `queued/`, and `triaged/` describe the MVP lifecycle. The live model is `raw/ → todo/ → done/` with `blocked/` and `failed/` siblings. See `docs/RFC-001-issue-lifecycle.md` § 12 BB-1 for the rename.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build the cycle engine and `@cycleai/cli` npm package far enough that we can invoke `./.cycle/bin/cycle.js run "<task>"` against the cycle repo itself and produce a merged PR for a real feature. Validates that workflows can be constructed (the `feature` workflow) and followed (`spec → research → plan → build → verify → commit → pr`).

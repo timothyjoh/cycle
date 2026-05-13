@@ -7,7 +7,7 @@
 
 ## 1. Motivation
 
-The MVP (cycles 0001–0009) forced `--workflow feature` on every input, never advanced files past `queued/`, never decomposed issues, and halted the entire engine on any cycle failure. That was fine for proving the loop. Real use needs:
+The MVP (cycles 0001–0009) forced `--workflow feature` on every input, never advanced files past `queued/` (superseded — see § 12 BB-1), never decomposed issues, and halted the entire engine on any cycle failure. That was fine for proving the loop. Real use needs:
 
 - A dedicated **inbox** (`raw/`) that an external agent / human / tracker fetch can drop into without engine ceremony.
 - A **triage** pass that enriches every raw issue with codebase context, decomposes large ones into vertical slices, and orders them.
@@ -387,7 +387,9 @@ Edge case: if resume detects a cycle whose attempt counter has already increment
 
 ## 12. Bootstrap and migration plan
 
-Cycles needed to land this design (in order). Bootstrap items run on the **current** engine via the existing `tbd/ → queued/` path until each one updates the engine to know about its new piece.
+> Folder names `tbd/`, `queued/`, `triaged/` below describe pre-RFC-001 lifecycle state. All renames completed by cycle 0014; current model is `raw/ → todo/ → done/`.
+
+Cycles needed to land this design (in order). Bootstrap items run on the **current** engine via the existing `tbd/ → queued/` (superseded — see § 12 BB-1) path until each one updates the engine to know about its new piece.
 
 1. **BB-1: Rename `tbd/ → raw/`, `queued/ → todo/`.** Update `scan.ts` to scan `raw/`, move to `todo/`, dedup by id (also fixes the existing bug). Update `closes.sh` and other path references. Update tests. Drop the empty `triaged/` folder.
 
@@ -413,7 +415,7 @@ These don't block bootstrap but are tracked as future issues:
 
 - **Multi-agent abstraction.** `agent: codex` / `agent: gemini` require new `exec-*.ts` modules. Config schema accepts the strings today; impl is staged.
 - **Triage's `depends_on` inference quality.** First pass: triage only marks explicit deps. Future: heuristics from codebase analysis. **Status: landed (cycle 0021).** Prompt now instructs the agent to infer chained `depends_on` between sibling children on decomposition; validator resolves every `depends_on` id against `siblings ∪ tbd.jsonl rows ∪ todo/<id>.md files` and rejects self-loops, with failures feeding the per-raw retry feedback loop.
-- **CLI surface alignment.** `cycle drop "<text>"` writes to `raw/` (today: `tbd/`). Add `cycle status` to show queue + in-flight + blocked counts.
+- **CLI surface alignment.** `cycle drop "<text>"` writes to `raw/` (today: `tbd/` — superseded — see § 12 BB-1). Add `cycle status` to show queue + in-flight + blocked counts.
 - **Re-triage of a `re_triage: true` raw item.** Children that turn out to need further decomposition get punted back to `raw/`.
 - **`engine.paused` recovery.** When all triage fails, engine.paused — what's the recovery flow?
 - **Step-level restart tolerance audit.** Walk each existing step (spec/research/plan/build/review/fix/verify/commit/pr) and confirm/improve restart behavior.
