@@ -62,7 +62,97 @@ type RawIssue = {
   attempts: number;
 };
 
+type ParsedTriageOutput = TriageOutput;
+
+type RawAttemptOutcome =
+  | { status: "ok"; parsed: ParsedTriageOutput; attempts: number }
+  | { status: "failed"; lastError: string; attempts: number };
+
+interface ProcessCtx {
+  repoRoot: string;
+  cfg: CycleConfig;
+  promptTemplate: string;
+  runAgent: TriageAgentRunner;
+  apply?: (raw: RawIssue, parsed: ParsedTriageOutput) => Promise<void>;
+  onAttemptFailed?: (attemptNumber: number, reason: string) => Promise<void>;
+}
+
+export interface DryRunReport {
+  raw_id: string;
+  status: "ok" | "failed";
+  attempts: number;
+  last_error?: string;
+  children?: string[];
+}
+
 const MAX_ATTEMPTS = 3;
+
+async function processRawWithRetry(
+  raw: RawIssue,
+  ctx: ProcessCtx,
+): Promise<RawAttemptOutcome> {
+  let lastError = "";
+  let attemptsRun = 0;
+
+  for (let attempt = raw.attempts; attempt < MAX_ATTEMPTS; attempt++) {
+    attemptsRun++;
+    const queueRows = await readQueue(ctx.repoRoot);
+    const todoListing = await listTodos(ctx.repoRoot);
+    const feedback = lastError
+      ? `PREVIOUS ATTEMPT FAILED VALIDATION:\n${lastError}`
+      : "";
+    const renderedPrompt = renderPrompt(
+      ctx.promptTemplate,
+      [raw],
+      queueRows,
+      todoListing,
+      feedback,
+    );
+
+    let agentResult: TriageAgentResult;
+    try {
+      agentResult = await ctx.runAgent(renderedPrompt, ctx.cfg.triage, ctx.repoRoot);
+    } catch (e) {
+      lastError = `agent failed: ${(e as Error).message}`;
+      if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
+      continue;
+    }
+
+    if (agentResult.exitCode !== 0) {
+      lastError = `agent exited ${agentResult.exitCode}: ${agentResult.stderr.trim()}`;
+      if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
+      continue;
+    }
+
+    const todoIds = new Set(todoListing.map((f) => f.replace(/\.md$/, "")));
+    const validation = validateOutput(
+      agentResult.stdout,
+      [raw],
+      queueRows,
+      ctx.cfg,
+      todoIds,
+    );
+    if (!validation.ok) {
+      lastError = validation.reason;
+      if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
+      continue;
+    }
+
+    if (ctx.apply) {
+      try {
+        await ctx.apply(raw, validation.parsed);
+      } catch (e) {
+        lastError = `apply failed: ${(e as Error).message}`;
+        if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
+        continue;
+      }
+    }
+
+    return { status: "ok", parsed: validation.parsed, attempts: attemptsRun };
+  }
+
+  return { status: "failed", lastError, attempts: attemptsRun };
+}
 
 export async function runTriage(
   repoRoot: string,
@@ -104,95 +194,34 @@ export async function runTriage(
   // retry budget. SPEC §Requirements suggests a single batched prompt; we
   // deviate so a poison raw can't block its siblings. See BUILD.md §Deviations.
   for (const raw of raws) {
-    let succeeded = false;
-    let lastError = "";
-
-    for (let attempt = raw.attempts; attempt < MAX_ATTEMPTS; attempt++) {
-      const queueRows = await readQueue(repoRoot);
-      const todoListing = await listTodos(repoRoot);
-      const feedback = lastError
-        ? `PREVIOUS ATTEMPT FAILED VALIDATION:\n${lastError}`
-        : "";
-      const renderedPrompt = renderPrompt(
-        promptTemplate,
-        [raw],
-        queueRows,
-        todoListing,
-        feedback,
-      );
-
-      let agentResult: TriageAgentResult;
-      try {
-        agentResult = await runAgent(renderedPrompt, cfg.triage, repoRoot);
-      } catch (e) {
-        lastError = `agent failed: ${(e as Error).message}`;
-        await bumpAttempts(raw.srcPath, attempt + 1);
+    const outcome = await processRawWithRetry(raw, {
+      repoRoot,
+      cfg,
+      promptTemplate,
+      runAgent,
+      apply: (r, parsed) => applyRaw(repoRoot, r, parsed),
+      onAttemptFailed: async (attemptNumber, reason) => {
+        await bumpAttempts(raw.srcPath, attemptNumber);
         await log.emit("triage.raw.failed", {
           raw_id: raw.id,
-          attempt: attempt + 1,
-          reason: lastError,
+          attempt: attemptNumber,
+          reason,
         });
-        continue;
-      }
+      },
+    });
 
-      if (agentResult.exitCode !== 0) {
-        lastError = `agent exited ${agentResult.exitCode}: ${agentResult.stderr.trim()}`;
-        await bumpAttempts(raw.srcPath, attempt + 1);
-        await log.emit("triage.raw.failed", {
-          raw_id: raw.id,
-          attempt: attempt + 1,
-          reason: lastError,
-        });
-        continue;
-      }
-
-      const todoIds = new Set(todoListing.map((f) => f.replace(/\.md$/, "")));
-      const validation = validateOutput(
-        agentResult.stdout,
-        [raw],
-        queueRows,
-        cfg,
-        todoIds,
-      );
-      if (!validation.ok) {
-        lastError = validation.reason;
-        await bumpAttempts(raw.srcPath, attempt + 1);
-        await log.emit("triage.raw.failed", {
-          raw_id: raw.id,
-          attempt: attempt + 1,
-          reason: lastError,
-        });
-        continue;
-      }
-
-      try {
-        await applyRaw(repoRoot, raw, validation.parsed);
-      } catch (e) {
-        lastError = `apply failed: ${(e as Error).message}`;
-        await bumpAttempts(raw.srcPath, attempt + 1);
-        await log.emit("triage.raw.failed", {
-          raw_id: raw.id,
-          attempt: attempt + 1,
-          reason: lastError,
-        });
-        continue;
-      }
-
-      lastOrdering = validation.parsed.ordering;
+    if (outcome.status === "ok") {
+      lastOrdering = outcome.parsed.ordering;
       await log.emit("triage.raw.ok", {
         raw_id: raw.id,
-        children: validation.parsed.children
+        children: outcome.parsed.children
           .filter((c) => c.raw_id === raw.id)
           .map((c) => c.id),
       });
       processed.push(raw.id);
-      succeeded = true;
-      break;
-    }
-
-    if (!succeeded) {
+    } else {
       failed.push(raw.id);
-      lastErrors.push(lastError);
+      lastErrors.push(outcome.lastError);
       await moveToFailed(repoRoot, raw);
     }
   }
@@ -223,6 +252,60 @@ export async function runTriage(
     failed: failed.length,
   });
   return { status: "ok", processed, failed };
+}
+
+export async function dryRunTriage(
+  repoRoot: string,
+  cfg: CycleConfig,
+  deps: TriageDeps = {},
+): Promise<DryRunReport[]> {
+  if (cfg.triage.agent !== "claudecode") {
+    throw new Error(`unsupported triage agent: ${cfg.triage.agent}`);
+  }
+
+  const runAgent = deps.runAgent ?? runClaudecodeAgent;
+  const rawDir = join(repoRoot, "docs/cycle/issues/raw");
+  const raws = await loadRaws(rawDir);
+  if (raws.length === 0) return [];
+
+  const promptTemplate = await readFile(
+    join(repoRoot, ".cycle", cfg.triage.prompt),
+    "utf8",
+  );
+
+  const reports: DryRunReport[] = [];
+  for (const raw of raws) {
+    // Dry-run reports the agent invocation count for THIS pass; on-disk
+    // triage_attempts (from prior real runs) must not shrink the retry
+    // budget. Clone with attempts: 0 to count from scratch.
+    const outcome = await processRawWithRetry(
+      { ...raw, attempts: 0 },
+      {
+        repoRoot,
+        cfg,
+        promptTemplate,
+        runAgent,
+      },
+    );
+    if (outcome.status === "ok") {
+      reports.push({
+        raw_id: raw.id,
+        status: "ok",
+        attempts: outcome.attempts,
+        children: outcome.parsed.children
+          .filter((c) => c.raw_id === raw.id)
+          .map((c) => c.id),
+      });
+    } else {
+      reports.push({
+        raw_id: raw.id,
+        status: "failed",
+        attempts: outcome.attempts,
+        last_error: outcome.lastError,
+      });
+    }
+  }
+  return reports;
 }
 
 async function loadRaws(rawDir: string): Promise<RawIssue[]> {

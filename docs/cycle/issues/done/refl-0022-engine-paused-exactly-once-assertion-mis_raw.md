@@ -1,0 +1,13 @@
+---
+id: refl-0022-engine-paused-exactly-once-assertion-mis
+source: reflection
+title: engine-paused-exactly-once-assertion-missing
+added_at: "2026-05-13T19:20:27.143Z"
+triage_attempts: 0
+priority_hint: 3
+origin_cycle_id: "0022"
+---
+
+REVIEW.md (Adversarial Test Review, Finding 1) flagged that the new `engine.paused` tests use `events.find(e => e.event === "engine.paused")`, which returns the first match but does not lock the SPEC §Functional contract that the event MUST emit "exactly once per pass". The code structure (single emission site outside any loop, immediately followed by `return`) guarantees this today, but a future refactor that adds an early-exit branch or moves emission into the per-raw retry loop could regress to double-emission and the suite would still pass.
+
+Add a single hardening assertion in `tests/engine/triage.test.ts` to the existing whole-pass-failure test: `assert.equal(events.filter(e => e.event === "engine.paused").length, 1)`. One line, no new fixtures. Pairs with the existing payload-shape assertions to pin both content and cardinality of the event.

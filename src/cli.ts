@@ -54,6 +54,14 @@ if (argv[0] === "status") {
   process.exit(0);
 }
 
+if (argv[0] === "triage") {
+  const { runCliTriage } = await import("./cli/triage.ts");
+  const result = await runCliTriage(process.cwd(), argv.slice(1));
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr + "\n");
+  process.exit(result.exitCode);
+}
+
 const args = parseArgs(argv);
 const cwd = process.cwd();
 
