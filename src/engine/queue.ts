@@ -138,11 +138,15 @@ export async function markInProgress(repoRoot: string, id: string, cycleId: stri
   const rows = await readQueue(repoRoot);
   let touched = false;
   for (const r of rows) {
-    if (r.id === id) {
-      r.status = "in_progress";
-      r.cycle_id = cycleId;
-      touched = true;
+    if (r.id !== id) continue;
+    if (r.status === "in_progress" && r.cycle_id && r.cycle_id !== cycleId) {
+      throw new Error(
+        `markInProgress: row ${id} already in_progress for cycle ${r.cycle_id}, refusing to overwrite with ${cycleId}`,
+      );
     }
+    r.status = "in_progress";
+    r.cycle_id = cycleId;
+    touched = true;
   }
   if (!touched) throw new Error(`markInProgress: id not found: ${id}`);
   await writeQueue(repoRoot, rows);

@@ -435,6 +435,170 @@ test("honors cycleId opt when caller provides it", async () => {
   }
 });
 
+test("resume mode skips cycle.start, calls checkoutCycleBranch, starts at startStepIndex", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await mkdir(join(root, ".cycle/scripts"), { recursive: true });
+    const counter = join(bin, "counter.txt");
+    await writeFile(counter, "0", "utf8");
+
+    await writeFile(join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+      - name: build
+        agent: bash
+        command: scripts/build.sh
+      - name: verify
+        agent: bash
+        command: scripts/verify.sh
+`), "utf8");
+    await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
+    const buildScript = join(root, ".cycle/scripts/build.sh");
+    await writeFile(buildScript, "#!/bin/bash\necho build\n", "utf8");
+    await chmod(buildScript, 0o755);
+    const verifyScript = join(root, ".cycle/scripts/verify.sh");
+    await writeFile(verifyScript, "#!/bin/bash\necho verify\n", "utf8");
+    await chmod(verifyScript, 0o755);
+
+    // Pre-create the cycle branch (as if a prior crashed cycle had started).
+    git(root, ["checkout", "-b", "cycle/feature/resume-me"]);
+    git(root, ["checkout", "main"]);
+
+    const fake = join(bin, "claude");
+    await writeFile(fake,
+      `#!/bin/bash\nn=$(cat "${counter}")\nn=$((n+1))\necho -n "$n" > "${counter}"\necho CLAUDE_CALL_$n\n`,
+      "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await runCycle(root, {
+      cycleId: "0042",
+      issueId: "TEST-1",
+      title: "resume me",
+      workflow: "feature",
+      resume: { startStepIndex: 1 },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.cycleId, "0042");
+    assert.equal(r.status, "ok");
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.doesNotMatch(log, /"event":"cycle.start"/);
+    assert.match(log, /"event":"cycle.resume","cycle_id":"0042","workflow":"feature","title":"resume me","issue_id":"TEST-1","start_step_index":1/);
+    assert.doesNotMatch(log, /"event":"step.start","cycle_id":"0042","step":"spec"/);
+    assert.match(log, /"event":"step.start","cycle_id":"0042","step":"build"/);
+    assert.match(log, /"event":"step.start","cycle_id":"0042","step":"verify"/);
+    assert.match(log, /"event":"cycle.end","cycle_id":"0042","status":"ok"/);
+
+    // Claude (spec step) must not have been invoked under resume.
+    const final = await readFile(counter, "utf8");
+    assert.equal(final, "0", "claude not invoked when spec is skipped");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("resume mode fails cleanly when cycle branch is missing (no cycle.end emitted)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`), "utf8");
+    await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await chmod(fake, 0o755);
+
+    await assert.rejects(
+      () => runCycle(root, {
+        cycleId: "0042",
+        issueId: "TEST-1",
+        title: "no branch",
+        workflow: "feature",
+        resume: { startStepIndex: 0 },
+        env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      }),
+      (err: Error) => /git checkout cycle\/feature\/no-branch failed/.test(err.message),
+    );
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.doesNotMatch(log, /"event":"cycle.start"/);
+    assert.match(log, /"event":"cycle.resume"/);
+    assert.doesNotMatch(log, /"event":"cycle.end"/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("resume with startStepIndex == steps.length emits cycle.end ok and runs no steps", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await mkdir(join(root, ".cycle/scripts"), { recursive: true });
+    await writeFile(join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+      - name: build
+        agent: bash
+        command: scripts/build.sh
+`), "utf8");
+    await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
+    const buildScript = join(root, ".cycle/scripts/build.sh");
+    await writeFile(buildScript, "#!/bin/bash\necho build\nexit 7\n", "utf8");
+    await chmod(buildScript, 0o755);
+
+    git(root, ["checkout", "-b", "cycle/feature/done-already"]);
+    git(root, ["checkout", "main"]);
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\nexit 1\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await runCycle(root, {
+      cycleId: "0099",
+      issueId: "TEST-1",
+      title: "done already",
+      workflow: "feature",
+      resume: { startStepIndex: 2 },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.doesNotMatch(log, /"event":"step.start"/);
+    assert.match(log, /"event":"cycle.end","cycle_id":"0099","status":"ok"/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
 test("logs cycle.base_pull status=skipped when prior checkout failed", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));

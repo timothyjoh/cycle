@@ -27,8 +27,17 @@ if [ -n "$closes" ]; then
   body="${body}"$'\n\n'"${closes}"
 fi
 
-pr_url=$(gh pr create --base "${CYCLE_BASE}" --title "cycle ${CYCLE_ID}: ${CYCLE_TITLE}" --body "$body")
-pr_number=$(gh pr view "${branch}" --json number -q .number)
+# Restart-tolerant: detect existing PR on this branch and reuse it
+# instead of calling `gh pr create`, which errors if a PR already exists.
+existing=$(gh pr list --head "${branch}" --json number,url --jq '.[0]' 2>/dev/null || true)
+if [ -n "${existing}" ] && [ "${existing}" != "null" ]; then
+  pr_number=$(printf '%s' "${existing}" | jq -r .number)
+  pr_url=$(printf '%s' "${existing}" | jq -r .url)
+  echo "pr.sh: resuming with existing PR #${pr_number}" >&2
+else
+  pr_url=$(gh pr create --base "${CYCLE_BASE}" --title "cycle ${CYCLE_ID}: ${CYCLE_TITLE}" --body "$body")
+  pr_number=$(gh pr view "${branch}" --json number -q .number)
+fi
 
 # First attempt: try GitHub auto-merge. Capture stderr without losing
 # the exit code under set -e by short-circuiting the assignment with ||.

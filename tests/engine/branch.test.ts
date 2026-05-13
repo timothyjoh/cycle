@@ -4,7 +4,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { createCycleBranch, checkoutBase, pullBase } from "../../src/engine/branch.ts";
+import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
+import { createCycleBranch, checkoutCycleBranch, checkoutBase, pullBase } from "../../src/engine/branch.ts";
 
 function git(cwd: string, args: string[]) {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -120,6 +121,65 @@ test("pullBase is a no-op when local already matches origin", async () => {
   } finally {
     await rm(originRoot, { recursive: true, force: true });
     if (workRoot) await rm(workRoot, { recursive: true, force: true });
+  }
+});
+
+test("checkoutCycleBranch switches HEAD to existing cycle branch", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    await createCycleBranch(root, { cycleId: "0042", workflow: "feature", slug: "thing" });
+    await checkoutBase(root, "main");
+
+    const r = await checkoutCycleBranch(root, { cycleId: "0042", workflow: "feature", slug: "thing" });
+    assert.equal(r.branch, "cycle/feature/thing");
+    assert.ok(r.artifactDir.endsWith("/docs/cycle/0042-feature-thing"));
+    assert.equal(git(root, ["rev-parse", "--abbrev-ref", "HEAD"]).trim(), "cycle/feature/thing");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("checkoutCycleBranch throws when branch is missing", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    await assert.rejects(
+      () => checkoutCycleBranch(root, { cycleId: "0001", workflow: "feature", slug: "ghost" }),
+      (err: Error) => /git checkout cycle\/feature\/ghost failed/.test(err.message),
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("checkoutCycleBranch preserves pre-existing artifact files", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    const { artifactDir } = await createCycleBranch(root, { cycleId: "0009", workflow: "feature", slug: "keep" });
+    await mkdir(artifactDir, { recursive: true });
+    await writeFile(join(artifactDir, "SPEC.md"), "kept", "utf8");
+    await checkoutBase(root, "main");
+
+    await checkoutCycleBranch(root, { cycleId: "0009", workflow: "feature", slug: "keep" });
+    const body = await readFile(join(artifactDir, "SPEC.md"), "utf8");
+    assert.equal(body, "kept");
+    await stat(artifactDir);
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });
 

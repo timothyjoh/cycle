@@ -3,7 +3,7 @@ import { loadWorkflow } from "./workflow.ts";
 import { createLogger } from "./log.ts";
 import { execBashStep } from "./exec-bash.ts";
 import { execClaudecodeStep } from "./exec-claudecode.ts";
-import { createCycleBranch, checkoutBase, pullBase } from "./branch.ts";
+import { createCycleBranch, checkoutCycleBranch, checkoutBase, pullBase } from "./branch.ts";
 import { slugify } from "../issue/id.ts";
 import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
@@ -25,6 +25,7 @@ export type RunCycleOpts = {
   workflow: string;
   cycleId?: string;
   env?: Record<string, string>;
+  resume?: { startStepIndex: number };
 };
 
 export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
@@ -33,8 +34,20 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
   const slug = slugify(opts.title);
   const wf = await loadWorkflow(repoRoot, opts.workflow);
 
-  await log.emit("cycle.start", { cycle_id: cycleId, workflow: opts.workflow, title: opts.title, issue_id: opts.issueId });
-  const { artifactDir } = await createCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug });
+  let artifactDir: string;
+  if (opts.resume) {
+    await log.emit("cycle.resume", {
+      cycle_id: cycleId,
+      workflow: opts.workflow,
+      title: opts.title,
+      issue_id: opts.issueId,
+      start_step_index: opts.resume.startStepIndex,
+    });
+    ({ artifactDir } = await checkoutCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+  } else {
+    await log.emit("cycle.start", { cycle_id: cycleId, workflow: opts.workflow, title: opts.title, issue_id: opts.issueId });
+    ({ artifactDir } = await createCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+  }
 
   const cycleEnv: Record<string, string> = {
     CYCLE_ID: cycleId,
@@ -45,7 +58,9 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
   };
 
   try {
-    for (const step of wf.steps) {
+    const startIdx = opts.resume?.startStepIndex ?? 0;
+    for (let i = startIdx; i < wf.steps.length; i++) {
+      const step = wf.steps[i];
       await log.emit("step.start", { cycle_id: cycleId, step: step.name, agent: step.agent });
       let r;
       if (step.agent === "bash") {

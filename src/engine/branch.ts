@@ -22,6 +22,14 @@ export async function createCycleBranch(repoRoot: string, opts: { cycleId: strin
   return { branch, artifactDir };
 }
 
+export async function checkoutCycleBranch(repoRoot: string, opts: { cycleId: string; workflow: string; slug: string }) {
+  const branch = `cycle/${opts.workflow}/${opts.slug}`;
+  await git(repoRoot, ["checkout", branch]);
+  const artifactDir = join(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
+  await mkdir(artifactDir, { recursive: true });
+  return { branch, artifactDir };
+}
+
 export async function checkoutBase(repoRoot: string, base: string): Promise<void> {
   await git(repoRoot, ["checkout", base]);
 }
