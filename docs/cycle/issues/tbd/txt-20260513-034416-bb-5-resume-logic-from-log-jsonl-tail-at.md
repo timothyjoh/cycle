@@ -1,0 +1,9 @@
+---
+id: txt-20260513-034416-bb-5-resume-logic-from-log-jsonl-tail-at
+source: text
+title: "BB-5: Resume logic from log.jsonl tail. At engine.start, read log.jsonl backwards to detect any in-flight cycle (cycle.start with no matching cycle.end, or step.start with no matching step.end). If found: resume that cycle from the last incomplete step (re-run the step). Pre-resume actions: refetch base branch (git fetch + ff merge), preserve branch and earlier artifacts. Each workflow step must be restart-tolerant: prompt steps overwrite their artifact; commit.sh is already idempotent; pr.sh detects existing PR by branch and resumes polling/fallback instead of re-creating. After resume completes, fall through into the normal triage -> pop loop. See docs/RFC-001-issue-lifecycle.md sections 10, 11, 12 (BB-5). This also subsumes the existing tbd/ issue 'engine: pull origin/master between cycles' (txt-20260513-020016)."
+added_at: 2026-05-13T03:44:16.122Z
+triage_attempts: 0
+---
+
+BB-5: Resume logic from log.jsonl tail. At engine.start, read log.jsonl backwards to detect any in-flight cycle (cycle.start with no matching cycle.end, or step.start with no matching step.end). If found: resume that cycle from the last incomplete step (re-run the step). Pre-resume actions: refetch base branch (git fetch + ff merge), preserve branch and earlier artifacts. Each workflow step must be restart-tolerant: prompt steps overwrite their artifact; commit.sh is already idempotent; pr.sh detects existing PR by branch and resumes polling/fallback instead of re-creating. After resume completes, fall through into the normal triage -> pop loop. See docs/RFC-001-issue-lifecycle.md sections 10, 11, 12 (BB-5). This also subsumes the existing tbd/ issue 'engine: pull origin/master between cycles' (txt-20260513-020016).
