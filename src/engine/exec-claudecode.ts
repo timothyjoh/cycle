@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { buildChildEnv } from "./child-env.ts";
 import type { StepResult } from "./exec-bash.ts";
 
 export async function execClaudecodeStep(repoRoot: string, promptPath: string, env: Record<string, string>): Promise<StepResult> {
@@ -9,7 +10,7 @@ export async function execClaudecodeStep(repoRoot: string, promptPath: string, e
   return new Promise(resolve => {
     const child = spawn("claude", ["-p", prompt], {
       cwd: repoRoot,
-      env: { ...process.env, ...env },
+      env: buildChildEnv(env),
       shell: false,
     });
     let stdout = "";
