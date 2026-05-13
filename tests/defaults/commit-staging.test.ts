@@ -24,8 +24,9 @@ async function makeRepo(): Promise<string> {
   run(root, "git", ["add", ".gitignore", "README.md"]);
   run(root, "git", ["commit", "-q", "-m", "seed"]);
   const scripts = join(root, ".cycle/scripts");
-  await mkdir(scripts, { recursive: true });
+  await mkdir(join(scripts, "lib"), { recursive: true });
   await copyFile("src/defaults/scripts/commit.sh", join(scripts, "commit.sh"));
+  await copyFile("src/defaults/scripts/lib/closes.sh", join(scripts, "lib/closes.sh"));
   await chmod(join(scripts, "commit.sh"), 0o755);
   await writeFile(
     join(root, ".cycle/log.jsonl"),

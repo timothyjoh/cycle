@@ -151,6 +151,70 @@ test("checks out base branch after failed cycle", async () => {
   }
 });
 
+test("injects CYCLE_ISSUE_ID into bash step env", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    await mkdir(join(root, ".cycle/workflows"), { recursive: true });
+    await mkdir(join(root, ".cycle/scripts"), { recursive: true });
+    await writeFile(
+      join(root, ".cycle/workflows/feature.yaml"),
+      `name: feature\nsteps:\n  - name: echo\n    agent: bash\n    command: scripts/echo.sh\n`,
+      "utf8",
+    );
+    const echo = join(root, ".cycle/scripts/echo.sh");
+    await writeFile(echo, "#!/bin/bash\necho ISSUE=${CYCLE_ISSUE_ID:-MISSING}\n", "utf8");
+    await chmod(echo, 0o755);
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await runCycle(root, {
+      issueId: "ISSUE-42",
+      title: "echo env",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+    // The bash step's stdout isn't written to disk by execBashStep — assert via log
+    // that the step completed ok, then verify env reached the shell by re-running
+    // with a check script that exits non-zero when the value is missing.
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.match(log, /"event":"step.end","cycle_id":"0001","step":"echo","status":"ok"/);
+
+    // Second cycle: assert echo.sh exits non-zero when CYCLE_ISSUE_ID is empty
+    // (the env injection actually fires only when opts.issueId is non-empty).
+    const check = join(root, ".cycle/scripts/check.sh");
+    await writeFile(
+      check,
+      "#!/bin/bash\nset -e\n[ -n \"${CYCLE_ISSUE_ID:-}\" ] || { echo MISSING_ID >&2; exit 7; }\necho \"$CYCLE_ISSUE_ID\"\n",
+      "utf8",
+    );
+    await chmod(check, 0o755);
+    await writeFile(
+      join(root, ".cycle/workflows/feature.yaml"),
+      `name: feature\nsteps:\n  - name: check\n    agent: bash\n    command: scripts/check.sh\n`,
+      "utf8",
+    );
+    const r2 = await runCycle(root, {
+      issueId: "ISSUE-99",
+      title: "check env",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r2.status, "ok", "check.sh should see CYCLE_ISSUE_ID and exit 0");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
 test("logs cycle.checkout status=failed when base branch does not exist", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));

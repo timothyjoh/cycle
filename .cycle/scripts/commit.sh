@@ -58,5 +58,22 @@ if git diff --cached --quiet; then
   echo "commit.sh: nothing to commit"
   exit 0
 fi
-git commit -m "cycle ${CYCLE_ID}: ${CYCLE_TITLE}"
+
+# Auto-link any GitHub issues referenced in the cycle's issue body.
+# shellcheck source=lib/closes.sh
+. "$(dirname "$0")/lib/closes.sh"
+issue_file=""
+if [ -n "${CYCLE_ISSUE_ID:-}" ]; then
+  for d in docs/cycle/issues/triaged docs/cycle/issues/queued; do
+    if [ -f "$d/${CYCLE_ISSUE_ID}.md" ]; then issue_file="$d/${CYCLE_ISSUE_ID}.md"; break; fi
+  done
+fi
+repo_slug="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
+closes="$(closes_block "$issue_file" "$repo_slug")"
+
+if [ -n "$closes" ]; then
+  git commit -m "cycle ${CYCLE_ID}: ${CYCLE_TITLE}" -m "$closes"
+else
+  git commit -m "cycle ${CYCLE_ID}: ${CYCLE_TITLE}"
+fi
 git rev-parse HEAD
