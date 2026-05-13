@@ -26,16 +26,23 @@ plan.
    project's verify command (per `CLAUDE.md` / `AGENTS.md` / `package.json`)
    and confirm no regression. The `verify` step at the end of this
    workflow will run it again, but earlier discovery is cheaper.
-4. **Follow existing patterns.** Use the conventions RESEARCH.md
+4. **Check coverage before declaring done.** Run the project's
+   coverage command (in this repo: `npm run test:coverage`; otherwise
+   per `CLAUDE.md`). Capture line / branch / function percentages.
+   Coverage must **not decrease** vs the cycle's base branch. New code
+   needs new tests in the same cycle, not as follow-up.
+5. **Follow existing patterns.** Use the conventions RESEARCH.md
    identified. Do not invent new abstractions when an existing one
    fits.
-5. **Update docs as part of "done."** CLAUDE.md / AGENTS.md / README.md
+6. **Update docs as part of "done."** CLAUDE.md / AGENTS.md / README.md
    updates required by SPEC are part of this step.
 
 ## Quality Gates Before You Finish
 
 - [ ] All tests pass.
-- [ ] Coverage is not decreasing.
+- [ ] Coverage report run via the project's coverage command; line /
+      branch / function percentages captured and **none regressed**
+      vs the cycle's base branch. (In this repo: `npm run test:coverage`.)
 - [ ] Code follows existing patterns from RESEARCH.md.
 - [ ] CLAUDE.md / AGENTS.md updated with any new commands, conventions,
       or architecture decisions.
@@ -63,6 +70,9 @@ describing:
 - What files you created or modified (with line counts).
 - Which PLAN.md tasks are now complete.
 - The full test-suite command you ran and its result.
+- The coverage command you ran and the line / branch / function
+  percentages (plus any per-file regressions and how you addressed
+  them).
 - Any deviations from PLAN.md and why.
 - Any deferred work or follow-up notes.
 

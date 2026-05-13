@@ -29,6 +29,10 @@ Review the source for quality, correctness, and SPEC adherence.
 Check:
 - Does the build/tests pass? (Project's verify command — see
   `package.json` / `CLAUDE.md`.)
+- **Coverage check.** Run the project's coverage command (in this
+  repo: `npm run test:coverage`; otherwise per `CLAUDE.md`). Flag any
+  regression vs base, any per-file drop, and any new code without
+  corresponding tests. Coverage numbers are required, not optional.
 - **Spec compliance** — does the code deliver what SPEC.md requires?
 - **Plan adherence** — were PLAN.md tasks completed as specified?
 - **Code quality** — clean, readable, follows existing patterns from
@@ -91,8 +95,11 @@ writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/REVIEW.md`.
 1. **[Category]**: [Finding] — `path/to/test_file.ext:line`
 
 ### Test Coverage
-- [Coverage numbers if available]
-- [Specific scenarios missing tests]
+- Command run: [exact coverage command]
+- Line / branch / function: [percentages]
+- Regressions vs base (per-file): [list or "none"]
+- New code without tests: [list or "none"]
+- Specific scenarios missing tests: [list]
 ```
 
 ## Output 2: MUST-FIX.md (only if issues exist)
