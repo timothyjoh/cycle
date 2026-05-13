@@ -145,7 +145,14 @@ export async function runTriage(
         continue;
       }
 
-      const validation = validateOutput(agentResult.stdout, [raw], queueRows, cfg);
+      const todoIds = new Set(todoListing.map((f) => f.replace(/\.md$/, "")));
+      const validation = validateOutput(
+        agentResult.stdout,
+        [raw],
+        queueRows,
+        cfg,
+        todoIds,
+      );
       if (!validation.ok) {
         lastError = validation.reason;
         await bumpAttempts(raw.srcPath, attempt + 1);
@@ -260,6 +267,7 @@ export function validateOutput(
   raws: RawIssue[],
   queueRows: QueueRow[],
   cfg: CycleConfig,
+  todoIds: Set<string> = new Set(),
 ): { ok: true; parsed: TriageOutput } | { ok: false; reason: string } {
   let parsed: unknown;
   try {
@@ -419,6 +427,26 @@ export function validateOutput(
         ok: false,
         reason: `ordering[${i}]: ${id} not in current pending and not in new children`,
       };
+    }
+  }
+
+  const knownIds = new Set<string>([...childIds, ...queueIds, ...todoIds]);
+  for (let i = 0; i < children.length; i++) {
+    const c = children[i];
+    for (let j = 0; j < c.depends_on.length; j++) {
+      const dep = c.depends_on[j];
+      if (dep === c.id) {
+        return {
+          ok: false,
+          reason: `children[${i}].depends_on[${j}]: ${c.id} depends on itself (self-loop)`,
+        };
+      }
+      if (!knownIds.has(dep)) {
+        return {
+          ok: false,
+          reason: `children[${i}].depends_on[${j}]: ${dep} is not a sibling child, tbd.jsonl row, or todo/<id>.md file (offending child: ${c.id})`,
+        };
+      }
     }
   }
 

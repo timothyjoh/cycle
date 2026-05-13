@@ -202,3 +202,119 @@ test("accepts well-formed payload with pending queue context", () => {
   const r = validateOutput(JSON.stringify(j), fakeRaws as never, queue, cfg);
   assert.equal(r.ok, true);
 });
+
+test("rejects depends_on id that does not resolve to sibling, queue, or todo", () => {
+  const j = validChildR1Json();
+  (j.children as Array<Record<string, unknown>>)[0].depends_on = ["ghost-id"];
+  const r = validateOutput(
+    JSON.stringify(j),
+    fakeRaws as never,
+    [],
+    cfg,
+    new Set<string>(),
+  );
+  assert.equal(r.ok, false);
+  if (!r.ok) {
+    assert.match(r.reason, /ghost-id/);
+    assert.match(r.reason, /R1-x/);
+    assert.match(
+      r.reason,
+      /not a sibling child, tbd\.jsonl row, or todo\/<id>\.md file/,
+    );
+  }
+});
+
+test("rejects self-loop in depends_on with self-loop-specific message", () => {
+  const j = validChildR1Json();
+  (j.children as Array<Record<string, unknown>>)[0].depends_on = ["R1-x"];
+  const r = validateOutput(
+    JSON.stringify(j),
+    fakeRaws as never,
+    [],
+    cfg,
+    new Set<string>(),
+  );
+  assert.equal(r.ok, false);
+  if (!r.ok) {
+    assert.match(r.reason, /self-loop/);
+    assert.match(r.reason, /R1-x/);
+  }
+});
+
+test("resolves depends_on against todoIds when sibling and queue are empty", () => {
+  const j = validChildR1Json();
+  (j.children as Array<Record<string, unknown>>)[0].depends_on = ["legacy-1"];
+  const r = validateOutput(
+    JSON.stringify(j),
+    fakeRaws as never,
+    [],
+    cfg,
+    new Set<string>(["legacy-1"]),
+  );
+  assert.equal(r.ok, true);
+});
+
+test("resolves depends_on against sibling child id", () => {
+  const j = validChildR1Json();
+  const arr = j.children as Array<Record<string, unknown>>;
+  arr.push({
+    raw_id: "R1",
+    slug: "y",
+    id: "R1-y",
+    title: "Y",
+    workflow: "feature",
+    depends_on: ["R1-x"],
+    body: "y",
+  });
+  j.ordering = ["R1-x", "R1-y"];
+  const r = validateOutput(
+    JSON.stringify(j),
+    fakeRaws as never,
+    [],
+    cfg,
+    new Set<string>(),
+  );
+  assert.equal(r.ok, true);
+});
+
+test("resolves depends_on against existing pending queue row id", () => {
+  const j = validChildR1Json();
+  (j.children as Array<Record<string, unknown>>)[0].depends_on = ["OTHER"];
+  j.ordering = ["R1-x", "OTHER"];
+  const queue: QueueRow[] = [
+    {
+      id: "OTHER",
+      title: "other",
+      status: "pending",
+      attempt: 0,
+      depends_on: [],
+      triaged_at: "now",
+    },
+  ];
+  const r = validateOutput(
+    JSON.stringify(j),
+    fakeRaws as never,
+    queue,
+    cfg,
+    new Set<string>(),
+  );
+  assert.equal(r.ok, true);
+});
+
+test("decomposed parent's raw id in depends_on is rejected as dangling", () => {
+  const j = validChildR1Json();
+  // Child references its own raw parent id which is being decomposed
+  // (moved to done/, not in todos, queue, or siblings).
+  (j.children as Array<Record<string, unknown>>)[0].depends_on = ["R1"];
+  const r = validateOutput(
+    JSON.stringify(j),
+    fakeRaws as never,
+    [],
+    cfg,
+    new Set<string>(),
+  );
+  assert.equal(r.ok, false);
+  if (!r.ok) {
+    assert.match(r.reason, /R1/);
+  }
+});

@@ -218,7 +218,7 @@ If existing `todo/` items are reordered, **rewrite the entire `tbd.jsonl`** in t
 
 ### Triage failure handling
 
-Per-raw retry up to 3 attempts (BRIEF's existing `triage_attempts` frontmatter). On each retry, prompt receives the validator's error message as feedback (one-shot self-correction). After 3 failures:
+Per-raw retry up to 3 attempts (BRIEF's existing `triage_attempts` frontmatter). On each retry, prompt receives the validator's error message as feedback (one-shot self-correction). Validator resolves every `depends_on` id against `siblings ∪ tbd.jsonl rows ∪ todo/<id>.md files` and rejects self-loops; resolution failures ride the same retry path. After 3 failures:
 - Move `raw/<id>.md` → `failed/<id>.md` with `triage_attempts: 3`
 - Continue triaging the other raw files
 
@@ -412,7 +412,7 @@ Once BB-1 through BB-4 land, the engine's `raw/` inbox is active and triage will
 These don't block bootstrap but are tracked as future issues:
 
 - **Multi-agent abstraction.** `agent: codex` / `agent: gemini` require new `exec-*.ts` modules. Config schema accepts the strings today; impl is staged.
-- **Triage's `depends_on` inference quality.** First pass: triage only marks explicit deps. Future: heuristics from codebase analysis.
+- **Triage's `depends_on` inference quality.** First pass: triage only marks explicit deps. Future: heuristics from codebase analysis. **Status: landed (cycle 0021).** Prompt now instructs the agent to infer chained `depends_on` between sibling children on decomposition; validator resolves every `depends_on` id against `siblings ∪ tbd.jsonl rows ∪ todo/<id>.md files` and rejects self-loops, with failures feeding the per-raw retry feedback loop.
 - **CLI surface alignment.** `cycle drop "<text>"` writes to `raw/` (today: `tbd/`). Add `cycle status` to show queue + in-flight + blocked counts.
 - **Re-triage of a `re_triage: true` raw item.** Children that turn out to need further decomposition get punted back to `raw/`.
 - **`engine.paused` recovery.** When all triage fails, engine.paused — what's the recovery flow?

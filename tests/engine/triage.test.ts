@@ -751,6 +751,318 @@ test("agent with non-zero exit code is treated as a failed attempt", async () =>
   }
 });
 
+function chainedDecomposeJson(rawId: string): string {
+  return JSON.stringify({
+    ordering: [
+      `${rawId}-auth-middleware`,
+      `${rawId}-login-form`,
+      `${rawId}-2fa-flow`,
+    ],
+    children: [
+      {
+        raw_id: rawId,
+        slug: "auth-middleware",
+        id: `${rawId}-auth-middleware`,
+        title: "Auth middleware",
+        workflow: "feature",
+        depends_on: [],
+        body: "auth body",
+      },
+      {
+        raw_id: rawId,
+        slug: "login-form",
+        id: `${rawId}-login-form`,
+        title: "Login form",
+        workflow: "feature",
+        depends_on: [`${rawId}-auth-middleware`],
+        body: "login body",
+      },
+      {
+        raw_id: rawId,
+        slug: "2fa-flow",
+        id: `${rawId}-2fa-flow`,
+        title: "2FA flow",
+        workflow: "feature",
+        depends_on: [`${rawId}-login-form`],
+        body: "2fa body",
+      },
+    ],
+    decomposed_parents: [rawId],
+  });
+}
+
+test("happy path: chained siblings — three children with chained depends_on accepted", async () => {
+  const root = await setupRepo();
+  try {
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/login.md"),
+      rawBody("login", "Add login"),
+      "utf8",
+    );
+
+    const deps: TriageDeps = {
+      runAgent: async () => ({
+        exitCode: 0,
+        stdout: chainedDecomposeJson("login"),
+        stderr: "",
+      }),
+    };
+    const { log, events } = makeLog();
+
+    const result = await runTriage(root, makeConfig(), log, deps);
+    assert.equal(result.status, "ok");
+    assert.deepEqual(result.processed, ["login"]);
+    assert.deepEqual(result.failed, []);
+
+    const todoFiles = (await readdir(join(root, "docs/cycle/issues/todo"))).sort();
+    assert.deepEqual(todoFiles, [
+      "login-2fa-flow.md",
+      "login-auth-middleware.md",
+      "login-login-form.md",
+    ]);
+
+    const authBody = await readFile(
+      join(root, "docs/cycle/issues/todo/login-auth-middleware.md"),
+      "utf8",
+    );
+    const { fm: fmAuth } = parseFrontmatter(authBody);
+    assert.deepEqual(fmAuth.depends_on, []);
+
+    const formBody = await readFile(
+      join(root, "docs/cycle/issues/todo/login-login-form.md"),
+      "utf8",
+    );
+    const { fm: fmForm } = parseFrontmatter(formBody);
+    assert.deepEqual(fmForm.depends_on, ["login-auth-middleware"]);
+
+    const twoFaBody = await readFile(
+      join(root, "docs/cycle/issues/todo/login-2fa-flow.md"),
+      "utf8",
+    );
+    const { fm: fm2 } = parseFrontmatter(twoFaBody);
+    assert.deepEqual(fm2.depends_on, ["login-login-form"]);
+
+    const queue = await readFile(join(root, ".cycle/tbd.jsonl"), "utf8");
+    const rows = queue.trim().split("\n").map((l) => JSON.parse(l));
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    assert.deepEqual(byId.get("login-auth-middleware").depends_on, []);
+    assert.deepEqual(byId.get("login-login-form").depends_on, [
+      "login-auth-middleware",
+    ]);
+    assert.deepEqual(byId.get("login-2fa-flow").depends_on, [
+      "login-login-form",
+    ]);
+
+    assert.equal(events.filter((e) => e.event === "triage.raw.failed").length, 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("dangling depends_on id rejected; retry sees validator error in next prompt", async () => {
+  const root = await setupRepo();
+  try {
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/r1.md"),
+      rawBody("r1", "raw 1"),
+      "utf8",
+    );
+
+    let calls = 0;
+    const seenPrompts: string[] = [];
+    const deps: TriageDeps = {
+      runAgent: async (prompt) => {
+        seenPrompts.push(prompt);
+        calls++;
+        if (calls === 1) {
+          return {
+            exitCode: 0,
+            stdout: JSON.stringify({
+              ordering: ["r1-a", "r1-b"],
+              children: [
+                {
+                  raw_id: "r1",
+                  slug: "a",
+                  id: "r1-a",
+                  title: "A",
+                  workflow: "feature",
+                  depends_on: [],
+                  body: "a",
+                },
+                {
+                  raw_id: "r1",
+                  slug: "b",
+                  id: "r1-b",
+                  title: "B",
+                  workflow: "feature",
+                  depends_on: ["does-not-exist"],
+                  body: "b",
+                },
+              ],
+              decomposed_parents: ["r1"],
+            }),
+            stderr: "",
+          };
+        }
+        return { exitCode: 0, stdout: decomposeJson("r1"), stderr: "" };
+      },
+    };
+    const { log, events } = makeLog();
+    const result = await runTriage(root, makeConfig(), log, deps);
+
+    assert.equal(result.status, "ok");
+    assert.deepEqual(result.processed, ["r1"]);
+    assert.equal(calls, 2);
+
+    const failed = events.filter((e) => e.event === "triage.raw.failed");
+    assert.equal(failed.length, 1);
+    const reason = String(failed[0].fields.reason);
+    assert.match(reason, /does-not-exist/);
+    assert.match(reason, /r1-b/);
+
+    assert.ok(
+      seenPrompts[1].includes("PREVIOUS ATTEMPT FAILED VALIDATION:"),
+      "second prompt should include retry feedback",
+    );
+    assert.ok(
+      seenPrompts[1].includes("does-not-exist"),
+      "second prompt should mention offending reference",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("self-loop in depends_on rejected with self-loop-specific message; retry succeeds", async () => {
+  const root = await setupRepo();
+  try {
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/r2.md"),
+      rawBody("r2", "raw 2"),
+      "utf8",
+    );
+
+    let calls = 0;
+    const seenPrompts: string[] = [];
+    const deps: TriageDeps = {
+      runAgent: async (prompt) => {
+        seenPrompts.push(prompt);
+        calls++;
+        if (calls === 1) {
+          return {
+            exitCode: 0,
+            stdout: JSON.stringify({
+              ordering: ["r2-foo"],
+              children: [
+                {
+                  raw_id: "r2",
+                  slug: "foo",
+                  id: "r2-foo",
+                  title: "Foo",
+                  workflow: "feature",
+                  depends_on: ["r2-foo"],
+                  body: "foo",
+                },
+              ],
+              decomposed_parents: ["r2"],
+            }),
+            stderr: "",
+          };
+        }
+        return { exitCode: 0, stdout: enrichJson("r2"), stderr: "" };
+      },
+    };
+    const { log, events } = makeLog();
+    const result = await runTriage(root, makeConfig(), log, deps);
+
+    assert.equal(result.status, "ok");
+    assert.deepEqual(result.processed, ["r2"]);
+    assert.equal(calls, 2);
+
+    const failed = events.filter((e) => e.event === "triage.raw.failed");
+    assert.equal(failed.length, 1);
+    const reason = String(failed[0].fields.reason);
+    assert.match(reason, /self-loop/);
+    assert.match(reason, /r2-foo/);
+
+    assert.ok(
+      seenPrompts[1].includes("PREVIOUS ATTEMPT FAILED VALIDATION:"),
+      "second prompt should include retry feedback",
+    );
+    assert.ok(
+      seenPrompts[1].includes("self-loop"),
+      "second prompt should mention self-loop",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("depends_on resolves against existing tbd.jsonl row and todo/ file", async () => {
+  const root = await setupRepo();
+  try {
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/r3.md"),
+      rawBody("r3", "raw 3"),
+      "utf8",
+    );
+    // Pre-seed existing queue row.
+    await writeFile(
+      join(root, ".cycle/tbd.jsonl"),
+      JSON.stringify({
+        id: "old-queue-1",
+        title: "old queued",
+        status: "pending",
+        attempt: 0,
+        depends_on: [],
+        triaged_at: "2026-05-12T00:00:00Z",
+      }) + "\n",
+      "utf8",
+    );
+    // Pre-seed existing todo file.
+    await writeFile(
+      join(root, "docs/cycle/issues/todo/old-todo-2.md"),
+      "---\nid: old-todo-2\ntitle: old todo\n---\nbody\n",
+      "utf8",
+    );
+
+    const stdout = JSON.stringify({
+      ordering: ["r3-z", "old-queue-1"],
+      children: [
+        {
+          raw_id: "r3",
+          slug: "z",
+          id: "r3-z",
+          title: "Z",
+          workflow: "feature",
+          depends_on: ["old-queue-1", "old-todo-2"],
+          body: "z body",
+        },
+      ],
+      decomposed_parents: ["r3"],
+    });
+
+    const deps: TriageDeps = {
+      runAgent: async () => ({ exitCode: 0, stdout, stderr: "" }),
+    };
+    const { log, events } = makeLog();
+    const result = await runTriage(root, makeConfig(), log, deps);
+
+    assert.equal(result.status, "ok");
+    assert.deepEqual(result.processed, ["r3"]);
+    assert.equal(events.filter((e) => e.event === "triage.raw.failed").length, 0);
+
+    const zBody = await readFile(
+      join(root, "docs/cycle/issues/todo/r3-z.md"),
+      "utf8",
+    );
+    const { fm: fmZ } = parseFrontmatter(zBody);
+    assert.deepEqual(fmZ.depends_on, ["old-queue-1", "old-todo-2"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("validator rejects each missing/wrong field with a specific message", async () => {
   const root = await setupRepo();
   try {
