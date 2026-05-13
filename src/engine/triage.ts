@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { readFile, writeFile, readdir, mkdir, rename, unlink } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import {
@@ -14,7 +14,7 @@ import {
   bootstrapArchiveIfLegacy,
   type QueueRow,
 } from "./queue.ts";
-import { buildChildEnv } from "./child-env.ts";
+import { resolveAgent } from "./exec.ts";
 import type { CycleConfig, TriageConfig } from "./workflow.ts";
 import type { Logger } from "./log.ts";
 
@@ -160,11 +160,7 @@ export async function runTriage(
   log: Logger,
   deps: TriageDeps = {},
 ): Promise<TriageResult> {
-  if (cfg.triage.agent !== "claudecode") {
-    throw new Error(`unsupported triage agent: ${cfg.triage.agent}`);
-  }
-
-  const runAgent = deps.runAgent ?? runClaudecodeAgent;
+  const runAgent = deps.runAgent ?? runAgentViaDispatch;
 
   await bootstrapArchiveIfLegacy(repoRoot);
 
@@ -259,11 +255,7 @@ export async function dryRunTriage(
   cfg: CycleConfig,
   deps: TriageDeps = {},
 ): Promise<DryRunReport[]> {
-  if (cfg.triage.agent !== "claudecode") {
-    throw new Error(`unsupported triage agent: ${cfg.triage.agent}`);
-  }
-
-  const runAgent = deps.runAgent ?? runClaudecodeAgent;
+  const runAgent = deps.runAgent ?? runAgentViaDispatch;
   const rawDir = join(repoRoot, "docs/cycle/issues/raw");
   const raws = await loadRaws(rawDir);
   if (raws.length === 0) return [];
@@ -701,28 +693,27 @@ async function rewriteOrdering(
   await writeQueue(repoRoot, [...inProgress, ...ordered]);
 }
 
-async function runClaudecodeAgent(
+// Default TriageAgentRunner. Materializes the rendered prompt to a tmp file
+// under .cycle/ (ExecModule.runStep takes a promptPath, not an inline string),
+// then dispatches via resolveAgent. NOTE: process-spawn failures now surface as
+// {exitCode: -1} (resolved) rather than a Promise rejection; the try/catch in
+// processRawWithRetry still catches the synchronous UnknownAgentError from
+// resolveAgent and any filesystem error from the tmp-file write.
+async function runAgentViaDispatch(
   prompt: string,
-  _cfg: TriageConfig,
+  cfg: TriageConfig,
   repoRoot: string,
 ): Promise<TriageAgentResult> {
-  return new Promise((resolve, reject) => {
-    const child = spawn("claude", ["-p", prompt], {
-      cwd: repoRoot,
-      env: buildChildEnv({}),
-      shell: false,
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (d) => {
-      stdout += d.toString();
-    });
-    child.stderr.on("data", (d) => {
-      stderr += d.toString();
-    });
-    child.on("close", (code) => {
-      resolve({ exitCode: code ?? -1, stdout, stderr });
-    });
-    child.on("error", (err) => reject(err));
-  });
+  const mod = resolveAgent(cfg.agent);
+  const cycleDir = join(repoRoot, ".cycle");
+  await mkdir(cycleDir, { recursive: true });
+  const tmpName = `.triage-${randomBytes(8).toString("hex")}.prompt.md`;
+  const tmpPath = join(cycleDir, tmpName);
+  try {
+    await writeFile(tmpPath, prompt, "utf8");
+    const r = await mod.runStep({ repoRoot, promptPath: tmpName });
+    return { exitCode: r.exitCode, stdout: r.stdout, stderr: r.stderr };
+  } finally {
+    await unlink(tmpPath).catch(() => {});
+  }
 }

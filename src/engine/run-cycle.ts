@@ -1,8 +1,8 @@
 import { allocateCycleId } from "./cycle-id.ts";
 import { loadWorkflow } from "./workflow.ts";
 import { createLogger } from "./log.ts";
-import { execBashStep } from "./exec-bash.ts";
-import { execClaudecodeStep } from "./exec-claudecode.ts";
+import { execBashStep, type StepResult } from "./exec-bash.ts";
+import { resolveAgent, UnknownAgentError } from "./exec.ts";
 import { createCycleBranch, checkoutCycleBranch, checkoutBase, pullBase } from "./branch.ts";
 import { ingestReflection } from "./reflection.ts";
 import { slugify } from "../issue/id.ts";
@@ -63,19 +63,26 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
     for (let i = startIdx; i < wf.steps.length; i++) {
       const step = wf.steps[i];
       await log.emit("step.start", { cycle_id: cycleId, step: step.name, agent: step.agent });
-      let r;
+      let r: StepResult;
       if (step.agent === "bash") {
         r = await execBashStep(repoRoot, step.command!, cycleEnv);
-      } else if (step.agent === "claudecode") {
-        r = await execClaudecodeStep(repoRoot, step.prompt!, cycleEnv);
+      } else {
+        try {
+          const mod = resolveAgent(step.agent);
+          r = await mod.runStep({ repoRoot, promptPath: step.prompt!, env: cycleEnv });
+        } catch (err) {
+          if (err instanceof UnknownAgentError) {
+            r = { status: "failed", exitCode: -1, stdout: "", stderr: err.message };
+          } else {
+            throw err;
+          }
+        }
         if (r.status === "ok" && step.name) {
           await writeFile(join(artifactDir, `${step.name.toUpperCase()}.md`), r.stdout, "utf8");
         }
         if (r.status === "ok" && step.name === "reflection") {
           await ingestReflection(repoRoot, cycleId, slug, r.stdout, log);
         }
-      } else {
-        throw new Error(`unknown agent: ${(step as { agent: string }).agent}`);
       }
       await log.emit("step.end", { cycle_id: cycleId, step: step.name, status: r.status, exit_code: r.exitCode });
       if (r.status === "failed") {
