@@ -35,6 +35,7 @@ function needsQuote(s: string): boolean {
   if (s === "") return true;
   if (/^[\s]/.test(s) || /[\s]$/.test(s)) return true;
   if (/[:"#\n]/.test(s)) return true;
+  if (/^-?\d+$/.test(s)) return true;
   return false;
 }
 

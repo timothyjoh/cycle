@@ -401,7 +401,7 @@ Cycles needed to land this design (in order). Bootstrap items run on the **curre
 
 6. **BB-6: `propagateBlocked` + engine halt policy.** Dependency graph walk on cycle exhaustion. `max_consecutive_failures` counter. `engine.halted` event.
 
-7. **BB-7: Reflection step.** Add to `workflows.yml` feature workflow. New `src/defaults/prompts/reflection.md`. Engine reads `sharp_edges[]` from stdout, writes new `raw/` files.
+7. **BB-7: Reflection step.** Add to `workflows.yml` feature workflow. New `src/defaults/prompts/reflection.md`. Engine reads `sharp_edges[]` from stdout, writes new `raw/` files. **Status: landed (cycle 0018).** `src/engine/reflection.ts:ingestReflection` materializes each `sharp_edges[]` entry as `raw/refl-<cycleId>-<slug>.md` with `source: reflection` frontmatter. Reflection-step failures (`exec_failed`, `parse_error`, `invalid_entry`) emit `reflection.skipped` and do NOT flip `cycle.end` to failed. Idempotent on resume.
 
 Once BB-1 through BB-4 land, the engine's `raw/` inbox is active and triage will process all subsequent issues. BB-5 through BB-7 can themselves be processed by the new pipeline (they'll get enriched + ordered by triage).
 

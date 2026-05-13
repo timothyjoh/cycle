@@ -4,6 +4,7 @@ import { createLogger } from "./log.ts";
 import { execBashStep } from "./exec-bash.ts";
 import { execClaudecodeStep } from "./exec-claudecode.ts";
 import { createCycleBranch, checkoutCycleBranch, checkoutBase, pullBase } from "./branch.ts";
+import { ingestReflection } from "./reflection.ts";
 import { slugify } from "../issue/id.ts";
 import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
@@ -70,11 +71,18 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         if (r.status === "ok" && step.name) {
           await writeFile(join(artifactDir, `${step.name.toUpperCase()}.md`), r.stdout, "utf8");
         }
+        if (r.status === "ok" && step.name === "reflection") {
+          await ingestReflection(repoRoot, cycleId, slug, r.stdout, log);
+        }
       } else {
         throw new Error(`unknown agent: ${(step as { agent: string }).agent}`);
       }
       await log.emit("step.end", { cycle_id: cycleId, step: step.name, status: r.status, exit_code: r.exitCode });
       if (r.status === "failed") {
+        if (step.name === "reflection") {
+          await log.emit("reflection.skipped", { cycle_id: cycleId, reason: "exec_failed", exit_code: r.exitCode });
+          continue;
+        }
         await log.emit("cycle.end", { cycle_id: cycleId, status: "failed", failing_step: step.name });
         return { cycleId, status: "failed" as const, failingStep: step.name };
       }

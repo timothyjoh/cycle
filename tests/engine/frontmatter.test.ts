@@ -90,3 +90,10 @@ test("serialize handles no body after", () => {
   const out = serializeFrontmatter({ id: "X" }, "");
   assert.equal(out, "---\nid: X\n---\n");
 });
+
+test("all-digit string round-trips as string (preserves zero-padding)", () => {
+  const out = serializeFrontmatter({ origin_cycle_id: "0042" }, "\nbody\n");
+  assert.match(out, /origin_cycle_id: "0042"/);
+  const { fm } = parseFrontmatter(out);
+  assert.equal(fm.origin_cycle_id, "0042");
+});
