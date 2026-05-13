@@ -1,0 +1,9 @@
+---
+id: txt-20260513-185312-add-documentation-workflow-step-prompt-n
+source: text
+title: "Add documentation workflow step + prompt. New step 'documentation' as the FINAL step in the feature workflow (after reflection), agent: claudecode, prompt: prompts/documentation.md. Purpose: keep project documentation in sync with code — update README.md at project root + any relevant files under docs/ (excluding docs/cycle/*). The prompt should: (1) read the cycle's git diff + BUILD.md + REVIEW.md to understand what changed, (2) read CLAUDE.md + README.md + docs/*.md (non-cycle), (3) update any docs whose content now drifts from current behavior, (4) write a one-paragraph summary of what was updated to stdout (engine captures as DOCUMENTATION.md). Out of scope for this issue but worth surfacing: test documentation could come from a custom test reporter that emits a structured map of test name → describe-block → file → assertion intent. Likely a separate cycle."
+added_at: 2026-05-13T18:53:12.390Z
+triage_attempts: 0
+---
+
+Add documentation workflow step + prompt. New step 'documentation' as the FINAL step in the feature workflow (after reflection), agent: claudecode, prompt: prompts/documentation.md. Purpose: keep project documentation in sync with code — update README.md at project root + any relevant files under docs/ (excluding docs/cycle/*). The prompt should: (1) read the cycle's git diff + BUILD.md + REVIEW.md to understand what changed, (2) read CLAUDE.md + README.md + docs/*.md (non-cycle), (3) update any docs whose content now drifts from current behavior, (4) write a one-paragraph summary of what was updated to stdout (engine captures as DOCUMENTATION.md). Out of scope for this issue but worth surfacing: test documentation could come from a custom test reporter that emits a structured map of test name → describe-block → file → assertion intent. Likely a separate cycle.

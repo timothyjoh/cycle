@@ -64,8 +64,11 @@ Emit exactly one JSON object with these fields:
   - `title` is required and non-empty.
   - `workflow` must be one of the configured workflow names
     (e.g. `feature`). If unsure, pick `feature`.
-  - `depends_on` is an array of ids (other children's ids, or existing
-    queue ids). Empty array if no dependencies.
+  - `depends_on` is an array of ids that must each resolve to one of:
+    (a) another child id in this same output, (b) a current `tbd.jsonl`
+    row id, or (c) a `todo/<id>.md` file in the listing above. **Never
+    invent ids.** A child must not list its own id. Empty array if no
+    dependencies.
   - `body` is the markdown body that will be written to
     `docs/cycle/issues/todo/<id>.md`. Frontmatter is generated for you
     from the fields above — your `body` is plain markdown, no `---`
@@ -85,6 +88,11 @@ Emit exactly one JSON object with these fields:
 - Order children to maximize useful work: foundational pieces first,
   dependents after. Use `depends_on` for hard ordering constraints
   only.
+- When decomposing one raw into multiple children, infer ordering: if
+  child B builds on child A's output (e.g. UI built on a new endpoint,
+  test fixture used by a later step), set `B.depends_on = [A.id]`.
+  Chain through C if C builds on B. Use `depends_on` for true causal /
+  sequential constraints, not for "this would be nicer second."
 - Do not reorder `in_progress` rows. Do not invent new raws. Do not
   delete existing pending rows.
 
@@ -94,7 +102,11 @@ Input raw with `id: txt-001`, title "Add login":
 
 ```json
 {
-  "ordering": ["txt-001-auth-middleware", "txt-001-login-form"],
+  "ordering": [
+    "txt-001-auth-middleware",
+    "txt-001-login-form",
+    "txt-001-2fa-flow"
+  ],
   "children": [
     {
       "raw_id": "txt-001",
@@ -113,6 +125,15 @@ Input raw with `id: txt-001`, title "Add login":
       "workflow": "feature",
       "depends_on": ["txt-001-auth-middleware"],
       "body": "Add /login route + form posting to /api/session.\n"
+    },
+    {
+      "raw_id": "txt-001",
+      "slug": "2fa-flow",
+      "id": "txt-001-2fa-flow",
+      "title": "Add optional 2FA on login",
+      "workflow": "feature",
+      "depends_on": ["txt-001-login-form"],
+      "body": "Layer TOTP challenge onto the login form path.\n"
     }
   ],
   "decomposed_parents": ["txt-001"]
