@@ -3,7 +3,7 @@ import { loadWorkflow } from "./workflow.ts";
 import { createLogger } from "./log.ts";
 import { execBashStep, type StepResult } from "./exec-bash.ts";
 import { resolveAgent, UnknownAgentError } from "./exec.ts";
-import { createCycleBranch, checkoutCycleBranch, checkoutBase, pullBase } from "./branch.ts";
+import { createCycleBranch, checkoutCycleBranch, checkoutBase, pullBase, prepareTrunkArtifactDir } from "./branch.ts";
 import { ingestReflection } from "./reflection.ts";
 import { slugify } from "../issue/id.ts";
 import { spawn } from "node:child_process";
@@ -44,10 +44,18 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
       issue_id: opts.issueId,
       start_step_index: opts.resume.startStepIndex,
     });
-    ({ artifactDir } = await checkoutCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+    if (wf.no_branch) {
+      ({ artifactDir } = await prepareTrunkArtifactDir(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+    } else {
+      ({ artifactDir } = await checkoutCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+    }
   } else {
     await log.emit("cycle.start", { cycle_id: cycleId, workflow: opts.workflow, title: opts.title, issue_id: opts.issueId });
-    ({ artifactDir } = await createCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+    if (wf.no_branch) {
+      ({ artifactDir } = await prepareTrunkArtifactDir(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+    } else {
+      ({ artifactDir } = await createCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+    }
   }
 
   const cycleEnv: Record<string, string> = {
@@ -100,12 +108,18 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
   } finally {
     const headBefore = await currentBranch(repoRoot);
     let checkoutOk = false;
-    try {
-      await checkoutBase(repoRoot, cycleEnv.CYCLE_BASE);
+    if (wf.no_branch) {
+      // Trunk workflows never left base; record the no-op explicitly for the audit log.
+      await log.emit("cycle.checkout", { cycle_id: cycleId, status: "skipped", base: cycleEnv.CYCLE_BASE, head_before: headBefore, reason: "no_branch" });
       checkoutOk = true;
-      await log.emit("cycle.checkout", { cycle_id: cycleId, status: "ok", base: cycleEnv.CYCLE_BASE, head_before: headBefore });
-    } catch (err) {
-      await log.emit("cycle.checkout", { cycle_id: cycleId, status: "failed", base: cycleEnv.CYCLE_BASE, head_before: headBefore, reason: (err as Error).message });
+    } else {
+      try {
+        await checkoutBase(repoRoot, cycleEnv.CYCLE_BASE);
+        checkoutOk = true;
+        await log.emit("cycle.checkout", { cycle_id: cycleId, status: "ok", base: cycleEnv.CYCLE_BASE, head_before: headBefore });
+      } catch (err) {
+        await log.emit("cycle.checkout", { cycle_id: cycleId, status: "failed", base: cycleEnv.CYCLE_BASE, head_before: headBefore, reason: (err as Error).message });
+      }
     }
 
     if (!checkoutOk) {

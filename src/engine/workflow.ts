@@ -14,6 +14,7 @@ export type Workflow = {
   name: string;
   description?: string;
   max_cycle_attempts: number;
+  no_branch?: boolean;
   steps: Step[];
 };
 
