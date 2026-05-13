@@ -21,3 +21,4 @@ workflows:
       - { name: verify,   agent: bash,       command: scripts/verify.sh }
       - { name: commit,   agent: bash,       command: scripts/commit.sh }
       - { name: pr,       agent: bash,       command: scripts/pr.sh }
+      - { name: reflection, agent: claudecode, prompt: prompts/reflection.md }
