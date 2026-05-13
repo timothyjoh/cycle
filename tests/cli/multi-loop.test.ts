@@ -73,9 +73,10 @@ test("'run' halts on cycle failure and leaves remaining queue intact", async () 
     const scriptsDir = join(root, ".cycle/scripts");
     await mkdir(cycleDir, { recursive: true });
     await mkdir(scriptsDir, { recursive: true });
+    // max_consecutive_failures: 1 + max_cycle_attempts: 1 → single terminal failure halts.
     await writeFile(join(cycleDir, "workflows.yml"),
       `engine:
-  max_consecutive_failures: 2
+  max_consecutive_failures: 1
   base_branch: main
 triage:
   agent: claudecode
@@ -83,7 +84,7 @@ triage:
   max_turns: 10
 workflows:
   - name: feature
-    max_cycle_attempts: 3
+    max_cycle_attempts: 1
     steps:
       - name: boom
         agent: bash

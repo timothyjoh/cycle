@@ -14,9 +14,25 @@ function git(repoRoot: string, args: string[]): Promise<void> {
   });
 }
 
+async function branchExists(repoRoot: string, branch: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const child = spawn("git", ["rev-parse", "--verify", `refs/heads/${branch}`], {
+      cwd: repoRoot,
+      shell: false,
+    });
+    child.on("close", (code) => resolve(code === 0));
+    child.on("error", () => resolve(false));
+  });
+}
+
 export async function createCycleBranch(repoRoot: string, opts: { cycleId: string; workflow: string; slug: string }) {
   const branch = `cycle/${opts.workflow}/${opts.slug}`;
-  await git(repoRoot, ["checkout", "-b", branch]);
+  // Branch may already exist from a prior cycle attempt that was retried; reuse it.
+  if (await branchExists(repoRoot, branch)) {
+    await git(repoRoot, ["checkout", branch]);
+  } else {
+    await git(repoRoot, ["checkout", "-b", branch]);
+  }
   const artifactDir = join(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
   await mkdir(artifactDir, { recursive: true });
   return { branch, artifactDir };

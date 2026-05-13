@@ -90,8 +90,8 @@ workflows:
         command: scripts/noop.sh
 `;
 
-const boomYml = (max: number) => `engine:
-  max_consecutive_failures: 2
+const boomYml = (max: number, maxConsecutive = 1) => `engine:
+  max_consecutive_failures: ${maxConsecutive}
   base_branch: main
 triage:
   agent: claudecode
@@ -214,32 +214,40 @@ test("terminal failure with malformed frontmatter: file still moves, warning log
   }
 });
 
-test("retry path: row stays pending with bumped attempt; file stays in todo/", async () => {
+test("retry path: cycle fails once, bumps attempt, loop re-pops and succeeds", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-qdrain-"));
   try {
     const dist = await ensureDist();
-    await bootstrapRepo(root, boomYml(3), { "boom.sh": "#!/bin/bash\nexit 42\n" });
+    // max_consecutive_failures: 2 (default behavior — single retry must not halt).
+    await bootstrapRepo(root, boomYml(3, 2), {
+      "boom.sh": `#!/bin/bash
+COUNTER="$(dirname "$0")/../count.txt"
+N=$(cat "$COUNTER" 2>/dev/null || echo 0)
+echo $((N + 1)) > "$COUNTER"
+if [ "$N" -lt "1" ]; then exit 42; fi
+exit 0
+`,
+    });
 
     await seedTodo(root, "retry", "retry task");
 
     const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
-    assert.equal(r.status, 1, "should halt on first failure");
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
 
     const todoFiles = await readdir(join(root, "docs/cycle/issues/todo"));
-    assert.equal(todoFiles.length, 1, "file should stay in todo/");
-    const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
-    assert.equal(failedFiles.length, 0);
+    assert.equal(todoFiles.length, 0, "file should drain out of todo/");
+    const doneFiles = await readdir(join(root, "docs/cycle/issues/done"));
+    assert.equal(doneFiles.length, 1, "file should land in done/");
 
     const queue = await readFile(join(root, ".cycle/tbd.jsonl"), "utf8");
-    const row = JSON.parse(queue.trim());
-    assert.equal(row.status, "pending");
-    assert.equal(row.attempt, 1);
-    assert.equal(row.cycle_id, undefined);
+    assert.equal(queue.trim(), "", "row drained on success");
 
     const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
     const events = log.trim().split("\n").map((l) => JSON.parse(l));
-    const drained = events.find((e) => e.event === "queue.drained");
-    assert.equal(drained.outcome, "retry");
+    const drained = events.filter((e) => e.event === "queue.drained");
+    assert.equal(drained.length, 2);
+    assert.equal(drained[0].outcome, "retry");
+    assert.equal(drained[1].outcome, "ok");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -25,7 +25,14 @@ import { checkoutBase, pullBase } from "./engine/branch.ts";
 import type { Logger } from "./engine/log.ts";
 import type { RunArgs } from "./cli/parse-args.ts";
 
-type HaltedState = { issueId: string; failingStep: string | undefined };
+type HaltContext = { issueId: string; failingStep: string | undefined };
+type ResumeOutcome = "ok" | "retry" | "terminal" | "skipped";
+type ResumeResult = {
+  processed: number;
+  outcome: ResumeOutcome;
+  issueId?: string;
+  failingStep?: string;
+};
 
 const argv = process.argv.slice(2);
 if (argv[0] === "--version") {
@@ -88,7 +95,12 @@ async function rawHasFiles(): Promise<boolean> {
 }
 
 let cyclesProcessed = 0;
-let halted: { issueId: string; failingStep: string | undefined } | null = null;
+let consecutiveFailures = 0;
+let failedCycles: string[] = [];
+let halted = false;
+let haltReason: "max_consecutive_failures" | "triage_failed" | null = null;
+let lastHaltContext: HaltContext | undefined;
+const maxConsecutiveFailures = cfg?.engine?.max_consecutive_failures ?? 2;
 
 async function terminalDrain(
   cwd: string,
@@ -167,7 +179,7 @@ async function runResumeOnce(
   todoDir: string,
   doneDir: string,
   failedDir: string,
-): Promise<{ processed: number; halted: HaltedState | null }> {
+): Promise<ResumeResult> {
   const base = process.env.CYCLE_BASE ?? "main";
   let baseOk = true;
   try {
@@ -196,10 +208,10 @@ async function runResumeOnce(
       row_status: row?.status ?? "missing",
       row_cycle_id: row?.cycle_id ?? null,
     });
-    return { processed: 0, halted: null };
+    return { processed: 0, outcome: "skipped" };
   }
 
-  if (!baseOk) return { processed: 0, halted: null };
+  if (!baseOk) return { processed: 0, outcome: "skipped" };
 
   let workflowName = tail.workflow || args.workflow;
   try {
@@ -218,7 +230,7 @@ async function runResumeOnce(
       reason: "resume_workflow_missing",
       workflow: workflowName,
     });
-    return { processed: 0, halted: null };
+    return { processed: 0, outcome: "skipped" };
   }
 
   const stepNames = wfDef.steps.map((s) => s.name);
@@ -252,14 +264,14 @@ async function runResumeOnce(
   const todoPath = join(todoDir, `${tail.issueId}.md`);
   if (rr.status === "ok") {
     await drainSuccess(cwd, log, todoPath, doneDir, tail.cycleId, tail.issueId);
-    return { processed: 1, halted: null };
+    return { processed: 1, outcome: "ok" };
   }
   if (row!.attempt + 1 < maxAttempts) {
     await drainRetry(cwd, log, tail.cycleId, tail.issueId, rr.failingStep);
-    return { processed: 0, halted: { issueId: tail.issueId, failingStep: rr.failingStep } };
+    return { processed: 0, outcome: "retry", issueId: tail.issueId, failingStep: rr.failingStep };
   }
   await terminalDrain(cwd, log, todoPath, failedDir, tail.cycleId, tail.issueId, rr.failingStep, row!.attempt + 1);
-  return { processed: 0, halted: { issueId: tail.issueId, failingStep: rr.failingStep } };
+  return { processed: 0, outcome: "terminal", issueId: tail.issueId, failingStep: rr.failingStep };
 }
 
 if (!args.dryRun && cfg) {
@@ -267,7 +279,19 @@ if (!args.dryRun && cfg) {
   if (tail) {
     const result = await runResumeOnce(cwd, log, cfg, args, tail, todoDir, doneDir, failedDir);
     cyclesProcessed += result.processed;
-    halted = result.halted;
+    if (result.outcome === "ok") {
+      consecutiveFailures = 0;
+      failedCycles = [];
+      lastHaltContext = undefined;
+    } else if (result.outcome === "terminal") {
+      consecutiveFailures += 1;
+      failedCycles.push(tail.cycleId);
+      lastHaltContext = { issueId: result.issueId!, failingStep: result.failingStep };
+      if (consecutiveFailures >= maxConsecutiveFailures) {
+        halted = true;
+        haltReason = "max_consecutive_failures";
+      }
+    }
   }
 }
 
@@ -290,7 +314,9 @@ while (!halted) {
   if (cfg && (await rawHasFiles())) {
     const r = await runTriage(cwd, cfg, log);
     if (r.status === "paused") {
-      halted = { issueId: "", failingStep: "triage" };
+      halted = true;
+      haltReason = "triage_failed";
+      lastHaltContext = { issueId: "", failingStep: "triage" };
       break;
     }
   }
@@ -329,21 +355,40 @@ while (!halted) {
   if (r.status === "ok") {
     await drainSuccess(cwd, log, todoPath, doneDir, cycleId, row.id);
     cyclesProcessed++;
+    consecutiveFailures = 0;
+    failedCycles = [];
+    lastHaltContext = undefined;
   } else if (row.attempt + 1 < maxAttempts) {
     await drainRetry(cwd, log, cycleId, row.id, r.failingStep);
-    halted = { issueId: row.id, failingStep: r.failingStep };
-    break;
+    // retry-drain: counter unchanged; popNextPending will see the row again with attempt++.
   } else {
     await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, r.failingStep, row.attempt + 1);
-    halted = { issueId: row.id, failingStep: r.failingStep };
-    break;
+    consecutiveFailures += 1;
+    failedCycles.push(cycleId);
+    lastHaltContext = { issueId: row.id, failingStep: r.failingStep };
+    if (consecutiveFailures >= maxConsecutiveFailures) {
+      halted = true;
+      haltReason = "max_consecutive_failures";
+      break;
+    }
   }
+}
+
+if (halted && haltReason === "max_consecutive_failures" && failedCycles.length > 0) {
+  await log.emit("engine.halted", {
+    failed_cycles: failedCycles,
+    reason: "max_consecutive_failures",
+    threshold: maxConsecutiveFailures,
+  });
 }
 
 await log.emit("engine.stop", {
   status: args.dryRun ? "ok" : halted ? "halted" : "ok",
   dry_run: args.dryRun,
   cycles_processed: cyclesProcessed,
-  ...(halted ? { halted_at_issue: halted.issueId, failing_step: halted.failingStep } : {}),
+  ...(halted && haltReason === "triage_failed" ? { reason: "triage_failed" } : {}),
+  ...(halted && lastHaltContext
+    ? { halted_at_issue: lastHaltContext.issueId, failing_step: lastHaltContext.failingStep }
+    : {}),
 });
 process.exit(halted ? 1 : 0);
