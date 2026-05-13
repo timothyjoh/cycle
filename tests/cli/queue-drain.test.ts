@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, readdir } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, readdir, appendFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -33,6 +33,45 @@ async function bootstrapRepo(root: string, workflowYml: string, scripts: Record<
   await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/done"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/failed"), { recursive: true });
+}
+
+async function seedTodo(
+  root: string,
+  id: string,
+  title: string,
+  extraFm: Record<string, string> = {},
+): Promise<void> {
+  const fmLines = [
+    "---",
+    `id: ${id}`,
+    `title: "${title}"`,
+    "workflow: feature",
+    "depends_on: []",
+    "triaged_at: 2026-05-13T00:00:00Z",
+    "source: triage",
+  ];
+  for (const [k, v] of Object.entries(extraFm)) {
+    fmLines.push(`${k}: ${v}`);
+  }
+  fmLines.push("---", "", title, "");
+  await writeFile(
+    join(root, "docs/cycle/issues/todo", `${id}.md`),
+    fmLines.join("\n"),
+    "utf8",
+  );
+  const row = {
+    id,
+    title,
+    status: "pending" as const,
+    attempt: 0,
+    depends_on: [],
+    triaged_at: "2026-05-13T00:00:00Z",
+  };
+  await appendFile(
+    join(root, ".cycle/tbd.jsonl"),
+    JSON.stringify(row) + "\n",
+    "utf8",
+  );
 }
 
 const okYml = `engine:
@@ -73,8 +112,8 @@ test("ok path: drains rows, moves todo→done, queue empties", async () => {
     const dist = await ensureDist();
     await bootstrapRepo(root, okYml, { "noop.sh": "#!/bin/bash\nexit 0\n" });
 
-    spawnSync("node", [dist, "drop", "alpha task"], { cwd: root, stdio: "ignore" });
-    spawnSync("node", [dist, "drop", "beta task"], { cwd: root, stdio: "ignore" });
+    await seedTodo(root, "alpha", "alpha task");
+    await seedTodo(root, "beta", "beta task");
 
     const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `run exit ${r.status}\n${r.stderr}`);
@@ -103,7 +142,7 @@ test("terminal failure: row removed, file → failed/ with failure frontmatter",
     const dist = await ensureDist();
     await bootstrapRepo(root, boomYml(1), { "boom.sh": "#!/bin/bash\nexit 42\n" });
 
-    spawnSync("node", [dist, "drop", "doomed task"], { cwd: root, stdio: "ignore" });
+    await seedTodo(root, "doomed", "doomed task");
 
     const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, "run should exit 1 on halt");
@@ -181,7 +220,7 @@ test("retry path: row stays pending with bumped attempt; file stays in todo/", a
     const dist = await ensureDist();
     await bootstrapRepo(root, boomYml(3), { "boom.sh": "#!/bin/bash\nexit 42\n" });
 
-    spawnSync("node", [dist, "drop", "retry task"], { cwd: root, stdio: "ignore" });
+    await seedTodo(root, "retry", "retry task");
 
     const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, "should halt on first failure");
@@ -229,10 +268,24 @@ workflows:
 `;
     await bootstrapRepo(root, yml, { "noop.sh": "#!/bin/bash\nexit 0\n" });
 
-    // pre-populate raw/ with one issue carrying workflow: tiny frontmatter
-    const rawDir = join(root, "docs/cycle/issues/raw");
-    const body = `---\nid: XX-1\nsource: text\ntitle: "named tiny"\nadded_at: 2026-05-13T10:00:00Z\nworkflow: tiny\n---\n\nbody\n`;
-    await writeFile(join(rawDir, "XX-1.md"), body, "utf8");
+    // todo seeded directly with workflow: tiny frontmatter (triage already done upstream)
+    await writeFile(
+      join(root, "docs/cycle/issues/todo/XX-1.md"),
+      `---\nid: XX-1\ntitle: "named tiny"\nworkflow: tiny\ndepends_on: []\ntriaged_at: 2026-05-13T00:00:00Z\nsource: triage\n---\n\nbody\n`,
+      "utf8",
+    );
+    await writeFile(
+      join(root, ".cycle/tbd.jsonl"),
+      JSON.stringify({
+        id: "XX-1",
+        title: "named tiny",
+        status: "pending",
+        attempt: 0,
+        depends_on: [],
+        triaged_at: "2026-05-13T00:00:00Z",
+      }) + "\n",
+      "utf8",
+    );
 
     const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `run exit ${r.status}\n${r.stderr}`);
@@ -252,8 +305,24 @@ test("workflow frontmatter missing: falls back to CLI default", async () => {
     const dist = await ensureDist();
     await bootstrapRepo(root, okYml, { "noop.sh": "#!/bin/bash\nexit 0\n" });
 
-    // freeform drop produces no `workflow:` frontmatter
-    spawnSync("node", [dist, "drop", "freeform task"], { cwd: root, stdio: "ignore" });
+    // seed a todo with NO workflow frontmatter
+    await writeFile(
+      join(root, "docs/cycle/issues/todo/freeform.md"),
+      `---\nid: freeform\ntitle: "freeform task"\ndepends_on: []\ntriaged_at: 2026-05-13T00:00:00Z\nsource: text\n---\n\nbody\n`,
+      "utf8",
+    );
+    await writeFile(
+      join(root, ".cycle/tbd.jsonl"),
+      JSON.stringify({
+        id: "freeform",
+        title: "freeform task",
+        status: "pending",
+        attempt: 0,
+        depends_on: [],
+        triaged_at: "2026-05-13T00:00:00Z",
+      }) + "\n",
+      "utf8",
+    );
 
     const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `run exit ${r.status}\n${r.stderr}`);
