@@ -21,3 +21,7 @@ export async function createCycleBranch(repoRoot: string, opts: { cycleId: strin
   await mkdir(artifactDir, { recursive: true });
   return { branch, artifactDir };
 }
+
+export async function checkoutBase(repoRoot: string, base: string): Promise<void> {
+  await git(repoRoot, ["checkout", base]);
+}
