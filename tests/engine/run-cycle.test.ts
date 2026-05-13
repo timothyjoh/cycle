@@ -636,3 +636,43 @@ test("logs cycle.base_pull status=skipped when prior checkout failed", async () 
     await rm(bin, { recursive: true, force: true });
   }
 });
+
+test("step with unregistered agent fails the step and ends the cycle", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: bogus
+        agent: made-up
+        prompt: prompts/x.md
+`), "utf8");
+    await writeFile(join(root, ".cycle/prompts/x.md"), "noop", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await runCycle(root, {
+      issueId: "TEST-1",
+      title: "unknown agent",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "failed");
+    assert.equal(r.failingStep, "bogus");
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.match(log, /"event":"step.start","cycle_id":"0001","step":"bogus","agent":"made-up"/);
+    assert.match(log, /"event":"step.end","cycle_id":"0001","step":"bogus","status":"failed","exit_code":-1/);
+    assert.match(log, /"event":"cycle.end","cycle_id":"0001","status":"failed","failing_step":"bogus"/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});

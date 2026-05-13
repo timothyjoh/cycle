@@ -388,7 +388,7 @@ test("dryRun with prior triage_attempts succeeds on third dry-run attempt", asyn
   }
 });
 
-test("dryRun unsupported triage agent throws", async () => {
+test("dryRun unknown triage agent reports per-raw failure with UnknownAgentError", async () => {
   const root = await setupRepo();
   try {
     await writeFile(
@@ -397,11 +397,13 @@ test("dryRun unsupported triage agent throws", async () => {
       "utf8",
     );
     const cfg = makeConfig();
-    cfg.triage.agent = "other" as "claudecode";
-    await assert.rejects(
-      () => dryRunTriage(root, cfg, { runAgent: async () => ({ exitCode: 0, stdout: "", stderr: "" }) }),
-      /unsupported triage agent/,
-    );
+    cfg.triage.agent = "other";
+    const reports = await dryRunTriage(root, cfg);
+    assert.equal(reports.length, 1);
+    assert.equal(reports[0].raw_id, "x");
+    assert.equal(reports[0].status, "failed");
+    assert.match(String(reports[0].last_error), /"other"/);
+    assert.match(String(reports[0].last_error), /claudecode/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

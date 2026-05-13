@@ -1,12 +1,131 @@
 # cycle
 
-An engine that turns issues into code changes — invoked by another agent or CI, runs one or more workflow cycles per issue, and lands branches and PRs.
+**cycle is a dark factory for AFK software development.** Drop in work, walk away, and let an agent-operated assembly line triage the repo, break the work into buildable slices, run the right workflow, verify the result, and land reviewable PRs.
 
-## Cycle behavior
+It is built for the two places autonomous development usually gets hard:
 
-- `commit.sh` selectively stages the cycle's intended change surface (honors a hard denylist for `.claude`, `dist`, `node_modules`, `*.lock`, and submodule gitlinks).
+- **Greenfield repos**, where a rough brief needs to become a sequence of scoped implementation cycles.
+- **Brownfield repos**, where every ticket hides conventions, coupling, stale tests, and merge policy that a naive agent will miss.
+
+cycle turns those inputs into an ordered queue of durable, auditable code-production cycles.
+
+## What cycle is
+
+cycle is an issue-driven workflow engine for autonomous code changes. It is installed into a repository, invoked by a parent agent or CI job, and then runs until its queue is empty or a safety gate tells it to stop.
+
+An **issue** can be almost anything:
+
+- a one-line freeform task
+- a GitHub / Jira / Linear ticket copied into the repo
+- a bug report
+- a PRD
+- a BRIEF-sized greenfield ask
+- a reflection surfaced by a previous cycle
+
+cycle's job is to make that work machine-operable: triage it, enrich it with codebase context, decompose large asks into vertical slices, run the configured workflow for each slice, and emit branches, commits, PRs, logs, and artifacts as it goes.
+
+## Why it exists
+
+Most agentic coding tools are great at a single interactive turn. They are weaker at the factory problem: taking a backlog, repeatedly doing the boring SDLC loop, respecting repo-specific constraints, recovering from failure, and leaving enough paper trail for a human to trust what happened.
+
+cycle is that factory layer.
+
+It gives a parent agent a single subprocess to hand work to, while cycle handles the repeatable mechanics:
+
+- **Intake:** normalize freeform tasks, tracker issues, and raw markdown drops into one inbox.
+- **Triage:** inspect the repo, select a workflow, and split oversized asks into smaller cycles.
+- **Execution:** run `spec → research → plan → build → review → fix → verify → commit → pr` style workflows.
+- **Quality gates:** run verification before commit / PR, lean on branch protection, and retry failed cycles from a clean slate.
+- **State:** keep a live drain queue plus an append-only JSONL audit log.
+- **Recovery:** resume in-flight work after a crash, pause safely when triage fails, and block only dependent work after terminal failures.
+
+## The dark factory model
+
+In default "dark factory" mode, every cycle is an isolated production run:
+
+1. Start from the current base branch.
+2. Create `cycle/<workflow>/<slug>`.
+3. Run the workflow steps with repo-aware prompts and scripts.
+4. Verify the change.
+5. Commit only the intended change surface.
+6. Open a PR.
+7. Auto-merge when branch protection allows it, or fall back to the repo's configured merge path.
+8. Move to the next queued cycle from the freshly updated base branch.
+
+If a run gets into a bad state, cycle is designed to abandon that attempt and restart from a clean branch rather than nurse a compromised working tree. The goal is not to make agents look busy; it is to keep the assembly line safe enough to leave AFK.
+
+## Why it works for brownfield
+
+Brownfield work is where autonomous coding usually falls apart. cycle assumes the repo is messy until proven otherwise:
+
+- issue descriptions may be stale or incomplete
+- tests may already be failing
+- conventions may differ across subtrees
+- changes may have hidden blast radius
+- merge policy may vary by repo
+- failures should not poison unrelated queued work
+
+So cycle makes repo context and artifacts first-class. Each cycle writes durable outputs under `docs/cycle/<cycle-id>-<workflow>-<slug>/`, keeps issue state under `docs/cycle/issues/`, and mirrors progress to `.cycle/log.jsonl`. A human can inspect the factory floor after the fact instead of reverse-engineering what the agent did from a chat transcript.
+
+## What ships into a repo
+
+`npx @cycleai/cli init` installs a small, repo-local factory kit:
+
+- `.cycle/bin/cycle.js` — the bundled engine
+- `.cycle/workflows.yml` — engine, triage, and workflow configuration
+- `.cycle/prompts/` — prompts for spec, research, plan, build, review, fix, verify, reflection, and triage
+- `.cycle/scripts/` — git / GitHub helpers such as `commit.sh` and `pr.sh`
+- `docs/cycle/issues/` — raw / todo / done / failed / blocked issue folders
+- optional `.claude/skills/cycle.md` — a Claude Code skill that teaches a parent agent how to invoke cycle
+
+The consuming repo does not need to become a Node project. After init, the committed `.cycle/bin/cycle.js` bundle is the engine.
+
+## Quick start
+
+Initialize cycle in a repo:
+
+```sh
+npx @cycleai/cli init
+```
+
+Run a single freeform task:
+
+```sh
+./.cycle/bin/cycle.js run "fix the flaky login test"
+```
+
+Drop work into the inbox without starting the engine:
+
+```sh
+./.cycle/bin/cycle.js drop "investigate why checkout retries twice"
+```
+
+Inspect the queue and latest log-derived status:
+
+```sh
+./.cycle/bin/cycle.js status
+```
+
+Re-run triage diagnostics without mutating engine state:
+
+```sh
+./.cycle/bin/cycle.js triage --dry-run
+```
+
+## Current behavior
+
+- `commit.sh` selectively stages the cycle's intended change surface and honors a hard denylist for `.claude`, `dist`, `node_modules`, `*.lock`, and submodule gitlinks.
 - `pr.sh` opens the PR with `--squash --auto` and falls back to a synchronous squash merge when the repo has auto-merge disabled, deleting the orphaned remote branch afterward.
 - `commit.sh` and `pr.sh` append `Closes #N` lines for any `https://github.com/<owner>/<repo>/issues/<N>` URL found in the cycle's issue body, scoped to the current repo, so merged PRs auto-close the referenced issues.
+- The feature workflow is the main dogfooded path today; the docs describe the broader workflow library and factory model the engine is growing toward.
+
+## Design docs
+
+- [`BRIEF.md`](BRIEF.md) — product brief and resolved design decisions.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system architecture, state model, and integration surfaces.
+- [`docs/RFC-001-issue-lifecycle.md`](docs/RFC-001-issue-lifecycle.md) — accepted issue lifecycle, triage, queue, and blocked-work semantics.
+- [`docs/WORKFLOW-SPEC.md`](docs/WORKFLOW-SPEC.md) — workflow philosophy and future repo-intelligence hooks.
+- [`docs/DOGFOOD.md`](docs/DOGFOOD.md) — first cycle dogfood notes and lessons.
 
 ## Recovering from engine.paused
 
@@ -18,7 +137,7 @@ When every raw issue fails triage in a single pass, the engine emits `engine.pau
 {
   "reason": "all_triage_failed",
   "raw_ids": ["<id>", "..."],
-  "last_errors": [{ "raw_id": "<id>", "error": "<≤2000 chars, head-kept>" }]
+  "last_errors": [{ "raw_id": "<id>", "error": "<≤2000 chars, head-kept>" }],
 }
 ```
 

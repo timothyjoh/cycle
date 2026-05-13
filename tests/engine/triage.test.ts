@@ -796,16 +796,29 @@ test("atomicWrite cleans up .tmp when rename fails", async () => {
   }
 });
 
-test("unsupported agent throws clear error", async () => {
+test("unknown triage agent surfaces via engine.paused all_triage_failed", async () => {
   const root = await setupRepo();
   try {
-    const cfg = makeConfig();
-    cfg.triage.agent = "codex";
-    const { log } = makeLog();
-    await assert.rejects(
-      runTriage(root, cfg, log, { runAgent: async () => ({ exitCode: 0, stdout: "{}", stderr: "" }) }),
-      /unsupported triage agent: codex/,
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/x.md"),
+      rawBody("x", "x"),
+      "utf8",
     );
+    const cfg = makeConfig();
+    cfg.triage.agent = "foo";
+    const { log, events } = makeLog();
+    const result = await runTriage(root, cfg, log);
+    assert.equal(result.status, "paused");
+    const paused = events.find((e) => e.event === "engine.paused");
+    assert.ok(paused, "engine.paused emitted");
+    assert.equal(paused!.fields.reason, "all_triage_failed");
+    const raw_ids = paused!.fields.raw_ids as string[];
+    assert.deepEqual(raw_ids, ["x"]);
+    const last_errors = paused!.fields.last_errors as Array<{ raw_id: string; error: string }>;
+    assert.equal(last_errors.length, 1);
+    const err = last_errors[0].error;
+    assert.match(err, /"foo"/);
+    assert.match(err, /claudecode/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -1230,5 +1243,57 @@ test("validator rejects each missing/wrong field with a specific message", async
     );
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("dispatch path: runAgentViaDispatch routes through resolveAgent('claudecode') with fake binary", async () => {
+  const root = await setupRepo();
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  const originalPath = process.env.PATH;
+  try {
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/disp.md"),
+      rawBody("disp", "dispatch task"),
+      "utf8",
+    );
+
+    const fake = join(bin, "claude");
+    const payload = enrichJson("disp").replace(/'/g, "'\\''");
+    await writeFile(
+      fake,
+      `#!/bin/bash\necho '${payload}'\n`,
+      "utf8",
+    );
+    await chmod(fake, 0o755);
+
+    process.env.PATH = `${bin}:${originalPath ?? ""}`;
+
+    const { log } = makeLog();
+    const result = await runTriage(root, makeConfig(), log);
+    assert.equal(result.status, "ok");
+    assert.deepEqual(result.processed, ["disp"]);
+    assert.deepEqual(result.failed, []);
+
+    const todoFiles = await readdir(join(root, "docs/cycle/issues/todo"));
+    assert.deepEqual(todoFiles, ["disp.md"]);
+    const doneFiles = await readdir(join(root, "docs/cycle/issues/done"));
+    assert.deepEqual(doneFiles, ["disp_raw.md"]);
+    const rawFiles = await readdir(join(root, "docs/cycle/issues/raw"));
+    assert.deepEqual(rawFiles, []);
+
+    const queue = await readFile(join(root, ".cycle/tbd.jsonl"), "utf8");
+    const rows = queue.trim().split("\n").map((l) => JSON.parse(l));
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].id, "disp");
+    assert.equal(rows[0].status, "pending");
+
+    const cycleEntries = await readdir(join(root, ".cycle"));
+    const stragglers = cycleEntries.filter((n) => n.startsWith(".triage-"));
+    assert.deepEqual(stragglers, [], "tmp prompt file unlinked");
+  } finally {
+    if (originalPath === undefined) delete process.env.PATH;
+    else process.env.PATH = originalPath;
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
   }
 });
