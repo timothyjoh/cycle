@@ -47,6 +47,13 @@ if (argv[0] === "init") {
   process.exit(0);
 }
 
+if (argv[0] === "status") {
+  const { runStatus } = await import("./cli/status.ts");
+  const out = await runStatus({ cwd: process.cwd() });
+  console.log(out);
+  process.exit(0);
+}
+
 const args = parseArgs(argv);
 const cwd = process.cwd();
 

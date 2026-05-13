@@ -16,6 +16,7 @@ Project conventions for cycle. Read before touching code or running the workflow
 | `npm run typecheck` | `tsc --noEmit` — no warnings allowed. |
 | `npm run build` | esbuild bundle of `src/cli.ts` → `dist/cycle.js` (the shebang executable that ships). Runs automatically via `pretest` / `pretest:coverage`; manual invocation rarely needed. |
 | `npm run sync-defaults` | Copy `src/defaults/` → `.cycle/`. Run after editing any default workflow YAML, prompt, or script so the dogfooded engine sees the change. |
+| `cycle status` | Print folder counts (`raw`/`todo`/`done`/`failed`/`blocked`), `tbd.jsonl` queue summary, and in-flight cycle line derived from `log.jsonl` tail. Read-only; safe in any repo state (missing files = zero, no engine bootstrap). |
 
 ## Coverage policy
 

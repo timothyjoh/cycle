@@ -8,6 +8,7 @@ export type InFlightCycle = {
   title: string;
   startTs: string;
   completedSteps: string[];
+  lastStepStarted?: string;
 };
 
 type LogEvent = {
@@ -54,6 +55,30 @@ export function parseLogTail(text: string): InFlightCycle | null {
       completedSteps.push(name);
     }
   }
+  let lastStepStarted: string | undefined;
+  for (let i = events.length - 1; i > lastStartIdx; i--) {
+    const e = events[i];
+    if (e.event !== "step.start") continue;
+    if (e.cycle_id !== cycleId) continue;
+    const name = (e as { step?: string }).step;
+    if (typeof name !== "string") continue;
+    let ended = false;
+    for (let j = i + 1; j < events.length; j++) {
+      const f = events[j];
+      if (
+        f.event === "step.end" &&
+        f.cycle_id === cycleId &&
+        (f as { step?: string }).step === name
+      ) {
+        ended = true;
+        break;
+      }
+    }
+    if (!ended) {
+      lastStepStarted = name;
+      break;
+    }
+  }
   const rawIssue = (start as Record<string, unknown>).issue_id;
   const rawWf = (start as Record<string, unknown>).workflow;
   const rawTitle = (start as Record<string, unknown>).title;
@@ -67,6 +92,7 @@ export function parseLogTail(text: string): InFlightCycle | null {
     title,
     startTs: start.ts,
     completedSteps,
+    lastStepStarted,
   };
 }
 

@@ -108,6 +108,56 @@ test("parseLogTail ignores step.end from a different cycle_id", () => {
   assert.deepEqual(r!.completedSteps, []);
 });
 
+test("parseLogTail leaves lastStepStarted undefined when only cycle.start present", () => {
+  const text = ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "T", issue_id: "i" });
+  const r = parseLogTail(text);
+  assert.ok(r);
+  assert.equal(r!.lastStepStarted, undefined);
+});
+
+test("parseLogTail sets lastStepStarted to the last step.start without a matching step.end", () => {
+  const text = [
+    ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "T", issue_id: "i" }),
+    ev("step.start", { cycle_id: "0001", step: "plan" }),
+  ].join("\n");
+  const r = parseLogTail(text);
+  assert.ok(r);
+  assert.equal(r!.lastStepStarted, "plan");
+});
+
+test("parseLogTail skips step.start that has matching step.end and finds the next running step", () => {
+  const text = [
+    ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "T", issue_id: "i" }),
+    ev("step.start", { cycle_id: "0001", step: "plan" }),
+    ev("step.end", { cycle_id: "0001", step: "plan", status: "ok" }),
+    ev("step.start", { cycle_id: "0001", step: "build" }),
+  ].join("\n");
+  const r = parseLogTail(text);
+  assert.ok(r);
+  assert.equal(r!.lastStepStarted, "build");
+});
+
+test("parseLogTail leaves lastStepStarted undefined when latest step.start was already ended", () => {
+  const text = [
+    ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "T", issue_id: "i" }),
+    ev("step.start", { cycle_id: "0001", step: "plan" }),
+    ev("step.end", { cycle_id: "0001", step: "plan", status: "ok" }),
+  ].join("\n");
+  const r = parseLogTail(text);
+  assert.ok(r);
+  assert.equal(r!.lastStepStarted, undefined);
+});
+
+test("parseLogTail ignores step.start events from a different cycle_id", () => {
+  const text = [
+    ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "T", issue_id: "i" }),
+    ev("step.start", { cycle_id: "9999", step: "other" }),
+  ].join("\n");
+  const r = parseLogTail(text);
+  assert.ok(r);
+  assert.equal(r!.lastStepStarted, undefined);
+});
+
 test("readLogTail returns null when log.jsonl missing", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-logtail-"));
   try {
