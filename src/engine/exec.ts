@@ -1,6 +1,7 @@
 import type { StepResult } from "./exec-bash.ts";
 import { claudecodeExec } from "./exec-claudecode.ts";
 import { codexExec } from "./exec-codex.ts";
+import { geminiExec } from "./exec-gemini.ts";
 
 export interface ExecModule {
   runStep(args: {
@@ -21,6 +22,7 @@ export class UnknownAgentError extends Error {
 const REGISTRY: Record<string, ExecModule> = {
   claudecode: claudecodeExec,
   codex: codexExec,
+  gemini: geminiExec,
 };
 
 export function resolveAgent(name: string): ExecModule {
