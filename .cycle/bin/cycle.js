@@ -7374,7 +7374,7 @@ __export(init_exports, {
 });
 import { cp, mkdir as mkdir5, stat, chmod, copyFile } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname2, join as join10 } from "node:path";
+import { dirname as dirname3, join as join10 } from "node:path";
 async function runInit(opts) {
   const t = opts.targetRoot;
   const enginePath = await locateEngineBundle();
@@ -7428,7 +7428,7 @@ var HERE;
 var init_init = __esm({
   "src/cli/init.ts"() {
     "use strict";
-    HERE = dirname2(fileURLToPath2(import.meta.url));
+    HERE = dirname3(fileURLToPath2(import.meta.url));
   }
 });
 
@@ -7605,12 +7605,23 @@ async function loadWorkflow(repoRoot, name) {
 // src/engine/exec-bash.ts
 import { spawn } from "node:child_process";
 import { join as join6 } from "node:path";
+
+// src/engine/child-env.ts
+import { dirname as dirname2, delimiter } from "node:path";
+function buildChildEnv(extra) {
+  const nodeBinDir = dirname2(process.execPath);
+  const basePath = extra.PATH ?? process.env.PATH ?? "";
+  const path = basePath ? `${nodeBinDir}${delimiter}${basePath}` : nodeBinDir;
+  return { ...process.env, ...extra, PATH: path };
+}
+
+// src/engine/exec-bash.ts
 function execBashStep(repoRoot, command, env) {
   return new Promise((resolve2) => {
     const abs = join6(repoRoot, ".cycle", command);
     const child = spawn("/bin/bash", [abs], {
       cwd: repoRoot,
-      env: { ...process.env, ...env },
+      env: buildChildEnv(env),
       shell: false
     });
     let stdout = "";
@@ -7642,7 +7653,7 @@ async function execClaudecodeStep(repoRoot, promptPath, env) {
   return new Promise((resolve2) => {
     const child = spawn2("claude", ["-p", prompt], {
       cwd: repoRoot,
-      env: { ...process.env, ...env },
+      env: buildChildEnv(env),
       shell: false
     });
     let stdout = "";

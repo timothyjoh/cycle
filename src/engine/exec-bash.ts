@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
+import { buildChildEnv } from "./child-env.ts";
 
 export type StepResult = {
   status: "ok" | "failed";
@@ -13,7 +14,7 @@ export function execBashStep(repoRoot: string, command: string, env: Record<stri
     const abs = join(repoRoot, ".cycle", command);
     const child = spawn("/bin/bash", [abs], {
       cwd: repoRoot,
-      env: { ...process.env, ...env },
+      env: buildChildEnv(env),
       shell: false,
     });
     let stdout = "";
