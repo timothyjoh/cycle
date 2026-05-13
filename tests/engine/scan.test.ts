@@ -12,8 +12,8 @@ function mkBody(id: string): string {
 function countMatching(jsonl: string, id: string): number {
   return jsonl
     .split("\n")
-    .filter(l => l.trim())
-    .filter(l => {
+    .filter((l) => l.trim())
+    .filter((l) => {
       try {
         return JSON.parse(l).id === id;
       } catch {
@@ -22,7 +22,7 @@ function countMatching(jsonl: string, id: string): number {
     }).length;
 }
 
-test("moves raw file to todo and appends tbd.jsonl line", async () => {
+test("moves raw file to todo and appends queue row in new schema", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
     const raw = join(root, "docs/cycle/issues/raw");
@@ -34,19 +34,29 @@ test("moves raw file to todo and appends tbd.jsonl line", async () => {
     await writeFile(join(raw, "TEST-1.md"), body, "utf8");
 
     const moved = await scanRaw(root);
-    assert.deepEqual(moved.map(m => m.id), ["TEST-1"]);
+    assert.deepEqual(moved.map((m) => m.id), ["TEST-1"]);
+    assert.equal(moved[0].status, "pending");
+    assert.equal(moved[0].attempt, 0);
+    assert.deepEqual(moved[0].depends_on, []);
+    assert.equal(moved[0].triaged_at, "2026-05-12T10:30:00Z");
+    assert.equal(moved[0].title, "hi");
     const todoFiles = await readdir(todo);
     assert.deepEqual(todoFiles, ["TEST-1.md"]);
     const rawFiles = await readdir(raw);
     assert.deepEqual(rawFiles, []);
     const jsonl = await readFile(join(root, ".cycle/tbd.jsonl"), "utf8");
-    assert.match(jsonl, /"id":"TEST-1"/);
+    const parsed = JSON.parse(jsonl.trim());
+    assert.equal(parsed.id, "TEST-1");
+    assert.equal(parsed.status, "pending");
+    assert.equal(parsed.attempt, 0);
+    assert.deepEqual(parsed.depends_on, []);
+    assert.equal(parsed.triaged_at, "2026-05-12T10:30:00Z");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("skips appendFile when id already in tbd.jsonl", async () => {
+test("skips append when id already in queue", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
     const raw = join(root, "docs/cycle/issues/raw");
@@ -55,11 +65,15 @@ test("skips appendFile when id already in tbd.jsonl", async () => {
     await mkdir(raw, { recursive: true });
     await mkdir(todo, { recursive: true });
     await mkdir(cycleDir, { recursive: true });
-    await writeFile(
-      join(cycleDir, "tbd.jsonl"),
-      JSON.stringify({ id: "X", source: "text", title: "old", path: "/old", added_at: "2026-05-12T09:00:00Z" }) + "\n",
-      "utf8"
-    );
+    const existing = {
+      id: "X",
+      title: "old",
+      status: "pending",
+      attempt: 0,
+      depends_on: [],
+      triaged_at: "2026-05-12T09:00:00Z",
+    };
+    await writeFile(join(cycleDir, "tbd.jsonl"), JSON.stringify(existing) + "\n", "utf8");
     await writeFile(join(raw, "X.md"), mkBody("X"), "utf8");
 
     const moved = await scanRaw(root);
@@ -82,7 +96,7 @@ test("two-scan dup collapses to one row", async () => {
 
     await writeFile(join(raw, "X.md"), mkBody("X"), "utf8");
     const first = await scanRaw(root);
-    assert.deepEqual(first.map(m => m.id), ["X"]);
+    assert.deepEqual(first.map((m) => m.id), ["X"]);
 
     await writeFile(join(raw, "X.md"), mkBody("X"), "utf8");
     const second = await scanRaw(root);
@@ -123,16 +137,24 @@ test("tolerates malformed lines in existing tbd.jsonl", async () => {
     const cycleDir = join(root, ".cycle");
     await mkdir(raw, { recursive: true });
     await mkdir(cycleDir, { recursive: true });
+    const newShape = {
+      id: "OLD",
+      title: "t",
+      status: "pending",
+      attempt: 0,
+      depends_on: [],
+      triaged_at: "2026-05-12T09:00:00Z",
+    };
     const seed =
       "not json\n" +
-      JSON.stringify({ id: "OLD" }) + "\n" +
+      JSON.stringify(newShape) + "\n" +
       "\n" +
       JSON.stringify({ no_id: true }) + "\n";
     await writeFile(join(cycleDir, "tbd.jsonl"), seed, "utf8");
 
     await writeFile(join(raw, "NEW.md"), mkBody("NEW"), "utf8");
     const moved = await scanRaw(root);
-    assert.deepEqual(moved.map(m => m.id), ["NEW"]);
+    assert.deepEqual(moved.map((m) => m.id), ["NEW"]);
 
     let jsonl = await readFile(join(cycleDir, "tbd.jsonl"), "utf8");
     assert.equal(countMatching(jsonl, "NEW"), 1);
@@ -162,13 +184,66 @@ test("cross-scan re-drop same id appends zero new lines", async () => {
     assert.equal(first[0].id, "Y");
     assert.deepEqual(await readdir(todo), ["Y.md"]);
 
-    // Re-create raw/Y.md with same id and re-scan; jsonl must stay at 1 row.
     await writeFile(join(raw, "Y.md"), mkBody("Y"), "utf8");
     const second = await scanRaw(root);
     assert.deepEqual(second, []);
 
     const jsonl = await readFile(join(cycleDir, "tbd.jsonl"), "utf8");
     assert.equal(countMatching(jsonl, "Y"), 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("archives legacy tbd.jsonl on first scan; not on second", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    const raw = join(root, "docs/cycle/issues/raw");
+    const cycleDir = join(root, ".cycle");
+    await mkdir(raw, { recursive: true });
+    await mkdir(cycleDir, { recursive: true });
+    const legacy = JSON.stringify({
+      id: "LEG-1",
+      source: "text",
+      title: "legacy",
+      path: "/whatever",
+      added_at: "2026-05-12T08:00:00Z",
+    }) + "\n";
+    await writeFile(join(cycleDir, "tbd.jsonl"), legacy, "utf8");
+    await writeFile(join(raw, "NEW.md"), mkBody("NEW"), "utf8");
+
+    const moved = await scanRaw(root);
+    assert.deepEqual(moved.map((m) => m.id), ["NEW"]);
+
+    const archive = await readFile(join(cycleDir, "tbd.jsonl.bootstrap-archive"), "utf8");
+    assert.match(archive, /LEG-1/);
+    const cur = await readFile(join(cycleDir, "tbd.jsonl"), "utf8");
+    assert.equal(countMatching(cur, "NEW"), 1);
+    assert.equal(countMatching(cur, "LEG-1"), 0);
+
+    // second scan with new-shape file present must NOT archive
+    await writeFile(join(raw, "NEW2.md"), mkBody("NEW2"), "utf8");
+    await scanRaw(root);
+    try {
+      await readFile(join(cycleDir, "tbd.jsonl.bootstrap-archive.1"), "utf8");
+      assert.fail("second archive should not be created");
+    } catch (e) {
+      assert.equal((e as NodeJS.ErrnoException).code, "ENOENT");
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("preserves parent frontmatter into row", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    const raw = join(root, "docs/cycle/issues/raw");
+    await mkdir(raw, { recursive: true });
+    const body = `---\nid: CHILD-1\nparent: PARENT-1\nsource: text\ntitle: "child"\nadded_at: 2026-05-13T00:00:00Z\n---\n\nchild\n`;
+    await writeFile(join(raw, "CHILD-1.md"), body, "utf8");
+    const moved = await scanRaw(root);
+    assert.equal(moved[0].parent, "PARENT-1");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

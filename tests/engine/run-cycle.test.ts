@@ -393,6 +393,48 @@ test("logs cycle.base_pull status=failed when origin remote is missing", async (
   }
 });
 
+test("honors cycleId opt when caller provides it", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    await mkdir(join(root, ".cycle/scripts"), { recursive: true });
+    await writeFile(
+      join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: noop
+        agent: bash
+        command: scripts/noop.sh
+`),
+      "utf8",
+    );
+    const noop = join(root, ".cycle/scripts/noop.sh");
+    await writeFile(noop, "#!/bin/bash\nexit 0\n", "utf8");
+    await chmod(noop, 0o755);
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await runCycle(root, {
+      cycleId: "0042",
+      issueId: "TEST-1",
+      title: "explicit id",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.cycleId, "0042");
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.match(log, /"cycle_id":"0042"/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
 test("logs cycle.base_pull status=skipped when prior checkout failed", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
