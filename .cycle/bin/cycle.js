@@ -40,6 +40,951 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
+// src/engine/frontmatter.ts
+import { readFile as readFile2, writeFile as writeFile2, rename } from "node:fs/promises";
+function parseScalar(raw) {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    const inner = trimmed.slice(1, -1).trim();
+    if (inner === "") return [];
+    return inner.split(",").map((p) => p.trim().replace(/^"(.*)"$/s, "$1"));
+  }
+  if (/^-?\d+$/.test(trimmed)) return Number(trimmed);
+  return trimmed.replace(/^"((?:[^"\\]|\\.)*)"$/s, (_, inner) => inner.replace(/\\"/g, '"'));
+}
+function parseFrontmatter(body) {
+  const m = body.match(FM_RE);
+  if (!m) throw new Error("no frontmatter");
+  const fm = {};
+  for (const line of m[1].split("\n")) {
+    if (!line.trim()) continue;
+    const kv = line.match(/^(\w+):\s*(.*)$/);
+    if (kv) fm[kv[1]] = parseScalar(kv[2]);
+  }
+  const bodyAfter = body.slice(m[0].length);
+  return { fm, bodyAfter };
+}
+function needsQuote(s) {
+  if (s === "") return true;
+  if (/^[\s]/.test(s) || /[\s]$/.test(s)) return true;
+  if (/[:"#\n]/.test(s)) return true;
+  if (/^-?\d+$/.test(s)) return true;
+  return false;
+}
+function serializeValue(v) {
+  if (Array.isArray(v)) {
+    return "[" + v.map((s) => needsQuote(s) ? `"${s.replace(/"/g, '\\"')}"` : s).join(", ") + "]";
+  }
+  if (typeof v === "number") return String(v);
+  if (needsQuote(v)) return `"${v.replace(/"/g, '\\"')}"`;
+  return v;
+}
+function serializeFrontmatter(fm, bodyAfter) {
+  const lines = ["---"];
+  for (const [k, v] of Object.entries(fm)) {
+    lines.push(`${k}: ${serializeValue(v)}`);
+  }
+  lines.push("---");
+  return lines.join("\n") + "\n" + bodyAfter;
+}
+async function mutateFrontmatter(path, patch) {
+  const body = await readFile2(path, "utf8");
+  const { fm, bodyAfter } = parseFrontmatter(body);
+  const next = patch({ ...fm });
+  const out = serializeFrontmatter(next, bodyAfter);
+  const tmp = path + ".tmp";
+  await writeFile2(tmp, out, "utf8");
+  await rename(tmp, path);
+}
+var FM_RE;
+var init_frontmatter = __esm({
+  "src/engine/frontmatter.ts"() {
+    "use strict";
+    FM_RE = /^---\n([\s\S]*?)\n---\n/;
+  }
+});
+
+// src/engine/queue.ts
+import { readFile as readFile3, writeFile as writeFile3, rename as rename2, appendFile, mkdir as mkdir2, stat } from "node:fs/promises";
+import { join as join2 } from "node:path";
+function queuePath(repoRoot) {
+  return join2(repoRoot, ".cycle", "tbd.jsonl");
+}
+async function ensureCycleDir(repoRoot) {
+  await mkdir2(join2(repoRoot, ".cycle"), { recursive: true });
+}
+function isLegacyLine(parsed) {
+  if (!parsed || typeof parsed !== "object") return false;
+  const obj = parsed;
+  if (typeof obj.id !== "string") return false;
+  return obj.status === void 0;
+}
+function isQueueRow(parsed) {
+  if (!parsed || typeof parsed !== "object") return false;
+  const obj = parsed;
+  if (typeof obj.id !== "string") return false;
+  if (typeof obj.title !== "string") return false;
+  if (obj.status !== "pending" && obj.status !== "in_progress") return false;
+  if (typeof obj.attempt !== "number") return false;
+  if (!Array.isArray(obj.depends_on)) return false;
+  if (typeof obj.triaged_at !== "string") return false;
+  return true;
+}
+async function readQueue(repoRoot) {
+  const path = queuePath(repoRoot);
+  let raw;
+  try {
+    raw = await readFile3(path, "utf8");
+  } catch (e) {
+    if (e.code === "ENOENT") return [];
+    throw e;
+  }
+  const rows = [];
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isQueueRow(parsed)) continue;
+    rows.push(parsed);
+  }
+  return rows;
+}
+async function writeQueue(repoRoot, rows) {
+  await ensureCycleDir(repoRoot);
+  const path = queuePath(repoRoot);
+  const body = rows.map((r) => JSON.stringify(r)).join("\n") + (rows.length ? "\n" : "");
+  const tmp = path + ".tmp";
+  await writeFile3(tmp, body, "utf8");
+  await rename2(tmp, path);
+}
+async function appendRow(repoRoot, row) {
+  await ensureCycleDir(repoRoot);
+  await appendFile(queuePath(repoRoot), JSON.stringify(row) + "\n", "utf8");
+}
+async function pickArchivePath(repoRoot) {
+  const base = join2(repoRoot, ".cycle", "tbd.jsonl.bootstrap-archive");
+  try {
+    await stat(base);
+  } catch {
+    return base;
+  }
+  for (let i = 1; i < 1e3; i++) {
+    const candidate = `${base}.${i}`;
+    try {
+      await stat(candidate);
+    } catch {
+      return candidate;
+    }
+  }
+  throw new Error("too many bootstrap archives");
+}
+async function bootstrapArchiveIfLegacy(repoRoot) {
+  const path = queuePath(repoRoot);
+  let raw;
+  try {
+    raw = await readFile3(path, "utf8");
+  } catch (e) {
+    if (e.code === "ENOENT") return false;
+    throw e;
+  }
+  let hasLegacy = false;
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (isLegacyLine(parsed)) {
+      hasLegacy = true;
+      break;
+    }
+  }
+  if (!hasLegacy) return false;
+  const archive = await pickArchivePath(repoRoot);
+  await rename2(path, archive);
+  return true;
+}
+async function popNextPending(repoRoot) {
+  const rows = await readQueue(repoRoot);
+  for (const row of rows) {
+    if (row.status === "pending") return row;
+  }
+  return null;
+}
+async function markInProgress(repoRoot, id, cycleId) {
+  const rows = await readQueue(repoRoot);
+  let touched = false;
+  for (const r of rows) {
+    if (r.id !== id) continue;
+    if (r.status === "in_progress" && r.cycle_id && r.cycle_id !== cycleId) {
+      throw new Error(
+        `markInProgress: row ${id} already in_progress for cycle ${r.cycle_id}, refusing to overwrite with ${cycleId}`
+      );
+    }
+    r.status = "in_progress";
+    r.cycle_id = cycleId;
+    touched = true;
+  }
+  if (!touched) throw new Error(`markInProgress: id not found: ${id}`);
+  await writeQueue(repoRoot, rows);
+}
+async function drainOk(repoRoot, id) {
+  const rows = await readQueue(repoRoot);
+  const next = rows.filter((r) => r.id !== id);
+  await writeQueue(repoRoot, next);
+}
+async function drainFailedRetry(repoRoot, id) {
+  const rows = await readQueue(repoRoot);
+  for (const r of rows) {
+    if (r.id === id) {
+      r.attempt += 1;
+      r.status = "pending";
+      delete r.cycle_id;
+    }
+  }
+  await writeQueue(repoRoot, rows);
+}
+async function drainFailedTerminal(repoRoot, id) {
+  const rows = await readQueue(repoRoot);
+  const next = rows.filter((r) => r.id !== id);
+  await writeQueue(repoRoot, next);
+}
+var init_queue = __esm({
+  "src/engine/queue.ts"() {
+    "use strict";
+  }
+});
+
+// src/engine/child-env.ts
+import { dirname as dirname2, delimiter } from "node:path";
+function buildChildEnv(extra) {
+  const nodeBinDir = dirname2(process.execPath);
+  const basePath = extra.PATH ?? process.env.PATH ?? "";
+  const path = basePath ? `${nodeBinDir}${delimiter}${basePath}` : nodeBinDir;
+  return { ...process.env, ...extra, PATH: path };
+}
+var init_child_env = __esm({
+  "src/engine/child-env.ts"() {
+    "use strict";
+  }
+});
+
+// src/engine/exec-claudecode.ts
+import { spawn } from "node:child_process";
+import { readFile as readFile4 } from "node:fs/promises";
+import { join as join3 } from "node:path";
+var claudecodeExec;
+var init_exec_claudecode = __esm({
+  "src/engine/exec-claudecode.ts"() {
+    "use strict";
+    init_child_env();
+    claudecodeExec = {
+      async runStep({ repoRoot, promptPath, env }) {
+        const abs = join3(repoRoot, ".cycle", promptPath);
+        const prompt = await readFile4(abs, "utf8");
+        return new Promise((resolve2) => {
+          const child = spawn("claude", ["-p", prompt], {
+            cwd: repoRoot,
+            env: buildChildEnv(env ?? {}),
+            shell: false
+          });
+          let stdout = "";
+          let stderr = "";
+          child.stdout.on("data", (d) => {
+            stdout += d.toString();
+          });
+          child.stderr.on("data", (d) => {
+            stderr += d.toString();
+          });
+          child.on("close", (code) => {
+            resolve2({
+              status: code === 0 ? "ok" : "failed",
+              exitCode: code ?? -1,
+              stdout,
+              stderr
+            });
+          });
+          child.on("error", (err) => {
+            resolve2({
+              status: "failed",
+              exitCode: -1,
+              stdout: "",
+              stderr: err.message
+            });
+          });
+        });
+      }
+    };
+  }
+});
+
+// src/engine/exec-codex.ts
+import { spawn as spawn2 } from "node:child_process";
+import { readFile as readFile5 } from "node:fs/promises";
+import { join as join4 } from "node:path";
+var codexExec;
+var init_exec_codex = __esm({
+  "src/engine/exec-codex.ts"() {
+    "use strict";
+    init_child_env();
+    codexExec = {
+      async runStep({ repoRoot, promptPath, env }) {
+        const abs = join4(repoRoot, ".cycle", promptPath);
+        const prompt = await readFile5(abs, "utf8");
+        return new Promise((resolve2) => {
+          const child = spawn2("codex", [], {
+            cwd: repoRoot,
+            env: buildChildEnv(env ?? {}),
+            shell: false
+          });
+          let stdout = "";
+          let stderr = "";
+          child.stdout.on("data", (d) => {
+            stdout += d.toString();
+          });
+          child.stderr.on("data", (d) => {
+            stderr += d.toString();
+          });
+          child.on("close", (code) => {
+            resolve2({
+              status: code === 0 ? "ok" : "failed",
+              exitCode: code ?? -1,
+              stdout,
+              stderr
+            });
+          });
+          child.on("error", (err) => {
+            resolve2({
+              status: "failed",
+              exitCode: -1,
+              stdout: "",
+              stderr: err.message
+            });
+          });
+          child.stdin.on("error", () => {
+          });
+          try {
+            child.stdin.write(prompt);
+            child.stdin.end();
+          } catch {
+          }
+        });
+      }
+    };
+  }
+});
+
+// src/engine/exec-gemini.ts
+import { spawn as spawn3 } from "node:child_process";
+import { readFile as readFile6 } from "node:fs/promises";
+import { join as join5 } from "node:path";
+var geminiExec;
+var init_exec_gemini = __esm({
+  "src/engine/exec-gemini.ts"() {
+    "use strict";
+    init_child_env();
+    geminiExec = {
+      async runStep({ repoRoot, promptPath, env }) {
+        const abs = join5(repoRoot, ".cycle", promptPath);
+        const prompt = await readFile6(abs, "utf8");
+        return new Promise((resolve2) => {
+          const child = spawn3("gemini", [], {
+            cwd: repoRoot,
+            env: buildChildEnv(env ?? {}),
+            shell: false
+          });
+          let stdout = "";
+          let stderr = "";
+          child.stdout.on("data", (d) => {
+            stdout += d.toString();
+          });
+          child.stderr.on("data", (d) => {
+            stderr += d.toString();
+          });
+          child.on("close", (code) => {
+            resolve2({
+              status: code === 0 ? "ok" : "failed",
+              exitCode: code ?? -1,
+              stdout,
+              stderr
+            });
+          });
+          child.on("error", (err) => {
+            resolve2({
+              status: "failed",
+              exitCode: -1,
+              stdout: "",
+              stderr: err.message
+            });
+          });
+          child.stdin.on("error", () => {
+          });
+          try {
+            child.stdin.write(prompt);
+            child.stdin.end();
+          } catch {
+          }
+        });
+      }
+    };
+  }
+});
+
+// src/engine/exec.ts
+function resolveAgent(name) {
+  const mod = REGISTRY[name];
+  if (!mod) throw new UnknownAgentError(name, Object.keys(REGISTRY));
+  return mod;
+}
+var UnknownAgentError, REGISTRY;
+var init_exec = __esm({
+  "src/engine/exec.ts"() {
+    "use strict";
+    init_exec_claudecode();
+    init_exec_codex();
+    init_exec_gemini();
+    UnknownAgentError = class extends Error {
+      constructor(name, known) {
+        const list = [...known].sort().join(", ");
+        super(`agent "${name}" is not registered; known agents: ${list}`);
+        this.name = "UnknownAgentError";
+      }
+    };
+    REGISTRY = {
+      claudecode: claudecodeExec,
+      codex: codexExec,
+      gemini: geminiExec
+    };
+  }
+});
+
+// src/engine/triage.ts
+import { randomBytes } from "node:crypto";
+import { readFile as readFile7, writeFile as writeFile4, readdir, mkdir as mkdir3, rename as rename3, unlink } from "node:fs/promises";
+import { join as join6, dirname as dirname3 } from "node:path";
+async function processRawWithRetry(raw, ctx) {
+  let lastError = "";
+  let attemptsRun = 0;
+  for (let attempt = raw.attempts; attempt < MAX_ATTEMPTS; attempt++) {
+    attemptsRun++;
+    const queueRows = await readQueue(ctx.repoRoot);
+    const todoListing = await listTodos(ctx.repoRoot);
+    const feedback = lastError ? `PREVIOUS ATTEMPT FAILED VALIDATION:
+${lastError}` : "";
+    const renderedPrompt = renderPrompt(
+      ctx.promptTemplate,
+      [raw],
+      queueRows,
+      todoListing,
+      feedback
+    );
+    let agentResult;
+    try {
+      agentResult = await ctx.runAgent(renderedPrompt, ctx.cfg.triage, ctx.repoRoot);
+    } catch (e) {
+      lastError = `agent failed: ${e.message}`;
+      if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
+      continue;
+    }
+    if (agentResult.exitCode !== 0) {
+      lastError = `agent exited ${agentResult.exitCode}: ${agentResult.stderr.trim()}`;
+      if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
+      continue;
+    }
+    const todoIds = new Set(todoListing.map((f) => f.replace(/\.md$/, "")));
+    const validation = validateOutput(
+      agentResult.stdout,
+      [raw],
+      queueRows,
+      ctx.cfg,
+      todoIds
+    );
+    if (!validation.ok) {
+      lastError = validation.reason;
+      if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
+      continue;
+    }
+    if (ctx.apply) {
+      try {
+        await ctx.apply(raw, validation.parsed);
+      } catch (e) {
+        lastError = `apply failed: ${e.message}`;
+        if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
+        continue;
+      }
+    }
+    return { status: "ok", parsed: validation.parsed, attempts: attemptsRun };
+  }
+  return { status: "failed", lastError, attempts: attemptsRun };
+}
+async function runTriage(repoRoot, cfg2, log2, deps = {}) {
+  const runAgent = deps.runAgent ?? runAgentViaDispatch;
+  await bootstrapArchiveIfLegacy(repoRoot);
+  const rawDir2 = join6(repoRoot, "docs/cycle/issues/raw");
+  await mkdir3(rawDir2, { recursive: true });
+  const raws = await loadRaws(rawDir2);
+  await log2.emit("triage.start", { count: raws.length });
+  if (raws.length === 0) {
+    await log2.emit("triage.end", { processed: 0, failed: 0 });
+    return { status: "ok", processed: [], failed: [] };
+  }
+  const promptTemplate = await readFile7(
+    join6(repoRoot, ".cycle", cfg2.triage.prompt),
+    "utf8"
+  );
+  const processed = [];
+  const failed = [];
+  const lastErrors = [];
+  let lastOrdering = null;
+  for (const raw of raws) {
+    const outcome = await processRawWithRetry(raw, {
+      repoRoot,
+      cfg: cfg2,
+      promptTemplate,
+      runAgent,
+      apply: (r, parsed) => applyRaw(repoRoot, r, parsed),
+      onAttemptFailed: async (attemptNumber, reason) => {
+        await bumpAttempts(raw.srcPath, attemptNumber);
+        await log2.emit("triage.raw.failed", {
+          raw_id: raw.id,
+          attempt: attemptNumber,
+          reason
+        });
+      }
+    });
+    if (outcome.status === "ok") {
+      lastOrdering = outcome.parsed.ordering;
+      await log2.emit("triage.raw.ok", {
+        raw_id: raw.id,
+        children: outcome.parsed.children.filter((c) => c.raw_id === raw.id).map((c) => c.id)
+      });
+      processed.push(raw.id);
+    } else {
+      failed.push(raw.id);
+      lastErrors.push(outcome.lastError);
+      await moveToFailed(repoRoot, raw);
+    }
+  }
+  if (lastOrdering) {
+    await rewriteOrdering(repoRoot, lastOrdering, log2);
+  }
+  if (failed.length === raws.length) {
+    const MAX_ERR_LEN = 2e3;
+    const truncate = (s) => s.length > MAX_ERR_LEN ? s.slice(0, MAX_ERR_LEN - 1) + "\u2026" : s;
+    const raw_ids = failed;
+    const last_errors = failed.map((raw_id, i) => ({
+      raw_id,
+      error: truncate(lastErrors[i] ?? "")
+    }));
+    await log2.emit("engine.paused", {
+      reason: "all_triage_failed",
+      raw_ids,
+      last_errors
+    });
+    return { status: "paused", processed, failed };
+  }
+  await log2.emit("triage.end", {
+    processed: processed.length,
+    failed: failed.length
+  });
+  return { status: "ok", processed, failed };
+}
+async function dryRunTriage(repoRoot, cfg2, deps = {}) {
+  const runAgent = deps.runAgent ?? runAgentViaDispatch;
+  const rawDir2 = join6(repoRoot, "docs/cycle/issues/raw");
+  const raws = await loadRaws(rawDir2);
+  if (raws.length === 0) return [];
+  const promptTemplate = await readFile7(
+    join6(repoRoot, ".cycle", cfg2.triage.prompt),
+    "utf8"
+  );
+  const reports = [];
+  for (const raw of raws) {
+    const outcome = await processRawWithRetry(
+      { ...raw, attempts: 0 },
+      {
+        repoRoot,
+        cfg: cfg2,
+        promptTemplate,
+        runAgent
+      }
+    );
+    if (outcome.status === "ok") {
+      reports.push({
+        raw_id: raw.id,
+        status: "ok",
+        attempts: outcome.attempts,
+        children: outcome.parsed.children.filter((c) => c.raw_id === raw.id).map((c) => c.id)
+      });
+    } else {
+      reports.push({
+        raw_id: raw.id,
+        status: "failed",
+        attempts: outcome.attempts,
+        last_error: outcome.lastError
+      });
+    }
+  }
+  return reports;
+}
+async function loadRaws(rawDir2) {
+  let files = [];
+  try {
+    files = (await readdir(rawDir2)).filter((f) => f.endsWith(".md")).sort();
+  } catch {
+    return [];
+  }
+  const raws = [];
+  for (const f of files) {
+    const srcPath = join6(rawDir2, f);
+    const body = await readFile7(srcPath, "utf8");
+    const { fm, bodyAfter } = parseFrontmatter(body);
+    const id = String(fm.id);
+    const attempts = typeof fm.triage_attempts === "number" ? fm.triage_attempts : 0;
+    raws.push({ id, body: bodyAfter, fm, srcPath, attempts });
+  }
+  return raws;
+}
+async function listTodos(repoRoot) {
+  const todoDir2 = join6(repoRoot, "docs/cycle/issues/todo");
+  try {
+    return (await readdir(todoDir2)).filter((f) => f.endsWith(".md")).sort();
+  } catch {
+    return [];
+  }
+}
+function renderPrompt(template, raws, queueRows, todoListing, retryFeedback) {
+  const rawsBlock = raws.map((r) => {
+    const fmSerialized = serializeFrontmatter(r.fm, r.body);
+    return `=== raw: ${r.id} ===
+${fmSerialized}`;
+  }).join("\n");
+  const tbd = queueRows.map((r) => JSON.stringify(r)).join("\n");
+  const todoText = todoListing.join("\n");
+  return template.replace("{{RAWS_BLOCK}}", rawsBlock).replace("{{TBD_JSONL}}", tbd).replace("{{TODO_LISTING}}", todoText).replace("{{RETRY_FEEDBACK}}", retryFeedback);
+}
+function validateOutput(rawStdout, raws, queueRows, cfg2, todoIds = /* @__PURE__ */ new Set()) {
+  let parsed;
+  try {
+    parsed = JSON.parse(rawStdout);
+  } catch (e) {
+    return { ok: false, reason: `stdout is not valid JSON: ${e.message}` };
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false, reason: "stdout is not a JSON object" };
+  }
+  const obj = parsed;
+  if (!Array.isArray(obj.ordering)) {
+    return {
+      ok: false,
+      reason: `ordering: expected array, got ${typeof obj.ordering}`
+    };
+  }
+  for (let i = 0; i < obj.ordering.length; i++) {
+    if (typeof obj.ordering[i] !== "string") {
+      return { ok: false, reason: `ordering[${i}]: expected string` };
+    }
+  }
+  if (!Array.isArray(obj.children)) {
+    return {
+      ok: false,
+      reason: `children: expected array, got ${typeof obj.children}`
+    };
+  }
+  if (!Array.isArray(obj.decomposed_parents)) {
+    return {
+      ok: false,
+      reason: `decomposed_parents: expected array, got ${typeof obj.decomposed_parents}`
+    };
+  }
+  for (let i = 0; i < obj.decomposed_parents.length; i++) {
+    if (typeof obj.decomposed_parents[i] !== "string") {
+      return {
+        ok: false,
+        reason: `decomposed_parents[${i}]: expected string`
+      };
+    }
+  }
+  const children = [];
+  const stringFields = [
+    "raw_id",
+    "slug",
+    "id",
+    "title",
+    "workflow",
+    "body"
+  ];
+  for (let i = 0; i < obj.children.length; i++) {
+    const c = obj.children[i];
+    if (!c || typeof c !== "object" || Array.isArray(c)) {
+      return { ok: false, reason: `children[${i}]: expected object` };
+    }
+    const co = c;
+    for (const field of stringFields) {
+      if (typeof co[field] !== "string") {
+        return {
+          ok: false,
+          reason: `children[${i}].${field}: expected string, got ${typeof co[field]}`
+        };
+      }
+    }
+    if (!Array.isArray(co.depends_on)) {
+      return {
+        ok: false,
+        reason: `children[${i}].depends_on: expected array, got ${typeof co.depends_on}`
+      };
+    }
+    for (let j = 0; j < co.depends_on.length; j++) {
+      if (typeof co.depends_on[j] !== "string") {
+        return {
+          ok: false,
+          reason: `children[${i}].depends_on[${j}]: expected string`
+        };
+      }
+    }
+    const child = co;
+    if (child.id !== child.raw_id && child.id !== `${child.raw_id}-${child.slug}`) {
+      return {
+        ok: false,
+        reason: `children[${i}].id: expected ${child.raw_id} or ${child.raw_id}-${child.slug}, got ${child.id}`
+      };
+    }
+    if (!cfg2.workflows.some((w) => w.name === child.workflow)) {
+      return {
+        ok: false,
+        reason: `children[${i}].workflow: ${child.workflow} not in configured workflows`
+      };
+    }
+    if (!raws.some((r) => r.id === child.raw_id)) {
+      return {
+        ok: false,
+        reason: `children[${i}].raw_id: ${child.raw_id} not in current batch`
+      };
+    }
+    children.push(child);
+  }
+  for (const p of obj.decomposed_parents) {
+    if (!raws.some((r) => r.id === p)) {
+      return {
+        ok: false,
+        reason: `decomposed_parents: ${p} not in current batch`
+      };
+    }
+  }
+  const seen = /* @__PURE__ */ new Set();
+  for (let i = 0; i < children.length; i++) {
+    if (seen.has(children[i].id)) {
+      return {
+        ok: false,
+        reason: `children[${i}].id: duplicate ${children[i].id}`
+      };
+    }
+    seen.add(children[i].id);
+  }
+  const queueIds = new Set(queueRows.map((r) => r.id));
+  for (let i = 0; i < children.length; i++) {
+    if (queueIds.has(children[i].id)) {
+      return {
+        ok: false,
+        reason: `children[${i}].id: ${children[i].id} collides with existing queue row`
+      };
+    }
+  }
+  const pendingIds = new Set(
+    queueRows.filter((r) => r.status === "pending").map((r) => r.id)
+  );
+  const childIds = new Set(children.map((c) => c.id));
+  const orderingArr = obj.ordering;
+  const orderingSeen = /* @__PURE__ */ new Set();
+  for (let i = 0; i < orderingArr.length; i++) {
+    const id = orderingArr[i];
+    if (orderingSeen.has(id)) {
+      return { ok: false, reason: `ordering[${i}]: duplicate ${id}` };
+    }
+    orderingSeen.add(id);
+    if (!pendingIds.has(id) && !childIds.has(id)) {
+      return {
+        ok: false,
+        reason: `ordering[${i}]: ${id} not in current pending and not in new children`
+      };
+    }
+  }
+  const knownIds = /* @__PURE__ */ new Set([...childIds, ...queueIds, ...todoIds]);
+  for (let i = 0; i < children.length; i++) {
+    const c = children[i];
+    for (let j = 0; j < c.depends_on.length; j++) {
+      const dep = c.depends_on[j];
+      if (dep === c.id) {
+        return {
+          ok: false,
+          reason: `children[${i}].depends_on[${j}]: ${c.id} depends on itself (self-loop)`
+        };
+      }
+      if (!knownIds.has(dep)) {
+        return {
+          ok: false,
+          reason: `children[${i}].depends_on[${j}]: ${dep} is not a sibling child, tbd.jsonl row, or todo/<id>.md file (offending child: ${c.id})`
+        };
+      }
+    }
+  }
+  return {
+    ok: true,
+    parsed: {
+      ordering: orderingArr,
+      children,
+      decomposed_parents: obj.decomposed_parents
+    }
+  };
+}
+async function applyRaw(repoRoot, raw, parsed) {
+  const children = parsed.children.filter((c) => c.raw_id === raw.id);
+  const appliedTodos = [];
+  const appliedIds = [];
+  const todoDir2 = join6(repoRoot, "docs/cycle/issues/todo");
+  const doneDir2 = join6(repoRoot, "docs/cycle/issues/done");
+  await mkdir3(todoDir2, { recursive: true });
+  try {
+    const triagedAt = (/* @__PURE__ */ new Date()).toISOString();
+    for (const child of children) {
+      const todoPath = join6(todoDir2, `${child.id}.md`);
+      const fm = {
+        id: child.id,
+        title: child.title,
+        workflow: child.workflow,
+        depends_on: child.depends_on,
+        triaged_at: triagedAt,
+        source: "triage"
+      };
+      if (child.id !== raw.id) fm.parent = raw.id;
+      const bodyTail = child.body.endsWith("\n") ? child.body : child.body + "\n";
+      const todoContent = serializeFrontmatter(fm, bodyTail);
+      await atomicWrite(todoPath, todoContent);
+      appliedTodos.push(todoPath);
+      const row = {
+        id: child.id,
+        title: child.title,
+        status: "pending",
+        attempt: 0,
+        depends_on: child.depends_on,
+        triaged_at: triagedAt
+      };
+      if (child.id !== raw.id) row.parent = raw.id;
+      await appendRow(repoRoot, row);
+      appliedIds.push(child.id);
+    }
+    await mkdir3(doneDir2, { recursive: true });
+    await rename3(raw.srcPath, join6(doneDir2, `${raw.id}_raw.md`));
+  } catch (e) {
+    for (const todo of appliedTodos) {
+      try {
+        await unlink(todo);
+      } catch {
+      }
+    }
+    if (appliedIds.length > 0) {
+      try {
+        const rows = await readQueue(repoRoot);
+        const idSet = new Set(appliedIds);
+        const next = rows.filter((r) => !idSet.has(r.id));
+        await writeQueue(repoRoot, next);
+      } catch {
+      }
+    }
+    throw e;
+  }
+}
+async function atomicWrite(path, content) {
+  await mkdir3(dirname3(path), { recursive: true });
+  const tmp = path + ".tmp";
+  await writeFile4(tmp, content, "utf8");
+  try {
+    await rename3(tmp, path);
+  } catch (e) {
+    try {
+      await unlink(tmp);
+    } catch {
+    }
+    throw e;
+  }
+}
+async function bumpAttempts(srcPath, attempts) {
+  try {
+    await mutateFrontmatter(srcPath, (fm) => ({
+      ...fm,
+      triage_attempts: attempts
+    }));
+  } catch {
+  }
+}
+async function moveToFailed(repoRoot, raw) {
+  const failedDir2 = join6(repoRoot, "docs/cycle/issues/failed");
+  await mkdir3(failedDir2, { recursive: true });
+  try {
+    await mutateFrontmatter(raw.srcPath, (fm) => ({
+      ...fm,
+      triage_attempts: MAX_ATTEMPTS,
+      failed_at: (/* @__PURE__ */ new Date()).toISOString(),
+      failed_step: "triage"
+    }));
+  } catch {
+  }
+  try {
+    await rename3(raw.srcPath, join6(failedDir2, `${raw.id}.md`));
+  } catch {
+  }
+}
+async function rewriteOrdering(repoRoot, ordering, log2) {
+  const rows = await readQueue(repoRoot);
+  const inProgress = rows.filter((r) => r.status === "in_progress");
+  const pending = rows.filter((r) => r.status === "pending");
+  const byId = new Map(pending.map((r) => [r.id, r]));
+  const ordered = [];
+  for (const id of ordering) {
+    const row = byId.get(id);
+    if (row) {
+      ordered.push(row);
+      byId.delete(id);
+    }
+  }
+  for (const [id, row] of byId) {
+    await log2.emit("triage.warning", { reason: "ordering_omitted", id });
+    ordered.push(row);
+  }
+  await writeQueue(repoRoot, [...inProgress, ...ordered]);
+}
+async function runAgentViaDispatch(prompt, cfg2, repoRoot) {
+  const mod = resolveAgent(cfg2.agent);
+  const cycleDir = join6(repoRoot, ".cycle");
+  await mkdir3(cycleDir, { recursive: true });
+  const tmpName = `.triage-${randomBytes(8).toString("hex")}.prompt.md`;
+  const tmpPath = join6(cycleDir, tmpName);
+  try {
+    await writeFile4(tmpPath, prompt, "utf8");
+    const r = await mod.runStep({ repoRoot, promptPath: tmpName });
+    return { exitCode: r.exitCode, stdout: r.stdout, stderr: r.stderr };
+  } finally {
+    await unlink(tmpPath).catch(() => {
+    });
+  }
+}
+var MAX_ATTEMPTS;
+var init_triage = __esm({
+  "src/engine/triage.ts"() {
+    "use strict";
+    init_frontmatter();
+    init_queue();
+    init_exec();
+    MAX_ATTEMPTS = 3;
+  }
+});
+
 // ../../../node_modules/yaml/dist/nodes/identity.js
 var require_identity = __commonJS({
   "../../../node_modules/yaml/dist/nodes/identity.js"(exports) {
@@ -7367,6 +8312,141 @@ var require_dist = __commonJS({
   }
 });
 
+// src/engine/workflow.ts
+import { readFile as readFile9 } from "node:fs/promises";
+import { join as join9 } from "node:path";
+async function loadConfig(repoRoot) {
+  const path = join9(repoRoot, ".cycle/workflows.yml");
+  let body;
+  try {
+    body = await readFile9(path, "utf8");
+  } catch {
+    throw new Error(`workflows.yml missing: ${path}`);
+  }
+  const parsed = import_yaml.default.parse(body);
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error(`workflows.yml malformed: not an object (${path})`);
+  }
+  if (!parsed.engine || typeof parsed.engine !== "object") {
+    throw new Error(`workflows.yml malformed: missing engine (${path})`);
+  }
+  if (!parsed.triage || typeof parsed.triage !== "object") {
+    throw new Error(`workflows.yml malformed: missing triage (${path})`);
+  }
+  if (!Array.isArray(parsed.workflows)) {
+    throw new Error(`workflows.yml malformed: workflows must be an array (${path})`);
+  }
+  for (const w of parsed.workflows) {
+    if (!w?.name || !Array.isArray(w.steps)) {
+      throw new Error(`workflows.yml malformed: workflow entry missing name or steps (${path})`);
+    }
+  }
+  return parsed;
+}
+async function loadWorkflow(repoRoot, name) {
+  const cfg2 = await loadConfig(repoRoot);
+  const wf = cfg2.workflows.find((w) => w.name === name);
+  if (!wf) throw new Error(`unknown workflow: ${name}`);
+  return wf;
+}
+var import_yaml;
+var init_workflow = __esm({
+  "src/engine/workflow.ts"() {
+    "use strict";
+    import_yaml = __toESM(require_dist(), 1);
+  }
+});
+
+// src/engine/log-tail.ts
+import { readFile as readFile10 } from "node:fs/promises";
+import { join as join15 } from "node:path";
+function parseLogTail(text) {
+  const events = [];
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      events.push(JSON.parse(line));
+    } catch {
+    }
+  }
+  let lastStartIdx = -1;
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].event === "cycle.start") {
+      lastStartIdx = i;
+      break;
+    }
+  }
+  if (lastStartIdx < 0) return null;
+  const start = events[lastStartIdx];
+  const cycleId = typeof start.cycle_id === "string" ? start.cycle_id : "";
+  if (!cycleId) return null;
+  for (let i = lastStartIdx + 1; i < events.length; i++) {
+    if (events[i].event === "cycle.end" && events[i].cycle_id === cycleId) {
+      return null;
+    }
+  }
+  const completedSteps = [];
+  for (let i = lastStartIdx + 1; i < events.length; i++) {
+    const e = events[i];
+    if (e.event !== "step.end") continue;
+    if (e.cycle_id !== cycleId) continue;
+    if (e.status !== "ok") continue;
+    const name = e.step;
+    if (typeof name === "string" && !completedSteps.includes(name)) {
+      completedSteps.push(name);
+    }
+  }
+  let lastStepStarted;
+  for (let i = events.length - 1; i > lastStartIdx; i--) {
+    const e = events[i];
+    if (e.event !== "step.start") continue;
+    if (e.cycle_id !== cycleId) continue;
+    const name = e.step;
+    if (typeof name !== "string") continue;
+    let ended = false;
+    for (let j = i + 1; j < events.length; j++) {
+      const f = events[j];
+      if (f.event === "step.end" && f.cycle_id === cycleId && f.step === name) {
+        ended = true;
+        break;
+      }
+    }
+    if (!ended) {
+      lastStepStarted = name;
+      break;
+    }
+  }
+  const rawIssue = start.issue_id;
+  const rawWf = start.workflow;
+  const rawTitle = start.title;
+  const issueId = typeof rawIssue === "string" ? rawIssue : "";
+  const workflow = typeof rawWf === "string" ? rawWf : "";
+  const title = typeof rawTitle === "string" ? rawTitle : "";
+  return {
+    cycleId,
+    issueId,
+    workflow,
+    title,
+    startTs: start.ts,
+    completedSteps,
+    lastStepStarted
+  };
+}
+async function readLogTail(repoRoot) {
+  try {
+    const text = await readFile10(join15(repoRoot, ".cycle", "log.jsonl"), "utf8");
+    return parseLogTail(text);
+  } catch (e) {
+    if (e.code === "ENOENT") return null;
+    throw e;
+  }
+}
+var init_log_tail = __esm({
+  "src/engine/log-tail.ts"() {
+    "use strict";
+  }
+});
+
 // src/cli/init.ts
 var init_exports = {};
 __export(init_exports, {
@@ -7374,27 +8454,27 @@ __export(init_exports, {
 });
 import { cp, mkdir as mkdir7, stat as stat2, chmod, copyFile } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname5, join as join14 } from "node:path";
+import { dirname as dirname5, join as join16 } from "node:path";
 async function runInit(opts) {
   const t = opts.targetRoot;
   const enginePath = await locateEngineBundle();
-  await mkdir7(join14(t, ".cycle/bin"), { recursive: true });
-  await copyFile(enginePath, join14(t, ".cycle/bin/cycle.js"));
-  await chmod(join14(t, ".cycle/bin/cycle.js"), 493);
+  await mkdir7(join16(t, ".cycle/bin"), { recursive: true });
+  await copyFile(enginePath, join16(t, ".cycle/bin/cycle.js"));
+  await chmod(join16(t, ".cycle/bin/cycle.js"), 493);
   const defaults = await locateDefaultsDir();
-  await mkdir7(join14(t, ".cycle"), { recursive: true });
-  await copyFile(join14(defaults, "workflows.yml"), join14(t, ".cycle/workflows.yml"));
-  await cp(join14(defaults, "prompts"), join14(t, ".cycle/prompts"), { recursive: true });
-  await cp(join14(defaults, "scripts"), join14(t, ".cycle/scripts"), { recursive: true });
+  await mkdir7(join16(t, ".cycle"), { recursive: true });
+  await copyFile(join16(defaults, "workflows.yml"), join16(t, ".cycle/workflows.yml"));
+  await cp(join16(defaults, "prompts"), join16(t, ".cycle/prompts"), { recursive: true });
+  await cp(join16(defaults, "scripts"), join16(t, ".cycle/scripts"), { recursive: true });
   for (const sub of ["raw", "todo", "done", "blocked", "failed"]) {
-    await mkdir7(join14(t, "docs/cycle/issues", sub), { recursive: true });
+    await mkdir7(join16(t, "docs/cycle/issues", sub), { recursive: true });
   }
 }
 async function locateEngineBundle() {
   const candidates = [
-    join14(HERE, "..", "..", "dist", "cycle.js"),
-    join14(HERE, "..", "dist", "cycle.js"),
-    join14(HERE, "cycle.js")
+    join16(HERE, "..", "..", "dist", "cycle.js"),
+    join16(HERE, "..", "dist", "cycle.js"),
+    join16(HERE, "cycle.js")
   ];
   for (const c of candidates) {
     try {
@@ -7407,13 +8487,13 @@ async function locateEngineBundle() {
 }
 async function locateDefaultsDir() {
   const candidates = [
-    join14(HERE, "defaults"),
+    join16(HERE, "defaults"),
     // dist/defaults next to dist/cycle.js
-    join14(HERE, "..", "defaults"),
+    join16(HERE, "..", "defaults"),
     // dist/../defaults
-    join14(HERE, "..", "..", "src", "defaults"),
+    join16(HERE, "..", "..", "src", "defaults"),
     // local dev from src/cli/
-    join14(HERE, "..", "src", "defaults")
+    join16(HERE, "..", "src", "defaults")
     // local dev from src/
   ];
   for (const c of candidates) {
@@ -7433,9 +8513,114 @@ var init_init = __esm({
   }
 });
 
+// src/cli/status.ts
+var status_exports = {};
+__export(status_exports, {
+  ISSUE_FOLDERS: () => ISSUE_FOLDERS,
+  runStatus: () => runStatus
+});
+import { readdir as readdir3 } from "node:fs/promises";
+import { join as join17 } from "node:path";
+async function countMd(dir) {
+  try {
+    const entries = await readdir3(dir);
+    return entries.filter((f) => f.endsWith(".md")).length;
+  } catch (e) {
+    if (e.code === "ENOENT") return 0;
+    throw e;
+  }
+}
+async function runStatus({ cwd: cwd2 }) {
+  const counts = {
+    raw: 0,
+    todo: 0,
+    done: 0,
+    failed: 0,
+    blocked: 0
+  };
+  for (const name of ISSUE_FOLDERS) {
+    counts[name] = await countMd(join17(cwd2, "docs/cycle/issues", name));
+  }
+  const rows = await readQueue(cwd2);
+  const pending = rows.filter((r) => r.status === "pending").length;
+  const inProgress = rows.filter((r) => r.status === "in_progress");
+  const tail = await readLogTail(cwd2);
+  const lines = [];
+  for (const name of ISSUE_FOLDERS) lines.push(`${name}: ${counts[name]}`);
+  lines.push("");
+  lines.push(`queue_total: ${rows.length}`);
+  lines.push(`queue_pending: ${pending}`);
+  lines.push(`queue_in_progress: ${inProgress.length}`);
+  for (const r of inProgress) {
+    lines.push(`  - id=${r.id} cycle_id=${r.cycle_id ?? "-"}`);
+  }
+  lines.push("");
+  if (tail) {
+    lines.push(`in_flight: ${tail.cycleId} step=${tail.lastStepStarted ?? "-"}`);
+  } else {
+    lines.push("in_flight: none");
+  }
+  return lines.join("\n");
+}
+var ISSUE_FOLDERS;
+var init_status = __esm({
+  "src/cli/status.ts"() {
+    "use strict";
+    init_queue();
+    init_log_tail();
+    ISSUE_FOLDERS = ["raw", "todo", "done", "failed", "blocked"];
+  }
+});
+
+// src/cli/triage.ts
+var triage_exports = {};
+__export(triage_exports, {
+  runCliTriage: () => runCliTriage
+});
+async function runCliTriage(repoRoot, argv2, deps = {}) {
+  if (argv2.includes("--help") || argv2.includes("-h")) {
+    return { exitCode: 0, stdout: HELP + "\n" };
+  }
+  if (!argv2.includes("--dry-run")) {
+    return { exitCode: 2, stdout: "", stderr: HELP };
+  }
+  const cfg2 = await loadConfig(repoRoot);
+  const reports = await dryRunTriage(repoRoot, cfg2, deps);
+  const anyFailed = reports.some((r) => r.status === "failed");
+  return {
+    exitCode: anyFailed ? 1 : 0,
+    stdout: JSON.stringify(reports, null, 2) + "\n"
+  };
+}
+var HELP;
+var init_triage2 = __esm({
+  "src/cli/triage.ts"() {
+    "use strict";
+    init_workflow();
+    init_triage();
+    HELP = `Usage: cycle triage --dry-run [--help]
+
+Re-run the configured triage agent against every file in
+docs/cycle/issues/raw/ and print a per-raw report as JSON.
+
+The --dry-run mode performs no engine-side filesystem mutations:
+  - no writes under docs/cycle/issues/{raw,todo,done,failed}
+  - no appends/rewrites to .cycle/tbd.jsonl
+  - no writes to .cycle/log.jsonl
+
+The triage agent itself is still invoked, so the agent binary's own
+behavior is out of scope of this guarantee.
+
+Exits 0 if every raw passed validation, 1 otherwise.
+
+Note: cycle triage without --dry-run is not implemented; real triage
+runs as part of \`cycle run\`.`;
+  }
+});
+
 // src/cli.ts
-import { readFile as readFile9, readdir as readdir3, rename as rename6, mkdir as mkdir8 } from "node:fs/promises";
-import { join as join15 } from "node:path";
+import { readFile as readFile11, readdir as readdir4, rename as rename6, mkdir as mkdir8 } from "node:fs/promises";
+import { join as join18 } from "node:path";
 
 // src/version.ts
 import { readFile } from "node:fs/promises";
@@ -7505,6 +8690,7 @@ async function materializeFreeformIssue(text, repoRoot, now = /* @__PURE__ */ ne
     `title: "${text.replace(/"/g, '\\"')}"`,
     `added_at: ${now.toISOString()}`,
     "triage_attempts: 0",
+    "priority: 3",
     "---",
     "",
     text,
@@ -7514,676 +8700,15 @@ async function materializeFreeformIssue(text, repoRoot, now = /* @__PURE__ */ ne
   return { path, id };
 }
 
-// src/engine/triage.ts
-import { spawn } from "node:child_process";
-import { readFile as readFile4, writeFile as writeFile4, readdir, mkdir as mkdir3, rename as rename3, unlink } from "node:fs/promises";
-import { join as join3, dirname as dirname3 } from "node:path";
-
-// src/engine/frontmatter.ts
-import { readFile as readFile2, writeFile as writeFile2, rename } from "node:fs/promises";
-var FM_RE = /^---\n([\s\S]*?)\n---\n/;
-function parseScalar(raw) {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    const inner = trimmed.slice(1, -1).trim();
-    if (inner === "") return [];
-    return inner.split(",").map((p) => p.trim().replace(/^"(.*)"$/s, "$1"));
-  }
-  if (/^-?\d+$/.test(trimmed)) return Number(trimmed);
-  return trimmed.replace(/^"((?:[^"\\]|\\.)*)"$/s, (_, inner) => inner.replace(/\\"/g, '"'));
-}
-function parseFrontmatter(body) {
-  const m = body.match(FM_RE);
-  if (!m) throw new Error("no frontmatter");
-  const fm = {};
-  for (const line of m[1].split("\n")) {
-    if (!line.trim()) continue;
-    const kv = line.match(/^(\w+):\s*(.*)$/);
-    if (kv) fm[kv[1]] = parseScalar(kv[2]);
-  }
-  const bodyAfter = body.slice(m[0].length);
-  return { fm, bodyAfter };
-}
-function needsQuote(s) {
-  if (s === "") return true;
-  if (/^[\s]/.test(s) || /[\s]$/.test(s)) return true;
-  if (/[:"#\n]/.test(s)) return true;
-  if (/^-?\d+$/.test(s)) return true;
-  return false;
-}
-function serializeValue(v) {
-  if (Array.isArray(v)) {
-    return "[" + v.map((s) => needsQuote(s) ? `"${s.replace(/"/g, '\\"')}"` : s).join(", ") + "]";
-  }
-  if (typeof v === "number") return String(v);
-  if (needsQuote(v)) return `"${v.replace(/"/g, '\\"')}"`;
-  return v;
-}
-function serializeFrontmatter(fm, bodyAfter) {
-  const lines = ["---"];
-  for (const [k, v] of Object.entries(fm)) {
-    lines.push(`${k}: ${serializeValue(v)}`);
-  }
-  lines.push("---");
-  return lines.join("\n") + "\n" + bodyAfter;
-}
-async function mutateFrontmatter(path, patch) {
-  const body = await readFile2(path, "utf8");
-  const { fm, bodyAfter } = parseFrontmatter(body);
-  const next = patch({ ...fm });
-  const out = serializeFrontmatter(next, bodyAfter);
-  const tmp = path + ".tmp";
-  await writeFile2(tmp, out, "utf8");
-  await rename(tmp, path);
-}
-
-// src/engine/queue.ts
-import { readFile as readFile3, writeFile as writeFile3, rename as rename2, appendFile, mkdir as mkdir2, stat } from "node:fs/promises";
-import { join as join2 } from "node:path";
-function queuePath(repoRoot) {
-  return join2(repoRoot, ".cycle", "tbd.jsonl");
-}
-async function ensureCycleDir(repoRoot) {
-  await mkdir2(join2(repoRoot, ".cycle"), { recursive: true });
-}
-function isLegacyLine(parsed) {
-  if (!parsed || typeof parsed !== "object") return false;
-  const obj = parsed;
-  if (typeof obj.id !== "string") return false;
-  return obj.status === void 0;
-}
-function isQueueRow(parsed) {
-  if (!parsed || typeof parsed !== "object") return false;
-  const obj = parsed;
-  if (typeof obj.id !== "string") return false;
-  if (typeof obj.title !== "string") return false;
-  if (obj.status !== "pending" && obj.status !== "in_progress") return false;
-  if (typeof obj.attempt !== "number") return false;
-  if (!Array.isArray(obj.depends_on)) return false;
-  if (typeof obj.triaged_at !== "string") return false;
-  return true;
-}
-async function readQueue(repoRoot) {
-  const path = queuePath(repoRoot);
-  let raw;
-  try {
-    raw = await readFile3(path, "utf8");
-  } catch (e) {
-    if (e.code === "ENOENT") return [];
-    throw e;
-  }
-  const rows = [];
-  for (const line of raw.split("\n")) {
-    if (!line.trim()) continue;
-    let parsed;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (!isQueueRow(parsed)) continue;
-    rows.push(parsed);
-  }
-  return rows;
-}
-async function writeQueue(repoRoot, rows) {
-  await ensureCycleDir(repoRoot);
-  const path = queuePath(repoRoot);
-  const body = rows.map((r) => JSON.stringify(r)).join("\n") + (rows.length ? "\n" : "");
-  const tmp = path + ".tmp";
-  await writeFile3(tmp, body, "utf8");
-  await rename2(tmp, path);
-}
-async function appendRow(repoRoot, row) {
-  await ensureCycleDir(repoRoot);
-  await appendFile(queuePath(repoRoot), JSON.stringify(row) + "\n", "utf8");
-}
-async function pickArchivePath(repoRoot) {
-  const base = join2(repoRoot, ".cycle", "tbd.jsonl.bootstrap-archive");
-  try {
-    await stat(base);
-  } catch {
-    return base;
-  }
-  for (let i = 1; i < 1e3; i++) {
-    const candidate = `${base}.${i}`;
-    try {
-      await stat(candidate);
-    } catch {
-      return candidate;
-    }
-  }
-  throw new Error("too many bootstrap archives");
-}
-async function bootstrapArchiveIfLegacy(repoRoot) {
-  const path = queuePath(repoRoot);
-  let raw;
-  try {
-    raw = await readFile3(path, "utf8");
-  } catch (e) {
-    if (e.code === "ENOENT") return false;
-    throw e;
-  }
-  let hasLegacy = false;
-  for (const line of raw.split("\n")) {
-    if (!line.trim()) continue;
-    let parsed;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (isLegacyLine(parsed)) {
-      hasLegacy = true;
-      break;
-    }
-  }
-  if (!hasLegacy) return false;
-  const archive = await pickArchivePath(repoRoot);
-  await rename2(path, archive);
-  return true;
-}
-async function popNextPending(repoRoot) {
-  const rows = await readQueue(repoRoot);
-  for (const row of rows) {
-    if (row.status === "pending") return row;
-  }
-  return null;
-}
-async function markInProgress(repoRoot, id, cycleId) {
-  const rows = await readQueue(repoRoot);
-  let touched = false;
-  for (const r of rows) {
-    if (r.id !== id) continue;
-    if (r.status === "in_progress" && r.cycle_id && r.cycle_id !== cycleId) {
-      throw new Error(
-        `markInProgress: row ${id} already in_progress for cycle ${r.cycle_id}, refusing to overwrite with ${cycleId}`
-      );
-    }
-    r.status = "in_progress";
-    r.cycle_id = cycleId;
-    touched = true;
-  }
-  if (!touched) throw new Error(`markInProgress: id not found: ${id}`);
-  await writeQueue(repoRoot, rows);
-}
-async function drainOk(repoRoot, id) {
-  const rows = await readQueue(repoRoot);
-  const next = rows.filter((r) => r.id !== id);
-  await writeQueue(repoRoot, next);
-}
-async function drainFailedRetry(repoRoot, id) {
-  const rows = await readQueue(repoRoot);
-  for (const r of rows) {
-    if (r.id === id) {
-      r.attempt += 1;
-      r.status = "pending";
-      delete r.cycle_id;
-    }
-  }
-  await writeQueue(repoRoot, rows);
-}
-async function drainFailedTerminal(repoRoot, id) {
-  const rows = await readQueue(repoRoot);
-  const next = rows.filter((r) => r.id !== id);
-  await writeQueue(repoRoot, next);
-}
-
-// src/engine/child-env.ts
-import { dirname as dirname2, delimiter } from "node:path";
-function buildChildEnv(extra) {
-  const nodeBinDir = dirname2(process.execPath);
-  const basePath = extra.PATH ?? process.env.PATH ?? "";
-  const path = basePath ? `${nodeBinDir}${delimiter}${basePath}` : nodeBinDir;
-  return { ...process.env, ...extra, PATH: path };
-}
-
-// src/engine/triage.ts
-var MAX_ATTEMPTS = 3;
-async function runTriage(repoRoot, cfg2, log2, deps = {}) {
-  if (cfg2.triage.agent !== "claudecode") {
-    throw new Error(`unsupported triage agent: ${cfg2.triage.agent}`);
-  }
-  const runAgent = deps.runAgent ?? runClaudecodeAgent;
-  await bootstrapArchiveIfLegacy(repoRoot);
-  const rawDir2 = join3(repoRoot, "docs/cycle/issues/raw");
-  await mkdir3(rawDir2, { recursive: true });
-  const raws = await loadRaws(rawDir2);
-  await log2.emit("triage.start", { count: raws.length });
-  if (raws.length === 0) {
-    await log2.emit("triage.end", { processed: 0, failed: 0 });
-    return { status: "ok", processed: [], failed: [] };
-  }
-  const promptTemplate = await readFile4(
-    join3(repoRoot, ".cycle", cfg2.triage.prompt),
-    "utf8"
-  );
-  const processed = [];
-  const failed = [];
-  let lastOrdering = null;
-  for (const raw of raws) {
-    let succeeded = false;
-    let lastError = "";
-    for (let attempt = raw.attempts; attempt < MAX_ATTEMPTS; attempt++) {
-      const queueRows = await readQueue(repoRoot);
-      const todoListing = await listTodos(repoRoot);
-      const feedback = lastError ? `PREVIOUS ATTEMPT FAILED VALIDATION:
-${lastError}` : "";
-      const renderedPrompt = renderPrompt(
-        promptTemplate,
-        [raw],
-        queueRows,
-        todoListing,
-        feedback
-      );
-      let agentResult;
-      try {
-        agentResult = await runAgent(renderedPrompt, cfg2.triage, repoRoot);
-      } catch (e) {
-        lastError = `agent failed: ${e.message}`;
-        await bumpAttempts(raw.srcPath, attempt + 1);
-        await log2.emit("triage.raw.failed", {
-          raw_id: raw.id,
-          attempt: attempt + 1,
-          reason: lastError
-        });
-        continue;
-      }
-      if (agentResult.exitCode !== 0) {
-        lastError = `agent exited ${agentResult.exitCode}: ${agentResult.stderr.trim()}`;
-        await bumpAttempts(raw.srcPath, attempt + 1);
-        await log2.emit("triage.raw.failed", {
-          raw_id: raw.id,
-          attempt: attempt + 1,
-          reason: lastError
-        });
-        continue;
-      }
-      const validation = validateOutput(agentResult.stdout, [raw], queueRows, cfg2);
-      if (!validation.ok) {
-        lastError = validation.reason;
-        await bumpAttempts(raw.srcPath, attempt + 1);
-        await log2.emit("triage.raw.failed", {
-          raw_id: raw.id,
-          attempt: attempt + 1,
-          reason: lastError
-        });
-        continue;
-      }
-      try {
-        await applyRaw(repoRoot, raw, validation.parsed);
-      } catch (e) {
-        lastError = `apply failed: ${e.message}`;
-        await bumpAttempts(raw.srcPath, attempt + 1);
-        await log2.emit("triage.raw.failed", {
-          raw_id: raw.id,
-          attempt: attempt + 1,
-          reason: lastError
-        });
-        continue;
-      }
-      lastOrdering = validation.parsed.ordering;
-      await log2.emit("triage.raw.ok", {
-        raw_id: raw.id,
-        children: validation.parsed.children.filter((c) => c.raw_id === raw.id).map((c) => c.id)
-      });
-      processed.push(raw.id);
-      succeeded = true;
-      break;
-    }
-    if (!succeeded) {
-      failed.push(raw.id);
-      await moveToFailed(repoRoot, raw);
-    }
-  }
-  if (lastOrdering) {
-    await rewriteOrdering(repoRoot, lastOrdering, log2);
-  }
-  if (failed.length === raws.length) {
-    await log2.emit("engine.paused", { reason: "triage_failed", failed });
-    return { status: "paused", processed, failed };
-  }
-  await log2.emit("triage.end", {
-    processed: processed.length,
-    failed: failed.length
-  });
-  return { status: "ok", processed, failed };
-}
-async function loadRaws(rawDir2) {
-  let files = [];
-  try {
-    files = (await readdir(rawDir2)).filter((f) => f.endsWith(".md")).sort();
-  } catch {
-    return [];
-  }
-  const raws = [];
-  for (const f of files) {
-    const srcPath = join3(rawDir2, f);
-    const body = await readFile4(srcPath, "utf8");
-    const { fm, bodyAfter } = parseFrontmatter(body);
-    const id = String(fm.id);
-    const attempts = typeof fm.triage_attempts === "number" ? fm.triage_attempts : 0;
-    raws.push({ id, body: bodyAfter, fm, srcPath, attempts });
-  }
-  return raws;
-}
-async function listTodos(repoRoot) {
-  const todoDir2 = join3(repoRoot, "docs/cycle/issues/todo");
-  try {
-    return (await readdir(todoDir2)).filter((f) => f.endsWith(".md")).sort();
-  } catch {
-    return [];
-  }
-}
-function renderPrompt(template, raws, queueRows, todoListing, retryFeedback) {
-  const rawsBlock = raws.map((r) => {
-    const fmSerialized = serializeFrontmatter(r.fm, r.body);
-    return `=== raw: ${r.id} ===
-${fmSerialized}`;
-  }).join("\n");
-  const tbd = queueRows.map((r) => JSON.stringify(r)).join("\n");
-  const todoText = todoListing.join("\n");
-  return template.replace("{{RAWS_BLOCK}}", rawsBlock).replace("{{TBD_JSONL}}", tbd).replace("{{TODO_LISTING}}", todoText).replace("{{RETRY_FEEDBACK}}", retryFeedback);
-}
-function validateOutput(rawStdout, raws, queueRows, cfg2) {
-  let parsed;
-  try {
-    parsed = JSON.parse(rawStdout);
-  } catch (e) {
-    return { ok: false, reason: `stdout is not valid JSON: ${e.message}` };
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { ok: false, reason: "stdout is not a JSON object" };
-  }
-  const obj = parsed;
-  if (!Array.isArray(obj.ordering)) {
-    return {
-      ok: false,
-      reason: `ordering: expected array, got ${typeof obj.ordering}`
-    };
-  }
-  for (let i = 0; i < obj.ordering.length; i++) {
-    if (typeof obj.ordering[i] !== "string") {
-      return { ok: false, reason: `ordering[${i}]: expected string` };
-    }
-  }
-  if (!Array.isArray(obj.children)) {
-    return {
-      ok: false,
-      reason: `children: expected array, got ${typeof obj.children}`
-    };
-  }
-  if (!Array.isArray(obj.decomposed_parents)) {
-    return {
-      ok: false,
-      reason: `decomposed_parents: expected array, got ${typeof obj.decomposed_parents}`
-    };
-  }
-  for (let i = 0; i < obj.decomposed_parents.length; i++) {
-    if (typeof obj.decomposed_parents[i] !== "string") {
-      return {
-        ok: false,
-        reason: `decomposed_parents[${i}]: expected string`
-      };
-    }
-  }
-  const children = [];
-  const stringFields = [
-    "raw_id",
-    "slug",
-    "id",
-    "title",
-    "workflow",
-    "body"
-  ];
-  for (let i = 0; i < obj.children.length; i++) {
-    const c = obj.children[i];
-    if (!c || typeof c !== "object" || Array.isArray(c)) {
-      return { ok: false, reason: `children[${i}]: expected object` };
-    }
-    const co = c;
-    for (const field of stringFields) {
-      if (typeof co[field] !== "string") {
-        return {
-          ok: false,
-          reason: `children[${i}].${field}: expected string, got ${typeof co[field]}`
-        };
-      }
-    }
-    if (!Array.isArray(co.depends_on)) {
-      return {
-        ok: false,
-        reason: `children[${i}].depends_on: expected array, got ${typeof co.depends_on}`
-      };
-    }
-    for (let j = 0; j < co.depends_on.length; j++) {
-      if (typeof co.depends_on[j] !== "string") {
-        return {
-          ok: false,
-          reason: `children[${i}].depends_on[${j}]: expected string`
-        };
-      }
-    }
-    const child = co;
-    if (child.id !== child.raw_id && child.id !== `${child.raw_id}-${child.slug}`) {
-      return {
-        ok: false,
-        reason: `children[${i}].id: expected ${child.raw_id} or ${child.raw_id}-${child.slug}, got ${child.id}`
-      };
-    }
-    if (!cfg2.workflows.some((w) => w.name === child.workflow)) {
-      return {
-        ok: false,
-        reason: `children[${i}].workflow: ${child.workflow} not in configured workflows`
-      };
-    }
-    if (!raws.some((r) => r.id === child.raw_id)) {
-      return {
-        ok: false,
-        reason: `children[${i}].raw_id: ${child.raw_id} not in current batch`
-      };
-    }
-    children.push(child);
-  }
-  for (const p of obj.decomposed_parents) {
-    if (!raws.some((r) => r.id === p)) {
-      return {
-        ok: false,
-        reason: `decomposed_parents: ${p} not in current batch`
-      };
-    }
-  }
-  const seen = /* @__PURE__ */ new Set();
-  for (let i = 0; i < children.length; i++) {
-    if (seen.has(children[i].id)) {
-      return {
-        ok: false,
-        reason: `children[${i}].id: duplicate ${children[i].id}`
-      };
-    }
-    seen.add(children[i].id);
-  }
-  const queueIds = new Set(queueRows.map((r) => r.id));
-  for (let i = 0; i < children.length; i++) {
-    if (queueIds.has(children[i].id)) {
-      return {
-        ok: false,
-        reason: `children[${i}].id: ${children[i].id} collides with existing queue row`
-      };
-    }
-  }
-  const pendingIds = new Set(
-    queueRows.filter((r) => r.status === "pending").map((r) => r.id)
-  );
-  const childIds = new Set(children.map((c) => c.id));
-  const orderingArr = obj.ordering;
-  const orderingSeen = /* @__PURE__ */ new Set();
-  for (let i = 0; i < orderingArr.length; i++) {
-    const id = orderingArr[i];
-    if (orderingSeen.has(id)) {
-      return { ok: false, reason: `ordering[${i}]: duplicate ${id}` };
-    }
-    orderingSeen.add(id);
-    if (!pendingIds.has(id) && !childIds.has(id)) {
-      return {
-        ok: false,
-        reason: `ordering[${i}]: ${id} not in current pending and not in new children`
-      };
-    }
-  }
-  return {
-    ok: true,
-    parsed: {
-      ordering: orderingArr,
-      children,
-      decomposed_parents: obj.decomposed_parents
-    }
-  };
-}
-async function applyRaw(repoRoot, raw, parsed) {
-  const children = parsed.children.filter((c) => c.raw_id === raw.id);
-  const appliedTodos = [];
-  const appliedIds = [];
-  const todoDir2 = join3(repoRoot, "docs/cycle/issues/todo");
-  const doneDir2 = join3(repoRoot, "docs/cycle/issues/done");
-  await mkdir3(todoDir2, { recursive: true });
-  try {
-    const triagedAt = (/* @__PURE__ */ new Date()).toISOString();
-    for (const child of children) {
-      const todoPath = join3(todoDir2, `${child.id}.md`);
-      const fm = {
-        id: child.id,
-        title: child.title,
-        workflow: child.workflow,
-        depends_on: child.depends_on,
-        triaged_at: triagedAt,
-        source: "triage"
-      };
-      if (child.id !== raw.id) fm.parent = raw.id;
-      const bodyTail = child.body.endsWith("\n") ? child.body : child.body + "\n";
-      const todoContent = serializeFrontmatter(fm, bodyTail);
-      await atomicWrite(todoPath, todoContent);
-      appliedTodos.push(todoPath);
-      const row = {
-        id: child.id,
-        title: child.title,
-        status: "pending",
-        attempt: 0,
-        depends_on: child.depends_on,
-        triaged_at: triagedAt
-      };
-      if (child.id !== raw.id) row.parent = raw.id;
-      await appendRow(repoRoot, row);
-      appliedIds.push(child.id);
-    }
-    await mkdir3(doneDir2, { recursive: true });
-    await rename3(raw.srcPath, join3(doneDir2, `${raw.id}_raw.md`));
-  } catch (e) {
-    for (const todo of appliedTodos) {
-      try {
-        await unlink(todo);
-      } catch {
-      }
-    }
-    if (appliedIds.length > 0) {
-      try {
-        const rows = await readQueue(repoRoot);
-        const idSet = new Set(appliedIds);
-        const next = rows.filter((r) => !idSet.has(r.id));
-        await writeQueue(repoRoot, next);
-      } catch {
-      }
-    }
-    throw e;
-  }
-}
-async function atomicWrite(path, content) {
-  await mkdir3(dirname3(path), { recursive: true });
-  const tmp = path + ".tmp";
-  await writeFile4(tmp, content, "utf8");
-  try {
-    await rename3(tmp, path);
-  } catch (e) {
-    try {
-      await unlink(tmp);
-    } catch {
-    }
-    throw e;
-  }
-}
-async function bumpAttempts(srcPath, attempts) {
-  try {
-    await mutateFrontmatter(srcPath, (fm) => ({
-      ...fm,
-      triage_attempts: attempts
-    }));
-  } catch {
-  }
-}
-async function moveToFailed(repoRoot, raw) {
-  const failedDir2 = join3(repoRoot, "docs/cycle/issues/failed");
-  await mkdir3(failedDir2, { recursive: true });
-  try {
-    await mutateFrontmatter(raw.srcPath, (fm) => ({
-      ...fm,
-      triage_attempts: MAX_ATTEMPTS,
-      failed_at: (/* @__PURE__ */ new Date()).toISOString(),
-      failed_step: "triage"
-    }));
-  } catch {
-  }
-  try {
-    await rename3(raw.srcPath, join3(failedDir2, `${raw.id}.md`));
-  } catch {
-  }
-}
-async function rewriteOrdering(repoRoot, ordering, log2) {
-  const rows = await readQueue(repoRoot);
-  const inProgress = rows.filter((r) => r.status === "in_progress");
-  const pending = rows.filter((r) => r.status === "pending");
-  const byId = new Map(pending.map((r) => [r.id, r]));
-  const ordered = [];
-  for (const id of ordering) {
-    const row = byId.get(id);
-    if (row) {
-      ordered.push(row);
-      byId.delete(id);
-    }
-  }
-  for (const [id, row] of byId) {
-    await log2.emit("triage.warning", { reason: "ordering_omitted", id });
-    ordered.push(row);
-  }
-  await writeQueue(repoRoot, [...inProgress, ...ordered]);
-}
-async function runClaudecodeAgent(prompt, _cfg, repoRoot) {
-  return new Promise((resolve2, reject) => {
-    const child = spawn("claude", ["-p", prompt], {
-      cwd: repoRoot,
-      env: buildChildEnv({}),
-      shell: false
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (d) => {
-      stdout += d.toString();
-    });
-    child.stderr.on("data", (d) => {
-      stderr += d.toString();
-    });
-    child.on("close", (code) => {
-      resolve2({ exitCode: code ?? -1, stdout, stderr });
-    });
-    child.on("error", (err) => reject(err));
-  });
-}
+// src/cli.ts
+init_triage();
 
 // src/engine/log.ts
 import { appendFile as appendFile2, mkdir as mkdir4 } from "node:fs/promises";
-import { join as join4 } from "node:path";
+import { join as join7 } from "node:path";
 async function createLogger(repoRoot, sink = console.log) {
-  const path = join4(repoRoot, ".cycle", "log.jsonl");
-  await mkdir4(join4(repoRoot, ".cycle"), { recursive: true });
+  const path = join7(repoRoot, ".cycle", "log.jsonl");
+  await mkdir4(join7(repoRoot, ".cycle"), { recursive: true });
   return {
     async emit(event, fields) {
       const line = JSON.stringify({ ts: (/* @__PURE__ */ new Date()).toISOString(), event, ...fields });
@@ -8194,12 +8719,12 @@ async function createLogger(repoRoot, sink = console.log) {
 }
 
 // src/engine/cycle-id.ts
-import { readFile as readFile5 } from "node:fs/promises";
-import { join as join5 } from "node:path";
+import { readFile as readFile8 } from "node:fs/promises";
+import { join as join8 } from "node:path";
 async function allocateCycleId(repoRoot) {
   let highest = 0;
   try {
-    const log2 = await readFile5(join5(repoRoot, ".cycle/log.jsonl"), "utf8");
+    const log2 = await readFile8(join8(repoRoot, ".cycle/log.jsonl"), "utf8");
     for (const line of log2.split("\n")) {
       if (!line) continue;
       try {
@@ -8214,52 +8739,17 @@ async function allocateCycleId(repoRoot) {
   return String(highest + 1).padStart(4, "0");
 }
 
-// src/engine/workflow.ts
-var import_yaml = __toESM(require_dist(), 1);
-import { readFile as readFile6 } from "node:fs/promises";
-import { join as join6 } from "node:path";
-async function loadConfig(repoRoot) {
-  const path = join6(repoRoot, ".cycle/workflows.yml");
-  let body;
-  try {
-    body = await readFile6(path, "utf8");
-  } catch {
-    throw new Error(`workflows.yml missing: ${path}`);
-  }
-  const parsed = import_yaml.default.parse(body);
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error(`workflows.yml malformed: not an object (${path})`);
-  }
-  if (!parsed.engine || typeof parsed.engine !== "object") {
-    throw new Error(`workflows.yml malformed: missing engine (${path})`);
-  }
-  if (!parsed.triage || typeof parsed.triage !== "object") {
-    throw new Error(`workflows.yml malformed: missing triage (${path})`);
-  }
-  if (!Array.isArray(parsed.workflows)) {
-    throw new Error(`workflows.yml malformed: workflows must be an array (${path})`);
-  }
-  for (const w of parsed.workflows) {
-    if (!w?.name || !Array.isArray(w.steps)) {
-      throw new Error(`workflows.yml malformed: workflow entry missing name or steps (${path})`);
-    }
-  }
-  return parsed;
-}
-async function loadWorkflow(repoRoot, name) {
-  const cfg2 = await loadConfig(repoRoot);
-  const wf = cfg2.workflows.find((w) => w.name === name);
-  if (!wf) throw new Error(`unknown workflow: ${name}`);
-  return wf;
-}
+// src/engine/run-cycle.ts
+init_workflow();
 
 // src/engine/exec-bash.ts
-import { spawn as spawn2 } from "node:child_process";
-import { join as join7 } from "node:path";
+init_child_env();
+import { spawn as spawn4 } from "node:child_process";
+import { join as join10 } from "node:path";
 function execBashStep(repoRoot, command, env) {
   return new Promise((resolve2) => {
-    const abs = join7(repoRoot, ".cycle", command);
-    const child = spawn2("/bin/bash", [abs], {
+    const abs = join10(repoRoot, ".cycle", command);
+    const child = spawn4("/bin/bash", [abs], {
       cwd: repoRoot,
       env: buildChildEnv(env),
       shell: false
@@ -8283,45 +8773,16 @@ function execBashStep(repoRoot, command, env) {
   });
 }
 
-// src/engine/exec-claudecode.ts
-import { spawn as spawn3 } from "node:child_process";
-import { readFile as readFile7 } from "node:fs/promises";
-import { join as join8 } from "node:path";
-async function execClaudecodeStep(repoRoot, promptPath, env) {
-  const abs = join8(repoRoot, ".cycle", promptPath);
-  const prompt = await readFile7(abs, "utf8");
-  return new Promise((resolve2) => {
-    const child = spawn3("claude", ["-p", prompt], {
-      cwd: repoRoot,
-      env: buildChildEnv(env),
-      shell: false
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (d) => {
-      stdout += d.toString();
-    });
-    child.stderr.on("data", (d) => {
-      stderr += d.toString();
-    });
-    child.on("close", (code) => {
-      resolve2({
-        status: code === 0 ? "ok" : "failed",
-        exitCode: code ?? -1,
-        stdout,
-        stderr
-      });
-    });
-  });
-}
+// src/engine/run-cycle.ts
+init_exec();
 
 // src/engine/branch.ts
-import { spawn as spawn4 } from "node:child_process";
+import { spawn as spawn5 } from "node:child_process";
 import { mkdir as mkdir5 } from "node:fs/promises";
-import { join as join9 } from "node:path";
+import { join as join11 } from "node:path";
 function git(repoRoot, args2) {
   return new Promise((resolve2, reject) => {
-    const child = spawn4("git", args2, { cwd: repoRoot, shell: false });
+    const child = spawn5("git", args2, { cwd: repoRoot, shell: false });
     let stderr = "";
     child.stderr.on("data", (d) => {
       stderr += d.toString();
@@ -8334,7 +8795,7 @@ function git(repoRoot, args2) {
 }
 async function branchExists(repoRoot, branch) {
   return new Promise((resolve2) => {
-    const child = spawn4("git", ["rev-parse", "--verify", `refs/heads/${branch}`], {
+    const child = spawn5("git", ["rev-parse", "--verify", `refs/heads/${branch}`], {
       cwd: repoRoot,
       shell: false
     });
@@ -8349,23 +8810,28 @@ async function createCycleBranch(repoRoot, opts) {
   } else {
     await git(repoRoot, ["checkout", "-b", branch]);
   }
-  const artifactDir = join9(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
+  const artifactDir = join11(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
   await mkdir5(artifactDir, { recursive: true });
   return { branch, artifactDir };
 }
 async function checkoutCycleBranch(repoRoot, opts) {
   const branch = `cycle/${opts.workflow}/${opts.slug}`;
   await git(repoRoot, ["checkout", branch]);
-  const artifactDir = join9(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
+  const artifactDir = join11(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
   await mkdir5(artifactDir, { recursive: true });
   return { branch, artifactDir };
 }
 async function checkoutBase(repoRoot, base) {
   await git(repoRoot, ["checkout", base]);
 }
+async function prepareTrunkArtifactDir(repoRoot, opts) {
+  const artifactDir = join11(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
+  await mkdir5(artifactDir, { recursive: true });
+  return { artifactDir };
+}
 function revParse(repoRoot, ref) {
   return new Promise((resolve2) => {
-    const child = spawn4("git", ["rev-parse", ref], { cwd: repoRoot, shell: false });
+    const child = spawn5("git", ["rev-parse", ref], { cwd: repoRoot, shell: false });
     let stdout = "";
     child.stdout.on("data", (d) => {
       stdout += d.toString();
@@ -8384,10 +8850,11 @@ async function pullBase(repoRoot, base) {
 
 // src/engine/reflection.ts
 import { mkdir as mkdir6, readdir as readdir2, rename as rename4, unlink as unlink2, writeFile as writeFile5 } from "node:fs/promises";
-import { dirname as dirname4, join as join10 } from "node:path";
+import { dirname as dirname4, join as join12 } from "node:path";
+init_frontmatter();
 var FENCE_RE = /^```(?:json)?\s*\n([\s\S]*?)\n```\s*$/;
 async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2) {
-  const rawDir2 = join10(repoRoot, "docs/cycle/issues/raw");
+  const rawDir2 = join12(repoRoot, "docs/cycle/issues/raw");
   let stripped = stdout.trim();
   const fence = stripped.match(FENCE_RE);
   if (fence) stripped = fence[1].trim();
@@ -8417,7 +8884,7 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2) {
   for (const name of existing) {
     if (re.test(name)) {
       try {
-        await unlink2(join10(rawDir2, name));
+        await unlink2(join12(rawDir2, name));
       } catch {
       }
     }
@@ -8462,7 +8929,7 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2) {
       },
       "\n" + e.body + "\n"
     );
-    await atomicWrite2(join10(rawDir2, `${id}.md`), content);
+    await atomicWrite2(join12(rawDir2, `${id}.md`), content);
     written.push(id);
     await log2.emit("reflection.surfaced", {
       cycle_id: cycleId,
@@ -8501,12 +8968,12 @@ async function atomicWrite2(path, content) {
 }
 
 // src/engine/run-cycle.ts
-import { spawn as spawn5 } from "node:child_process";
+import { spawn as spawn6 } from "node:child_process";
 import { writeFile as writeFile6 } from "node:fs/promises";
-import { join as join11 } from "node:path";
+import { join as join13 } from "node:path";
 function currentBranch(repoRoot) {
   return new Promise((resolve2) => {
-    const child = spawn5("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoRoot, shell: false });
+    const child = spawn6("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoRoot, shell: false });
     let stdout = "";
     child.stdout.on("data", (d) => {
       stdout += d.toString();
@@ -8529,10 +8996,18 @@ async function runCycle(repoRoot, opts) {
       issue_id: opts.issueId,
       start_step_index: opts.resume.startStepIndex
     });
-    ({ artifactDir } = await checkoutCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+    if (wf.no_branch) {
+      ({ artifactDir } = await prepareTrunkArtifactDir(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+    } else {
+      ({ artifactDir } = await checkoutCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+    }
   } else {
     await log2.emit("cycle.start", { cycle_id: cycleId, workflow: opts.workflow, title: opts.title, issue_id: opts.issueId });
-    ({ artifactDir } = await createCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+    if (wf.no_branch) {
+      ({ artifactDir } = await prepareTrunkArtifactDir(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+    } else {
+      ({ artifactDir } = await createCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug }));
+    }
   }
   const cycleEnv = {
     CYCLE_ID: cycleId,
@@ -8549,16 +9024,23 @@ async function runCycle(repoRoot, opts) {
       let r;
       if (step.agent === "bash") {
         r = await execBashStep(repoRoot, step.command, cycleEnv);
-      } else if (step.agent === "claudecode") {
-        r = await execClaudecodeStep(repoRoot, step.prompt, cycleEnv);
+      } else {
+        try {
+          const mod = resolveAgent(step.agent);
+          r = await mod.runStep({ repoRoot, promptPath: step.prompt, env: cycleEnv });
+        } catch (err) {
+          if (err instanceof UnknownAgentError) {
+            r = { status: "failed", exitCode: -1, stdout: "", stderr: err.message };
+          } else {
+            throw err;
+          }
+        }
         if (r.status === "ok" && step.name) {
-          await writeFile6(join11(artifactDir, `${step.name.toUpperCase()}.md`), r.stdout, "utf8");
+          await writeFile6(join13(artifactDir, `${step.name.toUpperCase()}.md`), r.stdout, "utf8");
         }
         if (r.status === "ok" && step.name === "reflection") {
           await ingestReflection(repoRoot, cycleId, slug, r.stdout, log2);
         }
-      } else {
-        throw new Error(`unknown agent: ${step.agent}`);
       }
       await log2.emit("step.end", { cycle_id: cycleId, step: step.name, status: r.status, exit_code: r.exitCode });
       if (r.status === "failed") {
@@ -8575,12 +9057,17 @@ async function runCycle(repoRoot, opts) {
   } finally {
     const headBefore = await currentBranch(repoRoot);
     let checkoutOk = false;
-    try {
-      await checkoutBase(repoRoot, cycleEnv.CYCLE_BASE);
+    if (wf.no_branch) {
+      await log2.emit("cycle.checkout", { cycle_id: cycleId, status: "skipped", base: cycleEnv.CYCLE_BASE, head_before: headBefore, reason: "no_branch" });
       checkoutOk = true;
-      await log2.emit("cycle.checkout", { cycle_id: cycleId, status: "ok", base: cycleEnv.CYCLE_BASE, head_before: headBefore });
-    } catch (err) {
-      await log2.emit("cycle.checkout", { cycle_id: cycleId, status: "failed", base: cycleEnv.CYCLE_BASE, head_before: headBefore, reason: err.message });
+    } else {
+      try {
+        await checkoutBase(repoRoot, cycleEnv.CYCLE_BASE);
+        checkoutOk = true;
+        await log2.emit("cycle.checkout", { cycle_id: cycleId, status: "ok", base: cycleEnv.CYCLE_BASE, head_before: headBefore });
+      } catch (err) {
+        await log2.emit("cycle.checkout", { cycle_id: cycleId, status: "failed", base: cycleEnv.CYCLE_BASE, head_before: headBefore, reason: err.message });
+      }
     }
     if (!checkoutOk) {
       await log2.emit("cycle.base_pull", { cycle_id: cycleId, status: "skipped", base: cycleEnv.CYCLE_BASE, reason: "checkout failed" });
@@ -8595,12 +9082,19 @@ async function runCycle(repoRoot, opts) {
   }
 }
 
+// src/cli.ts
+init_queue();
+init_workflow();
+init_frontmatter();
+
 // src/engine/blocked.ts
+init_queue();
+init_frontmatter();
 import { rename as rename5 } from "node:fs/promises";
-import { join as join12 } from "node:path";
+import { join as join14 } from "node:path";
 async function propagateBlocked(repoRoot, failedId, log2) {
-  const todoDir2 = join12(repoRoot, "docs/cycle/issues/todo");
-  const blockedDir = join12(repoRoot, "docs/cycle/issues/blocked");
+  const todoDir2 = join14(repoRoot, "docs/cycle/issues/todo");
+  const blockedDir = join14(repoRoot, "docs/cycle/issues/blocked");
   const rows = await readQueue(repoRoot);
   const visited = /* @__PURE__ */ new Set([failedId]);
   const orderedMoves = [];
@@ -8621,8 +9115,8 @@ async function propagateBlocked(repoRoot, failedId, log2) {
   const rollback = [];
   try {
     for (const { row, predecessors } of orderedMoves) {
-      const src = join12(todoDir2, `${row.id}.md`);
-      const dst = join12(blockedDir, `${row.id}.md`);
+      const src = join14(todoDir2, `${row.id}.md`);
+      const dst = join14(blockedDir, `${row.id}.md`);
       await mutateFrontmatter(src, (fm) => ({
         ...fm,
         blocked_at: (/* @__PURE__ */ new Date()).toISOString(),
@@ -8654,71 +9148,8 @@ async function propagateBlocked(repoRoot, failedId, log2) {
   return { blocked };
 }
 
-// src/engine/log-tail.ts
-import { readFile as readFile8 } from "node:fs/promises";
-import { join as join13 } from "node:path";
-function parseLogTail(text) {
-  const events = [];
-  for (const line of text.split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      events.push(JSON.parse(line));
-    } catch {
-    }
-  }
-  let lastStartIdx = -1;
-  for (let i = events.length - 1; i >= 0; i--) {
-    if (events[i].event === "cycle.start") {
-      lastStartIdx = i;
-      break;
-    }
-  }
-  if (lastStartIdx < 0) return null;
-  const start = events[lastStartIdx];
-  const cycleId = typeof start.cycle_id === "string" ? start.cycle_id : "";
-  if (!cycleId) return null;
-  for (let i = lastStartIdx + 1; i < events.length; i++) {
-    if (events[i].event === "cycle.end" && events[i].cycle_id === cycleId) {
-      return null;
-    }
-  }
-  const completedSteps = [];
-  for (let i = lastStartIdx + 1; i < events.length; i++) {
-    const e = events[i];
-    if (e.event !== "step.end") continue;
-    if (e.cycle_id !== cycleId) continue;
-    if (e.status !== "ok") continue;
-    const name = e.step;
-    if (typeof name === "string" && !completedSteps.includes(name)) {
-      completedSteps.push(name);
-    }
-  }
-  const rawIssue = start.issue_id;
-  const rawWf = start.workflow;
-  const rawTitle = start.title;
-  const issueId = typeof rawIssue === "string" ? rawIssue : "";
-  const workflow = typeof rawWf === "string" ? rawWf : "";
-  const title = typeof rawTitle === "string" ? rawTitle : "";
-  return {
-    cycleId,
-    issueId,
-    workflow,
-    title,
-    startTs: start.ts,
-    completedSteps
-  };
-}
-async function readLogTail(repoRoot) {
-  try {
-    const text = await readFile8(join13(repoRoot, ".cycle", "log.jsonl"), "utf8");
-    return parseLogTail(text);
-  } catch (e) {
-    if (e.code === "ENOENT") return null;
-    throw e;
-  }
-}
-
 // src/cli.ts
+init_log_tail();
 var argv = process.argv.slice(2);
 if (argv[0] === "--version") {
   console.log(await getVersion());
@@ -8729,6 +9160,19 @@ if (argv[0] === "init") {
   const force = argv.includes("--force");
   await runInit2({ targetRoot: process.cwd(), force });
   process.exit(0);
+}
+if (argv[0] === "status") {
+  const { runStatus: runStatus2 } = await Promise.resolve().then(() => (init_status(), status_exports));
+  const out = await runStatus2({ cwd: process.cwd() });
+  console.log(out);
+  process.exit(0);
+}
+if (argv[0] === "triage") {
+  const { runCliTriage: runCliTriage2 } = await Promise.resolve().then(() => (init_triage2(), triage_exports));
+  const result = await runCliTriage2(process.cwd(), argv.slice(1));
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr + "\n");
+  process.exit(result.exitCode);
 }
 var args = parseArgs(argv);
 var cwd = process.cwd();
@@ -8742,10 +9186,10 @@ await log.emit("engine.start", {});
 if (args.text) {
   await materializeFreeformIssue(args.text, cwd);
 }
-var todoDir = join15(cwd, "docs/cycle/issues/todo");
-var doneDir = join15(cwd, "docs/cycle/issues/done");
-var failedDir = join15(cwd, "docs/cycle/issues/failed");
-var rawDir = join15(cwd, "docs/cycle/issues/raw");
+var todoDir = join18(cwd, "docs/cycle/issues/todo");
+var doneDir = join18(cwd, "docs/cycle/issues/done");
+var failedDir = join18(cwd, "docs/cycle/issues/failed");
+var rawDir = join18(cwd, "docs/cycle/issues/raw");
 await mkdir8(doneDir, { recursive: true });
 await mkdir8(failedDir, { recursive: true });
 var cfg = args.dryRun ? null : await loadConfig(cwd);
@@ -8763,7 +9207,7 @@ if (!args.dryRun && cfg) {
 }
 async function rawHasFiles() {
   try {
-    const entries = await readdir3(rawDir);
+    const entries = await readdir4(rawDir);
     return entries.some((f) => f.endsWith(".md"));
   } catch {
     return false;
@@ -8783,13 +9227,14 @@ async function terminalDrain(cwd2, log2, todoPath, failedDir2, cycleId, issueId,
       ...fm,
       failed_at: (/* @__PURE__ */ new Date()).toISOString(),
       ...failingStep ? { failed_step: failingStep } : {},
-      failed_attempts: failedAttempts
+      failed_attempts: failedAttempts,
+      last_cycle_id: cycleId
     }));
   } catch (e) {
     mutateErr = e;
   }
   try {
-    await rename6(todoPath, join15(failedDir2, `${issueId}.md`));
+    await rename6(todoPath, join18(failedDir2, `${issueId}.md`));
   } catch (e) {
     if (e.code !== "ENOENT") throw e;
   }
@@ -8808,7 +9253,7 @@ async function terminalDrain(cwd2, log2, todoPath, failedDir2, cycleId, issueId,
 async function drainSuccess(cwd2, log2, todoPath, doneDir2, cycleId, issueId) {
   await drainOk(cwd2, issueId);
   try {
-    await rename6(todoPath, join15(doneDir2, `${issueId}.md`));
+    await rename6(todoPath, join18(doneDir2, `${issueId}.md`));
   } catch {
   }
   await log2.emit("queue.drained", { cycle_id: cycleId, issue_id: issueId, outcome: "ok" });
@@ -8847,7 +9292,7 @@ async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, 
   if (!baseOk) return { processed: 0, outcome: "skipped" };
   let workflowName = tail.workflow || args2.workflow;
   try {
-    const body = await readFile9(join15(todoDir2, `${tail.issueId}.md`), "utf8");
+    const body = await readFile11(join18(todoDir2, `${tail.issueId}.md`), "utf8");
     const { fm } = parseFrontmatter(body);
     if (typeof fm.workflow === "string" && fm.workflow.length > 0) {
       workflowName = fm.workflow;
@@ -8886,7 +9331,7 @@ async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, 
     workflow: workflowName,
     resume: { startStepIndex }
   });
-  const todoPath = join15(todoDir2, `${tail.issueId}.md`);
+  const todoPath = join18(todoDir2, `${tail.issueId}.md`);
   if (rr.status === "ok") {
     await drainSuccess(cwd2, log2, todoPath, doneDir2, tail.cycleId, tail.issueId);
     return { processed: 1, outcome: "ok" };
@@ -8922,7 +9367,7 @@ if (args.dryRun) {
   const rows = await readQueue(cwd);
   for (const row of rows) {
     if (row.status !== "pending") continue;
-    const todoPath = join15(todoDir, `${row.id}.md`);
+    const todoPath = join18(todoDir, `${row.id}.md`);
     await log.emit("issue.ingested", { issue_id: row.id, path: todoPath });
   }
   await log.emit("engine.stop", {
@@ -8944,11 +9389,11 @@ while (!halted) {
   }
   const row = await popNextPending(cwd);
   if (!row) break;
-  const todoPath = join15(todoDir, `${row.id}.md`);
+  const todoPath = join18(todoDir, `${row.id}.md`);
   await log.emit("issue.ingested", { issue_id: row.id, path: todoPath });
   let workflowName = args.workflow;
   try {
-    const body = await readFile9(todoPath, "utf8");
+    const body = await readFile11(todoPath, "utf8");
     const { fm } = parseFrontmatter(body);
     if (typeof fm.workflow === "string" && fm.workflow.length > 0) {
       workflowName = fm.workflow;

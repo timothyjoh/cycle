@@ -50,6 +50,17 @@ export async function checkoutBase(repoRoot: string, base: string): Promise<void
   await git(repoRoot, ["checkout", base]);
 }
 
+/**
+ * For no_branch workflows (e.g., e2e-tests on trunk): no checkout / branch
+ * creation, just produce the per-cycle artifact directory so steps have a
+ * stable place to write SPEC/PLAN/etc.
+ */
+export async function prepareTrunkArtifactDir(repoRoot: string, opts: { cycleId: string; workflow: string; slug: string }) {
+  const artifactDir = join(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
+  await mkdir(artifactDir, { recursive: true });
+  return { artifactDir };
+}
+
 function revParse(repoRoot: string, ref: string): Promise<string | null> {
   return new Promise((resolve) => {
     const child = spawn("git", ["rev-parse", ref], { cwd: repoRoot, shell: false });

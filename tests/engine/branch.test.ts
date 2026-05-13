@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
-import { createCycleBranch, checkoutCycleBranch, checkoutBase, pullBase } from "../../src/engine/branch.ts";
+import { createCycleBranch, checkoutCycleBranch, checkoutBase, pullBase, prepareTrunkArtifactDir } from "../../src/engine/branch.ts";
 
 function git(cwd: string, args: string[]) {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -195,6 +195,27 @@ test("pullBase rejects with stderr when no origin remote configured", async () =
       () => pullBase(root, "main"),
       (err: Error) => /git fetch origin main failed/.test(err.message),
     );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("prepareTrunkArtifactDir: creates artifact dir without branching", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    const r = await prepareTrunkArtifactDir(root, { cycleId: "0042", workflow: "e2e-tests", slug: "login-flow" });
+    assert.ok(r.artifactDir.endsWith("/docs/cycle/0042-e2e-tests-login-flow"));
+    // HEAD did not move off main
+    const branch = git(root, ["rev-parse", "--abbrev-ref", "HEAD"]).trim();
+    assert.equal(branch, "main");
+    // artifact dir actually exists
+    const s = await stat(r.artifactDir);
+    assert.ok(s.isDirectory());
   } finally {
     await rm(root, { recursive: true, force: true });
   }

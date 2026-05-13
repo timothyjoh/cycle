@@ -22,3 +22,16 @@ workflows:
       - { name: commit,   agent: bash,       command: scripts/commit.sh }
       - { name: pr,       agent: bash,       command: scripts/pr.sh }
       - { name: reflection, agent: claudecode, prompt: prompts/reflection.md }
+
+  - name: e2e-tests
+    description: Write or extend Playwright end-to-end tests against the running app. Works directly on the base branch — no per-cycle branch, no PR.
+    max_cycle_attempts: 3
+    no_branch: true
+    steps:
+      - { name: research,   agent: claudecode, prompt: prompts/research.md }
+      - { name: test_plan,  agent: claudecode, prompt: prompts/test-plan.md }
+      - { name: test_build, agent: claudecode, prompt: prompts/test-build.md }
+      - { name: review,     agent: claudecode, prompt: prompts/review.md }
+      - { name: fix,        agent: claudecode, prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
+      - { name: verify,     agent: bash,       command: scripts/verify.sh }
+      - { name: commit,     agent: bash,       command: scripts/commit-trunk.sh }
