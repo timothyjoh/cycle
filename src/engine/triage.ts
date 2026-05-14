@@ -62,10 +62,8 @@ type RawIssue = {
   attempts: number;
 };
 
-type ParsedTriageOutput = TriageOutput;
-
 type RawAttemptOutcome =
-  | { status: "ok"; parsed: ParsedTriageOutput; attempts: number }
+  | { status: "ok"; parsed: TriageOutput; attempts: number }
   | { status: "failed"; lastError: string; attempts: number };
 
 interface ProcessCtx {
@@ -73,7 +71,7 @@ interface ProcessCtx {
   cfg: CycleConfig;
   promptTemplate: string;
   runAgent: TriageAgentRunner;
-  apply?: (raw: RawIssue, parsed: ParsedTriageOutput) => Promise<void>;
+  apply?: (raw: RawIssue, parsed: TriageOutput) => Promise<void>;
   onAttemptFailed?: (attemptNumber: number, reason: string) => Promise<void>;
 }
 

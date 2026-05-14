@@ -184,6 +184,11 @@ cycle triage --dry-run
 
 Output is `Array<{raw_id, status, attempts, last_error?, children?}>` printed as JSON to stdout. Exit code is `0` if every raw passes validation, `1` if any raw still fails. The agent binary still runs (so its own side effects are out of scope), but the engine performs no filesystem mutations under `docs/cycle/issues/*` and no append/rewrite of `.cycle/tbd.jsonl` or `.cycle/log.jsonl`.
 
+Two operator-visible failure shapes during a dry run:
+
+- **Missing prompt template** — if `.cycle/<cfg.triage.prompt>` is absent or unreadable, the command throws synchronously before any agent is invoked, with the message prefix `prompt template missing: <resolved-path>: <cause>`. No JSON is printed; fix the prompt path (or run `npm run sync-defaults`) and re-run.
+- **Agent crash** — if the configured triage agent itself fails mid-call, the affected raw surfaces in the JSON report as `{status: "failed", attempts: 3, last_error: "agent failed: <inner>"}` after the configured retry budget is exhausted.
+
 An empty `raw/` also exits `0`, so the exit code is meaningful only when at least one raw has been restored. Run the loop after each fix until the command exits `0` with the restored raws reported as passing.
 
 ### 3. Fix the failing raws
