@@ -6,6 +6,9 @@ depends_on: []
 triaged_at: "2026-05-13T18:15:57.095Z"
 source: triage
 parent: re-triage-flag
+failed_at: "2026-05-13T22:23:31.812Z"
+failed_step: spec
+failed_attempts: 3
 ---
 ## Why
 

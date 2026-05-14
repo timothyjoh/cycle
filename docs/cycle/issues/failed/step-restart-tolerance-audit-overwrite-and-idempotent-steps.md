@@ -6,6 +6,9 @@ depends_on: []
 triaged_at: "2026-05-13T18:17:01.544Z"
 source: triage
 parent: step-restart-tolerance-audit
+failed_at: "2026-05-13T22:23:54.192Z"
+failed_step: spec
+failed_attempts: 3
 ---
 ## Why
 

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./cycle-0.0.1.png" alt="cycle slop logo (better hand-drawn version to come)" width="400" />
+</p>
+
 # cycle
 
 **cycle is a dark factory for AFK software development.** Drop in work, walk away, and let an agent-operated assembly line triage the repo, break the work into buildable slices, run the right workflow, verify the result, and land reviewable PRs.
