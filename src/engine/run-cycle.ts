@@ -155,6 +155,10 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           await log.emit("reflection.skipped", { cycle_id: cycleId, reason: "exec_failed", exit_code: r.exitCode });
           continue;
         }
+        if (step.name === "documentation") {
+          await log.emit("documentation.skipped", { cycle_id: cycleId, reason: "exec_failed", exit_code: r.exitCode });
+          continue;
+        }
         await log.emit("cycle.end", { cycle_id: cycleId, status: "failed", failing_step: step.name });
         return { cycleId, status: "failed" as const, failingStep: step.name };
       }
