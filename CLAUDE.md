@@ -19,7 +19,8 @@ Project conventions for cycle. Read before touching code or running the workflow
 | Command | Purpose |
 |---|---|
 | `npm test` | Run the full test suite (Node's native test runner, spec reporter). Auto-builds `dist/cycle.js` first via `pretest`. Required to pass before commit. |
-| `npm run test:coverage` | Run tests with native `--experimental-test-coverage`. Auto-builds `dist/` first via `pretest:coverage`. Excludes `dist/`, `tests/`, `scripts/` so the report reflects real `src/` coverage. **Required check during `build` and `fix` steps.** |
+| `npm run test:coverage` | Run tests with native `--experimental-test-coverage`. Auto-builds `dist/` first via `pretest:coverage`. Emits both the spec reporter (stdout) and LCOV (`.cycle/coverage.lcov`, gitignored). Excludes `dist/`, `tests/`, `scripts/` so the report reflects real `src/` coverage. Auto-runs `posttest:coverage` (the per-file gate) on completion. **Required check during `build` and `fix` steps.** |
+| `npm run check:coverage` | Run `scripts/coverage-gate.mjs` against `.cycle/coverage.lcov` and enforce the per-file line floors (currently `src/engine/triage.ts ≥ 95%`). Exits 1 on regression, 2 if the LCOV file is missing or lacks a block for a configured path. Runs automatically after `test:coverage` via `posttest:coverage`; invoke directly to re-check without rerunning the suite. |
 | `npm run typecheck` | `tsc --noEmit` — no warnings allowed. |
 | `npm run build` | esbuild bundle of `src/cli.ts` → `dist/cycle.js` (the shebang executable that ships). Runs automatically via `pretest` / `pretest:coverage`; manual invocation rarely needed. |
 | `npm run sync-defaults` | Copy `src/defaults/` → `.cycle/`. Run after editing any default workflow YAML, prompt, or script so the dogfooded engine sees the change. Refuses to overwrite locally-divergent destinations (exit `2`) — see [`sync-defaults` divergence guard](#sync-defaults-divergence-guard) below. |
@@ -54,6 +55,7 @@ The canonical divergent file today is `.cycle/workflows.yml` — this repo's dog
   - Function: ≥ 90%
 - Report coverage numbers (line / branch / func, plus any per-file regressions) in `BUILD.md` and `FIX.md` outputs.
 - New code without tests will trip a coverage drop. Add tests in the same cycle, not as follow-up.
+- **Per-file floor — `src/engine/triage.ts`: line ≥ 95%.** Enforced by `scripts/coverage-gate.mjs` (LCOV-driven, exits non-zero on regression). Rationale: `triage.ts` is the only writer that moves files out of `raw/` and mutates `tbd.jsonl`; a coverage regression there directly threatens queue integrity. The `FLOORS` table inside `coverage-gate.mjs` is the single source of truth — extend it (don't broaden globally) to add more per-file floors.
 
 ## Architecture quick reference
 

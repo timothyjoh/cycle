@@ -6,3 +6,4 @@ dist/
 .cycle/tbd.jsonl
 .cycle/cycle.pid
 .cycle/.sync-state.json
+.cycle/coverage.lcov
