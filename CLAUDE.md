@@ -2,6 +2,12 @@
 
 Project conventions for cycle. Read before touching code or running the workflow.
 
+## Workflow style
+
+- **Trunk-based development.** All work goes directly on `master`. Commits land via fast-forward merge from local branches that are immediately deleted.
+- **Do NOT use git worktrees in this repo.** No `EnterWorktree`, no `git worktree add`. Edit master directly. The repo is single-developer and the friction of worktree isolation outweighs its benefits here.
+- Pushes to `master` are authorized — no PR review required. See `.claude/settings.local.json` for the `autoMode.allow` rule.
+
 ## Runtime
 
 - Node ≥ 22.6 (uses `--experimental-strip-types` to run TypeScript sources directly; no transpile step in tests).
@@ -55,3 +61,49 @@ Project conventions for cycle. Read before touching code or running the workflow
 - Force `--workflow feature` until triage + multi-cycle decomposition land.
 - Multi-loop run survives isolated terminal failures; the queue halts only after `engine.max_consecutive_failures` consecutive terminal failures (default 2). Each terminal failure also propagates `blocked_by` to dependents via `propagateBlocked`.
 - See `BRIEF.md` and `docs/ARCHITECTURE.md` for the full system design.
+
+## Publishing to npm
+
+Published as `@cycleai/cli` via GitHub Actions trusted publishing (OIDC). No npm token, no OTP — short-lived OIDC token signed by the runner is exchanged with the registry.
+
+**Trusted publisher config (already set up on npmjs.com → `@cycleai/cli` → Settings → Trusted Publisher):**
+
+| Field | Value |
+|---|---|
+| Provider | GitHub Actions |
+| Organization or user | `timothyjoh` |
+| Repository | `cycle` |
+| Workflow filename | `publish.yml` |
+| Environment name | *(blank)* |
+
+All fields are case-sensitive and must match the OIDC claims exactly. Whitespace breaks the match silently — symptom is `npm error 404 PUT /@cycleai%2Fcli`.
+
+**Workflow:** `.github/workflows/publish.yml` triggers on `v*` tag push or manual dispatch. Runs Node 24, `npm ci → npm test → npm publish --access public`. Provenance attestations are generated automatically (public repo + public package + trusted publisher).
+
+**Release a new version:**
+
+```sh
+# 1. Bump version (edit package.json) and commit on master
+vim package.json              # bump "version": "0.0.X"
+git add package.json package-lock.json
+git commit -m "Bump to 0.0.X"
+git push origin master
+
+# 2. Tag and push tag — triggers the publish workflow
+git tag v0.0.X
+git push origin v0.0.X
+
+# 3. Watch
+gh run watch --exit-status $(gh run list --workflow=publish.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+```
+
+If a workflow fails after the publish step has already pushed the version, **do not retry by re-tagging** — npm rejects re-publish of the same version. Bump the patch number instead.
+
+**Manual publish (fallback only):**
+
+```sh
+export PATH="$HOME/.nvm/versions/node/v22.22.2/bin:$PATH"   # need Node ≥ 22.14 + npm ≥ 11.5.1
+npm publish --access public --otp=<6-digit code>
+```
+
+`prepublishOnly` in package.json runs `node scripts/build.mjs` before any publish, so `dist/` is always packaged regardless of working directory state. Without this, `npm publish` will silently ship a tarball without `dist/` if you forgot to build (this is how 0.0.1 and 0.0.2 broke).
