@@ -404,6 +404,7 @@ export function validateOutput(
   }
 
   const children: TriageChild[] = [];
+  const childIds = new Set<string>();
   const stringFields: (keyof TriageChild)[] = [
     "raw_id",
     "slug",
@@ -466,6 +467,14 @@ export function validateOutput(
       };
     }
 
+    if (childIds.has(child.id)) {
+      return {
+        ok: false,
+        reason: `children[${i}].id: duplicate ${child.id}`,
+      };
+    }
+    childIds.add(child.id);
+
     children.push(child);
   }
 
@@ -476,17 +485,6 @@ export function validateOutput(
         reason: `decomposed_parents: ${p} not in current batch`,
       };
     }
-  }
-
-  const seen = new Set<string>();
-  for (let i = 0; i < children.length; i++) {
-    if (seen.has(children[i].id)) {
-      return {
-        ok: false,
-        reason: `children[${i}].id: duplicate ${children[i].id}`,
-      };
-    }
-    seen.add(children[i].id);
   }
 
   const queueIds = new Set(queueRows.map((r) => r.id));
@@ -502,7 +500,6 @@ export function validateOutput(
   const pendingIds = new Set(
     queueRows.filter((r) => r.status === "pending").map((r) => r.id),
   );
-  const childIds = new Set(children.map((c) => c.id));
   const orderingArr = obj.ordering as string[];
   const orderingSeen = new Set<string>();
   for (let i = 0; i < orderingArr.length; i++) {

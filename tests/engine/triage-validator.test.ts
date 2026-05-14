@@ -18,6 +18,7 @@ const cfg: CycleConfig = {
 
 const fakeRaws = [
   { id: "R1", body: "", fm: {}, srcPath: "/tmp/R1.md", attempts: 0 },
+  { id: "R2", body: "", fm: {}, srcPath: "/tmp/R2.md", attempts: 0 },
 ];
 
 function validChildR1Json(): Record<string, unknown> {
@@ -299,6 +300,43 @@ test("resolves depends_on against existing pending queue row id", () => {
     new Set<string>(),
   );
   assert.equal(r.ok, true);
+});
+
+test("childIds set serves both ordering membership and sibling depends_on resolution in one output", () => {
+  const stdout = JSON.stringify({
+    ordering: ["R1-a", "R2-b"],
+    children: [
+      {
+        raw_id: "R1",
+        slug: "a",
+        id: "R1-a",
+        title: "A",
+        workflow: "feature",
+        depends_on: [],
+        body: "body-a",
+      },
+      {
+        raw_id: "R2",
+        slug: "b",
+        id: "R2-b",
+        title: "B",
+        workflow: "feature",
+        depends_on: ["R1-a"],
+        body: "body-b",
+      },
+    ],
+    decomposed_parents: ["R1", "R2"],
+  });
+  const r = validateOutput(stdout, fakeRaws as never, [], cfg);
+  assert.equal(
+    r.ok,
+    true,
+    `validator should accept; reason: ${r.ok ? "" : r.reason}`,
+  );
+  if (r.ok) {
+    assert.deepEqual(r.parsed.ordering, ["R1-a", "R2-b"]);
+    assert.equal(r.parsed.children[1].depends_on[0], "R1-a");
+  }
 });
 
 test("decomposed parent's raw id in depends_on is rejected as dangling", () => {
