@@ -38,3 +38,19 @@ test("writes a markdown file with frontmatter to raw/", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("writes explicit priority into frontmatter when supplied", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    const { path } = await materializeFreeformIssue(
+      "fix login bug",
+      root,
+      new Date("2026-05-12T10:30:00Z"),
+      7,
+    );
+    const body = await readFile(path, "utf8");
+    assert.match(body, /^priority: 7$/m);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

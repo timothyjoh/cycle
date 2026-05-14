@@ -2,7 +2,12 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { freeformId } from "./id.ts";
 
-export async function materializeFreeformIssue(text: string, repoRoot: string, now: Date = new Date()) {
+export async function materializeFreeformIssue(
+  text: string,
+  repoRoot: string,
+  now: Date = new Date(),
+  priority: number = 3,
+) {
   const id = freeformId(text, now);
   const dir = join(repoRoot, "docs", "cycle", "issues", "raw");
   await mkdir(dir, { recursive: true });
@@ -14,7 +19,7 @@ export async function materializeFreeformIssue(text: string, repoRoot: string, n
     `title: "${text.replace(/"/g, '\\"')}"`,
     `added_at: ${now.toISOString()}`,
     "triage_attempts: 0",
-    "priority: 3",
+    `priority: ${priority}`,
     "---",
     "",
     text,

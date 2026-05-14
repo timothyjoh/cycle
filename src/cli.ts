@@ -66,7 +66,7 @@ const args = parseArgs(argv);
 const cwd = process.cwd();
 
 if (args.command === "drop") {
-  const { id, path } = await materializeFreeformIssue(args.text, cwd);
+  const { id, path } = await materializeFreeformIssue(args.text, cwd, new Date(), args.priority);
   console.log(JSON.stringify({ event: "issue.dropped", issue_id: id, path }));
   process.exit(0);
 }

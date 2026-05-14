@@ -102,7 +102,10 @@ Drop work into the inbox without starting the engine:
 
 ```sh
 ./.cycle/bin/cycle.js drop "investigate why checkout retries twice"
+./.cycle/bin/cycle.js drop "investigate why checkout retries twice" --priority 7
 ```
+
+`--priority N` accepts an integer in `1..10` and defaults to `3`.
 
 Inspect the queue and latest log-derived status:
 
