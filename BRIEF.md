@@ -179,9 +179,14 @@ Triage **always enriches** (even when no decomposition is needed) and
 `done/<id>_raw.md` after triage emits children. Children land in `todo/`
 as `<parent>-<slug>.md` with `parent:` frontmatter linking them.
 
-Per-raw retry up to 3 attempts. After exhaustion: `raw/<id>.md` →
-`failed/<id>.md` with `triage_attempts: 3`. If ALL raws fail in one
-pass, engine emits `engine.paused` and exits.
+Per-raw retry up to 3 attempts. On partial-fail (some raws decompose
+cleanly while others exhaust attempts): the failed subset moves
+`raw/<id>.md → failed/<id>.md` with `failed_step: "triage"` and
+`failed_at` stamped via a deferred `moveToFailed` flush. If ALL raws
+fail in one pass, engine emits `engine.paused {reason:
+"all_triage_failed", …}` and exits — raws stay in `raw/` with
+`triage_attempts: 3` (no rename) so `cycle triage --dry-run`
+re-evaluates them without operator `mv`.
 
 ## Default Workflow Library
 

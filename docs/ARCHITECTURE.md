@@ -376,9 +376,15 @@ Engine atomically: writes `todo/<id>.md` files, moves
 rows (in-progress rows are fenced and cannot be moved).
 
 Configured in `workflows.yml` top section: `agent`, `prompt`,
-`max_turns`. Per-raw retry up to 3 attempts. After exhaustion: raw
-file → `failed/` with `triage_attempts: 3`. If ALL raws fail in one
-pass: `engine.paused` and exit.
+`max_turns`. Per-raw retry up to 3 attempts. On partial-fail (at least
+one raw decomposes cleanly while others exhaust their attempts): the
+failed subset moves `raw/<id>.md → failed/<id>.md` with `failed_step:
+"triage"` and `failed_at` stamped, via a deferred `moveToFailed` flush
+after the per-raw loop. If ALL raws fail in one pass: emit
+`engine.paused {reason: "all_triage_failed", …}` and exit non-zero —
+raws stay in `raw/` with `triage_attempts: 3` (no rename, no
+`failed_step` stamp) so `cycle triage --dry-run` re-evaluates the same
+files after operator edits without any manual `mv`.
 
 ### Workflows
 
