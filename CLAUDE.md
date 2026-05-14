@@ -22,9 +22,28 @@ Project conventions for cycle. Read before touching code or running the workflow
 | `npm run test:coverage` | Run tests with native `--experimental-test-coverage`. Auto-builds `dist/` first via `pretest:coverage`. Excludes `dist/`, `tests/`, `scripts/` so the report reflects real `src/` coverage. **Required check during `build` and `fix` steps.** |
 | `npm run typecheck` | `tsc --noEmit` — no warnings allowed. |
 | `npm run build` | esbuild bundle of `src/cli.ts` → `dist/cycle.js` (the shebang executable that ships). Runs automatically via `pretest` / `pretest:coverage`; manual invocation rarely needed. |
-| `npm run sync-defaults` | Copy `src/defaults/` → `.cycle/`. Run after editing any default workflow YAML, prompt, or script so the dogfooded engine sees the change. |
+| `npm run sync-defaults` | Copy `src/defaults/` → `.cycle/`. Run after editing any default workflow YAML, prompt, or script so the dogfooded engine sees the change. Refuses to overwrite locally-divergent destinations (exit `2`) — see [`sync-defaults` divergence guard](#sync-defaults-divergence-guard) below. |
 | `cycle status` | Print folder counts (`raw`/`todo`/`done`/`failed`/`blocked`), `tbd.jsonl` queue summary, and in-flight cycle line derived from `log.jsonl` tail. Read-only; safe in any repo state (missing files = zero, no engine bootstrap). |
 | `cycle triage --dry-run` | Re-run the configured triage agent against every file in `docs/cycle/issues/raw/` and print `Array<{raw_id, status, attempts, last_error?, children?}>` as JSON to stdout. Exits 0 if every raw passed validation, 1 otherwise. No engine-side filesystem mutations (no writes under `docs/cycle/issues/*`, no append/rewrite of `.cycle/tbd.jsonl`, no writes to `.cycle/log.jsonl`); the agent binary still runs, so its own side effects are out of scope. Diagnostic harness for iterating on the triage prompt after `engine.paused {reason: "all_triage_failed"}`. `cycle triage --help` prints usage; `cycle triage` without `--dry-run` exits 2 (non-dry handle is future work). |
+
+### `sync-defaults` divergence guard
+
+`scripts/sync-defaults.mjs` records a sha256 of every `src/defaults/* → .cycle/*` pair in `.cycle/.sync-state.json` (gitignored, JSON map keyed by repo-relative POSIX destination path). On each run it re-hashes source and destination and refuses to overwrite a destination whose current sha matches neither the recorded `dst_sha256` from the last sync nor the current `src_sha256` — that's the "locally divergent" state.
+
+When divergence is detected:
+- Every non-divergent path is copied normally.
+- For each divergent destination, stderr gets `skipped <path> — locally divergent`, plus a final `N path(s) skipped` summary.
+- Exit code is `2`. No `.sync-state.json` entry is written for the skipped paths (a prior entry, if any, is preserved).
+
+To force-overwrite divergent destinations (e.g., after intentionally reverting a local change), pass `--force`:
+
+```sh
+npm run sync-defaults -- --force
+```
+
+The env var `CYCLE_SYNC_DEFAULTS_FORCE=1` is equivalent and useful for scripted contexts. Force prints one stderr line `force: overwriting N divergent path(s): <comma-list>` and exits 0.
+
+The canonical divergent file today is `.cycle/workflows.yml` — this repo's dogfood `.cycle/` runs a trunk-based variant (`no_branch: true`, `commit-trunk.sh`, no `pr` step) that the shipped default does not carry. The guard exists to keep that divergence from being silently re-clobbered by a stray `sync-defaults` invocation (the 0046 incident).
 
 ## Coverage policy
 

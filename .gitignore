@@ -5,3 +5,4 @@ dist/
 .cycle/log.jsonl
 .cycle/tbd.jsonl
 .cycle/cycle.pid
+.cycle/.sync-state.json
