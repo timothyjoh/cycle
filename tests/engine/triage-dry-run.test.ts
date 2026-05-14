@@ -14,10 +14,12 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import {
   dryRunTriage,
+  runTriage,
   type TriageDeps,
   type TriageAgentResult,
 } from "../../src/engine/triage.ts";
 import type { CycleConfig } from "../../src/engine/workflow.ts";
+import type { Logger } from "../../src/engine/log.ts";
 
 function makeConfig(): CycleConfig {
   return {
@@ -515,6 +517,45 @@ test("dryRun Case A: runAgent throws → status failed, attempts 3, last_error m
     assert.deepEqual(after.failed, before.failed, "failed/ contents changed");
     assert.equal(after.tbd, before.tbd, "tbd.jsonl appeared");
     assert.equal(after.log, before.log, "log.jsonl appeared");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("dry-run after all-fail pause sees the same raws without manual mv", async () => {
+  const root = await setupRepo();
+  try {
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/p.md"),
+      rawBody("p", "task p"),
+      "utf8",
+    );
+    const failingAgent: TriageDeps["runAgent"] = async () => ({
+      exitCode: 0,
+      stdout: "not json",
+      stderr: "",
+    });
+    const events: { event: string; fields: Record<string, unknown> }[] = [];
+    const log: Logger = {
+      async emit(event, fields) {
+        events.push({ event, fields });
+      },
+    };
+    const r1 = await runTriage(root, makeConfig(), log, { runAgent: failingAgent });
+    assert.equal(r1.status, "paused");
+    // Raw must still be in raw/ — no operator mv between paused and dry-run.
+    const rawFilesAfterPause = await readdir(
+      join(root, "docs/cycle/issues/raw"),
+    );
+    assert.deepEqual(rawFilesAfterPause, ["p.md"]);
+
+    const report = await dryRunTriage(root, makeConfig(), {
+      runAgent: failingAgent,
+    });
+    assert.equal(report.length, 1);
+    assert.equal(report[0].raw_id, "p");
+    assert.equal(report[0].status, "failed");
+    assert.equal(report[0].attempts, 3);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

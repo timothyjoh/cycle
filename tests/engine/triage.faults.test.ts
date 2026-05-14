@@ -87,9 +87,9 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-// ---- Test 1: runAgentViaDispatch fault — agent rejects, retries exhausted, raw moves to failed/
+// ---- Test 1: runAgentViaDispatch fault — agent rejects on the all-fail path; raw stays in raw/
 
-test("fault: agent rejection across full retry budget moves raw to failed/ and emits triage.raw.failed", async () => {
+test("fault: agent rejection across full retry budget leaves raw in raw/ on all-fail and emits triage.raw.failed", async () => {
   const root = await setupRepo();
   try {
     await writeFile(
@@ -108,11 +108,11 @@ test("fault: agent rejection across full retry budget moves raw to failed/ and e
     assert.deepEqual(result.failed, ["agentfail"]);
 
     const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
-    assert.deepEqual(failedFiles, ["agentfail.md"]);
+    assert.deepEqual(failedFiles, []);
     assert.equal(
       await exists(join(root, "docs/cycle/issues/raw/agentfail.md")),
-      false,
-      "raw moved out of raw/",
+      true,
+      "raw retained in raw/ on all-fail",
     );
 
     const queueExists = await exists(join(root, ".cycle/tbd.jsonl"));
@@ -154,16 +154,22 @@ test("fault: bumpAttempts swallows mutateFrontmatter failure; persisted triage_a
     const result = await runTriage(root, makeConfig(), log, deps);
     assert.equal(result.status, "paused");
 
-    // Raw was moved to failed/ (moveToFailed's rename succeeded — only the
-    // stamp-pass mutateFrontmatter failed; tested separately).
-    const failedPath = join(root, "docs/cycle/issues/failed/bumpfail.md");
-    assert.equal(await exists(failedPath), true);
-    const { fm } = parseFrontmatter(await readFile(failedPath, "utf8"));
+    // All-fail path: raw stays in raw/ (moveToFailed is never called). The
+    // bumpAttempts swallow path is still exercised through onAttemptFailed.
+    const rawPath = join(root, "docs/cycle/issues/raw/bumpfail.md");
+    assert.equal(await exists(rawPath), true);
+    assert.equal(
+      await exists(join(root, "docs/cycle/issues/failed/bumpfail.md")),
+      false,
+    );
+    const { fm } = parseFrontmatter(await readFile(rawPath, "utf8"));
     assert.equal(
       fm.triage_attempts,
       2,
       "bumpAttempts catch swallowed — counter remained at its starting value",
     );
+    assert.equal(fm.failed_at, undefined);
+    assert.equal(fm.failed_step, undefined);
 
     const failedEvt = events.find((e) => e.event === "triage.raw.failed");
     assert.ok(failedEvt, "triage.raw.failed still emitted despite bumpAttempts silent failure");
@@ -172,14 +178,23 @@ test("fault: bumpAttempts swallows mutateFrontmatter failure; persisted triage_a
   }
 });
 
-// ---- Test 3: moveToFailed stamp-pass catch — file moved to failed/ without failed_at/failed_step
+// ---- Test 3: moveToFailed stamp-pass catch — partial-fail path: file moved to failed/ without failed_at/failed_step
 
-test("fault: moveToFailed stamp-pass swallows mutateFrontmatter failure; raw still moves to failed/", async () => {
+test("fault: moveToFailed stamp-pass swallows mutateFrontmatter failure on partial-fail; raw still moves to failed/", async () => {
   const root = await setupRepo();
   try {
+    // Two raws: stampfail fails every attempt; ok decomposes cleanly. That
+    // pushes the pass onto the partial-fail branch which invokes moveToFailed
+    // on the deferred failed list — exercising the stamp-pass swallow path
+    // (still independently injected via the .tmp directory trick).
     await writeFile(
       join(root, "docs/cycle/issues/raw/stampfail.md"),
       rawBody("stampfail", "stamp fault", 2),
+      "utf8",
+    );
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/ok.md"),
+      rawBody("ok", "ok task"),
       "utf8",
     );
     const tmpDir = join(root, "docs/cycle/issues/raw/stampfail.md.tmp");
@@ -187,16 +202,44 @@ test("fault: moveToFailed stamp-pass swallows mutateFrontmatter failure; raw sti
     await writeFile(join(tmpDir, "sentinel"), "x", "utf8");
 
     const deps: TriageDeps = {
-      runAgent: async () => {
-        throw new Error("agent down");
+      runAgent: async (prompt) => {
+        if (prompt.includes("=== raw: stampfail ===")) {
+          throw new Error("agent down");
+        }
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            ordering: ["ok"],
+            children: [
+              {
+                raw_id: "ok",
+                slug: "",
+                id: "ok",
+                title: "ok",
+                workflow: "feature",
+                depends_on: [],
+                body: "ok body",
+              },
+            ],
+            decomposed_parents: [],
+          }),
+          stderr: "",
+        };
       },
     };
     const { log, events } = makeLog();
     const result = await runTriage(root, makeConfig(), log, deps);
-    assert.equal(result.status, "paused");
+    assert.equal(result.status, "ok");
+    assert.deepEqual(result.failed, ["stampfail"]);
+    assert.deepEqual(result.processed, ["ok"]);
 
     const failedPath = join(root, "docs/cycle/issues/failed/stampfail.md");
     assert.equal(await exists(failedPath), true, "rename to failed/ succeeded");
+    assert.equal(
+      await exists(join(root, "docs/cycle/issues/raw/stampfail.md")),
+      false,
+      "raw moved out of raw/",
+    );
     const { fm } = parseFrontmatter(await readFile(failedPath, "utf8"));
     assert.equal(
       "failed_at" in fm,
@@ -209,15 +252,20 @@ test("fault: moveToFailed stamp-pass swallows mutateFrontmatter failure; raw sti
       "failed_step stamp not applied — mutateFrontmatter swallowed",
     );
 
+    assert.equal(
+      events.find((e) => e.event === "engine.paused"),
+      undefined,
+      "engine.paused must not fire on partial-fail",
+    );
     assert.ok(events.find((e) => e.event === "triage.raw.failed"));
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-// ---- Test 4: moveToFailed rename catch — raw file unlinked mid-flight, rename swallowed
+// ---- Test 4: raw file unlinked mid-flight — all-fail still pauses cleanly, no failed/ artifact
 
-test("fault: moveToFailed rename catch swallows when raw file vanished mid-flight", async () => {
+test("fault: raw unlinked mid-flight on all-fail path; engine.paused completes cleanly with no failed/ artifact", async () => {
   const root = await setupRepo();
   try {
     const rawPath = join(root, "docs/cycle/issues/raw/vanish.md");
@@ -233,11 +281,11 @@ test("fault: moveToFailed rename catch swallows when raw file vanished mid-fligh
     const result = await runTriage(root, makeConfig(), log, deps);
     assert.equal(result.status, "paused");
 
-    assert.equal(await exists(rawPath), false, "raw file already gone");
+    assert.equal(await exists(rawPath), false, "raw file unlinked by agent");
     assert.equal(
       await exists(join(root, "docs/cycle/issues/failed/vanish.md")),
       false,
-      "moveToFailed rename silently failed; no failed/ artifact created",
+      "all-fail path never calls moveToFailed; no failed/ artifact regardless",
     );
 
     assert.ok(events.find((e) => e.event === "triage.raw.failed"));

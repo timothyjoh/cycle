@@ -224,7 +224,7 @@ Per-raw retry up to 3 attempts (BRIEF's existing `triage_attempts` frontmatter).
 - Move `raw/<id>.md` → `failed/<id>.md` with `triage_attempts: 3`
 - Continue triaging the other raw files
 
-If ALL raws fail triage in one pass (suggests broken prompt or API outage): emit `engine.paused` and exit. Don't start any cycle from a corrupted triage. See [Recovering from engine.paused](../README.md#recovering-from-enginepaused) for the operator recovery flow.
+If ALL raws fail triage in one pass (suggests broken prompt or API outage): emit `engine.paused` and exit. Don't start any cycle from a corrupted triage. Raws remain in `raw/`; no rename occurs on the all-fail path. `triage_attempts` is bumped per attempt via `bumpAttempts` and reflects the full 3 on `engine.paused`. See [Recovering from engine.paused](../README.md#recovering-from-enginepaused) for the operator recovery flow.
 
 ---
 

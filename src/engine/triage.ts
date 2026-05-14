@@ -182,6 +182,7 @@ export async function runTriage(
   const processed: string[] = [];
   const failed: string[] = [];
   const lastErrors: string[] = []; // index-aligned with `failed`
+  const failedRaws: RawIssue[] = []; // index-aligned with `failed`; deferred flush
   let lastOrdering: string[] | null = null;
 
   // Per-raw invocation: each raw gets its own agent call and its own 3-attempt
@@ -216,7 +217,7 @@ export async function runTriage(
     } else {
       failed.push(raw.id);
       lastErrors.push(outcome.lastError);
-      await moveToFailed(repoRoot, raw);
+      failedRaws.push(raw);
     }
   }
 
@@ -225,6 +226,8 @@ export async function runTriage(
   }
 
   if (failed.length === raws.length) {
+    // All-fail path: raws stay in raw/ so `cycle triage --dry-run` can
+    // re-evaluate them after operator edits without any manual `mv`.
     const MAX_ERR_LEN = 2000;
     const truncate = (s: string) =>
       s.length > MAX_ERR_LEN ? s.slice(0, MAX_ERR_LEN - 1) + "…" : s;
@@ -239,6 +242,11 @@ export async function runTriage(
       last_errors,
     });
     return { status: "paused", processed, failed };
+  }
+
+  // Partial-failure path: flush deferred moveToFailed for the failed subset.
+  for (const raw of failedRaws) {
+    await moveToFailed(repoRoot, raw);
   }
 
   await log.emit("triage.end", {

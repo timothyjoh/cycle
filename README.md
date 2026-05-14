@@ -136,7 +136,9 @@ Re-run triage diagnostics without mutating engine state:
 
 ## Recovering from engine.paused
 
-When every raw issue fails triage in a single pass, the engine emits `engine.paused {reason: "all_triage_failed", raw_ids, last_errors}`, moves each failed raw to `docs/cycle/issues/failed/<id>.md` with `failed_step: "triage"` stamped into its frontmatter, and exits non-zero. `tbd.jsonl` is untouched and no cycle was started, so the work queue is intact and the engine is safe to re-fire once the underlying problem is fixed.
+When every raw issue fails triage in a single pass, the engine emits `engine.paused {reason: "all_triage_failed", raw_ids, last_errors}` and exits non-zero. Each failed raw stays in `docs/cycle/issues/raw/<id>.md` with `triage_attempts: 3` stamped into its frontmatter; `failed/` is untouched on this path. `tbd.jsonl` is untouched and no cycle was started, so the work queue is intact and the engine is safe to re-fire once the underlying problem is fixed.
+
+(Partial-failure paths — where at least one raw decomposes cleanly while others fail — continue to move the failed subset to `docs/cycle/issues/failed/<id>.md` with `failed_step: "triage"` and `failed_at` stamped, as before.)
 
 ### Payload
 
@@ -158,13 +160,13 @@ Tail the audit log to read the structured failure:
 tail -n1 .cycle/log.jsonl | jq 'select(.event == "engine.paused")'
 ```
 
-The `raw_ids` array lists every raw that was attempted; `last_errors` carries the validator (or agent) error from each raw's final retry. The corresponding files are now under `failed/`:
+The `raw_ids` array lists every raw that was attempted; `last_errors` carries the validator (or agent) error from each raw's final retry. The corresponding files are still in `raw/`:
 
 ```sh
-ls docs/cycle/issues/failed/
+ls docs/cycle/issues/raw/
 ```
 
-Raws stamped with `failed_step: triage` in their frontmatter are the ones the paused pass moved (alongside `failed_at` and `triage_attempts: 3`). Note: the audit log also contains one `triage.raw.failed` event per attempt per raw preceding the final `engine.paused`.
+Each raw's frontmatter carries `triage_attempts: 3` after the paused pass (organic from per-attempt `bumpAttempts`); no `failed_at` or `failed_step` stamps are written on the all-fail path. Note: the audit log also contains one `triage.raw.failed` event per attempt per raw preceding the final `engine.paused`.
 
 Most pauses point at one of:
 
@@ -174,10 +176,9 @@ Most pauses point at one of:
 
 ### 2. Iterate with `cycle triage --dry-run`
 
-`cycle triage --dry-run` only scans `docs/cycle/issues/raw/`. To re-test a failed raw, move it back into `raw/` first:
+`cycle triage --dry-run` only scans `docs/cycle/issues/raw/`. After an all-fail pause the raws are already there — no `mv` step is required:
 
 ```sh
-mv docs/cycle/issues/failed/<id>.md docs/cycle/issues/raw/<id>.md
 # ...edit the file or the prompt...
 cycle triage --dry-run
 ```
@@ -195,10 +196,10 @@ An empty `raw/` also exits `0`, so the exit code is meaningful only when at leas
 
 For each entry in `last_errors`, choose one path:
 
-- **Edit `docs/cycle/issues/failed/<id>.md`** if the issue is real but its content tripped the prompt (typo, missing context, ambiguous title, malformed frontmatter). Move it back to `raw/` (`mv docs/cycle/issues/failed/<id>.md docs/cycle/issues/raw/<id>.md`) and re-run `cycle triage --dry-run` until it passes.
-- **Delete the file** (`rm docs/cycle/issues/failed/<id>.md`) if the issue should not have been queued at all — a duplicate, an obsolete reflection finding, or anything the human queue manager would have rejected in review.
+- **Edit `docs/cycle/issues/raw/<id>.md`** if the issue is real but its content tripped the prompt (typo, missing context, ambiguous title, malformed frontmatter). Re-run `cycle triage --dry-run` until it passes. To restore a fresh 3-attempt budget on real-engine re-fire, also reset `triage_attempts` in the frontmatter (otherwise the next engine invocation will immediately re-pause without invoking the agent).
+- **Delete the file** (`rm docs/cycle/issues/raw/<id>.md`) if the issue should not have been queued at all — a duplicate, an obsolete reflection finding, or anything the human queue manager would have rejected in review.
 
-If the failure mode is a broken prompt rather than bad raws, edit the configured triage prompt instead (and `npm run sync-defaults` if you changed `src/defaults/`), then move the affected raws back to `raw/` and re-run `cycle triage --dry-run`.
+If the failure mode is a broken prompt rather than bad raws, edit the configured triage prompt instead (and `npm run sync-defaults` if you changed `src/defaults/`) and re-run `cycle triage --dry-run`.
 
 ### 4. Re-fire the engine
 
@@ -206,4 +207,4 @@ Once `cycle triage --dry-run` exits `0` with the restored raws reported as passi
 
 ### Safety guarantee
 
-The paused pass started no cycle, pushed no branch, opened no PR, and made no change to `tbd.jsonl` or `done/`. The only on-disk side effects are the raw files moved from `raw/` to `failed/` (with `failed_step: "triage"` frontmatter stamped) and the `engine.paused` line plus preceding `triage.raw.failed` events in `.cycle/log.jsonl`. Re-firing therefore picks up cleanly: triage runs again from scratch on whatever raws now sit in `raw/`, and the queue resumes as if the failed pass had never started.
+The paused pass started no cycle, pushed no branch, opened no PR, and made no change to `tbd.jsonl` or `done/`. The only on-disk side effects on the all-fail path are per-attempt `triage_attempts` bumps on each raw's frontmatter, the `engine.paused` line, and preceding `triage.raw.failed` events in `.cycle/log.jsonl`. Re-firing therefore picks up cleanly: triage runs again from scratch on whatever raws now sit in `raw/`, and the queue resumes as if the failed pass had never started.

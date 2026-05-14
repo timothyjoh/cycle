@@ -520,14 +520,63 @@ test("whole-pass failure: only raw fails all attempts → engine.paused", async 
     assert.ok(lastErrors[0].error.length > 0);
     assert.equal("failed" in (paused?.fields as object), false);
 
+    // All-fail path: raw stays in raw/; failed/ is untouched.
+    const rawFiles = await readdir(join(root, "docs/cycle/issues/raw"));
+    assert.deepEqual(rawFiles, ["only.md"]);
     const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
-    assert.deepEqual(failedFiles, ["only.md"]);
-    const failedBody = await readFile(
-      join(root, "docs/cycle/issues/failed/only.md"),
+    assert.deepEqual(failedFiles, []);
+    const rawBodyAfter = await readFile(
+      join(root, "docs/cycle/issues/raw/only.md"),
       "utf8",
     );
-    const { fm } = parseFrontmatter(failedBody);
+    const { fm } = parseFrontmatter(rawBodyAfter);
     assert.equal(fm.triage_attempts, 3);
+    assert.equal(fm.failed_at, undefined);
+    assert.equal(fm.failed_step, undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("all-fail: raws remain in raw/ with triage_attempts=3 and no failure stamps", async () => {
+  const root = await setupRepo();
+  try {
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/a.md"),
+      rawBody("a", "task a"),
+      "utf8",
+    );
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/b.md"),
+      rawBody("b", "task b"),
+      "utf8",
+    );
+    const deps: TriageDeps = {
+      runAgent: async () => ({ exitCode: 0, stdout: "not json", stderr: "" }),
+    };
+    const { log } = makeLog();
+    const result = await runTriage(root, makeConfig(), log, deps);
+    assert.equal(result.status, "paused");
+    assert.deepEqual(result.failed.slice().sort(), ["a", "b"]);
+
+    const rawFiles = (
+      await readdir(join(root, "docs/cycle/issues/raw"))
+    ).sort();
+    assert.deepEqual(rawFiles, ["a.md", "b.md"]);
+
+    const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
+    assert.deepEqual(failedFiles, []);
+
+    for (const id of ["a", "b"]) {
+      const body = await readFile(
+        join(root, `docs/cycle/issues/raw/${id}.md`),
+        "utf8",
+      );
+      const { fm } = parseFrontmatter(body);
+      assert.equal(fm.triage_attempts, 3);
+      assert.equal(fm.failed_at, undefined);
+      assert.equal(fm.failed_step, undefined);
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -708,9 +757,11 @@ test("atomic apply rolls back when appendRow fails (tbd.jsonl readonly)", async 
       false,
       "todo file should be removed by rollback",
     );
-    // raw was moved to failed/ after 3 exhausted attempts (each tries+rolls back)
+    // All-fail path: raw stays in raw/ after 3 exhausted attempts.
+    const rawFiles = await readdir(join(root, "docs/cycle/issues/raw"));
+    assert.deepEqual(rawFiles, ["atomic.md"]);
     const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
-    assert.deepEqual(failedFiles, ["atomic.md"]);
+    assert.deepEqual(failedFiles, []);
   } finally {
     try {
       await chmod(join(root, ".cycle/tbd.jsonl"), 0o644);
@@ -849,8 +900,11 @@ test("persisted triage_attempts carries into next run for retry budget", async (
     const result = await runTriage(root, makeConfig(), log, deps);
     assert.equal(result.status, "paused");
     assert.equal(calls, 1, "only one attempt left when attempts=2");
+    // All-fail path: raw stays in raw/.
+    const rawFiles = await readdir(join(root, "docs/cycle/issues/raw"));
+    assert.deepEqual(rawFiles, ["persist.md"]);
     const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
-    assert.deepEqual(failedFiles, ["persist.md"]);
+    assert.deepEqual(failedFiles, []);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
