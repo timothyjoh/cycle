@@ -11,6 +11,7 @@ Project conventions for cycle. Read before touching code or running the workflow
 ## Runtime
 
 - Node ≥ 22.6 (uses `--experimental-strip-types` to run TypeScript sources directly; no transpile step in tests).
+- TypeScript floor is **ES2023** (`target`/`lib` in `tsconfig.json`). ES2023 array methods (`findLast`, `findLastIndex`, `toSorted`, `toReversed`, `with`) and Hashbang grammar are usable without polyfills. Rationale: [docs/RFC-002-typescript-es2023-floor.md](docs/RFC-002-typescript-es2023-floor.md).
 - If `node --version` returns < 22, prepend `~/.nvm/versions/node/v22.22.2/bin` to PATH or run `nvm use 22.22.2`.
 
 ## Commands

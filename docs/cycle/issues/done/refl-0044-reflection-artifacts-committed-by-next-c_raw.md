@@ -1,0 +1,15 @@
+---
+id: refl-0044-reflection-artifacts-committed-by-next-c
+source: reflection
+title: reflection-artifacts-committed-by-next-cycle
+added_at: "2026-05-14T16:17:40.726Z"
+triage_attempts: 0
+priority_hint: 4
+origin_cycle_id: "0044"
+---
+
+Cycle 0044's commit `7cf2c92` (titled "Reconcile RFC-001 raw-drop example priority…") actually contains 14 files spanning cycle 0043's reflection + triage debris: `docs/cycle/0043-…/REFLECTION.md` (+19), three `refl-0043-*` raws archived into `done/`, three new `refl-0043-*` todos, and one stale `todo→done` rename for `refl-0019-cycle-run-text-path-shares-writer-but-no.md`. Cycle 0044's own SPEC was a single-line doc edit, but its commit message attributes the housekeeping to it.
+
+This is structural, not accidental drift. `feature.workflow` (`.cycle/workflows.yml:22-30`) runs `commit` at step 29 and `reflection` at step 30, so every cycle's own `REFLECTION.md` and reflection-surfaced `refl-<cycleId>-*.md` raws are written *after* its commit. Triage of those raws then mutates the queue/issue files between cycles. `commit-trunk.sh` stages everything in `git status --porcelain` (modulo a small denylist), so the next cycle's commit greedily scoops the orphans under its own title. Git blame, PR review, and rollback boundaries silently lose their per-cycle alignment.
+
+This is related to but distinct from `refl-0029-cycle-commit-scoops-unrelated-readme-dri` (same-cycle out-of-scope drift) and `refl-0028-dormant-stash-cycle-0027-debris-quaranti` (stash debris). The reflection-orphan path is deterministic: it happens every cycle, not just when an agent goes off-spec. Plausible directions: (a) reorder the workflow so `commit` runs after `reflection` and includes the artifacts; (b) add a tiny `commit-reflection` step after `reflection` that commits only the reflection outputs; (c) have `reflection` write to a staging path the next cycle moves into place. Decide during plan; (a) is the smallest change but breaks the invariant that the cycle's coded change ships before reflection writes anything new.
