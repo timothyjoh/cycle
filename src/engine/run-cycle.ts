@@ -15,6 +15,7 @@ import {
   shaExists,
 } from "./branch.ts";
 import { ingestReflection } from "./reflection.ts";
+import { sanitizeArtifactStdout } from "./sanitize-artifact.ts";
 import { slugify } from "../issue/id.ts";
 import { writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -143,7 +144,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           }
         }
         if (r.status === "ok" && step.name) {
-          await writeFile(join(artifactDir, `${step.name.toUpperCase()}.md`), r.stdout, "utf8");
+          await writeFile(join(artifactDir, `${step.name.toUpperCase()}.md`), sanitizeArtifactStdout(r.stdout), "utf8");
         }
         if (r.status === "ok" && step.name === "reflection") {
           await ingestReflection(repoRoot, cycleId, slug, r.stdout, log);

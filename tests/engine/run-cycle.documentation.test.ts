@@ -70,7 +70,7 @@ test("runCycle: documentation step success writes DOCUMENTATION.md verbatim", as
     const artifactDir = join(root, "docs/cycle", `${r.cycleId}-feature-doc-happy`);
     const docFile = join(artifactDir, "DOCUMENTATION.md");
     assert.ok(await fileExists(docFile), `expected ${docFile}`);
-    assert.equal(await readFile(docFile, "utf8"), summary);
+    assert.equal(await readFile(docFile, "utf8"), summary + "\n");
 
     const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
     assert.doesNotMatch(log, /"event":"documentation.skipped"/);
