@@ -263,8 +263,8 @@ test("halt: propagateBlocked moves dependent to blocked/ when parent fails, no h
     const cycleStart = events.find((e) => e.event === "cycle.start") as Record<string, unknown>;
     const cycleId = cycleStart.cycle_id as string;
     assert.match(failedBody, /^failed_at: /m);
-    assert.match(failedBody, /^failed_step: verify/m);
-    assert.match(failedBody, /^failed_attempts: 1/m);
+    assert.match(failedBody, /^failed_step: verify$/m);
+    assert.match(failedBody, /^failed_attempts: 1$/m);
     assert.match(failedBody, new RegExp(`^last_cycle_id: "${cycleId}"$`, "m"));
 
     const queue = await readFile(join(root, ".cycle/tbd.jsonl"), "utf8");
