@@ -8,9 +8,16 @@ triage:
   max_turns: 10
 
 workflows:
+  # LOCAL DIVERGENCE FROM src/defaults/workflows.yml
+  # This repo is trunk-based (see CLAUDE.md). feature here runs no_branch:true
+  # and commits directly to master via commit-trunk.sh; the pr step is dropped.
+  # src/defaults/workflows.yml still ships branch+PR for downstream consumers.
+  # `npm run sync-defaults` will overwrite this file — do not run it without
+  # restoring this divergence afterward.
   - name: feature
-    description: Full SDLC pass for a single cycle of work.
+    description: Full SDLC pass for a single cycle of work, trunk-based.
     max_cycle_attempts: 3
+    no_branch: true
     steps:
       - { name: spec,     agent: claudecode, prompt: prompts/spec.md }
       - { name: research, agent: claudecode, prompt: prompts/research.md }
@@ -19,8 +26,7 @@ workflows:
       - { name: review,   agent: claudecode, prompt: prompts/review.md }
       - { name: fix,      agent: claudecode, prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
       - { name: verify,   agent: bash,       command: scripts/verify.sh }
-      - { name: commit,   agent: bash,       command: scripts/commit.sh }
-      - { name: pr,       agent: bash,       command: scripts/pr.sh }
+      - { name: commit,   agent: bash,       command: scripts/commit-trunk.sh }
       - { name: reflection, agent: claudecode, prompt: prompts/reflection.md }
 
   - name: e2e-tests
