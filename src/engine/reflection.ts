@@ -8,6 +8,8 @@ export type SharpEdge = { title: string; body: string; priority_hint: number };
 export type IngestResult = { written: string[]; skipped: number };
 
 const FENCE_RE = /^```(?:json)?\s*\n([\s\S]*?)\n```\s*$/;
+const TRUNC_BUDGET = 8192;
+const TRUNC_MARKER = "\n…\n";
 
 export async function ingestReflection(
   repoRoot: string,
@@ -17,33 +19,6 @@ export async function ingestReflection(
   log: Logger,
 ): Promise<IngestResult> {
   const rawDir = join(repoRoot, "docs/cycle/issues/raw");
-
-  let stripped = stdout.trim();
-  const fence = stripped.match(FENCE_RE);
-  if (fence) stripped = fence[1].trim();
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stripped);
-  } catch (err) {
-    await log.emit("reflection.skipped", {
-      cycle_id: cycleId,
-      reason: "parse_error",
-      message: (err as Error).message,
-    });
-    return { written: [], skipped: 0 };
-  }
-
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || !Array.isArray((parsed as { sharp_edges?: unknown }).sharp_edges)) {
-    await log.emit("reflection.skipped", {
-      cycle_id: cycleId,
-      reason: "parse_error",
-      message: "missing sharp_edges array",
-    });
-    return { written: [], skipped: 0 };
-  }
-
-  const entries = (parsed as { sharp_edges: unknown[] }).sharp_edges;
 
   await mkdir(rawDir, { recursive: true });
   const existing = await readdir(rawDir);
@@ -57,6 +32,38 @@ export async function ingestReflection(
       }
     }
   }
+
+  let stripped = stdout.trim();
+  const fence = stripped.match(FENCE_RE);
+  if (fence) stripped = fence[1].trim();
+
+  const parseRes = parseWithRepair(stripped);
+  if (!parseRes.ok) {
+    const path = await writeParseError(rawDir, cycleId, stdout);
+    await log.emit("reflection.skipped", {
+      cycle_id: cycleId,
+      reason: "parse_error",
+      message: parseRes.message,
+    });
+    await log.emit("reflection.summary", {
+      cycle_id: cycleId,
+      count: 0,
+      skipped: 1,
+    });
+    return { written: [path], skipped: 1 };
+  }
+  const parsed: unknown = parseRes.value;
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || !Array.isArray((parsed as { sharp_edges?: unknown }).sharp_edges)) {
+    await log.emit("reflection.skipped", {
+      cycle_id: cycleId,
+      reason: "parse_error",
+      message: "missing sharp_edges array",
+    });
+    return { written: [], skipped: 0 };
+  }
+
+  const entries = (parsed as { sharp_edges: unknown[] }).sharp_edges;
 
   const written: string[] = [];
   let skipped = 0;
@@ -117,6 +124,97 @@ export async function ingestReflection(
   });
 
   return { written, skipped };
+}
+
+type ParseResult = { ok: true; value: unknown } | { ok: false; message: string };
+
+function parseWithRepair(s: string): ParseResult {
+  try {
+    return { ok: true, value: JSON.parse(s) };
+  } catch (e1) {
+    const repaired = trimToLastBalancedClose(s);
+    if (repaired === null) return { ok: false, message: (e1 as Error).message };
+    try {
+      return { ok: true, value: JSON.parse(repaired) };
+    } catch (e2) {
+      return { ok: false, message: (e2 as Error).message };
+    }
+  }
+}
+
+function trimToLastBalancedClose(s: string): string | null {
+  let start = -1;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c === 0x7b /* { */ || c === 0x5b /* [ */) {
+      start = i;
+      break;
+    }
+  }
+  if (start === -1) return null;
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  let lastIdx = -1;
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (esc) {
+        esc = false;
+      } else if (ch === "\\") {
+        esc = true;
+      } else if (ch === '"') {
+        inStr = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inStr = true;
+      continue;
+    }
+    if (ch === "{" || ch === "[") {
+      depth++;
+    } else if (ch === "}" || ch === "]") {
+      depth--;
+      if (depth === 0) lastIdx = i;
+    }
+  }
+  if (lastIdx < 0) return null;
+  return s.slice(start, lastIdx + 1);
+}
+
+function truncateUtf8(s: string, budget: number = TRUNC_BUDGET, marker: string = TRUNC_MARKER): string {
+  if (Buffer.byteLength(s, "utf8") <= budget) return s;
+  const markerBytes = Buffer.byteLength(marker, "utf8");
+  const cap = budget - markerBytes;
+  let acc = 0;
+  let cut = 0;
+  for (const ch of s) {
+    const n = Buffer.byteLength(ch, "utf8");
+    if (acc + n > cap) break;
+    acc += n;
+    cut += ch.length;
+  }
+  return s.slice(0, cut) + marker;
+}
+
+async function writeParseError(rawDir: string, cycleId: string, stdout: string): Promise<string> {
+  const id = `refl-${cycleId}-parse-error`;
+  const body = truncateUtf8(stdout);
+  const content = serializeFrontmatter(
+    {
+      id,
+      source: "reflection",
+      title: "reflection stdout failed to parse",
+      added_at: new Date().toISOString(),
+      triage_attempts: 0,
+      priority_hint: 7,
+      origin_cycle_id: cycleId,
+    },
+    "\n" + body + "\n",
+  );
+  await atomicWrite(join(rawDir, `${id}.md`), content);
+  return id;
 }
 
 function validateEntry(e: Partial<SharpEdge> | null | undefined): string | null {

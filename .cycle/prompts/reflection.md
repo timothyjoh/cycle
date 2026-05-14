@@ -82,3 +82,22 @@ If there are no sharp edges, still emit the wrapper:
 - Never invent issues that aren't in evidence — every entry must trace
   back to something concrete in the artifacts or diff.
 - Empty array is the right answer when the cycle was clean.
+
+### Bad output (rejected)
+
+Do NOT do this:
+
+````
+Here is the analysis you requested:
+
+```json
+{ "sharp_edges": [ { "title": "x", "body": "y", "priority_hint": 3 } ] }
+```
+
+Hope that helps!
+````
+
+The engine first tries a one-shot trailing-prose repair pass, but
+prose-wrapped fenced output is fragile and can still escalate to a
+`refl-<cycleId>-parse-error.md` raw issue. Output JSON only — no
+fences, no leading prose, no trailing prose.

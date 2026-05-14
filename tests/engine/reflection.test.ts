@@ -100,17 +100,30 @@ test("ingestReflection: empty array emits summary only, no files", async () => {
   }
 });
 
-test("ingestReflection: malformed JSON emits parse_error and returns empty", async () => {
+test("ingestReflection: unparseable stdout escalates to refl-<cid>-parse-error.md and emits summary", async () => {
   const root = await setupRepo();
   try {
     const { events, logger } = makeLogger();
     const r = await ingestReflection(root, CID, SLUG, "not json at all", logger);
-    assert.deepEqual(r, { written: [], skipped: 0 });
-    assert.equal(events.length, 1);
-    assert.equal(events[0].event, "reflection.skipped");
-    assert.equal(events[0].fields.reason, "parse_error");
-    const entries = await readdir(join(root, "docs/cycle/issues/raw"));
-    assert.equal(entries.length, 0);
+    assert.deepEqual(r, { written: [`refl-${CID}-parse-error`], skipped: 1 });
+    const skip = events.find((e) => e.event === "reflection.skipped");
+    assert.ok(skip, "reflection.skipped emitted");
+    assert.equal(skip!.fields.reason, "parse_error");
+    const summary = events.find((e) => e.event === "reflection.summary");
+    assert.ok(summary, "reflection.summary emitted on escalation");
+    assert.equal(summary!.fields.count, 0);
+    assert.equal(summary!.fields.skipped, 1);
+    const errPath = join(root, "docs/cycle/issues/raw", `refl-${CID}-parse-error.md`);
+    assert.ok(await fileExists(errPath));
+    const body = await readFile(errPath, "utf8");
+    const { fm, bodyAfter } = parseFrontmatter(body);
+    assert.equal(fm.id, `refl-${CID}-parse-error`);
+    assert.equal(fm.source, "reflection");
+    assert.equal(fm.title, "reflection stdout failed to parse");
+    assert.equal(fm.priority_hint, 7);
+    assert.equal(fm.origin_cycle_id, CID);
+    assert.equal(fm.triage_attempts, 0);
+    assert.match(bodyAfter, /not json at all/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -131,15 +144,194 @@ test("ingestReflection: strips a ```json fenced wrapper before parsing", async (
   }
 });
 
-test("ingestReflection: leading prose before ```json fence falls through to parse_error", async () => {
+test("ingestReflection: leading prose + fenced JSON + trailing prose recovers via repair pass", async () => {
   const root = await setupRepo();
   try {
     const { events, logger } = makeLogger();
-    const stdout = "Here is the output:\n```json\n" + JSON.stringify({ sharp_edges: [] }) + "\n```";
+    const stdout =
+      "Here is the output:\n```json\n" +
+      JSON.stringify({ sharp_edges: [] }) +
+      "\n```\nHope that helps!";
     const r = await ingestReflection(root, CID, SLUG, stdout, logger);
     assert.deepEqual(r, { written: [], skipped: 0 });
-    assert.equal(events[0].event, "reflection.skipped");
-    assert.equal(events[0].fields.reason, "parse_error");
+    const skip = events.find((e) => e.event === "reflection.skipped");
+    assert.equal(skip, undefined, "repair pass succeeds — no reflection.skipped");
+    const summary = events.find((e) => e.event === "reflection.summary");
+    assert.ok(summary);
+    assert.equal(summary!.fields.count, 0);
+    assert.equal(summary!.fields.skipped, 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("ingestReflection: JSON with trailing prose parses via repair pass", async () => {
+  const root = await setupRepo();
+  try {
+    const { events, logger } = makeLogger();
+    const stdout =
+      JSON.stringify({
+        sharp_edges: [{ title: "A", body: "b", priority_hint: 3 }],
+      }) + "\nHere is some commentary the agent leaked.";
+    const r = await ingestReflection(root, CID, SLUG, stdout, logger);
+    assert.deepEqual(r, { written: [`refl-${CID}-a`], skipped: 0 });
+    const skip = events.find((e) => e.event === "reflection.skipped");
+    assert.equal(skip, undefined, "repair pass succeeds — no reflection.skipped");
+    const surfaced = events.filter((e) => e.event === "reflection.surfaced");
+    assert.equal(surfaced.length, 1);
+    const summary = events.find((e) => e.event === "reflection.summary");
+    assert.equal(summary!.fields.count, 1);
+    assert.equal(summary!.fields.skipped, 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("ingestReflection: repair pass handles JSON strings containing braces", async () => {
+  const root = await setupRepo();
+  try {
+    const { logger } = makeLogger();
+    const stdout =
+      JSON.stringify({
+        sharp_edges: [{ title: "brace title", body: "body with {literal} braces inside", priority_hint: 3 }],
+      }) + "\nyap yap yap";
+    const r = await ingestReflection(root, CID, SLUG, stdout, logger);
+    assert.deepEqual(r, { written: [`refl-${CID}-brace-title`], skipped: 0 });
+    const p = join(root, "docs/cycle/issues/raw", `refl-${CID}-brace-title.md`);
+    const body = await readFile(p, "utf8");
+    const { fm, bodyAfter } = parseFrontmatter(body);
+    assert.equal(fm.title, "brace title");
+    assert.match(bodyAfter, /body with \{literal\} braces inside/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("ingestReflection: repair pass handles backslash-escaped quotes inside JSON strings", async () => {
+  const root = await setupRepo();
+  try {
+    const { logger } = makeLogger();
+    const stdout =
+      JSON.stringify({
+        sharp_edges: [
+          { title: 'fix: "quoted" title', body: "ok", priority_hint: 4 },
+        ],
+      }) + "\ntrailing prose to force repair pass";
+    const r = await ingestReflection(root, CID, SLUG, stdout, logger);
+    assert.equal(r.skipped, 0);
+    assert.equal(r.written.length, 1);
+    const p = join(root, "docs/cycle/issues/raw", `${r.written[0]}.md`);
+    const body = await readFile(p, "utf8");
+    const { fm } = parseFrontmatter(body);
+    assert.equal(fm.title, 'fix: "quoted" title');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("ingestReflection: unbalanced braces escalate without looping", async () => {
+  const root = await setupRepo();
+  try {
+    const { events, logger } = makeLogger();
+    const r = await ingestReflection(root, CID, SLUG, '{"sharp_edges":[', logger);
+    assert.deepEqual(r, { written: [`refl-${CID}-parse-error`], skipped: 1 });
+    const skipCount = events.filter((e) => e.event === "reflection.skipped").length;
+    assert.equal(skipCount, 1, "exactly one reflection.skipped — no loop");
+    const summaryCount = events.filter((e) => e.event === "reflection.summary").length;
+    assert.equal(summaryCount, 1, "exactly one reflection.summary");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("ingestReflection: repair-substring still invalid JSON escalates with second-parse error message", async () => {
+  const root = await setupRepo();
+  try {
+    const { events, logger } = makeLogger();
+    const r = await ingestReflection(root, CID, SLUG, "{x:1} trailing prose", logger);
+    assert.deepEqual(r, { written: [`refl-${CID}-parse-error`], skipped: 1 });
+    const skip = events.find((e) => e.event === "reflection.skipped");
+    assert.ok(skip);
+    assert.equal(skip!.fields.reason, "parse_error");
+    assert.match(String(skip!.fields.message), /JSON|token|expected/i);
+    const summary = events.find((e) => e.event === "reflection.summary");
+    assert.equal(summary!.fields.count, 0);
+    assert.equal(summary!.fields.skipped, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("ingestReflection: escalation truncates stdout over 8 KB", async () => {
+  const root = await setupRepo();
+  try {
+    const { logger } = makeLogger();
+    const huge = "x".repeat(10000);
+    const r = await ingestReflection(root, CID, SLUG, huge, logger);
+    assert.equal(r.written.length, 1);
+    const errPath = join(root, "docs/cycle/issues/raw", `refl-${CID}-parse-error.md`);
+    const file = await readFile(errPath, "utf8");
+    const { bodyAfter } = parseFrontmatter(file);
+    const trimmed = bodyAfter.replace(/^\n/, "").replace(/\n$/, "");
+    assert.equal(Buffer.byteLength(trimmed, "utf8"), 8192, "body byte length is exactly 8192 on overflow");
+    assert.ok(trimmed.endsWith("\n…\n"), "ends with marker");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("ingestReflection: escalation preserves short stdout verbatim (no marker)", async () => {
+  const root = await setupRepo();
+  try {
+    const { logger } = makeLogger();
+    const r = await ingestReflection(root, CID, SLUG, "garbage", logger);
+    assert.equal(r.written.length, 1);
+    const errPath = join(root, "docs/cycle/issues/raw", `refl-${CID}-parse-error.md`);
+    const file = await readFile(errPath, "utf8");
+    const { bodyAfter } = parseFrontmatter(file);
+    assert.match(bodyAfter, /^\ngarbage\n$/);
+    assert.ok(!bodyAfter.includes("…"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("ingestReflection: escalation truncation is codepoint-safe across multi-byte boundary", async () => {
+  const root = await setupRepo();
+  try {
+    const { logger } = makeLogger();
+    // 8190 ASCII + rocket (4-byte UTF-8) = 8194 bytes total → must truncate.
+    // After codepoint walk, marker = 5 bytes, cap = 8187, so we keep 8187 ASCII
+    // chars (rocket dropped — adding it would push acc to 8191, then +4 > 8187 cap),
+    // and append marker for a total of 8192 bytes.
+    const stdout = "a".repeat(8190) + "🚀";
+    const r = await ingestReflection(root, CID, SLUG, stdout, logger);
+    assert.equal(r.written.length, 1);
+    const errPath = join(root, "docs/cycle/issues/raw", `refl-${CID}-parse-error.md`);
+    const file = await readFile(errPath, "utf8");
+    const { bodyAfter } = parseFrontmatter(file);
+    const trimmed = bodyAfter.replace(/^\n/, "").replace(/\n$/, "");
+    assert.equal(Buffer.byteLength(trimmed, "utf8"), 8192);
+    assert.ok(!trimmed.includes("�"), "no replacement char from a half-codepoint split");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("ingestReflection: escalation is idempotent on resume (pre-seeded parse-error file replaced)", async () => {
+  const root = await setupRepo();
+  try {
+    const errPath = join(root, "docs/cycle/issues/raw", `refl-${CID}-parse-error.md`);
+    await writeFile(errPath, "stale-content-from-previous-attempt", "utf8");
+    const { logger } = makeLogger();
+    const r = await ingestReflection(root, CID, SLUG, "still not json", logger);
+    assert.deepEqual(r, { written: [`refl-${CID}-parse-error`], skipped: 1 });
+    const files = (await readdir(join(root, "docs/cycle/issues/raw")))
+      .filter((n) => n.startsWith(`refl-${CID}-`));
+    assert.deepEqual(files, [`refl-${CID}-parse-error.md`], "exactly one parse-error file");
+    const body = await readFile(errPath, "utf8");
+    assert.ok(!body.includes("stale-content-from-previous-attempt"));
+    assert.match(body, /still not json/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
