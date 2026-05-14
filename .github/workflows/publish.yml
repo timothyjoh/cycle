@@ -25,16 +25,4 @@ jobs:
 
       - run: npm test
 
-      - name: Decode OIDC claims (debug)
-        run: |
-          set -e
-          token=$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm:registry.npmjs.org" \
-            | python3 -c 'import sys,json; print(json.load(sys.stdin)["value"])')
-          payload=$(printf '%s' "$token" | cut -d. -f2)
-          mod=$(( ${#payload} % 4 ))
-          if [ $mod -ne 0 ]; then payload="${payload}$(printf '%*s' $((4-mod)) '' | tr ' ' '=')"; fi
-          payload=$(printf '%s' "$payload" | tr '_-' '/+')
-          printf '%s' "$payload" | base64 -d | python3 -m json.tool
-
       - run: npm publish --access public
