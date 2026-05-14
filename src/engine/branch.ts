@@ -78,3 +78,33 @@ export async function pullBase(repoRoot: string, base: string): Promise<{ shaBef
   const shaAfter = await revParse(repoRoot, base);
   return { shaBefore, shaAfter };
 }
+
+export async function revParseHead(repoRoot: string): Promise<string | null> {
+  return revParse(repoRoot, "HEAD");
+}
+
+function currentBranchName(repoRoot: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const child = spawn("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoRoot, shell: false });
+    let stdout = "";
+    child.stdout.on("data", d => { stdout += d.toString(); });
+    child.on("close", code => resolve(code === 0 ? stdout.trim() : null));
+    child.on("error", () => resolve(null));
+  });
+}
+
+export async function resetCycleBranchTo(repoRoot: string, sha: string): Promise<void> {
+  const branch = await currentBranchName(repoRoot);
+  if (!branch || !branch.startsWith("cycle/")) {
+    throw new Error(`resetCycleBranchTo refuses to reset outside a cycle branch (HEAD=${branch ?? "unknown"})`);
+  }
+  await git(repoRoot, ["reset", "--hard", sha]);
+}
+
+export function shaExists(repoRoot: string, sha: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const child = spawn("git", ["cat-file", "-e", `${sha}^{commit}`], { cwd: repoRoot, shell: false });
+    child.on("close", code => resolve(code === 0));
+    child.on("error", () => resolve(false));
+  });
+}

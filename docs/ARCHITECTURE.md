@@ -825,6 +825,11 @@ Resolved since the last revision:
    persistent identity; no run ID. See §6.
 3. ✅ Resume semantics — re-invoking `cycle run` with no arguments
    continues consuming `tbd.jsonl`. No explicit `--resume` flag needed.
+   - `build` step has a dedicated restart policy: pre-build HEAD is
+     captured on `step.start.head_sha`; on resume the cycle branch is
+     hard-reset to that SHA before re-running the agent. See
+     [`CLAUDE.md`](../CLAUDE.md) "Resume from log tail" for the full
+     description.
 4. ✅ Queue failure handling — 3 attempts per cycle (fresh branch +
    wiped artifacts between attempts). On exhaustion: preservation
    branch + `Failed Attempt: …` PR; issue moves to `blocked/`;

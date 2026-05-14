@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
-import { createCycleBranch, checkoutCycleBranch, checkoutBase, pullBase, prepareTrunkArtifactDir } from "../../src/engine/branch.ts";
+import { createCycleBranch, checkoutCycleBranch, checkoutBase, pullBase, prepareTrunkArtifactDir, revParseHead, resetCycleBranchTo, shaExists } from "../../src/engine/branch.ts";
 
 function git(cwd: string, args: string[]) {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -195,6 +195,129 @@ test("pullBase rejects with stderr when no origin remote configured", async () =
       () => pullBase(root, "main"),
       (err: Error) => /git fetch origin main failed/.test(err.message),
     );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("revParseHead returns the current HEAD sha", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    const expected = git(root, ["rev-parse", "HEAD"]).trim();
+    const got = await revParseHead(root);
+    assert.equal(got, expected);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("revParseHead returns null in a non-git directory", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    const got = await revParseHead(root);
+    assert.equal(got, null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("resetCycleBranchTo discards staged + unstaged + untracked changes back to a SHA", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    await writeFile(join(root, "tracked.txt"), "v1", "utf8");
+    git(root, ["add", "tracked.txt"]);
+    git(root, ["commit", "-m", "init"]);
+
+    await createCycleBranch(root, { cycleId: "0042", workflow: "feature", slug: "reset-me" });
+    const sha = git(root, ["rev-parse", "HEAD"]).trim();
+
+    // Modify tracked file and stage it.
+    await writeFile(join(root, "tracked.txt"), "v2-staged", "utf8");
+    git(root, ["add", "tracked.txt"]);
+    // Modify it further (unstaged).
+    await writeFile(join(root, "tracked.txt"), "v3-unstaged", "utf8");
+    // Drop an untracked file.
+    await writeFile(join(root, "untracked.txt"), "garbage", "utf8");
+    // Add an extra commit on top.
+    await writeFile(join(root, "tracked.txt"), "v4-committed", "utf8");
+    git(root, ["add", "tracked.txt"]);
+    git(root, ["commit", "-m", "extra"]);
+    assert.notEqual(git(root, ["rev-parse", "HEAD"]).trim(), sha);
+
+    await resetCycleBranchTo(root, sha);
+
+    assert.equal(git(root, ["rev-parse", "HEAD"]).trim(), sha);
+    const tracked = await readFile(join(root, "tracked.txt"), "utf8");
+    assert.equal(tracked, "v1");
+    // Untracked file is NOT cleaned by `git reset --hard`; this is by design (mirrors what the engine actually does).
+    const stillThere = await stat(join(root, "untracked.txt")).then(() => true, () => false);
+    assert.equal(stillThere, true, "git reset --hard does not remove untracked files");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("resetCycleBranchTo refuses to run outside a cycle/ branch", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    const sha = git(root, ["rev-parse", "HEAD"]).trim();
+    await assert.rejects(
+      () => resetCycleBranchTo(root, sha),
+      (err: Error) => /resetCycleBranchTo refuses to reset outside a cycle branch/.test(err.message),
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("resetCycleBranchTo refuses when HEAD cannot be resolved", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await assert.rejects(
+      () => resetCycleBranchTo(root, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"),
+      (err: Error) => /HEAD=unknown/.test(err.message),
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("shaExists returns false when cwd does not exist (spawn error path)", async () => {
+  const got = await shaExists("/nonexistent-xyz-cycle-test", "deadbeef");
+  assert.equal(got, false);
+});
+
+test("resetCycleBranchTo refuses when cwd does not exist (spawn error path resolves null)", async () => {
+  await assert.rejects(
+    () => resetCycleBranchTo("/nonexistent-xyz-cycle-test", "deadbeef"),
+    (err: Error) => /HEAD=unknown/.test(err.message),
+  );
+});
+
+test("shaExists is true for HEAD and false for a synthetic 40-char sha", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    const head = git(root, ["rev-parse", "HEAD"]).trim();
+    assert.equal(await shaExists(root, head), true);
+    assert.equal(await shaExists(root, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"), false);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
