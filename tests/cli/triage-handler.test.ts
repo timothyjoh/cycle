@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runCliTriage } from "../../src/cli/triage.ts";
+import { runCliTriage, runCliTriageWithDeps } from "../../src/cli/triage.ts";
 
 const workflowYml = `engine:
   max_consecutive_failures: 2
@@ -122,7 +122,7 @@ test("runCliTriage --dry-run ok report: exit 0, JSON has status:ok", async () =>
       rawBody("r1"),
       "utf8",
     );
-    const result = await runCliTriage(root, ["--dry-run"], {
+    const result = await runCliTriageWithDeps(root, ["--dry-run"], {
       runAgent: async () => ({ exitCode: 0, stdout: decomposeJson("r1"), stderr: "" }),
     });
     assert.equal(result.exitCode, 0);
@@ -143,7 +143,7 @@ test("runCliTriage --dry-run failed report: exit 1", async () => {
       rawBody("bad"),
       "utf8",
     );
-    const result = await runCliTriage(root, ["--dry-run"], {
+    const result = await runCliTriageWithDeps(root, ["--dry-run"], {
       runAgent: async () => ({ exitCode: 0, stdout: "not json", stderr: "" }),
     });
     assert.equal(result.exitCode, 1);

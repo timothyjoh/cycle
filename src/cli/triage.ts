@@ -19,10 +19,10 @@ Exits 0 if every raw passed validation, 1 otherwise.
 Note: cycle triage without --dry-run is not implemented; real triage
 runs as part of \`cycle run\`.`;
 
-export async function runCliTriage(
+export async function runCliTriageWithDeps(
   repoRoot: string,
   argv: string[],
-  deps: TriageDeps = {},
+  deps: TriageDeps,
 ): Promise<{ exitCode: number; stdout: string; stderr?: string }> {
   if (argv.includes("--help") || argv.includes("-h")) {
     return { exitCode: 0, stdout: HELP + "\n" };
@@ -37,4 +37,11 @@ export async function runCliTriage(
     exitCode: anyFailed ? 1 : 0,
     stdout: JSON.stringify(reports, null, 2) + "\n",
   };
+}
+
+export async function runCliTriage(
+  repoRoot: string,
+  argv: string[],
+): Promise<{ exitCode: number; stdout: string; stderr?: string }> {
+  return runCliTriageWithDeps(repoRoot, argv, {});
 }
