@@ -49,10 +49,12 @@ source: jira          # jira | linear | github | text | reflection
 title: "Safari login broken"
 added_at: 2026-05-13T01:30:00Z
 triage_attempts: 0    # engine-managed
-priority: 5           # optional hint to triage; not honored automatically
+priority: 3           # optional hint to triage; not honored automatically
 ---
 Description text from the upstream source.
 ```
+
+Default and range: `priority` is an integer in the inclusive range 1–10; `cycle drop` (via `materializeFreeformIssue`) emits `3` when `--priority` is not given.
 
 ### Triaged todo (`todo/<parent>-<slug>.md`)
 
