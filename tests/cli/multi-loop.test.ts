@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, appendFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, chmod, appendFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -141,6 +141,56 @@ test("'drop' materializes an issue to raw/ without running", async () => {
     } catch (e: unknown) {
       assert.equal((e as NodeJS.ErrnoException).code, "ENOENT");
     }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("'run \"<text>\" --dry-run' pins raw frontmatter byte-shape (priority: 3 default)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    const distPath = await ensureDist();
+
+    const r = spawnSync(
+      "node",
+      [distPath, "run", "park this too", "--dry-run"],
+      { cwd: root, encoding: "utf8" },
+    );
+    assert.equal(r.status, 0, `cycle run exit: ${r.status}\nstderr: ${r.stderr}`);
+
+    const rawDir = join(root, "docs/cycle/issues/raw");
+    const entries = (await readdir(rawDir)).filter((f) => f.endsWith(".md"));
+    assert.equal(entries.length, 1, `expected exactly one raw .md, got: ${entries.join(", ")}`);
+
+    const filename = entries[0];
+    assert.match(filename, /^txt-\d{8}-\d{6}-park-this-too\.md$/);
+    const id = filename.slice(0, -3);
+
+    const body = await readFile(join(rawDir, filename), "utf8");
+
+    assert.match(
+      body,
+      /^added_at: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/m,
+      "added_at must be ISO-8601 with milliseconds",
+    );
+
+    const addedAtMatch = body.match(/^added_at: .*$/m);
+    assert.ok(addedAtMatch, "added_at line missing");
+    const expectedFrontmatter =
+      "---\n" +
+      `id: ${id}\n` +
+      "source: text\n" +
+      'title: "park this too"\n' +
+      `${addedAtMatch[0]}\n` +
+      "triage_attempts: 0\n" +
+      "priority: 3\n" +
+      "---\n";
+    assert.ok(
+      body.startsWith(expectedFrontmatter),
+      `frontmatter mismatch:\n${body}`,
+    );
+
+    assert.match(body, /\npark this too\n$/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
