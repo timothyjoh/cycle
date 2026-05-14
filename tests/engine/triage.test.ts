@@ -502,6 +502,11 @@ test("whole-pass failure: only raw fails all attempts → engine.paused", async 
 
     const paused = events.find((e) => e.event === "engine.paused");
     assert.ok(paused, "engine.paused must fire on whole-pass failure");
+    assert.equal(
+      events.filter((e) => e.event === "engine.paused").length,
+      1,
+      "engine.paused must fire exactly once per whole-pass failure",
+    );
     assert.equal(paused?.fields.reason, "all_triage_failed");
     assert.deepEqual(paused?.fields.raw_ids, ["only"]);
     const lastErrors = paused?.fields.last_errors as Array<{
