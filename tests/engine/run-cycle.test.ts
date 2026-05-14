@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, stat } from "node:fs/pr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { runCycle, findPriorBuildHeadSha } from "../../src/engine/run-cycle.ts";
+import { runCycle, findPriorBuildHeadSha, findPriorStepHeadSha } from "../../src/engine/run-cycle.ts";
 
 function git(cwd: string, args: string[]) {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -701,6 +701,62 @@ test("findPriorBuildHeadSha: returns null when no matching build step.start exis
   }
 });
 
+test("findPriorStepHeadSha('fix'): returns null when .cycle/log.jsonl is missing", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    const got = await findPriorStepHeadSha(root, "0042", "fix");
+    assert.equal(got, null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("findPriorStepHeadSha('fix'): returns 'missing' when prior fix step.start has no head_sha", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await mkdir(join(root, ".cycle"), { recursive: true });
+    const lines = [
+      JSON.stringify({ event: "step.start", cycle_id: "0042", step: "fix", agent: "claudecode" }),
+    ];
+    await writeFile(join(root, ".cycle/log.jsonl"), lines.join("\n") + "\n", "utf8");
+    const got = await findPriorStepHeadSha(root, "0042", "fix");
+    assert.equal(got, "missing");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("findPriorStepHeadSha('fix'): returns the SHA when present and ignores build rows", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await mkdir(join(root, ".cycle"), { recursive: true });
+    const lines = [
+      JSON.stringify({ event: "step.start", cycle_id: "0042", step: "build", head_sha: "buildbuildbuildbuildbuildbuildbuildbuild" }),
+      JSON.stringify({ event: "step.start", cycle_id: "0042", step: "fix", agent: "claudecode", head_sha: "fixfixfixfixfixfixfixfixfixfixfixfixfix0" }),
+    ];
+    await writeFile(join(root, ".cycle/log.jsonl"), lines.join("\n") + "\n", "utf8");
+    assert.equal(await findPriorStepHeadSha(root, "0042", "fix"), "fixfixfixfixfixfixfixfixfixfixfixfixfix0");
+    assert.equal(await findPriorStepHeadSha(root, "0042", "build"), "buildbuildbuildbuildbuildbuildbuildbuild");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("findPriorStepHeadSha('fix'): returns null when no matching fix step.start exists for cycle", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await mkdir(join(root, ".cycle"), { recursive: true });
+    const lines = [
+      JSON.stringify({ event: "step.start", cycle_id: "0099", step: "fix", head_sha: "abc" }),
+      JSON.stringify({ event: "step.start", cycle_id: "0042", step: "build", head_sha: "def" }),
+    ];
+    await writeFile(join(root, ".cycle/log.jsonl"), lines.join("\n") + "\n", "utf8");
+    assert.equal(await findPriorStepHeadSha(root, "0042", "fix"), null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("fresh build step.start records head_sha; non-build step.start does not", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
@@ -818,6 +874,133 @@ workflows:
     const resumeWarning = log.split("\n").find(l => l.includes('"cycle_id":"0043"') && l.includes('"event":"step.warning"'));
     assert.equal(resumeWarning, undefined, "no step.warning emitted under no_branch");
     // Dirty trunk file untouched (no_branch never resets).
+    const stillDirty = await readFile(join(root, "dirty.txt"), "utf8");
+    assert.equal(stillDirty, "agent garbage");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("fresh fix step.start records head_sha; spec/review step.start does not", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+      - name: review
+        agent: claudecode
+        prompt: prompts/review.md
+      - name: fix
+        agent: claudecode
+        prompt: prompts/fix.md
+`), "utf8");
+    await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
+    await writeFile(join(root, ".cycle/prompts/review.md"), "review body", "utf8");
+    await writeFile(join(root, ".cycle/prompts/fix.md"), "fix body", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const baseSha = git(root, ["rev-parse", "HEAD"]).trim();
+
+    const r = await runCycle(root, {
+      issueId: "TEST-1",
+      title: "fix sha",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.match(log, new RegExp(`"event":"step\\.start","cycle_id":"0001","step":"fix","agent":"claudecode","head_sha":"${baseSha}"`));
+    for (const stepName of ["spec", "review"]) {
+      const line = log.split("\n").find(l => l.includes(`"step":"${stepName}"`) && l.includes('"event":"step.start"'));
+      assert.ok(line, `${stepName} step.start present`);
+      assert.doesNotMatch(line!, /"head_sha"/);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("no_branch workflow: fix step.start omits head_sha (fresh + resume)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await mkdir(join(root, ".cycle/scripts"), { recursive: true });
+    const trunkWorkflow = `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    no_branch: true
+    steps:
+      - name: fix
+        agent: bash
+        command: scripts/fix.sh
+`;
+    await writeFile(join(root, ".cycle/workflows.yml"), trunkWorkflow, "utf8");
+    const fixScript = join(root, ".cycle/scripts/fix.sh");
+    await writeFile(fixScript, "#!/bin/bash\necho fixed\n", "utf8");
+    await chmod(fixScript, 0o755);
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await runCycle(root, {
+      cycleId: "0042",
+      issueId: "TEST-1",
+      title: "trunk fix",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    let log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const freshFixStart = log.split("\n").find(l => l.includes('"cycle_id":"0042"') && l.includes('"step":"fix"') && l.includes('"event":"step.start"'));
+    assert.ok(freshFixStart, "fresh fix step.start present");
+    assert.doesNotMatch(freshFixStart!, /"head_sha"/);
+
+    await writeFile(join(root, "dirty.txt"), "agent garbage", "utf8");
+    const r2 = await runCycle(root, {
+      cycleId: "0043",
+      issueId: "TEST-2",
+      title: "trunk resume",
+      workflow: "feature",
+      resume: { startStepIndex: 0 },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r2.status, "ok");
+
+    log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const resumeFixStart = log.split("\n").find(l => l.includes('"cycle_id":"0043"') && l.includes('"step":"fix"') && l.includes('"event":"step.start"'));
+    assert.ok(resumeFixStart, "resumed fix step.start present");
+    assert.doesNotMatch(resumeFixStart!, /"head_sha"/);
+    const resumeWarning = log.split("\n").find(l => l.includes('"cycle_id":"0043"') && l.includes('"event":"step.warning"'));
+    assert.equal(resumeWarning, undefined, "no step.warning emitted under no_branch");
     const stillDirty = await readFile(join(root, "dirty.txt"), "utf8");
     assert.equal(stillDirty, "agent garbage");
   } finally {
@@ -1043,6 +1226,285 @@ test("resume at build with unreachable head_sha emits build_pre_sha_unreachable 
     const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
     assert.match(log, new RegExp(`"event":"step\\.warning","cycle_id":"0042","step":"build","reason":"build_pre_sha_unreachable","sha":"${lostSha}"`));
     assert.match(log, new RegExp(`"event":"step\\.start","cycle_id":"0042","step":"build","agent":"claudecode","head_sha":"${dirtyHead}"`));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("resume at fix hard-resets to prior step.start head_sha", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    await writeFile(join(root, "tracked.txt"), "v1", "utf8");
+    git(root, ["add", "tracked.txt"]);
+    git(root, ["commit", "-m", "init"]);
+
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+      - name: research
+        agent: claudecode
+        prompt: prompts/research.md
+      - name: plan
+        agent: claudecode
+        prompt: prompts/plan.md
+      - name: build
+        agent: claudecode
+        prompt: prompts/build.md
+      - name: review
+        agent: claudecode
+        prompt: prompts/review.md
+      - name: fix
+        agent: claudecode
+        prompt: prompts/fix.md
+`), "utf8");
+    for (const p of ["spec", "research", "plan", "build", "review", "fix"]) {
+      await writeFile(join(root, `.cycle/prompts/${p}.md`), `${p} body`, "utf8");
+    }
+
+    git(root, ["checkout", "-b", "cycle/feature/resume-fix"]);
+    const shaFixStart = git(root, ["rev-parse", "HEAD"]).trim();
+
+    const seedLines = [
+      JSON.stringify({ ts: "2026-01-01T00:00:00.000Z", event: "cycle.start", cycle_id: "0042", workflow: "feature", title: "resume fix", issue_id: "TEST-1" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:01.000Z", event: "step.start", cycle_id: "0042", step: "spec", agent: "claudecode" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:02.000Z", event: "step.end", cycle_id: "0042", step: "spec", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:03.000Z", event: "step.start", cycle_id: "0042", step: "research", agent: "claudecode" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:04.000Z", event: "step.end", cycle_id: "0042", step: "research", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:05.000Z", event: "step.start", cycle_id: "0042", step: "plan", agent: "claudecode" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:06.000Z", event: "step.end", cycle_id: "0042", step: "plan", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:07.000Z", event: "step.start", cycle_id: "0042", step: "build", agent: "claudecode", head_sha: shaFixStart }),
+      JSON.stringify({ ts: "2026-01-01T00:00:08.000Z", event: "step.end", cycle_id: "0042", step: "build", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:09.000Z", event: "step.start", cycle_id: "0042", step: "review", agent: "claudecode" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:10.000Z", event: "step.end", cycle_id: "0042", step: "review", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:11.000Z", event: "step.start", cycle_id: "0042", step: "fix", agent: "claudecode", head_sha: shaFixStart }),
+    ];
+    await mkdir(join(root, ".cycle"), { recursive: true });
+    await writeFile(join(root, ".cycle/log.jsonl"), seedLines.join("\n") + "\n", "utf8");
+
+    await writeFile(join(root, "partial.txt"), "agent garbage", "utf8");
+    git(root, ["add", "partial.txt"]);
+    git(root, ["commit", "-m", "partial fix"]);
+    await writeFile(join(root, "tracked.txt"), "v2-dirty", "utf8");
+    await writeFile(join(root, "untracked.txt"), "uncommitted", "utf8");
+    assert.notEqual(git(root, ["rev-parse", "HEAD"]).trim(), shaFixStart);
+
+    const statusFile = join(bin, "status.txt");
+    const fake = join(bin, "claude");
+    await writeFile(fake, `#!/bin/bash\ngit -C "${root}" status --porcelain > "${statusFile}"\necho FAKED\n`, "utf8");
+    await chmod(fake, 0o755);
+
+    git(root, ["checkout", "main"]);
+
+    const r = await runCycle(root, {
+      cycleId: "0042",
+      issueId: "TEST-1",
+      title: "resume fix",
+      workflow: "feature",
+      resume: { startStepIndex: 5 },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    git(root, ["checkout", "cycle/feature/resume-fix"]);
+    assert.equal(git(root, ["rev-parse", "HEAD"]).trim(), shaFixStart);
+    const tracked = await readFile(join(root, "tracked.txt"), "utf8");
+    assert.equal(tracked, "v1");
+    const partialGone = await stat(join(root, "partial.txt")).then(() => false, () => true);
+    assert.equal(partialGone, true);
+
+    const observed = await readFile(statusFile, "utf8");
+    assert.doesNotMatch(observed, /^.M tracked\.txt/m);
+    assert.doesNotMatch(observed, /^M  tracked\.txt/m);
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const fixStarts = log.split("\n").filter(l => l.includes('"event":"step.start"') && l.includes('"step":"fix"'));
+    assert.equal(fixStarts.length, 2, "one seeded + one fresh fix step.start");
+    assert.match(fixStarts[1], new RegExp(`"head_sha":"${shaFixStart}"`));
+    assert.doesNotMatch(log, /"event":"step\.warning"/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("resume at fix with no prior head_sha emits fix_pre_sha_missing and skips reset", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    await writeFile(join(root, "tracked.txt"), "v1", "utf8");
+    git(root, ["add", "tracked.txt"]);
+    git(root, ["commit", "-m", "init"]);
+
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+      - name: research
+        agent: claudecode
+        prompt: prompts/research.md
+      - name: plan
+        agent: claudecode
+        prompt: prompts/plan.md
+      - name: build
+        agent: claudecode
+        prompt: prompts/build.md
+      - name: review
+        agent: claudecode
+        prompt: prompts/review.md
+      - name: fix
+        agent: claudecode
+        prompt: prompts/fix.md
+`), "utf8");
+    for (const p of ["spec", "research", "plan", "build", "review", "fix"]) {
+      await writeFile(join(root, `.cycle/prompts/${p}.md`), `${p} body`, "utf8");
+    }
+
+    git(root, ["checkout", "-b", "cycle/feature/legacy-fix-log"]);
+    await writeFile(join(root, "tracked.txt"), "v2-partial", "utf8");
+    git(root, ["add", "tracked.txt"]);
+    git(root, ["commit", "-m", "partial"]);
+    const dirtyHead = git(root, ["rev-parse", "HEAD"]).trim();
+
+    const seedLines = [
+      JSON.stringify({ ts: "2026-01-01T00:00:00.000Z", event: "cycle.start", cycle_id: "0042", workflow: "feature", title: "legacy fix log", issue_id: "TEST-1" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:01.000Z", event: "step.start", cycle_id: "0042", step: "spec", agent: "claudecode" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:02.000Z", event: "step.end", cycle_id: "0042", step: "spec", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:03.000Z", event: "step.start", cycle_id: "0042", step: "research", agent: "claudecode" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:04.000Z", event: "step.end", cycle_id: "0042", step: "research", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:05.000Z", event: "step.start", cycle_id: "0042", step: "plan", agent: "claudecode" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:06.000Z", event: "step.end", cycle_id: "0042", step: "plan", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:07.000Z", event: "step.start", cycle_id: "0042", step: "build", agent: "claudecode", head_sha: dirtyHead }),
+      JSON.stringify({ ts: "2026-01-01T00:00:08.000Z", event: "step.end", cycle_id: "0042", step: "build", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:09.000Z", event: "step.start", cycle_id: "0042", step: "review", agent: "claudecode" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:10.000Z", event: "step.end", cycle_id: "0042", step: "review", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:11.000Z", event: "step.start", cycle_id: "0042", step: "fix", agent: "claudecode" }),
+    ];
+    await writeFile(join(root, ".cycle/log.jsonl"), seedLines.join("\n") + "\n", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await chmod(fake, 0o755);
+
+    git(root, ["checkout", "main"]);
+
+    const r = await runCycle(root, {
+      cycleId: "0042",
+      issueId: "TEST-1",
+      title: "legacy fix log",
+      workflow: "feature",
+      resume: { startStepIndex: 5 },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    git(root, ["checkout", "cycle/feature/legacy-fix-log"]);
+    assert.equal(git(root, ["rev-parse", "HEAD"]).trim(), dirtyHead, "no reset ran: HEAD preserved");
+    const tracked = await readFile(join(root, "tracked.txt"), "utf8");
+    assert.equal(tracked, "v2-partial");
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.match(log, /"event":"step\.warning","cycle_id":"0042","step":"fix","reason":"fix_pre_sha_missing"/);
+    assert.match(log, new RegExp(`"event":"step\\.start","cycle_id":"0042","step":"fix","agent":"claudecode","head_sha":"${dirtyHead}"`));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("resume at fix with unreachable head_sha emits fix_pre_sha_unreachable and skips reset", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    await writeFile(join(root, "tracked.txt"), "v1", "utf8");
+    git(root, ["add", "tracked.txt"]);
+    git(root, ["commit", "-m", "init"]);
+
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/workflows.yml"),
+      workflowYml(`      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+      - name: research
+        agent: claudecode
+        prompt: prompts/research.md
+      - name: plan
+        agent: claudecode
+        prompt: prompts/plan.md
+      - name: build
+        agent: claudecode
+        prompt: prompts/build.md
+      - name: review
+        agent: claudecode
+        prompt: prompts/review.md
+      - name: fix
+        agent: claudecode
+        prompt: prompts/fix.md
+`), "utf8");
+    for (const p of ["spec", "research", "plan", "build", "review", "fix"]) {
+      await writeFile(join(root, `.cycle/prompts/${p}.md`), `${p} body`, "utf8");
+    }
+
+    git(root, ["checkout", "-b", "cycle/feature/lost-fix-sha"]);
+    await writeFile(join(root, "tracked.txt"), "v2-partial", "utf8");
+    git(root, ["add", "tracked.txt"]);
+    git(root, ["commit", "-m", "partial"]);
+    const dirtyHead = git(root, ["rev-parse", "HEAD"]).trim();
+
+    const lostSha = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+    const seedLines = [
+      JSON.stringify({ ts: "2026-01-01T00:00:00.000Z", event: "cycle.start", cycle_id: "0042", workflow: "feature", title: "lost fix sha", issue_id: "TEST-1" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:01.000Z", event: "step.start", cycle_id: "0042", step: "spec", agent: "claudecode" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:02.000Z", event: "step.end", cycle_id: "0042", step: "spec", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:03.000Z", event: "step.start", cycle_id: "0042", step: "research", agent: "claudecode" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:04.000Z", event: "step.end", cycle_id: "0042", step: "research", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:05.000Z", event: "step.start", cycle_id: "0042", step: "plan", agent: "claudecode" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:06.000Z", event: "step.end", cycle_id: "0042", step: "plan", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:07.000Z", event: "step.start", cycle_id: "0042", step: "build", agent: "claudecode", head_sha: dirtyHead }),
+      JSON.stringify({ ts: "2026-01-01T00:00:08.000Z", event: "step.end", cycle_id: "0042", step: "build", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:09.000Z", event: "step.start", cycle_id: "0042", step: "review", agent: "claudecode" }),
+      JSON.stringify({ ts: "2026-01-01T00:00:10.000Z", event: "step.end", cycle_id: "0042", step: "review", status: "ok", exit_code: 0 }),
+      JSON.stringify({ ts: "2026-01-01T00:00:11.000Z", event: "step.start", cycle_id: "0042", step: "fix", agent: "claudecode", head_sha: lostSha }),
+    ];
+    await writeFile(join(root, ".cycle/log.jsonl"), seedLines.join("\n") + "\n", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await chmod(fake, 0o755);
+
+    git(root, ["checkout", "main"]);
+
+    const r = await runCycle(root, {
+      cycleId: "0042",
+      issueId: "TEST-1",
+      title: "lost fix sha",
+      workflow: "feature",
+      resume: { startStepIndex: 5 },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    git(root, ["checkout", "cycle/feature/lost-fix-sha"]);
+    assert.equal(git(root, ["rev-parse", "HEAD"]).trim(), dirtyHead);
+    const tracked = await readFile(join(root, "tracked.txt"), "utf8");
+    assert.equal(tracked, "v2-partial");
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.match(log, new RegExp(`"event":"step\\.warning","cycle_id":"0042","step":"fix","reason":"fix_pre_sha_unreachable","sha":"${lostSha}"`));
+    assert.match(log, new RegExp(`"event":"step\\.start","cycle_id":"0042","step":"fix","agent":"claudecode","head_sha":"${dirtyHead}"`));
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(bin, { recursive: true, force: true });

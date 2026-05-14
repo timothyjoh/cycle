@@ -19,7 +19,13 @@ import { slugify } from "../issue/id.ts";
 import { writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export async function findPriorBuildHeadSha(repoRoot: string, cycleId: string): Promise<string | null | "missing"> {
+const RESET_ELIGIBLE_STEPS = new Set(["build", "fix"]);
+
+export async function findPriorStepHeadSha(
+  repoRoot: string,
+  cycleId: string,
+  stepName: string,
+): Promise<string | null | "missing"> {
   let text: string;
   try {
     text = await readFile(join(repoRoot, ".cycle", "log.jsonl"), "utf8");
@@ -33,12 +39,15 @@ export async function findPriorBuildHeadSha(repoRoot: string, cycleId: string): 
     let ev: { event?: string; step?: string; cycle_id?: string; head_sha?: unknown };
     try { ev = JSON.parse(line); } catch { continue; }
     if (ev.event !== "step.start") continue;
-    if (ev.step !== "build") continue;
+    if (ev.step !== stepName) continue;
     if (ev.cycle_id !== cycleId) continue;
     return typeof ev.head_sha === "string" ? ev.head_sha : "missing";
   }
   return null;
 }
+
+export const findPriorBuildHeadSha = (repoRoot: string, cycleId: string) =>
+  findPriorStepHeadSha(repoRoot, cycleId, "build");
 
 export type RunCycleOpts = {
   issueId: string;
@@ -92,19 +101,19 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
       const step = wf.steps[i];
 
       let headSha: string | null = null;
-      const isBuild = step.name === "build";
+      const isResetEligible = RESET_ELIGIBLE_STEPS.has(step.name);
       const isResumeEntry = !!opts.resume && i === startIdx;
 
-      if (isBuild && !wf.no_branch) {
+      if (isResetEligible && !wf.no_branch) {
         if (!isResumeEntry) {
           headSha = await revParseHead(repoRoot);
         } else {
-          const prior = await findPriorBuildHeadSha(repoRoot, cycleId);
+          const prior = await findPriorStepHeadSha(repoRoot, cycleId, step.name);
           if (prior === null || prior === "missing") {
-            await log.emit("step.warning", { cycle_id: cycleId, step: "build", reason: "build_pre_sha_missing" });
+            await log.emit("step.warning", { cycle_id: cycleId, step: step.name, reason: `${step.name}_pre_sha_missing` });
             headSha = await revParseHead(repoRoot);
           } else if (!(await shaExists(repoRoot, prior))) {
-            await log.emit("step.warning", { cycle_id: cycleId, step: "build", reason: "build_pre_sha_unreachable", sha: prior });
+            await log.emit("step.warning", { cycle_id: cycleId, step: step.name, reason: `${step.name}_pre_sha_unreachable`, sha: prior });
             headSha = await revParseHead(repoRoot);
           } else {
             await resetCycleBranchTo(repoRoot, prior);
