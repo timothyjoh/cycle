@@ -22,6 +22,12 @@ import { join } from "node:path";
 
 const RESET_ELIGIBLE_STEPS = new Set(["build", "fix"]);
 
+export const SPEC_MIN_BYTES = 200;
+
+export function formatSpecGuardError(path: string, bytes: number, threshold: number): string {
+  return `spec post-condition failed: ${path} is ${bytes} bytes (< ${threshold})`;
+}
+
 export async function findPriorStepHeadSha(
   repoRoot: string,
   cycleId: string,
@@ -144,7 +150,17 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           }
         }
         if (r.status === "ok" && step.name) {
-          await writeFile(join(artifactDir, `${step.name.toUpperCase()}.md`), sanitizeArtifactStdout(r.stdout), "utf8");
+          const sanitized = sanitizeArtifactStdout(r.stdout);
+          const artifactPath = join(artifactDir, `${step.name.toUpperCase()}.md`);
+          await writeFile(artifactPath, sanitized, "utf8");
+          if (step.name === "spec") {
+            const bytes = Buffer.byteLength(sanitized, "utf8");
+            if (bytes < SPEC_MIN_BYTES) {
+              r.status = "failed";
+              r.exitCode = r.exitCode || 1;
+              r.stderr = formatSpecGuardError(artifactPath, bytes, SPEC_MIN_BYTES);
+            }
+          }
         }
         if (r.status === "ok" && step.name === "reflection") {
           await ingestReflection(repoRoot, cycleId, slug, r.stdout, log);

@@ -53,7 +53,7 @@ test("runs a 2-step workflow end-to-end and writes log + artifacts", async () =>
     await chmod(note, 0o755);
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const r = await runCycle(root, {
@@ -95,7 +95,7 @@ test("checks out base branch after successful cycle", async () => {
     await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const r = await runCycle(root, {
@@ -149,7 +149,7 @@ test("checks out base branch after failed cycle", async () => {
     await chmod(boom, 0o755);
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const r = await runCycle(root, {
@@ -201,7 +201,7 @@ test("injects CYCLE_ISSUE_ID into bash step env", async () => {
     await chmod(echo, 0o755);
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const r = await runCycle(root, {
@@ -265,7 +265,7 @@ test("logs cycle.checkout status=failed when base branch does not exist", async 
     await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const r = await runCycle(root, {
@@ -315,7 +315,7 @@ test("pulls origin/<CYCLE_BASE> between cycles so second cycle branches off refr
     await writeFile(join(workRoot, ".cycle/prompts/spec.md"), "spec body", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const sharedEnv = { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" };
@@ -372,7 +372,7 @@ test("logs cycle.base_pull status=failed when origin remote is missing", async (
     await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const r = await runCycle(root, {
@@ -416,7 +416,7 @@ test("honors cycleId opt when caller provides it", async () => {
     await chmod(noop, 0o755);
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const r = await runCycle(root, {
@@ -524,7 +524,7 @@ test("resume mode fails cleanly when cycle branch is missing (no cycle.end emitt
     await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     await assert.rejects(
@@ -617,7 +617,7 @@ test("logs cycle.base_pull status=skipped when prior checkout failed", async () 
     await writeFile(join(root, ".cycle/prompts/spec.md"), "spec body", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const r = await runCycle(root, {
@@ -779,7 +779,7 @@ test("fresh build step.start records head_sha; non-build step.start does not", a
     await writeFile(join(root, ".cycle/prompts/build.md"), "build body", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const baseSha = git(root, ["rev-parse", "HEAD"]).trim();
@@ -836,7 +836,7 @@ workflows:
     await chmod(buildScript, 0o755);
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     // Fresh run: build step.start must omit head_sha.
@@ -908,7 +908,7 @@ test("fresh fix step.start records head_sha; spec/review step.start does not", a
     await writeFile(join(root, ".cycle/prompts/fix.md"), "fix body", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const baseSha = git(root, ["rev-parse", "HEAD"]).trim();
@@ -967,7 +967,7 @@ workflows:
     await chmod(fixScript, 0o755);
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const r = await runCycle(root, {
@@ -1060,7 +1060,7 @@ test("resume at build hard-resets to prior step.start head_sha", async () => {
 
     const statusFile = join(bin, "status.txt");
     const fake = join(bin, "claude");
-    await writeFile(fake, `#!/bin/bash\ngit -C "${root}" status --porcelain > "${statusFile}"\necho FAKED\n`, "utf8");
+    await writeFile(fake, `#!/bin/bash\ngit -C "${root}" status --porcelain > "${statusFile}"\nyes FAKED | head -50\n`, "utf8");
     await chmod(fake, 0o755);
 
     git(root, ["checkout", "main"]);
@@ -1135,7 +1135,7 @@ test("resume at build with no prior head_sha emits build_pre_sha_missing and ski
     await writeFile(join(root, ".cycle/log.jsonl"), seedLines.join("\n") + "\n", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     git(root, ["checkout", "main"]);
@@ -1203,7 +1203,7 @@ test("resume at build with unreachable head_sha emits build_pre_sha_unreachable 
     await writeFile(join(root, ".cycle/log.jsonl"), seedLines.join("\n") + "\n", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     git(root, ["checkout", "main"]);
@@ -1297,7 +1297,7 @@ test("resume at fix hard-resets to prior step.start head_sha", async () => {
 
     const statusFile = join(bin, "status.txt");
     const fake = join(bin, "claude");
-    await writeFile(fake, `#!/bin/bash\ngit -C "${root}" status --porcelain > "${statusFile}"\necho FAKED\n`, "utf8");
+    await writeFile(fake, `#!/bin/bash\ngit -C "${root}" status --porcelain > "${statusFile}"\nyes FAKED | head -50\n`, "utf8");
     await chmod(fake, 0o755);
 
     git(root, ["checkout", "main"]);
@@ -1393,7 +1393,7 @@ test("resume at fix with no prior head_sha emits fix_pre_sha_missing and skips r
     await writeFile(join(root, ".cycle/log.jsonl"), seedLines.join("\n") + "\n", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     git(root, ["checkout", "main"]);
@@ -1482,7 +1482,7 @@ test("resume at fix with unreachable head_sha emits fix_pre_sha_unreachable and 
     await writeFile(join(root, ".cycle/log.jsonl"), seedLines.join("\n") + "\n", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     git(root, ["checkout", "main"]);
@@ -1529,7 +1529,7 @@ test("step with unregistered agent fails the step and ends the cycle", async () 
     await writeFile(join(root, ".cycle/prompts/x.md"), "noop", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\necho FAKED\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const r = await runCycle(root, {
