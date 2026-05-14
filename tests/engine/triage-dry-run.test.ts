@@ -408,3 +408,114 @@ test("dryRun unknown triage agent reports per-raw failure with UnknownAgentError
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("dryRun Case B: missing prompt template → throws 'prompt template missing: <path>: ...'", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-triage-nopromp-"));
+  try {
+    await mkdir(join(root, ".cycle"), { recursive: true });
+    await mkdir(join(root, "docs/cycle/issues/raw"), { recursive: true });
+    await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/solo.md"),
+      rawBody("solo", "solo"),
+      "utf8",
+    );
+
+    const before = {
+      raw: await dirHash(join(root, "docs/cycle/issues/raw")),
+      todo: await dirHash(join(root, "docs/cycle/issues/todo")),
+      tbd: await fileBytes(join(root, ".cycle/tbd.jsonl")),
+      log: await fileBytes(join(root, ".cycle/log.jsonl")),
+    };
+
+    const cfg = makeConfig();
+    const resolvedPromptPath = join(root, ".cycle", cfg.triage.prompt);
+    const deps: TriageDeps = {
+      runAgent: async (): Promise<TriageAgentResult> => {
+        throw new Error(
+          "runAgent must not be called when prompt template is missing",
+        );
+      },
+    };
+
+    await assert.rejects(
+      dryRunTriage(root, cfg, deps),
+      (e: Error) =>
+        /^prompt template missing: /.test(e.message) &&
+        e.message.includes(resolvedPromptPath),
+    );
+
+    const after = {
+      raw: await dirHash(join(root, "docs/cycle/issues/raw")),
+      todo: await dirHash(join(root, "docs/cycle/issues/todo")),
+      tbd: await fileBytes(join(root, ".cycle/tbd.jsonl")),
+      log: await fileBytes(join(root, ".cycle/log.jsonl")),
+    };
+    assert.deepEqual(after.raw, before.raw, "raw/ contents changed");
+    assert.deepEqual(after.todo, before.todo, "todo/ contents changed");
+    assert.equal(after.tbd, before.tbd, "tbd.jsonl appeared");
+    assert.equal(after.log, before.log, "log.jsonl appeared");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("dryRun Case A: runAgent throws → status failed, attempts 3, last_error matches /^agent failed: /", async () => {
+  const root = await setupRepo();
+  try {
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/solo.md"),
+      rawBody("solo", "solo"),
+      "utf8",
+    );
+
+    const before = {
+      raw: await dirHash(join(root, "docs/cycle/issues/raw")),
+      todo: await dirHash(join(root, "docs/cycle/issues/todo")),
+      done: await dirHash(join(root, "docs/cycle/issues/done")),
+      failed: await dirHash(join(root, "docs/cycle/issues/failed")),
+      tbd: await fileBytes(join(root, ".cycle/tbd.jsonl")),
+      log: await fileBytes(join(root, ".cycle/log.jsonl")),
+    };
+
+    let calls = 0;
+    const deps: TriageDeps = {
+      runAgent: async (): Promise<TriageAgentResult> => {
+        calls++;
+        throw new Error("boom: claude spawn failed");
+      },
+    };
+
+    const reports = await dryRunTriage(root, makeConfig(), deps);
+
+    assert.equal(reports.length, 1);
+    const r = reports[0]!;
+    assert.equal(r.raw_id, "solo");
+    assert.equal(r.status, "failed");
+    assert.equal(r.attempts, 3);
+    assert.ok(r.last_error, "last_error present");
+    assert.match(r.last_error!, /^agent failed: /);
+    assert.ok(
+      r.last_error!.includes("boom: claude spawn failed"),
+      `last_error includes inner: ${r.last_error}`,
+    );
+    assert.equal(calls, 3, "runAgent invoked exactly MAX_ATTEMPTS times");
+
+    const after = {
+      raw: await dirHash(join(root, "docs/cycle/issues/raw")),
+      todo: await dirHash(join(root, "docs/cycle/issues/todo")),
+      done: await dirHash(join(root, "docs/cycle/issues/done")),
+      failed: await dirHash(join(root, "docs/cycle/issues/failed")),
+      tbd: await fileBytes(join(root, ".cycle/tbd.jsonl")),
+      log: await fileBytes(join(root, ".cycle/log.jsonl")),
+    };
+    assert.deepEqual(after.raw, before.raw, "raw/ contents changed");
+    assert.deepEqual(after.todo, before.todo, "todo/ contents changed");
+    assert.deepEqual(after.done, before.done, "done/ contents changed");
+    assert.deepEqual(after.failed, before.failed, "failed/ contents changed");
+    assert.equal(after.tbd, before.tbd, "tbd.jsonl appeared");
+    assert.equal(after.log, before.log, "log.jsonl appeared");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

@@ -260,10 +260,18 @@ export async function dryRunTriage(
   const raws = await loadRaws(rawDir);
   if (raws.length === 0) return [];
 
-  const promptTemplate = await readFile(
-    join(repoRoot, ".cycle", cfg.triage.prompt),
-    "utf8",
-  );
+  // dryRunTriage contract: a missing prompt template throws synchronously
+  // (before any agent is invoked) so operators iterating on the prompt
+  // after engine.paused see a clear "prompt template missing" surface.
+  const promptPath = join(repoRoot, ".cycle", cfg.triage.prompt);
+  let promptTemplate: string;
+  try {
+    promptTemplate = await readFile(promptPath, "utf8");
+  } catch (e) {
+    throw new Error(
+      `prompt template missing: ${promptPath}: ${(e as Error).message}`,
+    );
+  }
 
   const reports: DryRunReport[] = [];
   for (const raw of raws) {
