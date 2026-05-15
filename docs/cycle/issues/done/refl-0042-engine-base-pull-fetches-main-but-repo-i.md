@@ -5,6 +5,8 @@ workflow: feature
 depends_on: []
 triaged_at: "2026-05-14T15:44:04.888Z"
 source: triage
+superseded_by: refl-0040-engine-base-branch-resolution-hardcodes
+superseded_at: "2026-05-15T21:39:52.993Z"
 ---
 ## Problem
 

@@ -6,6 +6,8 @@ depends_on: [refl-0054-learning-mode-insight-blocks-leak-into-c-audit-suppress-o
 triaged_at: "2026-05-14T19:53:31.183Z"
 source: triage
 parent: refl-0054-learning-mode-insight-blocks-leak-into-c
+superseded_by: refl-0071-spec-artifact-leaks-have-context-writing
+superseded_at: "2026-05-15T21:39:52.993Z"
 ---
 Defense-in-depth follow-up to the source-side fix in `…-audit-suppress-output-style-propagation`. Even with env scrub / explicit-flag suppression in place, extend `src/engine/sanitize-artifact.ts:sanitizeArtifactStdout` to strip output-style decorative blocks at the artifact-write seam so any future inheritance regression cannot silently re-pollute committed `docs/cycle/<id>/<STEP>.md` files.
 

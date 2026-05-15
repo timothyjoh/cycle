@@ -6,6 +6,8 @@ depends_on: [refl-0053-outer-fence-unwrap-skipped-when-prose-su]
 triaged_at: "2026-05-14T20:11:39.762Z"
 source: triage
 parent: refl-0055-sanitizer-narration-regex-too-narrow-sti
+superseded_by: refl-0071-spec-artifact-leaks-have-context-writing
+superseded_at: "2026-05-15T21:39:52.993Z"
 ---
 After cycle 0053 added `src/engine/sanitize-artifact.ts`, cycle 0055 artifacts still leak agent sign-off lines at the *tail* of the payload even when the leading-narration strip and outer-fence unwrap fire correctly. Observed leaks in cycle 0055:
 

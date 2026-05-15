@@ -6,6 +6,8 @@ depends_on: [refl-0041-engine-ignores-skip-unless-fix-step-runs-honor-skip-unles
 triaged_at: "2026-05-14T19:50:03.351Z"
 source: triage
 parent: refl-0054-fix-step-emits-skip-narration-to-fix-md
+superseded_by: refl-0041-engine-ignores-skip-unless-fix-step-runs-honor-skip-unless
+superseded_at: "2026-05-15T21:39:52.993Z"
 ---
 ## Context
 

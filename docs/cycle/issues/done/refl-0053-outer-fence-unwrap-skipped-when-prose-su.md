@@ -5,6 +5,8 @@ workflow: feature
 depends_on: []
 triaged_at: "2026-05-14T19:26:12.855Z"
 source: triage
+superseded_by: refl-0071-spec-artifact-leaks-have-context-writing
+superseded_at: "2026-05-15T21:39:52.993Z"
 ---
 ## Problem
 

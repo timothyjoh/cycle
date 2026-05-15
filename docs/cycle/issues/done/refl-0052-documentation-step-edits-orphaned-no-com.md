@@ -5,6 +5,8 @@ workflow: feature
 depends_on: []
 triaged_at: "2026-05-14T19:00:56.091Z"
 source: triage
+superseded_by: refl-0055-documentation-step-edits-leak-into-next-reorder-documentation-before-commit
+superseded_at: "2026-05-15T21:39:52.993Z"
 ---
 The `documentation` workflow step (added in cycle 0052) edits drifted docs in place under `README.md` / `docs/**/*.md`, but no subsequent step commits or pushes those edits — so the step's PRIMARY side effect is unreachable for the workflow shapes it targets.
 

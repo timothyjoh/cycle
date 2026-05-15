@@ -5,6 +5,8 @@ workflow: feature
 depends_on: [refl-0053-outer-fence-unwrap-skipped-when-prose-su]
 triaged_at: "2026-05-14T19:27:41.122Z"
 source: triage
+superseded_by: refl-0071-spec-artifact-leaks-have-context-writing
+superseded_at: "2026-05-15T21:39:52.993Z"
 ---
 ## Problem
 

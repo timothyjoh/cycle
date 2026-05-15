@@ -6,6 +6,8 @@ depends_on: []
 triaged_at: "2026-05-14T18:36:25.724Z"
 source: triage
 parent: refl-0051-engine-paused-cardinality-pins-missing-o
+superseded_by: refl-0051-filter-length-cardinality-pattern-applie
+superseded_at: "2026-05-15T21:39:52.993Z"
 ---
 ## Problem
 

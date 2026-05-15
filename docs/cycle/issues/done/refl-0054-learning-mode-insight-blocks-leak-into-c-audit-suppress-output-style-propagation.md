@@ -6,6 +6,8 @@ depends_on: []
 triaged_at: "2026-05-14T19:53:31.183Z"
 source: triage
 parent: refl-0054-learning-mode-insight-blocks-leak-into-c
+superseded_by: refl-0071-spec-artifact-leaks-have-context-writing
+superseded_at: "2026-05-15T21:39:52.993Z"
 ---
 Cycle 0054 caught a `★ Insight ─────────────────────────────────────` decorative block in the middle of `docs/cycle/0054-…/FIX.md`. This is the Claude Code `learning` output style's insight marker leaking from the agent subprocess into a committed cycle artifact. The cycle-0053 artifact sanitizer (`sanitizeArtifactStdout` in `src/engine/sanitize-artifact.ts`) only strips leading narration prefixes (`^(Now|Next|Here is|Output)\b …`) and unwraps a single outer ``` fence — it has no notion of mid-document output-style decoration, so the insight block sails straight through.
 
