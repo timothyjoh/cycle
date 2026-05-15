@@ -83,6 +83,19 @@ and writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/PLAN.md`.
 
 ---
 
+## SPEC Acceptance Traceability
+
+Re-quote every bullet from SPEC.md's `## Acceptance Criteria` section
+verbatim and pair it with either the covering plan-task id or an
+explicit waiver.
+
+| SPEC Acceptance Bullet (verbatim) | Covering Task | Notes |
+|---|---|---|
+| [exact bullet text including leading `[ ]`] | Task N | [optional] |
+| [exact bullet text] | WAIVED — [one-line rationale] | |
+
+---
+
 ## Testing Strategy
 
 ### Unit Tests
@@ -111,3 +124,12 @@ and writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/PLAN.md`.
    mocking is truly necessary.
 9. **Include "What We're NOT Doing."** Prevent scope creep by being
    explicit.
+10. **SPEC→PLAN Traceability.** The PLAN.md output MUST include a
+    `## SPEC Acceptance Traceability` section enumerating every bullet
+    from SPEC.md's `## Acceptance Criteria` section verbatim, paired
+    with a covering plan-task id or an explicit
+    `WAIVED — <one-line rationale>`. If you cannot map every SPEC
+    acceptance bullet to a task or a defended waiver, emit only the
+    traceability stub and fail loudly rather than silently drop a
+    bullet. The `review` step rejects PLAN.md with a missing or
+    incomplete traceability section.

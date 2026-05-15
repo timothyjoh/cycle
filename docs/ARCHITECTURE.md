@@ -717,7 +717,10 @@ Two layers of retry:
   step issues.
 - **Cycle-level** (`max_cycle_attempts: 3` per workflow) — on a
   code-level gate failure, the attempt is abandoned and a fresh
-  attempt starts from a clean branch with wiped artifacts.
+  attempt re-runs on the same `cycle/<workflow>/<slug>` branch with
+  `build`/`fix` hard-reset to pre-step HEAD; pre-build artifacts
+  (`SPEC.md`/`RESEARCH.md`/`PLAN.md`) under the cycle's artifact
+  directory are reused via the skip gate below.
 - **Pre-build skip on retry**: on the second and later attempts of the
   same `(issue_id, cycle_id)` pair, the engine skips `{spec, research,
   plan}` if the corresponding `<artifactDir>/<STEP>.md` is present with
@@ -867,8 +870,9 @@ Resolved since the last revision:
    persistent identity; no run ID. See §6.
 3. ✅ Resume semantics — re-invoking `cycle run` with no arguments
    continues consuming `tbd.jsonl`. No explicit `--resume` flag needed.
-4. ✅ Queue failure handling — 3 attempts per cycle (fresh branch +
-   wiped artifacts between attempts). On exhaustion: preservation
+4. ✅ Queue failure handling — 3 attempts per cycle (branch reuse +
+   pre-step `head_sha` resets on `build`/`fix` + pre-build artifact
+   reuse on retry). On exhaustion: preservation
    branch + `Failed Attempt: …` PR; issue moves to `blocked/`;
    remaining planned cycles skip (no IDs consumed). `auto` mode
    continues to next issue; `stack` mode halts. Rate limits orthogonal

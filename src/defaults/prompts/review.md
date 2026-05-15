@@ -35,6 +35,12 @@ Check:
   corresponding tests. Coverage numbers are required, not optional.
 - **Spec compliance** — does the code deliver what SPEC.md requires?
 - **Plan adherence** — were PLAN.md tasks completed as specified?
+- **SPEC→PLAN traceability** — does PLAN.md include a
+  `## SPEC Acceptance Traceability` section that re-quotes every
+  bullet from SPEC.md's `## Acceptance Criteria` section verbatim
+  and pairs it with a covering plan-task id or an explicit
+  `WAIVED — <rationale>`? A missing or incomplete traceability
+  section is a NEEDS-FIX trigger.
 - **Code quality** — clean, readable, follows existing patterns from
   RESEARCH.md?
 - **Error handling** — edge cases covered? Failures handled gracefully?
@@ -107,8 +113,9 @@ writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/REVIEW.md`.
 [PASS — no fixes needed / NEEDS-FIX — see MUST-FIX.md]
 
 NEEDS-FIX triggers: code-quality findings, missing tests, coverage
-regressions, missing SPEC requirements, OR any unbacked doc-vs-code
-claim from Pass 3.
+regressions, missing SPEC requirements, any unbacked doc-vs-code
+claim from Pass 3, OR a missing or incomplete SPEC→PLAN traceability
+section in PLAN.md.
 
 ## Code Quality Review
 
@@ -189,6 +196,20 @@ plan — actionable tasks, not vague observations.
     behavior is not in fact promised.]
   **Verify:** `grep -n "<doc snippet>" path/to/doc.md` returns the
     updated line; cross-check matches the named `file:line`.
+
+- [ ] ### Task N (Missing SPEC→PLAN Traceability): [Short title]
+  **Priority:** Critical
+  **Files:** `docs/cycle/<cycle_id>-<workflow>-<slug>/PLAN.md`
+  **Problem:** PLAN.md is missing the `## SPEC Acceptance Traceability`
+    section OR the section omits one or more SPEC acceptance bullets
+    (list the missing bullets verbatim).
+  **Fix:** Edit PLAN.md to add the traceability section per the plan
+    prompt's output template; re-quote each SPEC acceptance bullet
+    verbatim and pair it with a covering plan-task id or an explicit
+    `WAIVED — <one-line rationale>`.
+  **Verify:** `grep -c "^## SPEC Acceptance Traceability$" PLAN.md`
+    returns `1`; every bullet from SPEC.md's `## Acceptance Criteria`
+    section appears verbatim in the table.
 ```
 
 **Rules for MUST-FIX.md:**

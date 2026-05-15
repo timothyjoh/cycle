@@ -253,13 +253,25 @@ in a bad state.
 
 ### Attempt mechanics
 
-- **Branch.** Delete local + remote; re-create from the base between
-  attempts. Fresh slate.
-- **Artifacts.** Wipe `docs/cycle/<cycle-id>-<workflow>-<slug>/`
-  between attempts. No context carryover — the AI may repeat a
-  mistake, but that's by design; try again differently.
+- **Branch.** The `cycle/<workflow>/<slug>` branch is reused across
+  attempts; `createCycleBranch` no-ops on an existing branch. For
+  `build`/`fix` steps the engine hard-resets the branch to the
+  pre-step `head_sha` recorded on the prior attempt's `step.start`,
+  discarding partial agent edits so the retry runs against a clean
+  pre-step tree.
+- **Artifacts.** `docs/cycle/<cycle-id>-<workflow>-<slug>/` persists
+  across attempts. Pre-build steps (`spec`, `research`, `plan`) skip
+  on retry when their `<STEP>.md` already exists with `> 0` bytes
+  (emit `step.skipped {reason: "artifact_present"}`); downstream
+  steps re-run normally and overwrite their own artifacts. Opt out
+  per-cycle via `cycle run --no-skip-completed` or globally via
+  `engine.skip_completed_on_retry: false` in `workflows.yml`.
 - **Cycle ID.** Same ID across all attempts (cycle 0042 attempted
-  three times), with `attempt: N` in log events.
+  three times), with `attempt: N` in log events. `drainFailedRetry`
+  preserves `cycle_id` on the requeued `tbd.jsonl` row; the next
+  pop in `cli.ts` reuses it rather than allocating a fresh id, which
+  is what keeps the artifact directory stable for the pre-build
+  skip gate above.
 
 ### When 3 attempts are exhausted
 
@@ -438,8 +450,10 @@ explicit `--resume` flag needed. A crashed engine leaves its pending
 queue in place for the next invocation.
 
 **Queue failure handling (Open Q #4).**
-Cycles get 3 attempts; each attempt is a fresh workflow run from a
-clean branch and wiped artifacts. After 3 exhausted attempts, the
+Cycles get 3 attempts; each attempt re-runs the workflow on the same
+`cycle/<workflow>/<slug>` branch with `build`/`fix` hard-reset to
+pre-step HEAD and pre-build artifacts (`SPEC.md`/`RESEARCH.md`/`PLAN.md`)
+reused from the prior attempt. After 3 exhausted attempts, the
 branch is preserved under `cycle/abandoned/…` with a
 `Failed Attempt: …`-titled PR, the issue file moves to `blocked/`, and
 remaining planned cycles of the same issue are skipped. In `auto` mode
@@ -552,8 +566,9 @@ rescans.
 (superseded — see RFC-001 § 12 BB-1)
 
 **Phase 4 — Failure resilience. ⛳ MVP line.**
-3-attempt abandon-and-restart with fresh branches and wiped
-artifacts. `blocked/` folder. `Failed Attempt:` preservation PR.
+3-attempt abandon-and-restart with branch reuse, pre-step `head_sha`
+resets on `build`/`fix`, and pre-build artifact reuse on retry.
+`blocked/` folder. `Failed Attempt:` preservation PR.
 Triage retry + `failed/` folder after 3 attempts. Rate-limit handling
 (short in-process backoff, long `engine.paused` + exit 42).
 `--on-abandon` flag. `--detach` daemon mode with `cycle attach` /

@@ -134,7 +134,8 @@ These BRIEF.md sections deserve their own follow-up plans in
    auto-merge isn't available and fall back gracefully; document
    required repo settings.
 3. **Cycle attempts** (BRIEF Phase 4 MVP line). 3-attempt
-   abandon-and-restart with fresh branches and wiped artifacts; the
+   abandon-and-restart with branch reuse, pre-step `head_sha` resets
+   on `build`/`fix`, and pre-build artifact reuse on retry; the
    `verify` failure above is exactly what this is meant to absorb.
 4. **`--detach` daemon + `attach` / `status` / `stop`.** Long-running
    queues shouldn't pin a foreground terminal or a Claude Code
