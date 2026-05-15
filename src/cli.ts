@@ -73,7 +73,6 @@ if (args.command === "drop") {
 }
 
 const log = await createLogger(cwd);
-await log.emit("engine.start", {});
 
 if (args.text) {
   await materializeFreeformIssue(args.text, cwd);
@@ -87,6 +86,11 @@ await mkdir(doneDir, { recursive: true });
 await mkdir(failedDir, { recursive: true });
 
 const cfg = args.dryRun ? null : await loadConfig(cwd);
+
+const skipCompletedOnRetry =
+  args.noSkipCompleted ? false : (cfg?.engine?.skip_completed_on_retry ?? true);
+
+await log.emit("engine.start", { skip_completed_on_retry: skipCompletedOnRetry });
 
 if (!args.dryRun && cfg) {
   const triageResult = await runTriage(cwd, cfg, log);
@@ -310,6 +314,8 @@ async function runResumeOnce(
     title: tail.title,
     workflow: workflowName,
     resume: { startStepIndex },
+    attempt: row!.attempt,
+    skipCompletedOnRetry,
   });
 
   const todoPath = join(todoDir, `${tail.issueId}.md`);
@@ -393,7 +399,7 @@ while (!halted) {
   const rawMax = wfCfg?.max_cycle_attempts ?? 3;
   const maxAttempts = rawMax < 1 ? 1 : rawMax;
 
-  const cycleId = await allocateCycleId(cwd);
+  const cycleId = row.cycle_id ?? (await allocateCycleId(cwd));
   await markInProgress(cwd, row.id, cycleId);
 
   const r = await runCycle(cwd, {
@@ -401,6 +407,8 @@ while (!halted) {
     issueId: row.id,
     title: row.title,
     workflow: workflowName,
+    attempt: row.attempt,
+    skipCompletedOnRetry,
   });
 
   if (r.status === "ok") {

@@ -184,3 +184,41 @@ test("readLogTail reads existing log.jsonl", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("parseLogTail counts step.skipped as completed", () => {
+  const text = [
+    ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "T", issue_id: "i" }),
+    ev("step.start", { cycle_id: "0001", step: "spec" }),
+    ev("step.end", { cycle_id: "0001", step: "spec", status: "ok" }),
+    ev("step.skipped", { cycle_id: "0001", step: "research", reason: "artifact_present", artifact_path: "docs/cycle/0001/RESEARCH.md" }),
+    ev("step.start", { cycle_id: "0001", step: "plan" }),
+  ].join("\n");
+  const r = parseLogTail(text);
+  assert.ok(r);
+  assert.deepEqual(r!.completedSteps, ["spec", "research"]);
+  assert.equal(r!.lastStepStarted, "plan");
+});
+
+test("parseLogTail counts pure-skip log as all completed", () => {
+  const text = [
+    ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "T", issue_id: "i" }),
+    ev("step.skipped", { cycle_id: "0001", step: "spec", reason: "artifact_present", artifact_path: "p1" }),
+    ev("step.skipped", { cycle_id: "0001", step: "research", reason: "artifact_present", artifact_path: "p2" }),
+    ev("step.skipped", { cycle_id: "0001", step: "plan", reason: "artifact_present", artifact_path: "p3" }),
+  ].join("\n");
+  const r = parseLogTail(text);
+  assert.ok(r);
+  assert.deepEqual(r!.completedSteps, ["spec", "research", "plan"]);
+  assert.equal(r!.lastStepStarted, undefined);
+});
+
+test("parseLogTail ignores step.skipped from a different cycle_id", () => {
+  const text = [
+    ev("cycle.start", { cycle_id: "0002", workflow: "feature", title: "T", issue_id: "i" }),
+    ev("step.skipped", { cycle_id: "0001", step: "spec", reason: "artifact_present", artifact_path: "p1" }),
+    ev("step.end", { cycle_id: "0002", step: "spec", status: "ok" }),
+  ].join("\n");
+  const r = parseLogTail(text);
+  assert.ok(r);
+  assert.deepEqual(r!.completedSteps, ["spec"]);
+});

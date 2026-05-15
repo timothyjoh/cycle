@@ -5,6 +5,7 @@ export type RunArgs = {
   text: string | null;
   workflow: string;
   dryRun: boolean;
+  noSkipCompleted: boolean;
 };
 
 export type DropArgs = {
@@ -58,6 +59,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     options: {
       workflow: { type: "string", default: "feature" },
       "dry-run": { type: "boolean", default: false },
+      "no-skip-completed": { type: "boolean", default: false },
     },
     allowPositionals: true,
   });
@@ -69,5 +71,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
     text: text === "" ? null : text,
     workflow: String(values.workflow),
     dryRun: Boolean(values["dry-run"]),
+    noSkipCompleted: Boolean(values["no-skip-completed"]),
   };
 }

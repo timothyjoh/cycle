@@ -21,6 +21,7 @@ export type Workflow = {
 export type EngineConfig = {
   max_consecutive_failures: number;
   base_branch: string;
+  skip_completed_on_retry?: boolean;
 };
 
 export type TriageConfig = {

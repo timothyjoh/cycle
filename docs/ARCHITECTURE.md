@@ -268,6 +268,13 @@ Successful `step.end` events on all paths omit the field.
 {"ts":"…","event":"step.end","cycle_id":"0042","step":"verify","status":"failed","exit_code":1,"stderr":"npm test failed: 3 assertions…"}
 ```
 
+Pre-build skip on retry (see Section 10 — Failure Modes) emits one
+event per skipped step in lieu of `step.start` / `step.end`:
+
+```jsonl
+{"ts":"…","event":"step.skipped","cycle_id":"0042","step":"spec","reason":"artifact_present","artifact_path":"docs/cycle/0042-feature-x/SPEC.md"}
+```
+
 Triage failure / rate-limit variants:
 
 ```jsonl
@@ -711,6 +718,26 @@ Two layers of retry:
 - **Cycle-level** (`max_cycle_attempts: 3` per workflow) — on a
   code-level gate failure, the attempt is abandoned and a fresh
   attempt starts from a clean branch with wiped artifacts.
+- **Pre-build skip on retry**: on the second and later attempts of the
+  same `(issue_id, cycle_id)` pair, the engine skips `{spec, research,
+  plan}` if the corresponding `<artifactDir>/<STEP>.md` is present with
+  `> 0` bytes. The `(issue_id, cycle_id)` pair stays stable across
+  attempts because drainFailedRetry preserves the row's cycle_id when
+  it bumps `attempt` and resets `status` to `pending`
+  (`src/engine/queue.ts`); the next pop in `src/cli.ts` reuses that id
+  rather than allocating a fresh one, so `runCycle`'s `artifactDir`
+  matches the prior attempt's directory. Event shape: `{event: "step.skipped",
+  ts, cycle_id, step, reason: "artifact_present", artifact_path}`.
+  Opt-out via `cycle run --no-skip-completed` or
+  `engine.skip_completed_on_retry: false` in `workflows.yml`; CLI wins.
+  The resolved boolean is logged on `engine.start` as
+  `skip_completed_on_retry`. `parseLogTail` treats `step.skipped` as
+  terminal-equivalent to `step.end status:"ok"` for resume-index math,
+  so a re-resume after a skipped step advances past it. The gate is
+  bounded to pre-build steps because `build`, `fix`, `verify`, and
+  `commit` already mutate the working tree and must re-run against
+  `head_sha` resets; `SKIP_ELIGIBLE_STEPS` is hard-coded disjoint from
+  `RESET_ELIGIBLE_STEPS` in `src/engine/run-cycle.ts`.
 
 | Failure | Category | Behavior |
 |---|---|---|

@@ -47,10 +47,15 @@ export function parseLogTail(text: string): InFlightCycle | null {
   const completedSteps: string[] = [];
   for (let i = lastStartIdx + 1; i < events.length; i++) {
     const e = events[i];
-    if (e.event !== "step.end") continue;
     if (e.cycle_id !== cycleId) continue;
-    if ((e as { status?: string }).status !== "ok") continue;
-    const name = (e as { step?: string }).step;
+    let name: string | undefined;
+    if (e.event === "step.end" && (e as { status?: string }).status === "ok") {
+      name = (e as { step?: string }).step;
+    } else if (e.event === "step.skipped") {
+      name = (e as { step?: string }).step;
+    } else {
+      continue;
+    }
     if (typeof name === "string" && !completedSteps.includes(name)) {
       completedSteps.push(name);
     }

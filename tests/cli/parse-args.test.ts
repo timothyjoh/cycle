@@ -4,12 +4,24 @@ import { parseArgs } from "../../src/cli/parse-args.ts";
 
 test("parses 'run <text>' freeform task", () => {
   const r = parseArgs(["run", "fix the login bug"]);
-  assert.deepEqual(r, { command: "run", text: "fix the login bug", workflow: "feature", dryRun: false });
+  assert.deepEqual(r, { command: "run", text: "fix the login bug", workflow: "feature", dryRun: false, noSkipCompleted: false });
 });
 
 test("parses 'run' with no text — drain-only mode", () => {
   const r = parseArgs(["run"]);
-  assert.deepEqual(r, { command: "run", text: null, workflow: "feature", dryRun: false });
+  assert.deepEqual(r, { command: "run", text: null, workflow: "feature", dryRun: false, noSkipCompleted: false });
+});
+
+test("parses --no-skip-completed flag", () => {
+  const r = parseArgs(["run", "--no-skip-completed"]);
+  assert.equal(r.command, "run");
+  if (r.command === "run") assert.equal(r.noSkipCompleted, true);
+});
+
+test("--no-skip-completed defaults to false", () => {
+  const r = parseArgs(["run", "fix it"]);
+  assert.equal(r.command, "run");
+  if (r.command === "run") assert.equal(r.noSkipCompleted, false);
 });
 
 test("parses --workflow override", () => {

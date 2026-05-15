@@ -258,7 +258,7 @@ test("drainOk: removes matching row", async () => {
   }
 });
 
-test("drainFailedRetry: bumps attempt, resets status, clears cycle_id", async () => {
+test("drainFailedRetry: preserves cycle_id and bumps attempt", async () => {
   const root = await setupRoot();
   try {
     await writeQueue(root, [
@@ -268,7 +268,24 @@ test("drainFailedRetry: bumps attempt, resets status, clears cycle_id", async ()
     const [r] = await readQueue(root);
     assert.equal(r.status, "pending");
     assert.equal(r.attempt, 2);
-    assert.equal(r.cycle_id, undefined);
+    assert.equal(r.cycle_id, "0005");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("drainFailedRetry: preserved cycle_id round-trips through popNextPending so the next pop reuses the prior attempt's artifact dir", async () => {
+  const root = await setupRoot();
+  try {
+    await writeQueue(root, [
+      row("A", { status: "in_progress", cycle_id: "0070", attempt: 0 }),
+    ]);
+    await drainFailedRetry(root, "A");
+    const next = await popNextPending(root);
+    assert.ok(next);
+    assert.equal(next!.id, "A");
+    assert.equal(next!.cycle_id, "0070");
+    assert.equal(next!.attempt, 1);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

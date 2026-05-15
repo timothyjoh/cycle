@@ -17,10 +17,31 @@ import {
 import { ingestReflection } from "./reflection.ts";
 import { sanitizeArtifactStdout } from "./sanitize-artifact.ts";
 import { slugify } from "../issue/id.ts";
-import { writeFile, readFile } from "node:fs/promises";
+import { writeFile, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 const RESET_ELIGIBLE_STEPS = new Set(["build", "fix"]);
+
+// SKIP_ELIGIBLE_STEPS must stay disjoint from any step that mutates the working
+// tree on success — skipping such a step would lose the mutation. Pre-build
+// artifact-producing steps (spec, research, plan) only write
+// <artifactDir>/<STEP>.md from agent stdout, so the artifact IS the work.
+const SKIP_ELIGIBLE_STEPS = new Set(["spec", "research", "plan"]);
+
+export async function shouldSkipForArtifact(
+  artifactDir: string,
+  stepName: string,
+): Promise<{ skip: false } | { skip: true; artifactPath: string }> {
+  if (!SKIP_ELIGIBLE_STEPS.has(stepName)) return { skip: false };
+  const artifactPath = join(artifactDir, `${stepName.toUpperCase()}.md`);
+  try {
+    const st = await stat(artifactPath);
+    if (st.isFile() && st.size > 0) return { skip: true, artifactPath };
+  } catch {
+    // ENOENT or unreadable — fall through
+  }
+  return { skip: false };
+}
 
 export const SPEC_MIN_BYTES = 200;
 
@@ -67,6 +88,8 @@ export type RunCycleOpts = {
   cycleId?: string;
   env?: Record<string, string>;
   resume?: { startStepIndex: number };
+  attempt?: number;
+  skipCompletedOnRetry?: boolean;
 };
 
 export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
@@ -108,12 +131,27 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
 
   try {
     const startIdx = opts.resume?.startStepIndex ?? 0;
+    const attempt = opts.attempt ?? 0;
+    const skipEnabled = opts.skipCompletedOnRetry !== false;
     for (let i = startIdx; i < wf.steps.length; i++) {
       const step = wf.steps[i];
 
       let headSha: string | null = null;
       const isResetEligible = RESET_ELIGIBLE_STEPS.has(step.name);
       const isResumeEntry = !!opts.resume && i === startIdx;
+
+      if (attempt > 0 && skipEnabled && !isResumeEntry && step.agent !== "bash") {
+        const gate = await shouldSkipForArtifact(artifactDir, step.name);
+        if (gate.skip) {
+          await log.emit("step.skipped", {
+            cycle_id: cycleId,
+            step: step.name,
+            reason: "artifact_present",
+            artifact_path: gate.artifactPath,
+          });
+          continue;
+        }
+      }
 
       if (isResetEligible && !wf.no_branch) {
         if (!isResumeEntry) {

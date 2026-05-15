@@ -164,7 +164,10 @@ export async function drainFailedRetry(repoRoot: string, id: string): Promise<vo
     if (r.id === id) {
       r.attempt += 1;
       r.status = "pending";
-      delete r.cycle_id;
+      // cycle_id intentionally preserved: the next pop reuses it so runCycle's
+      // artifactDir matches the prior attempt's dir, letting the pre-build skip
+      // gate (src/engine/run-cycle.ts) see SPEC.md/RESEARCH.md/PLAN.md left
+      // behind on the cycle branch.
     }
   }
   await writeQueue(repoRoot, rows);
