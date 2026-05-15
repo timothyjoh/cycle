@@ -1,7 +1,7 @@
 ---
 id: refl-0067-brief-md-marker-insertions-split-mid-sen
 title: Reflow cycle 0067 BRIEF.md marker insertions to sentence boundaries (Phase 3 banner + Site 1/3 sentence-end)
-workflow: feature
+workflow: document
 depends_on: []
 triaged_at: "2026-05-15T19:18:20.901Z"
 source: triage

@@ -1,7 +1,7 @@
 ---
 id: refl-0071-bootstrap-paradox-cycle-changing-an-agen-document-pattern-in-claude-md
 title: "Document bootstrap-paradox pattern in CLAUDE.md: cycle that introduces a prompt rule cannot satisfy it in its own plan step"
-workflow: feature
+workflow: document
 depends_on: []
 triaged_at: "2026-05-15T21:22:44.077Z"
 source: triage

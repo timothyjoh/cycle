@@ -1,7 +1,7 @@
 ---
 id: refl-0066-step-end-stderr-doc-omits-spec-post-cond
 title: Document spec post-condition guard as third failed-step.end stderr surfacing path
-workflow: feature
+workflow: document
 depends_on: []
 triaged_at: "2026-05-15T18:58:25.740Z"
 source: triage

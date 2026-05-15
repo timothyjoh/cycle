@@ -1,7 +1,7 @@
 ---
 id: refl-0070-engine-start-emit-move-deserves-the-expl-comment-engine-start-reorder
 title: Add one-line comment above engine.start emit in cli.ts explaining post-loadConfig deferral
-workflow: feature
+workflow: document
 depends_on: []
 triaged_at: "2026-05-15T20:53:01.339Z"
 source: triage

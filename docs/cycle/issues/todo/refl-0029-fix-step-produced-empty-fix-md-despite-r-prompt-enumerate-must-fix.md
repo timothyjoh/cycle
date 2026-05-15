@@ -1,7 +1,7 @@
 ---
 id: refl-0029-fix-step-produced-empty-fix-md-despite-r-prompt-enumerate-must-fix
 title: "Fix prompt: require non-empty FIX.md enumerating each MUST-FIX task as closed | deferred(->raw-id) | dropped(reason)"
-workflow: feature
+workflow: document
 depends_on: []
 triaged_at: "2026-05-13T21:49:11.797Z"
 source: triage

@@ -1,7 +1,7 @@
 ---
 id: refl-0046-spec-ac-6-was-structurally-unreachable-f-spec-feasibility-self-check
 title: Add feasibility self-check pass to spec.md prompt to reject structurally unreachable acceptance criteria
-workflow: feature
+workflow: document
 depends_on: []
 triaged_at: "2026-05-14T16:58:46.582Z"
 source: triage

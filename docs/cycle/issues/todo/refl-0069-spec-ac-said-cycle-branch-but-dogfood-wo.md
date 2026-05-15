@@ -1,7 +1,7 @@
 ---
 id: refl-0069-spec-ac-said-cycle-branch-but-dogfood-wo
 title: "Teach spec.md prompt to phrase ACs in trunk-based terms when workflow declares no_branch: true"
-workflow: feature
+workflow: document
 depends_on: []
 triaged_at: "2026-05-15T20:12:11.297Z"
 source: triage

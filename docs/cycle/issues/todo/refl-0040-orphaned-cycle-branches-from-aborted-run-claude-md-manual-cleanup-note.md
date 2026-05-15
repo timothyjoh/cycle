@@ -1,7 +1,7 @@
 ---
 id: refl-0040-orphaned-cycle-branches-from-aborted-run-claude-md-manual-cleanup-note
 title: Document manual cleanup procedure for orphaned cycle/* branches in CLAUDE.md
-workflow: feature
+workflow: document
 depends_on: []
 triaged_at: "2026-05-14T03:44:08.010Z"
 source: triage

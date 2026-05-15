@@ -1,7 +1,7 @@
 ---
 id: refl-0071-spec-template-should-pin-sync-defaults-e
 title: Pin SPEC wording for sync-defaults success criterion to divergence-guard reality (not `exit 0`)
-workflow: feature
+workflow: document
 depends_on: []
 triaged_at: "2026-05-15T21:28:28.701Z"
 source: triage
