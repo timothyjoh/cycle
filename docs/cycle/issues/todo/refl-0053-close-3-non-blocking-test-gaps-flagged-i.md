@@ -1,7 +1,7 @@
 ---
 id: refl-0053-close-3-non-blocking-test-gaps-flagged-i
 title: Close 3 non-blocking sanitize-artifact.test.ts gaps from cycle 0053 review
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-14T19:25:13.510Z"
 source: triage

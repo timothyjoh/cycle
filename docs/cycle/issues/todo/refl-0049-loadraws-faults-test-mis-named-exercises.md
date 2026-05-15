@@ -1,7 +1,7 @@
 ---
 id: refl-0049-loadraws-faults-test-mis-named-exercises
 title: Fix mis-named loadRaws ENOENT test in triage.faults.test.ts (rename or call loadRaws directly)
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-14T17:59:34.973Z"
 source: triage

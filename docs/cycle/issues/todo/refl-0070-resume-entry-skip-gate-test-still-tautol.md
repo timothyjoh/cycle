@@ -1,7 +1,7 @@
 ---
 id: refl-0070-resume-entry-skip-gate-test-still-tautol
 title: Replace or delete tautological `skip gate self-suppresses on resume entry` test
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-15T20:55:20.019Z"
 source: triage

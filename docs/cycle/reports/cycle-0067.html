@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0067 · Annotate remaining deprecated-folder references in BRIEF.md as pre-RFC-001 historical</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0067</h1>
+  <div class="subtitle">Annotate remaining deprecated-folder references in BRIEF.md as pre-RFC-001 historical</div>
+  <div class="meta-row">
+    <code>eda2f1f</code> · Timothy Johnson · 2026-05-15 15:13:39 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0066.html">← Cycle 0066</a>
+  <span class="center">67 of 61 · <a href="index.html">index</a></span>
+  <a href="cycle-0068.html">Cycle 0068 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><h3>SPEC — Cycle 0067: Annotate remaining deprecated-folder references in BRIEF.md</h3>
+<h4>Objective</h4>
+<p>Mark the 8 remaining <code>tbd/</code> / <code>queued/</code> / <code>triaged/</code> mentions in <code>BRIEF.md</code> as pre-RFC-001 historical via the canonical <code>(superseded — see RFC-001 § 12 BB-1)</code> marker (inline or banner). Closes the coherence smell left by cycle 0028&#39;s explicit deferral: RFC-001 and DOGFOOD.md are annotated; <code>BRIEF.md</code> is the last unannotated narrative doc.</p>
+<h4>Source Issue</h4>
+<p><code>refl-0028-brief-md-deprecated-folder-references-st</code> — &quot;Annotate remaining deprecated-folder references in BRIEF.md as pre-RFC-001 historical&quot;</p>
+<h4>Scope</h4>
+<h5>In Scope</h5>
+<ul>
+<li>Annotate every hit returned by <code>grep -nE &#39;\b(tbd|queued|triaged)/&#39; BRIEF.md</code> (currently lines 315-316, 461-462, 509, 532, 541, 543) using the inline <code>(superseded — see RFC-001 § 12 BB-1)</code> marker, with the section-banner pattern (<code>&gt; <strong>Note:</strong> This section describes the pre-RFC-001 lifecycle (superseded — see RFC-001 § 12 BB-1).</code>) substituted when 2+ contiguous hits in a single narrative paragraph would otherwise pepper per-line markers.</li>
+<li>Doc-only edit: diff touches <code>BRIEF.md</code> and nothing else.</li>
+<li>Re-run the grep at the end to confirm zero unannotated hits remain.</li>
+</ul>
+<h5>Out of Scope</h5>
+<ul>
+<li>Re-litigating RFC-001 § 12 BB-1.</li>
+<li>MVP plan doc (<code>docs/0001-mvp-plan.md</code> or similar) — separate follow-up.</li>
+<li>Cycle artifact dirs (<code>docs/cycle/0001-<em>/</code> … <code>docs/cycle/0028-</em>/</code>) and issue-record files under <code>docs/cycle/issues/{done,failed,blocked}/</code> — immutable per BB-1.</li>
+<li>Rewriting BRIEF.md prose beyond the annotation pattern.</li>
+<li>Touching ARCHITECTURE.md / CLAUDE.md / AGENTS.md / README.md (already annotated or out-of-scope per source issue).</li>
+</ul>
+<h4>Requirements</h4>
+<ul>
+<li>Marker text MUST be the canonical string <code>(superseded — see RFC-001 § 12 BB-1)</code> (en-dash, exact spacing, exact section ref). Banner form MUST be <code>&gt; <strong>Note:</strong> This section describes the pre-RFC-001 lifecycle (superseded — see RFC-001 § 12 BB-1).</code></li>
+<li>Inline placement: adjacent to the <code>tbd/</code>, <code>queued/</code>, or <code>triaged/</code> mention — same line or the immediately following line. Banner placement: as the first line of the historical paragraph or section, before any hit beneath it.</li>
+<li>Per-line judgement (banner vs inline) for each cluster:</li>
+</ul>
+<p>  - <strong>L315-316</strong> (Artifacts &amp; State, folder list): inline marker on the trailing <code>triaged/, blocked/, failed/ —</code> line; this is spec, not historical narrative, but the folder names themselves are superseded so the marker belongs on the same physical paragraph.   - <strong>L461-462</strong> (Init scope, folder list): inline marker on the trailing <code>triaged/, blocked/, failed/ directories</code> line; same rationale as L315-316.   - <strong>L509</strong> (Issue fetch, &quot;writes a markdown file into <code>tbd/</code>&quot;): inline marker on the <code>tbd/</code> mention.   - <strong>L532</strong> (Phase 1, <code>tbd/ → queued/ → triaged/</code> lifecycle arrow): inline marker after the arrow — this is one tight historical lifecycle description so inline reads cleaner than a banner around a 2-line bullet.   - <strong>L541-543</strong> (Phase 3, two hits: &quot;External agents dropping files into <code>tbd/</code>&quot; + &quot;Pre-emptive <code>tbd/</code> rescans&quot;): inline markers on each — they sit in separate sentences inside a bullet list, so one banner would over-scope. If the agent judges these as one historical narrative paragraph, a single banner above the Phase 3 bullet is also acceptable.</p>
+<ul>
+<li>Preserve all surrounding prose verbatim — wording, indentation, line breaks. The only insertions are marker text (and a banner line where chosen).</li>
+<li>File MUST still read as coherent narrative after the pass; if a hit&#39;s surrounding sentence becomes awkward, prefer banner over reflow.</li>
+</ul>
+<h4>Acceptance Criteria</h4>
+<ul>
+<li>[ ] <code>grep -nE &#39;\b(tbd|queued|triaged)/&#39; BRIEF.md</code> shows every match adjacent to (same line / immediately following line) or beneath (same section banner with no intervening header) the canonical <code>(superseded — see RFC-001 § 12 BB-1)</code> marker.</li>
+<li>[ ] <code>git diff master -- BRIEF.md</code> is the only file changed; no source / test / defaults / other-doc edits.</li>
+<li>[ ] Marker string is byte-identical to <code>(superseded — see RFC-001 § 12 BB-1)</code> everywhere it appears (no smart-quote / hyphen drift).</li>
+<li>[ ] <code>npm test</code> passes.</li>
+<li>[ ] <code>npm run typecheck</code> passes with no new warnings.</li>
+<li>[ ] <code>npm run test:coverage</code> passes (per-file floor on <code>src/engine/triage.ts ≥ 95%</code> holds; doc-only change is coverage-neutral).</li>
+<li>[ ] BRIEF.md still renders as readable markdown (no orphaned banners, no broken bullets).</li>
+</ul>
+<h4>Testing Strategy</h4>
+<ul>
+<li>Doc-only change — no new unit / integration tests required and none would meaningfully exercise the edit.</li>
+<li><strong>Verification commands (run during <code>build</code> / <code>verify</code>)</strong>:</li>
+</ul>
+<p>  - <code>grep -nE &#39;\b(tbd|queued|triaged)/&#39; BRIEF.md</code> — confirm every hit sits within the annotated radius.   - <code>grep -nF &#39;(superseded — see RFC-001 § 12 BB-1)&#39; BRIEF.md</code> — confirm marker is byte-identical across all insertions.   - <code>git diff --stat master -- BRIEF.md</code> — confirm BRIEF.md is the only file changed.   - <code>npm test &amp;&amp; npm run typecheck &amp;&amp; npm run test:coverage</code> — sanity gates.</p>
+<ul>
+<li>No E2E / Playwright tests apply (no UI surface touched).</li>
+</ul>
+<h4>Documentation Updates</h4>
+<ul>
+<li><strong>CLAUDE.md / AGENTS.md</strong>: no change — neither doc mentions BRIEF.md&#39;s annotation state, and the canonical-marker pattern is already established by cycles 0028 (RFC-001 + DOGFOOD.md).</li>
+<li><strong>README.md</strong>: no change — user-facing surface is unaffected.</li>
+<li><strong>BRIEF.md itself</strong>: is the documentation update for this cycle.</li>
+</ul>
+<h4>Dependencies</h4>
+<ul>
+<li>Existing canonical marker pattern in <code>RFC-001</code> and <code>DOGFOOD.md</code> (cycle 0028 commit <code>3e0a502</code>) as the reference style.</li>
+<li>No external services, no env vars, no runtime changes.</li>
+</ul></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <div class="empty">No code changes (docs/markdown-only cycle).</div>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <div class="empty">No code diff.</div>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>Review complete. Cycle 0067 is a doc-only annotation pass on BRIEF.md. All 8 deprecated-folder mentions sit adjacent to a canonical marker; all 6 markers are byte-identical to the required string; RFC-001 § 12 BB-1 exists at <code>docs/RFC-001-issue-lifecycle.md:396</code>; no other source files touched. Verdict: PASS.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0067
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+Doc-only annotation pass on `BRIEF.md`. Six byte-identical `(superseded — see RFC-001 § 12 BB-1)` markers inserted at the six cataloged sites; all 8 `tbd/`/`queued/`/`triaged/` hits now sit within the SPEC-required radius (same line or immediately adjacent line, or same continuous markdown paragraph). Surrounding prose preserved verbatim modulo line-splits that the markers introduce. SPEC scope, acceptance criteria, and verification commands all clear.
+
+### Findings
+1. **Style (informational, not actionable)**: The Phase 3 bullet (`BRIEF.md:544-552`) ends up with two markers inside a single markdown paragraph (`BRIEF.md:547` and `BRIEF.md:552`). SPEC §&quot;Per-line judgement&quot; explicitly accepted either inline-per-sentence or a single banner; the chosen inline form satisfies the criterion. No fix required.
+
+### Spec Compliance Checklist
+- [x] All 6 cataloged sites carry the marker (`BRIEF.md:317, 465, 512, 536, 547, 552`).
+- [x] Marker text byte-identical at every site (`grep -cF` returns 6; `grep -c &#39;superseded&#39;` also returns 6 — zero drift).
+- [x] Inline-vs-banner judgement matches SPEC per-line table (all chose inline; Phase 3 case allowed either form per SPEC).
+- [x] `git diff master -- BRIEF.md` is the only source/doc edit (pre-existing untracked `refl-0029` move in working tree predates cycle 0067 and is not part of this branch&#39;s diff intent).
+- [x] BRIEF.md still renders as coherent markdown — no orphaned banners, bullet structure preserved at `BRIEF.md:463-465`.
+- [x] CLAUDE.md / AGENTS.md / README.md / ARCHITECTURE.md untouched (per SPEC out-of-scope).
+
+## Adversarial Test Review
+
+### Summary
+N/A. Doc-only change with no new code paths; no unit/integration tests required and none would meaningfully exercise the edit (SPEC §&quot;Testing Strategy&quot; agrees).
+
+### Findings
+None.
+
+### Test Coverage
+- Command run: `npm run test:coverage` (per BUILD.md, not re-run during review — doc-only edit is coverage-neutral by construction).
+- Line / branch / function (from BUILD.md): 98.99% / 92.85% / 96.99%.
+- Regressions vs base (per-file): none. `src/engine/triage.ts` 99.45% ≥ 95% floor.
+- New code without tests: none (no code added).
+- Specific scenarios missing tests: none applicable.
+
+## Doc-vs-Code Claim Verification
+
+The only in-scope doc touched is `BRIEF.md`. The diff inserts six instances of one marker string. The marker is a cross-reference, not a behavioral/flag/path/event claim. Backing verification:
+
+| Claim | Source (doc:line) | Backing (code:line) | Status |
+|---|---|---|---|
+| Reference target &quot;RFC-001 § 12 BB-1&quot; exists | `BRIEF.md:317` (and 5 other identical insertions) | `docs/RFC-001-issue-lifecycle.md:390` (§ 12 heading) and `docs/RFC-001-issue-lifecycle.md:396` (BB-1 bullet) | OK |
+| Phrase &quot;Five folders — `tbd/`, `queued/`, `triaged/`, `blocked/`, `failed/`&quot; annotated as superseded | `BRIEF.md:315-317` | `src/defaults/issues/` (TEMPLATE.md only — no `tbd/`/`queued/`/`triaged/` directories in current defaults) and `src/engine/scan.ts` / `src/cli/init.ts` (scan `raw/`, init creates `raw/done/blocked/failed/`) — the &quot;five-folder&quot; claim IS pre-RFC-001 historical, hence the marker is correct | OK |
+| Phrase &quot;writes a markdown file into `tbd/`&quot; annotated as superseded | `BRIEF.md:511-512` | Current path is `raw/` via `cycle drop` / scan — confirmed historical | OK |
+| Phrase &quot;`tbd/ → queued/ → triaged/`&quot; lifecycle annotated as superseded | `BRIEF.md:535-536` | Current lifecycle is `raw/ → todo/ → done/` per `docs/RFC-001-issue-lifecycle.md:396` and `src/engine/queue.ts` — historical annotation correct | OK |
+| Phrase &quot;External agents dropping files into `tbd/`&quot; annotated as superseded | `BRIEF.md:546-547` | Same as above — historical | OK |
+| Phrase &quot;Pre-emptive `tbd/` rescans&quot; annotated as superseded | `BRIEF.md:550-552` | Same as above — historical | OK |
+
+All six insertions resolve to a real target. No unbacked claims.</code></pre></div></section>
+
+<nav class="pager">
+  <a href="cycle-0066.html">← Cycle 0066</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0068.html">Cycle 0068 →</a>
+</nav>
+
+<footer>Generated from <code>eda2f1f</code></footer>
+</body>
+</html>

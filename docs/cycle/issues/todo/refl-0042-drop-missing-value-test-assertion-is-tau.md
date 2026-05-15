@@ -1,7 +1,7 @@
 ---
 id: refl-0042-drop-missing-value-test-assertion-is-tau
 title: Tighten `--priority` missing-value test assertion in parse-args.test.ts
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-14T05:12:22.566Z"
 source: triage

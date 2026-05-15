@@ -1,7 +1,7 @@
 ---
 id: refl-0071-missing-spec-plan-traceability-verify-gr
 title: Make MUST-FIX SPEC→PLAN traceability verify command fence-aware (no false positives on didactic code examples)
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-15T21:26:15.192Z"
 source: triage

@@ -1,7 +1,7 @@
 ---
 id: refl-0030-step-agent-narrow-union-decays-as-regist-widen-step-agent-type
 title: Widen Step.agent type to match runtime registry (workflow.ts)
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-13T22:09:56.979Z"
 source: triage

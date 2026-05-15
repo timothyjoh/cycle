@@ -42,6 +42,17 @@ workflows:
       - { name: verify,           agent: bash,       command: scripts/verify.sh }
       - { name: commit,           agent: bash,       command: scripts/commit-trunk.sh }
 
+  - name: quickfix
+    description: Surgical fix for a well-scoped issue. Plan → fix → test. Trunk-based.
+    max_cycle_attempts: 3
+    no_branch: true
+    steps:
+      - { name: plan_fix,  agent: claudecode, prompt: prompts/plan_fix.md }
+      - { name: quick_fix, agent: claudecode, prompt: prompts/quick_fix.md }
+      - { name: test_fix,  agent: claudecode, prompt: prompts/test_fix.md }
+      - { name: verify,    agent: bash,       command: scripts/verify.sh }
+      - { name: commit,    agent: bash,       command: scripts/commit-trunk.sh }
+
   - name: e2e-tests
     description: Write or extend Playwright end-to-end tests against the running app. Works directly on the base branch — no per-cycle branch, no PR.
     max_cycle_attempts: 3

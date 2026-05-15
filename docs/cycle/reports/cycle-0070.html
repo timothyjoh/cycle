@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0070 · Retry economics: skip pre-build steps whose artifacts already exist on cycle retry</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0070</h1>
+  <div class="subtitle">Retry economics: skip pre-build steps whose artifacts already exist on cycle retry</div>
+  <div class="meta-row">
+    <code>82b06a7</code> · Timothy Johnson · 2026-05-15 16:44:58 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0069.html">← Cycle 0069</a>
+  <span class="center">70 of 61 · <a href="index.html">index</a></span>
+  <a href="cycle-0071.html">Cycle 0071 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><h3>SPEC — Cycle 0070: Retry economics — skip completed pre-build steps on cycle retry</h3>
+<h4>Objective</h4>
+<p>On <code>tbd.jsonl</code> retry pops (<code>attempt &gt; 0</code> for the same <code>issue_id</code>), the engine should skip pre-build workflow steps (<code>spec</code>, <code>research</code>, <code>plan</code>) whose artifact files already exist non-empty under the cycle artifact dir, emitting one <code>step.skipped</code> event per skipped step. This stops the ~14-minute re-derivation tax observed across cycles 0026/0027/0028, while keeping the mid-execution restart policy for build/fix/verify/commit untouched and preserving log-tail resume math.</p>
+<h4>Source Issue</h4>
+<p><code>refl-0028-engine-retries-redo-spec-research-plan-w-retry-economics</code> — &quot;Retry economics: skip pre-build steps whose artifacts already exist on cycle retry&quot;</p>
+<h4>Scope</h4>
+<h5>In Scope</h5>
+<ul>
+<li>Engine skip behavior inside <code>runCycle</code> (<code>src/engine/run-cycle.ts</code>): when</li>
+</ul>
+<p>  the popped row&#39;s attempt is &gt; 0 and a pre-build step&#39;s artifact at   <code>&lt;artifactDir&gt;/&lt;STEP&gt;.md</code> exists with <code>&gt; 0</code> bytes, do not invoke the   agent. Emit <code>step.skipped {cycle_id, step, reason: &quot;artifact_present&quot;,   artifact_path}</code> in lieu of <code>step.start</code> / <code>step.end</code>. The skip set is   exactly <code>{spec, research, plan}</code>. Skips advance the loop identically to   <code>step.end status:ok</code> so log-tail resume math is unchanged.</p>
+<ul>
+<li>Opt-out: CLI flag <code>--no-skip-completed</code> (parsed in</li>
+</ul>
+<p>  <code>src/cli/parse-args.ts</code>) and workflow-level   <code>engine.skip_completed_on_retry: false</code> in <code>workflows.yml</code>. CLI flag   wins over YAML; YAML default is <code>true</code>. Pass the resolved boolean   through <code>runCycle</code> opts (no new global state).</p>
+<ul>
+<li>Unit-test matrix in <code>tests/engine/</code>:</li>
+</ul>
+<p>  (1) attempt=0 never skips even when artifacts exist;   (2) attempt=1 with SPEC.md, RESEARCH.md, PLAN.md all <code>&gt; 0</code> bytes skips       all three and emits three <code>step.skipped</code> events;   (3) attempt=1 with only SPEC.md present skips spec, runs research+plan;   (4) <code>--no-skip-completed</code> disables skipping (attempt=1, artifacts present,       still re-runs);   (5) zero-byte artifact file does NOT trigger skip (strict <code>&gt; 0</code> bytes).</p>
+<h5>Out of Scope</h5>
+<ul>
+<li>Per-step partial-restart logic for <code>build</code>/<code>fix</code>/<code>verify</code>/<code>commit</code> — that</li>
+</ul>
+<p>  cluster (<code>step-restart-tolerance-audit-*</code>) keeps its existing   pre-step <code>head_sha</code> reset policy; this cycle changes nothing for it.</p>
+<ul>
+<li>Cross-<code>issue_id</code> artifact reuse — skip key is the current cycle&#39;s</li>
+</ul>
+<p>  artifact dir only.</p>
+<ul>
+<li>The companion stderr-on-bash-failure issue</li>
+</ul>
+<p>  (<code>refl-0028-stderr-dropped-on-failed-bash-step</code>) — separate cycle.</p>
+<ul>
+<li>Reflection / documentation step skipping — already non-fatal terminal</li>
+</ul>
+<p>  steps; skip economics aren&#39;t worth the surface area.</p>
+<h4>Requirements</h4>
+<ul>
+<li>Skip gate is `attempt &gt; 0 &amp;&amp; step.name ∈ {spec, research, plan} &amp;&amp;</li>
+</ul>
+<p>  step.agent !== &quot;bash&quot; &amp;&amp; existsSync(&lt;artifactDir&gt;/&lt;STEP&gt;.md) &amp;&amp;   statSync(...).size &gt; 0 &amp;&amp; skipCompletedOnRetry === true`.</p>
+<ul>
+<li><code>step.skipped</code> event shape:</li>
+</ul>
+<p>  <code>{event: &quot;step.skipped&quot;, ts, cycle_id, step, reason: &quot;artifact_present&quot;,   artifact_path}</code>. Use the existing logger seam in <code>runCycle</code>.</p>
+<ul>
+<li>The <code>runCycle</code> workflow-step loop must NOT emit <code>step.start</code> or</li>
+</ul>
+<p>  <code>step.end</code> for skipped steps (otherwise the resume-index calculation in   <code>src/engine/log-tail.ts</code> would treat the step as already-completed via a   different code path and double-count).</p>
+<ul>
+<li>Resume math: <code>findFirstUnfinishedStepIndex</code> (or its equivalent in</li>
+</ul>
+<p>  <code>log-tail.ts</code>) must treat <code>step.skipped</code> as a terminal completion event   for index-advancement, equivalent to <code>step.end status:&quot;ok&quot;</code>.</p>
+<ul>
+<li>The <code>attempt</code> value must reach <code>runCycle</code>: extend <code>RunCycleOpts</code> with</li>
+</ul>
+<p>  <code>attempt: number</code> (default 0) and pass it from both call sites in   <code>src/cli.ts</code> (fresh pop and retry pop). Resume entry is orthogonal — a   resumed cycle that&#39;s mid-step is governed by <code>startStepIndex</code>, not by   this skip gate.</p>
+<ul>
+<li>The opt-out boolean threads from CLI args → <code>runCycle</code> opts. YAML field</li>
+</ul>
+<p>  parsing lives in <code>src/engine/workflow.ts</code>; default is <code>true</code> when the   field is absent.</p>
+<ul>
+<li>Strict <code>&gt; 0</code> bytes (not <code>&gt;= SPEC_MIN_BYTES</code>): a partially-written but</li>
+</ul>
+<p>  non-empty SPEC.md trips the existing <code>SPEC_MIN_BYTES</code> guard on the very   next attempt anyway. The skip gate is purely &quot;did we generate   something here?&quot;, not &quot;is it good enough?&quot;.</p>
+<ul>
+<li>Engine still writes <code>BUILD.md</code> and downstream artifacts normally; no</li>
+</ul>
+<p>  behavior change for non-skipped steps.</p>
+<ul>
+<li>Coverage: line ≥ 95%, branch ≥ 75%, function ≥ 90%. Per-file floor</li>
+</ul>
+<p>  for <code>src/engine/triage.ts</code> is untouched; this work adds new branches   to <code>src/engine/run-cycle.ts</code> which must be exercised.</p>
+<h4>Acceptance Criteria</h4>
+<ul>
+<li>[ ] Anchored grep against the artifact dir confirms the new event shape:</li>
+</ul>
+<p>      <code>grep -E &#39;^.<em>&quot;event&quot;:&quot;step.skipped&quot;.</em>&quot;reason&quot;:&quot;artifact_present&quot;.*&quot;step&quot;:&quot;(spec|research|plan)&quot;&#39; .cycle/log.jsonl</code>       returns the expected lines under the retry test fixture.</p>
+<ul>
+<li>[ ] Anchored grep against <code>^id:</code> in</li>
+</ul>
+<p>      <code>docs/cycle/issues/todo/refl-0028-engine-retries-redo-spec-research-plan-w-retry-economics.md</code>       still resolves the issue post-build (frontmatter unmodified by this cycle).</p>
+<ul>
+<li>[ ] Unit-test matrix above (5 cases) all pass and live under</li>
+</ul>
+<p>      <code>tests/engine/</code>.</p>
+<ul>
+<li>[ ] <code>--no-skip-completed</code> parsed in <code>src/cli/parse-args.ts</code> and</li>
+</ul>
+<p>      propagated to <code>runCycle</code>; YAML <code>engine.skip_completed_on_retry: false</code>       has the same effect.</p>
+<ul>
+<li>[ ] CLI flag overrides YAML when both are set.</li>
+<li>[ ] <code>findFirstUnfinishedStepIndex</code> (or equivalent) recognizes</li>
+</ul>
+<p>      <code>step.skipped</code> as terminal. New unit test in <code>tests/engine/</code>       covering: a log with <code>step.start</code> (spec) → <code>step.skipped</code>       (research) → <code>step.start</code> (plan) resumes at index 2 (plan).</p>
+<ul>
+<li>[ ] All existing tests still pass.</li>
+<li>[ ] <code>npm run typecheck</code> clean.</li>
+<li>[ ] <code>npm run test:coverage</code> passes the gate</li>
+</ul>
+<p>      (<code>scripts/coverage-gate.mjs</code>).</p>
+<ul>
+<li>[ ] No <code>npm run sync-defaults</code> invocation in this cycle (dogfood</li>
+</ul>
+<p>      workflow.yml divergence must be preserved per CLAUDE.md).</p>
+<h4>Testing Strategy</h4>
+<ul>
+<li>Node&#39;s native <code>node:test</code> runner, no extra framework.</li>
+<li>Unit tests build temp repo roots via the existing test helpers (see</li>
+</ul>
+<p>  <code>tests/engine/</code> for the pattern), seed <code>&lt;artifactDir&gt;/SPEC.md</code> etc.,   invoke <code>runCycle</code> (or a narrower seam if extraction is justified), and   assert on the captured <code>log.jsonl</code> JSON events.</p>
+<ul>
+<li>Stub the agent dispatcher so we can assert &quot;agent NOT invoked for</li>
+</ul>
+<p>  spec/research/plan when skipped&quot; without spinning up claudecode.</p>
+<ul>
+<li>Log-tail recognition test reads a synthetic <code>log.jsonl</code> and asserts on</li>
+</ul>
+<p>  the resume start index.</p>
+<ul>
+<li>No new integration test fixture for this cycle — the unit matrix</li>
+</ul>
+<p>  covers the gate matrix fully. A future cycle can add a wall-clock   integration test if the savings need empirical confirmation.</p>
+<h4>Documentation Updates</h4>
+<ul>
+<li><strong>CLAUDE.md</strong>: extend the &quot;Architecture quick reference&quot; bullet about</li>
+</ul>
+<p>  retry semantics with a paragraph on the skip rule (when it fires, opt-out,   emitted event shape).</p>
+<ul>
+<li><strong>README.md</strong>: add a one-line entry to the <code>cycle status</code> /</li>
+</ul>
+<p>  retry-behavior section noting the skip rule and <code>--no-skip-completed</code>.</p>
+<ul>
+<li><strong>docs/ARCHITECTURE.md</strong> (or <code>docs/RFC-001-issue-lifecycle.md</code> if the</li>
+</ul>
+<p>  retry section lives there — check both, document in whichever already   owns retry semantics): describe the skip gate, event, opt-out, and the   reason it&#39;s bounded to pre-build steps.</p>
+<ul>
+<li>Documentation lives in the <code>documentation</code> workflow step; the cycle</li>
+</ul>
+<p>  is incomplete if those files still describe the old re-derive   behavior at PR-time.</p>
+<h4>Dependencies</h4>
+<ul>
+<li>No new runtime deps. Uses <code>node:fs/promises</code> (<code>stat</code>) which is already</li>
+</ul>
+<p>  imported via <code>src/engine/queue.ts</code> and friends.</p>
+<ul>
+<li>No external services or env vars.</li>
+<li>Requires the existing log-tail resume infrastructure</li>
+</ul>
+<p>  (<code>src/engine/log-tail.ts</code>) — already in master.</p>
+<ul>
+<li>Requires the <code>attempt</code> value already living on each <code>tbd.jsonl</code> row</li>
+</ul>
+<p>  (<code>QueueRow.attempt</code>) and the existing increment in <code>src/cli.ts</code>&#39;s   retry-drain path — already in master.</p></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/cli.ts                                    |  12 +-
+ src/cli/parse-args.ts                         |   3 +
+ src/engine/log-tail.ts                        |  11 +-
+ src/engine/queue.ts                           |   5 +-
+ src/engine/run-cycle.ts                       |  40 ++-
+ src/engine/workflow.ts                        |   1 +
+ tests/cli/parse-args.test.ts                  |  16 +-
+ tests/engine/log-tail.test.ts                 |  38 +++
+ tests/engine/queue.test.ts                    |  21 +-
+ tests/engine/run-cycle.skip-completed.test.ts | 363 ++++++++++++++++++++++++++
+ 10 files changed, 499 insertions(+), 11 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/cli.ts b/src/cli.ts</span><span class="fileheader">index ea7fba3..59be354 100644</span><span class="meta">--- a/src/cli.ts</span><span class="meta">+++ b/src/cli.ts</span><span class="hunk">@@ -73,7 +73,6 @@ if (args.command === &quot;drop&quot;) {</span><span class="ctx"> }</span><span class="ctx"> </span><span class="ctx"> const log = await createLogger(cwd);</span><span class="del">-await log.emit(&quot;engine.start&quot;, {});</span><span class="ctx"> </span><span class="ctx"> if (args.text) {</span><span class="ctx">   await materializeFreeformIssue(args.text, cwd);</span><span class="hunk">@@ -88,6 +87,11 @@ await mkdir(failedDir, { recursive: true });</span><span class="ctx"> </span><span class="ctx"> const cfg = args.dryRun ? null : await loadConfig(cwd);</span><span class="ctx"> </span><span class="add">+const skipCompletedOnRetry =</span><span class="add">+  args.noSkipCompleted ? false : (cfg?.engine?.skip_completed_on_retry ?? true);</span><span class="add">+</span><span class="add">+await log.emit(&quot;engine.start&quot;, { skip_completed_on_retry: skipCompletedOnRetry });</span><span class="add">+</span><span class="ctx"> if (!args.dryRun &amp;&amp; cfg) {</span><span class="ctx">   const triageResult = await runTriage(cwd, cfg, log);</span><span class="ctx">   if (triageResult.status === &quot;paused&quot;) {</span><span class="hunk">@@ -310,6 +314,8 @@ async function runResumeOnce(</span><span class="ctx">     title: tail.title,</span><span class="ctx">     workflow: workflowName,</span><span class="ctx">     resume: { startStepIndex },</span><span class="add">+    attempt: row!.attempt,</span><span class="add">+    skipCompletedOnRetry,</span><span class="ctx">   });</span><span class="ctx"> </span><span class="ctx">   const todoPath = join(todoDir, `${tail.issueId}.md`);</span><span class="hunk">@@ -393,7 +399,7 @@ while (!halted) {</span><span class="ctx">   const rawMax = wfCfg?.max_cycle_attempts ?? 3;</span><span class="ctx">   const maxAttempts = rawMax &lt; 1 ? 1 : rawMax;</span><span class="ctx"> </span><span class="del">-  const cycleId = await allocateCycleId(cwd);</span><span class="add">+  const cycleId = row.cycle_id ?? (await allocateCycleId(cwd));</span><span class="ctx">   await markInProgress(cwd, row.id, cycleId);</span><span class="ctx"> </span><span class="ctx">   const r = await runCycle(cwd, {</span><span class="hunk">@@ -401,6 +407,8 @@ while (!halted) {</span><span class="ctx">     issueId: row.id,</span><span class="ctx">     title: row.title,</span><span class="ctx">     workflow: workflowName,</span><span class="add">+    attempt: row.attempt,</span><span class="add">+    skipCompletedOnRetry,</span><span class="ctx">   });</span><span class="ctx"> </span><span class="ctx">   if (r.status === &quot;ok&quot;) {</span><span class="fileheader">diff --git a/src/cli/parse-args.ts b/src/cli/parse-args.ts</span><span class="fileheader">index 3c61fce..761c425 100644</span><span class="meta">--- a/src/cli/parse-args.ts</span><span class="meta">+++ b/src/cli/parse-args.ts</span><span class="hunk">@@ -5,6 +5,7 @@ export type RunArgs = {</span><span class="ctx">   text: string | null;</span><span class="ctx">   workflow: string;</span><span class="ctx">   dryRun: boolean;</span><span class="add">+  noSkipCompleted: boolean;</span><span class="ctx"> };</span><span class="ctx"> </span><span class="ctx"> export type DropArgs = {</span><span class="hunk">@@ -58,6 +59,7 @@ export function parseArgs(argv: string[]): ParsedArgs {</span><span class="ctx">     options: {</span><span class="ctx">       workflow: { type: &quot;string&quot;, default: &quot;feature&quot; },</span><span class="ctx">       &quot;dry-run&quot;: { type: &quot;boolean&quot;, default: false },</span><span class="add">+      &quot;no-skip-completed&quot;: { type: &quot;boolean&quot;, default: false },</span><span class="ctx">     },</span><span class="ctx">     allowPositionals: true,</span><span class="ctx">   });</span><span class="hunk">@@ -69,5 +71,6 @@ export function parseArgs(argv: string[]): ParsedArgs {</span><span class="ctx">     text: text === &quot;&quot; ? null : text,</span><span class="ctx">     workflow: String(values.workflow),</span><span class="ctx">     dryRun: Boolean(values[&quot;dry-run&quot;]),</span><span class="add">+    noSkipCompleted: Boolean(values[&quot;no-skip-completed&quot;]),</span><span class="ctx">   };</span><span class="ctx"> }</span><span class="fileheader">diff --git a/src/engine/log-tail.ts b/src/engine/log-tail.ts</span><span class="fileheader">index 55f6488..a10f627 100644</span><span class="meta">--- a/src/engine/log-tail.ts</span><span class="meta">+++ b/src/engine/log-tail.ts</span><span class="hunk">@@ -47,10 +47,15 @@ export function parseLogTail(text: string): InFlightCycle | null {</span><span class="ctx">   const completedSteps: string[] = [];</span><span class="ctx">   for (let i = lastStartIdx + 1; i &lt; events.length; i++) {</span><span class="ctx">     const e = events[i];</span><span class="del">-    if (e.event !== &quot;step.end&quot;) continue;</span><span class="ctx">     if (e.cycle_id !== cycleId) continue;</span><span class="del">-    if ((e as { status?: string }).status !== &quot;ok&quot;) continue;</span><span class="del">-    const name = (e as { step?: string }).step;</span><span class="add">+    let name: string | undefined;</span><span class="add">+    if (e.event === &quot;step.end&quot; &amp;&amp; (e as { status?: string }).status === &quot;ok&quot;) {</span><span class="add">+      name = (e as { step?: string }).step;</span><span class="add">+    } else if (e.event === &quot;step.skipped&quot;) {</span><span class="add">+      name = (e as { step?: string }).step;</span><span class="add">+    } else {</span><span class="add">+      continue;</span><span class="add">+    }</span><span class="ctx">     if (typeof name === &quot;string&quot; &amp;&amp; !completedSteps.includes(name)) {</span><span class="ctx">       completedSteps.push(name);</span><span class="ctx">     }</span><span class="fileheader">diff --git a/src/engine/queue.ts b/src/engine/queue.ts</span><span class="fileheader">index 5ab69fb..f9cd578 100644</span><span class="meta">--- a/src/engine/queue.ts</span><span class="meta">+++ b/src/engine/queue.ts</span><span class="hunk">@@ -164,7 +164,10 @@ export async function drainFailedRetry(repoRoot: string, id: string): Promise&lt;vo</span><span class="ctx">     if (r.id === id) {</span><span class="ctx">       r.attempt += 1;</span><span class="ctx">       r.status = &quot;pending&quot;;</span><span class="del">-      delete r.cycle_id;</span><span class="add">+      // cycle_id intentionally preserved: the next pop reuses it so runCycle&#39;s</span><span class="add">+      // artifactDir matches the prior attempt&#39;s dir, letting the pre-build skip</span><span class="add">+      // gate (src/engine/run-cycle.ts) see SPEC.md/RESEARCH.md/PLAN.md left</span><span class="add">+      // behind on the cycle branch.</span><span class="ctx">     }</span><span class="ctx">   }</span><span class="ctx">   await writeQueue(repoRoot, rows);</span><span class="fileheader">diff --git a/src/engine/run-cycle.ts b/src/engine/run-cycle.ts</span><span class="fileheader">index 2cbb356..1293592 100644</span><span class="meta">--- a/src/engine/run-cycle.ts</span><span class="meta">+++ b/src/engine/run-cycle.ts</span><span class="hunk">@@ -17,11 +17,32 @@ import {</span><span class="ctx"> import { ingestReflection } from &quot;./reflection.ts&quot;;</span><span class="ctx"> import { sanitizeArtifactStdout } from &quot;./sanitize-artifact.ts&quot;;</span><span class="ctx"> import { slugify } from &quot;../issue/id.ts&quot;;</span><span class="del">-import { writeFile, readFile } from &quot;node:fs/promises&quot;;</span><span class="add">+import { writeFile, readFile, stat } from &quot;node:fs/promises&quot;;</span><span class="ctx"> import { join } from &quot;node:path&quot;;</span><span class="ctx"> </span><span class="ctx"> const RESET_ELIGIBLE_STEPS = new Set([&quot;build&quot;, &quot;fix&quot;]);</span><span class="ctx"> </span><span class="add">+// SKIP_ELIGIBLE_STEPS must stay disjoint from any step that mutates the working</span><span class="add">+// tree on success — skipping such a step would lose the mutation. Pre-build</span><span class="add">+// artifact-producing steps (spec, research, plan) only write</span><span class="add">+// &lt;artifactDir&gt;/&lt;STEP&gt;.md from agent stdout, so the artifact IS the work.</span><span class="add">+const SKIP_ELIGIBLE_STEPS = new Set([&quot;spec&quot;, &quot;research&quot;, &quot;plan&quot;]);</span><span class="add">+</span><span class="add">+export async function shouldSkipForArtifact(</span><span class="add">+  artifactDir: string,</span><span class="add">+  stepName: string,</span><span class="add">+): Promise&lt;{ skip: false } | { skip: true; artifactPath: string }&gt; {</span><span class="add">+  if (!SKIP_ELIGIBLE_STEPS.has(stepName)) return { skip: false };</span><span class="add">+  const artifactPath = join(artifactDir, `${stepName.toUpperCase()}.md`);</span><span class="add">+  try {</span><span class="add">+    const st = await stat(artifactPath);</span><span class="add">+    if (st.isFile() &amp;&amp; st.size &gt; 0) return { skip: true, artifactPath };</span><span class="add">+  } catch {</span><span class="add">+    // ENOENT or unreadable — fall through</span><span class="add">+  }</span><span class="add">+  return { skip: false };</span><span class="add">+}</span><span class="add">+</span><span class="ctx"> export const SPEC_MIN_BYTES = 200;</span><span class="ctx"> </span><span class="ctx"> export const MAX_STEP_END_STDERR = 2000;</span><span class="hunk">@@ -67,6 +88,8 @@ export type RunCycleOpts = {</span><span class="ctx">   cycleId?: string;</span><span class="ctx">   env?: Record&lt;string, string&gt;;</span><span class="ctx">   resume?: { startStepIndex: number };</span><span class="add">+  attempt?: number;</span><span class="add">+  skipCompletedOnRetry?: boolean;</span><span class="ctx"> };</span><span class="ctx"> </span><span class="ctx"> export async function runCycle(repoRoot: string, opts: RunCycleOpts) {</span><span class="hunk">@@ -108,6 +131,8 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {</span><span class="ctx"> </span><span class="ctx">   try {</span><span class="ctx">     const startIdx = opts.resume?.startStepIndex ?? 0;</span><span class="add">+    const attempt = opts.attempt ?? 0;</span><span class="add">+    const skipEnabled = opts.skipCompletedOnRetry !== false;</span><span class="ctx">     for (let i = startIdx; i &lt; wf.steps.length; i++) {</span><span class="ctx">       const step = wf.steps[i];</span><span class="ctx"> </span><span class="hunk">@@ -115,6 +140,19 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {</span><span class="ctx">       const isResetEligible = RESET_ELIGIBLE_STEPS.has(step.name);</span><span class="ctx">       const isResumeEntry = !!opts.resume &amp;&amp; i === startIdx;</span><span class="ctx"> </span><span class="add">+      if (attempt &gt; 0 &amp;&amp; skipEnabled &amp;&amp; !isResumeEntry &amp;&amp; step.agent !== &quot;bash&quot;) {</span><span class="add">+        const gate = await shouldSkipForArtifact(artifactDir, step.name);</span><span class="add">+        if (gate.skip) {</span><span class="add">+          await log.emit(&quot;step.skipped&quot;, {</span><span class="add">+            cycle_id: cycleId,</span><span class="add">+            step: step.name,</span><span class="add">+            reason: &quot;artifact_present&quot;,</span><span class="add">+            artifact_path: gate.artifactPath,</span><span class="add">+          });</span><span class="add">+          continue;</span><span class="add">+        }</span><span class="add">+      }</span><span class="add">+</span><span class="ctx">       if (isResetEligible &amp;&amp; !wf.no_branch) {</span><span class="ctx">         if (!isResumeEntry) {</span><span class="ctx">           headSha = await revParseHead(repoRoot);</span><span class="fileheader">diff --git a/src/engine/workflow.ts b/src/engine/workflow.ts</span><span class="fileheader">index 63e6c53..7a47116 100644</span><span class="meta">--- a/src/engine/workflow.ts</span><span class="meta">+++ b/src/engine/workflow.ts</span><span class="hunk">@@ -21,6 +21,7 @@ export type Workflow = {</span><span class="ctx"> export type EngineConfig = {</span><span class="ctx">   max_consecutive_failures: number;</span><span class="ctx">   base_branch: string;</span><span class="add">+  skip_completed_on_retry?: boolean;</span><span class="ctx"> };</span><span class="ctx"> </span><span class="ctx"> export type TriageConfig = {</span><span class="fileheader">diff --git a/tests/cli/parse-args.test.ts b/tests/cli/parse-args.test.ts</span><span class="fileheader">index 8ba6ca4..6a9b48f 100644</span><span class="meta">--- a/tests/cli/parse-args.test.ts</span><span class="meta">+++ b/tests/cli/parse-args.test.ts</span><span class="hunk">@@ -4,12 +4,24 @@ import { parseArgs } from &quot;../../src/cli/parse-args.ts&quot;;</span><span class="ctx"> </span><span class="ctx"> test(&quot;parses &#39;run &lt;text&gt;&#39; freeform task&quot;, () =&gt; {</span><span class="ctx">   const r = parseArgs([&quot;run&quot;, &quot;fix the login bug&quot;]);</span><span class="del">-  assert.deepEqual(r, { command: &quot;run&quot;, text: &quot;fix the login bug&quot;, workflow: &quot;feature&quot;, dryRun: false });</span><span class="add">+  assert.deepEqual(r, { command: &quot;run&quot;, text: &quot;fix the login bug&quot;, workflow: &quot;feature&quot;, dryRun: false, noSkipCompleted: false });</span><span class="ctx"> });</span><span class="ctx"> </span><span class="ctx"> test(&quot;parses &#39;run&#39; with no text — drain-only mode&quot;, () =&gt; {</span><span class="ctx">   const r = parseArgs([&quot;run&quot;]);</span><span class="del">-  assert.deepEqual(r, { command: &quot;run&quot;, text: null, workflow: &quot;feature&quot;, dryRun: false });</span><span class="add">+  assert.deepEqual(r, { command: &quot;run&quot;, text: null, workflow: &quot;feature&quot;, dryRun: false, noSkipCompleted: false });</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;parses --no-skip-completed flag&quot;, () =&gt; {</span><span class="add">+  const r = parseArgs([&quot;run&quot;, &quot;--no-skip-completed&quot;]);</span><span class="add">+  assert.equal(r.command, &quot;run&quot;);</span><span class="add">+  if (r.command === &quot;run&quot;) assert.equal(r.noSkipCompleted, true);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;--no-skip-completed defaults to false&quot;, () =&gt; {</span><span class="add">+  const r = parseArgs([&quot;run&quot;, &quot;fix it&quot;]);</span><span class="add">+  assert.equal(r.command, &quot;run&quot;);</span><span class="add">+  if (r.command === &quot;run&quot;) assert.equal(r.noSkipCompleted, false);</span><span class="ctx"> });</span><span class="ctx"> </span><span class="ctx"> test(&quot;parses --workflow override&quot;, () =&gt; {</span><span class="fileheader">diff --git a/tests/engine/log-tail.test.ts b/tests/engine/log-tail.test.ts</span><span class="fileheader">index fbefa7b..737be20 100644</span><span class="meta">--- a/tests/engine/log-tail.test.ts</span><span class="meta">+++ b/tests/engine/log-tail.test.ts</span><span class="hunk">@@ -184,3 +184,41 @@ test(&quot;readLogTail reads existing log.jsonl&quot;, async () =&gt; {</span><span class="ctx">     await rm(root, { recursive: true, force: true });</span><span class="ctx">   }</span><span class="ctx"> });</span><span class="add">+</span><span class="add">+test(&quot;parseLogTail counts step.skipped as completed&quot;, () =&gt; {</span><span class="add">+  const text = [</span><span class="add">+    ev(&quot;cycle.start&quot;, { cycle_id: &quot;0001&quot;, workflow: &quot;feature&quot;, title: &quot;T&quot;, issue_id: &quot;i&quot; }),</span><span class="add">+    ev(&quot;step.start&quot;, { cycle_id: &quot;0001&quot;, step: &quot;spec&quot; }),</span><span class="add">+    ev(&quot;step.end&quot;, { cycle_id: &quot;0001&quot;, step: &quot;spec&quot;, status: &quot;ok&quot; }),</span><span class="add">+    ev(&quot;step.skipped&quot;, { cycle_id: &quot;0001&quot;, step: &quot;research&quot;, reason: &quot;artifact_present&quot;, artifact_path: &quot;docs/cycle/0001/RESEARCH.md&quot; }),</span><span class="add">+    ev(&quot;step.start&quot;, { cycle_id: &quot;0001&quot;, step: &quot;plan&quot; }),</span><span class="add">+  ].join(&quot;\n&quot;);</span><span class="add">+  const r = parseLogTail(text);</span><span class="add">+  assert.ok(r);</span><span class="add">+  assert.deepEqual(r!.completedSteps, [&quot;spec&quot;, &quot;research&quot;]);</span><span class="add">+  assert.equal(r!.lastStepStarted, &quot;plan&quot;);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;parseLogTail counts pure-skip log as all completed&quot;, () =&gt; {</span><span class="add">+  const text = [</span><span class="add">+    ev(&quot;cycle.start&quot;, { cycle_id: &quot;0001&quot;, workflow: &quot;feature&quot;, title: &quot;T&quot;, issue_id: &quot;i&quot; }),</span><span class="add">+    ev(&quot;step.skipped&quot;, { cycle_id: &quot;0001&quot;, step: &quot;spec&quot;, reason: &quot;artifact_present&quot;, artifact_path: &quot;p1&quot; }),</span><span class="add">+    ev(&quot;step.skipped&quot;, { cycle_id: &quot;0001&quot;, step: &quot;research&quot;, reason: &quot;artifact_present&quot;, artifact_path: &quot;p2&quot; }),</span><span class="add">+    ev(&quot;step.skipped&quot;, { cycle_id: &quot;0001&quot;, step: &quot;plan&quot;, reason: &quot;artifact_present&quot;, artifact_path: &quot;p3&quot; }),</span><span class="add">+  ].join(&quot;\n&quot;);</span><span class="add">+  const r = parseLogTail(text);</span><span class="add">+  assert.ok(r);</span><span class="add">+  assert.deepEqual(r!.completedSteps, [&quot;spec&quot;, &quot;research&quot;, &quot;plan&quot;]);</span><span class="add">+  assert.equal(r!.lastStepStarted, undefined);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;parseLogTail ignores step.skipped from a different cycle_id&quot;, () =&gt; {</span><span class="add">+  const text = [</span><span class="add">+    ev(&quot;cycle.start&quot;, { cycle_id: &quot;0002&quot;, workflow: &quot;feature&quot;, title: &quot;T&quot;, issue_id: &quot;i&quot; }),</span><span class="add">+    ev(&quot;step.skipped&quot;, { cycle_id: &quot;0001&quot;, step: &quot;spec&quot;, reason: &quot;artifact_present&quot;, artifact_path: &quot;p1&quot; }),</span><span class="add">+    ev(&quot;step.end&quot;, { cycle_id: &quot;0002&quot;, step: &quot;spec&quot;, status: &quot;ok&quot; }),</span><span class="add">+  ].join(&quot;\n&quot;);</span><span class="add">+  const r = parseLogTail(text);</span><span class="add">+  assert.ok(r);</span><span class="add">+  assert.deepEqual(r!.completedSteps, [&quot;spec&quot;]);</span><span class="add">+});</span><span class="fileheader">diff --git a/tests/engine/queue.test.ts b/tests/engine/queue.test.ts</span><span class="fileheader">index a0c88aa..c173edd 100644</span><span class="meta">--- a/tests/engine/queue.test.ts</span><span class="meta">+++ b/tests/engine/queue.test.ts</span><span class="hunk">@@ -258,7 +258,7 @@ test(&quot;drainOk: removes matching row&quot;, async () =&gt; {</span><span class="ctx">   }</span><span class="ctx"> });</span><span class="ctx"> </span><span class="del">-test(&quot;drainFailedRetry: bumps attempt, resets status, clears cycle_id&quot;, async () =&gt; {</span><span class="add">+test(&quot;drainFailedRetry: preserves cycle_id and bumps attempt&quot;, async () =&gt; {</span><span class="ctx">   const root = await setupRoot();</span><span class="ctx">   try {</span><span class="ctx">     await writeQueue(root, [</span><span class="hunk">@@ -268,7 +268,24 @@ test(&quot;drainFailedRetry: bumps attempt, resets status, clears cycle_id&quot;, async ()</span><span class="ctx">     const [r] = await readQueue(root);</span><span class="ctx">     assert.equal(r.status, &quot;pending&quot;);</span><span class="ctx">     assert.equal(r.attempt, 2);</span><span class="del">-    assert.equal(r.cycle_id, undefined);</span><span class="add">+    assert.equal(r.cycle_id, &quot;0005&quot;);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;drainFailedRetry: preserved cycle_id round-trips through popNextPending so the next pop reuses the prior attempt&#39;s artifact dir&quot;, async () =&gt; {</span><span class="add">+  const root = await setupRoot();</span><span class="add">+  try {</span><span class="add">+    await writeQueue(root, [</span><span class="add">+      row(&quot;A&quot;, { status: &quot;in_progress&quot;, cycle_id: &quot;0070&quot;, attempt: 0 }),</span><span class="add">+    ]);</span><span class="add">+    await drainFailedRetry(root, &quot;A&quot;);</span><span class="add">+    const next = await popNextPending(root);</span><span class="add">+    assert.ok(next);</span><span class="add">+    assert.equal(next!.id, &quot;A&quot;);</span><span class="add">+    assert.equal(next!.cycle_id, &quot;0070&quot;);</span><span class="add">+    assert.equal(next!.attempt, 1);</span><span class="ctx">   } finally {</span><span class="ctx">     await rm(root, { recursive: true, force: true });</span><span class="ctx">   }</span><span class="fileheader">diff --git a/tests/engine/run-cycle.skip-completed.test.ts b/tests/engine/run-cycle.skip-completed.test.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..97c4c1f</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/tests/engine/run-cycle.skip-completed.test.ts</span><span class="hunk">@@ -0,0 +1,363 @@</span><span class="add">+import { test } from &quot;node:test&quot;;</span><span class="add">+import { strict as assert } from &quot;node:assert&quot;;</span><span class="add">+import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from &quot;node:fs/promises&quot;;</span><span class="add">+import { tmpdir } from &quot;node:os&quot;;</span><span class="add">+import { join } from &quot;node:path&quot;;</span><span class="add">+import { spawnSync } from &quot;node:child_process&quot;;</span><span class="add">+import { runCycle, shouldSkipForArtifact } from &quot;../../src/engine/run-cycle.ts&quot;;</span><span class="add">+</span><span class="add">+function git(cwd: string, args: string[]) {</span><span class="add">+  const r = spawnSync(&quot;git&quot;, args, { cwd, encoding: &quot;utf8&quot; });</span><span class="add">+  if (r.status !== 0) throw new Error(`git ${args.join(&quot; &quot;)}: ${r.stderr}`);</span><span class="add">+  return r.stdout;</span><span class="add">+}</span><span class="add">+</span><span class="add">+function workflowYml(stepsBody: string): string {</span><span class="add">+  return `engine:</span><span class="add">+  max_consecutive_failures: 2</span><span class="add">+  base_branch: main</span><span class="add">+triage:</span><span class="add">+  agent: claudecode</span><span class="add">+  prompt: prompts/triage.md</span><span class="add">+  max_turns: 10</span><span class="add">+workflows:</span><span class="add">+  - name: feature</span><span class="add">+    max_cycle_attempts: 3</span><span class="add">+    no_branch: true</span><span class="add">+    steps:</span><span class="add">+${stepsBody}`;</span><span class="add">+}</span><span class="add">+</span><span class="add">+const STEPS_BODY = `      - name: spec</span><span class="add">+        agent: claudecode</span><span class="add">+        prompt: prompts/spec.md</span><span class="add">+      - name: research</span><span class="add">+        agent: claudecode</span><span class="add">+        prompt: prompts/research.md</span><span class="add">+      - name: plan</span><span class="add">+        agent: claudecode</span><span class="add">+        prompt: prompts/plan.md</span><span class="add">+`;</span><span class="add">+</span><span class="add">+const SLUG = &quot;skip-test&quot;;</span><span class="add">+const TITLE = &quot;skip test&quot;;</span><span class="add">+const CYCLE_ID = &quot;0001&quot;;</span><span class="add">+</span><span class="add">+async function setupRepo(opts: {</span><span class="add">+  fakeClaudeBody: string;</span><span class="add">+  seed: { spec?: string; research?: string; plan?: string };</span><span class="add">+}) {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-skip-rc-&quot;));</span><span class="add">+  const bin = await mkdtemp(join(tmpdir(), &quot;cycle-skip-bin-&quot;));</span><span class="add">+  git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span><span class="add">+  git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span><span class="add">+  git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span><span class="add">+  git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span><span class="add">+</span><span class="add">+  await mkdir(join(root, &quot;.cycle/prompts&quot;), { recursive: true });</span><span class="add">+  await writeFile(join(root, &quot;.cycle/workflows.yml&quot;), workflowYml(STEPS_BODY), &quot;utf8&quot;);</span><span class="add">+  await writeFile(join(root, &quot;.cycle/prompts/spec.md&quot;), &quot;noop&quot;, &quot;utf8&quot;);</span><span class="add">+  await writeFile(join(root, &quot;.cycle/prompts/research.md&quot;), &quot;noop&quot;, &quot;utf8&quot;);</span><span class="add">+  await writeFile(join(root, &quot;.cycle/prompts/plan.md&quot;), &quot;noop&quot;, &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+  const fake = join(bin, &quot;claude&quot;);</span><span class="add">+  await writeFile(fake, opts.fakeClaudeBody, &quot;utf8&quot;);</span><span class="add">+  await chmod(fake, 0o755);</span><span class="add">+</span><span class="add">+  const artifactDir = join(root, &quot;docs&quot;, &quot;cycle&quot;, `${CYCLE_ID}-feature-${SLUG}`);</span><span class="add">+  await mkdir(artifactDir, { recursive: true });</span><span class="add">+  if (opts.seed.spec !== undefined) await writeFile(join(artifactDir, &quot;SPEC.md&quot;), opts.seed.spec, &quot;utf8&quot;);</span><span class="add">+  if (opts.seed.research !== undefined) await writeFile(join(artifactDir, &quot;RESEARCH.md&quot;), opts.seed.research, &quot;utf8&quot;);</span><span class="add">+  if (opts.seed.plan !== undefined) await writeFile(join(artifactDir, &quot;PLAN.md&quot;), opts.seed.plan, &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+  return { root, bin, artifactDir };</span><span class="add">+}</span><span class="add">+</span><span class="add">+async function cleanup(root: string, bin: string) {</span><span class="add">+  await rm(root, { recursive: true, force: true });</span><span class="add">+  await rm(bin, { recursive: true, force: true });</span><span class="add">+}</span><span class="add">+</span><span class="add">+// A payload large enough to clear SPEC_MIN_BYTES (200) for any of the seeded artifacts.</span><span class="add">+const BIG = &quot;x&quot;.repeat(300);</span><span class="add">+</span><span class="add">+test(&quot;shouldSkipForArtifact: skip when artifact exists with &gt; 0 bytes&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-skip-helper-&quot;));</span><span class="add">+  try {</span><span class="add">+    const dir = join(root, &quot;art&quot;);</span><span class="add">+    await mkdir(dir, { recursive: true });</span><span class="add">+    await writeFile(join(dir, &quot;SPEC.md&quot;), &quot;hi&quot;, &quot;utf8&quot;);</span><span class="add">+    const r = await shouldSkipForArtifact(dir, &quot;spec&quot;);</span><span class="add">+    assert.equal(r.skip, true);</span><span class="add">+    if (r.skip) assert.equal(r.artifactPath, join(dir, &quot;SPEC.md&quot;));</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;shouldSkipForArtifact: don&#39;t skip when artifact is zero bytes&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-skip-helper-&quot;));</span><span class="add">+  try {</span><span class="add">+    const dir = join(root, &quot;art&quot;);</span><span class="add">+    await mkdir(dir, { recursive: true });</span><span class="add">+    await writeFile(join(dir, &quot;SPEC.md&quot;), &quot;&quot;, &quot;utf8&quot;);</span><span class="add">+    const r = await shouldSkipForArtifact(dir, &quot;spec&quot;);</span><span class="add">+    assert.equal(r.skip, false);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;shouldSkipForArtifact: don&#39;t skip when artifact missing&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-skip-helper-&quot;));</span><span class="add">+  try {</span><span class="add">+    const dir = join(root, &quot;art&quot;);</span><span class="add">+    await mkdir(dir, { recursive: true });</span><span class="add">+    const r = await shouldSkipForArtifact(dir, &quot;spec&quot;);</span><span class="add">+    assert.equal(r.skip, false);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;shouldSkipForArtifact: ineligible step never skips&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-skip-helper-&quot;));</span><span class="add">+  try {</span><span class="add">+    const dir = join(root, &quot;art&quot;);</span><span class="add">+    await mkdir(dir, { recursive: true });</span><span class="add">+    await writeFile(join(dir, &quot;BUILD.md&quot;), BIG, &quot;utf8&quot;);</span><span class="add">+    const r = await shouldSkipForArtifact(dir, &quot;build&quot;);</span><span class="add">+    assert.equal(r.skip, false);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;attempt=0: artifacts present but no skips fire&quot;, async () =&gt; {</span><span class="add">+  // Fake claude succeeds (writes a non-trivial payload so the artifact write seam</span><span class="add">+  // overwrites our seeds — proving the agent actually ran).</span><span class="add">+  const { root, bin } = await setupRepo({</span><span class="add">+    fakeClaudeBody: `#!/bin/bash\nprintf &#39;%s&#39; &#39;${BIG}&#39;\n`,</span><span class="add">+    seed: { spec: BIG, research: BIG, plan: BIG },</span><span class="add">+  });</span><span class="add">+  try {</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      cycleId: CYCLE_ID,</span><span class="add">+      issueId: &quot;SKIP-A0&quot;,</span><span class="add">+      title: TITLE,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      attempt: 0,</span><span class="add">+      skipCompletedOnRetry: true,</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    assert.doesNotMatch(log, /&quot;event&quot;:&quot;step\.skipped&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.start&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;spec&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.start&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;research&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.start&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;plan&quot;/);</span><span class="add">+  } finally {</span><span class="add">+    await cleanup(root, bin);</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;attempt=1: all three artifacts present &gt; 0 bytes → all three skipped, agent not invoked&quot;, async () =&gt; {</span><span class="add">+  // Fake claude EXITS 1: if it runs, the step fails. Skips bypass it entirely.</span><span class="add">+  const { root, bin } = await setupRepo({</span><span class="add">+    fakeClaudeBody: `#!/bin/bash\necho &quot;should not run&quot; &gt;&amp;2\nexit 1\n`,</span><span class="add">+    seed: { spec: BIG, research: BIG, plan: BIG },</span><span class="add">+  });</span><span class="add">+  try {</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      cycleId: CYCLE_ID,</span><span class="add">+      issueId: &quot;SKIP-A1&quot;,</span><span class="add">+      title: TITLE,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      attempt: 1,</span><span class="add">+      skipCompletedOnRetry: true,</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    const lines = log.trim().split(&quot;\n&quot;).filter((l) =&gt; l.length &gt; 0);</span><span class="add">+    const skipped = lines.filter((l) =&gt; /&quot;event&quot;:&quot;step\.skipped&quot;/.test(l));</span><span class="add">+    assert.equal(skipped.length, 3, &quot;exactly three step.skipped events&quot;);</span><span class="add">+    for (const stepName of [&quot;spec&quot;, &quot;research&quot;, &quot;plan&quot;]) {</span><span class="add">+      assert.ok(</span><span class="add">+        skipped.some((l) =&gt;</span><span class="add">+          new RegExp(`&quot;step&quot;:&quot;${stepName}&quot;.*&quot;reason&quot;:&quot;artifact_present&quot;`).test(l),</span><span class="add">+        ),</span><span class="add">+        `step.skipped for ${stepName}`,</span><span class="add">+      );</span><span class="add">+    }</span><span class="add">+    assert.doesNotMatch(log, /&quot;event&quot;:&quot;step\.start&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;spec&quot;/);</span><span class="add">+    assert.doesNotMatch(log, /&quot;event&quot;:&quot;step\.start&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;research&quot;/);</span><span class="add">+    assert.doesNotMatch(log, /&quot;event&quot;:&quot;step\.start&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;plan&quot;/);</span><span class="add">+    assert.doesNotMatch(log, /&quot;event&quot;:&quot;step\.end&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;spec&quot;/);</span><span class="add">+  } finally {</span><span class="add">+    await cleanup(root, bin);</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;attempt=1: only SPEC.md seeded → skip spec, run research+plan&quot;, async () =&gt; {</span><span class="add">+  const { root, bin } = await setupRepo({</span><span class="add">+    fakeClaudeBody: `#!/bin/bash\nprintf &#39;%s&#39; &#39;${BIG}&#39;\n`,</span><span class="add">+    seed: { spec: BIG },</span><span class="add">+  });</span><span class="add">+  try {</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      cycleId: CYCLE_ID,</span><span class="add">+      issueId: &quot;SKIP-A1P&quot;,</span><span class="add">+      title: TITLE,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      attempt: 1,</span><span class="add">+      skipCompletedOnRetry: true,</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.skipped&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;spec&quot;,&quot;reason&quot;:&quot;artifact_present&quot;/);</span><span class="add">+    assert.doesNotMatch(log, /&quot;event&quot;:&quot;step\.skipped&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;research&quot;/);</span><span class="add">+    assert.doesNotMatch(log, /&quot;event&quot;:&quot;step\.skipped&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;plan&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.start&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;research&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.end&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;research&quot;,&quot;status&quot;:&quot;ok&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.start&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;plan&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.end&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;plan&quot;,&quot;status&quot;:&quot;ok&quot;/);</span><span class="add">+  } finally {</span><span class="add">+    await cleanup(root, bin);</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;attempt=1 with skipCompletedOnRetry=false: no skips, all three run&quot;, async () =&gt; {</span><span class="add">+  const { root, bin } = await setupRepo({</span><span class="add">+    fakeClaudeBody: `#!/bin/bash\nprintf &#39;%s&#39; &#39;${BIG}&#39;\n`,</span><span class="add">+    seed: { spec: BIG, research: BIG, plan: BIG },</span><span class="add">+  });</span><span class="add">+  try {</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      cycleId: CYCLE_ID,</span><span class="add">+      issueId: &quot;SKIP-OFF&quot;,</span><span class="add">+      title: TITLE,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      attempt: 1,</span><span class="add">+      skipCompletedOnRetry: false,</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    assert.doesNotMatch(log, /&quot;event&quot;:&quot;step\.skipped&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.start&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;spec&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.start&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;research&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.start&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;plan&quot;/);</span><span class="add">+  } finally {</span><span class="add">+    await cleanup(root, bin);</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;attempt=1 with zero-byte SPEC.md: spec runs (not skipped)&quot;, async () =&gt; {</span><span class="add">+  const { root, bin } = await setupRepo({</span><span class="add">+    fakeClaudeBody: `#!/bin/bash\nprintf &#39;%s&#39; &#39;${BIG}&#39;\n`,</span><span class="add">+    seed: { spec: &quot;&quot;, research: BIG, plan: BIG },</span><span class="add">+  });</span><span class="add">+  try {</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      cycleId: CYCLE_ID,</span><span class="add">+      issueId: &quot;SKIP-ZERO&quot;,</span><span class="add">+      title: TITLE,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      attempt: 1,</span><span class="add">+      skipCompletedOnRetry: true,</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    assert.doesNotMatch(log, /&quot;event&quot;:&quot;step\.skipped&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;spec&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.start&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;spec&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.skipped&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;research&quot;,&quot;reason&quot;:&quot;artifact_present&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.skipped&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;plan&quot;,&quot;reason&quot;:&quot;artifact_present&quot;/);</span><span class="add">+  } finally {</span><span class="add">+    await cleanup(root, bin);</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;two sequential runCycle calls with the same cycleId: second call (attempt=1) skips spec/research/plan&quot;, async () =&gt; {</span><span class="add">+  // Simulates the CLI fresh-pop retry path after the drainFailedRetry cycle_id</span><span class="add">+  // carry-over: first runCycle writes artifacts, second runCycle reuses the</span><span class="add">+  // same cycleId so the skip gate inspects the prior attempt&#39;s artifact dir.</span><span class="add">+  // Pre-fix this scenario could not happen — the CLI allocated a fresh</span><span class="add">+  // cycleId per pop and the skip gate always missed.</span><span class="add">+  const { root, bin } = await setupRepo({</span><span class="add">+    fakeClaudeBody: `#!/bin/bash\nprintf &#39;%s&#39; &#39;${BIG}&#39;\n`,</span><span class="add">+    seed: {},</span><span class="add">+  });</span><span class="add">+  try {</span><span class="add">+    const env = { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; };</span><span class="add">+    const r0 = await runCycle(root, {</span><span class="add">+      cycleId: CYCLE_ID,</span><span class="add">+      issueId: &quot;SKIP-TWO&quot;,</span><span class="add">+      title: TITLE,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      attempt: 0,</span><span class="add">+      skipCompletedOnRetry: true,</span><span class="add">+      env,</span><span class="add">+    });</span><span class="add">+    assert.equal(r0.status, &quot;ok&quot;);</span><span class="add">+    const r1 = await runCycle(root, {</span><span class="add">+      cycleId: CYCLE_ID,</span><span class="add">+      issueId: &quot;SKIP-TWO&quot;,</span><span class="add">+      title: TITLE,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      attempt: 1,</span><span class="add">+      skipCompletedOnRetry: true,</span><span class="add">+      env,</span><span class="add">+    });</span><span class="add">+    assert.equal(r1.status, &quot;ok&quot;);</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    const lines = log.trim().split(&quot;\n&quot;).filter((l) =&gt; l.length &gt; 0);</span><span class="add">+    const skipped = lines.filter((l) =&gt; /&quot;event&quot;:&quot;step\.skipped&quot;/.test(l));</span><span class="add">+    assert.equal(skipped.length, 3, &quot;exactly three step.skipped events across both runs (all from second run)&quot;);</span><span class="add">+    for (const stepName of [&quot;spec&quot;, &quot;research&quot;, &quot;plan&quot;]) {</span><span class="add">+      assert.ok(</span><span class="add">+        skipped.some((l) =&gt;</span><span class="add">+          new RegExp(`&quot;step&quot;:&quot;${stepName}&quot;.*&quot;reason&quot;:&quot;artifact_present&quot;`).test(l),</span><span class="add">+        ),</span><span class="add">+        `step.skipped for ${stepName} on second run`,</span><span class="add">+      );</span><span class="add">+    }</span><span class="add">+  } finally {</span><span class="add">+    await cleanup(root, bin);</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;attempt=1 with resume at index 0: skip gate self-suppresses on resume entry&quot;, async () =&gt; {</span><span class="add">+  // Seed all three; ensure the FIRST step under resume runs normally despite skip-gate</span><span class="add">+  // criteria otherwise matching. Subsequent steps still skip per the gate.</span><span class="add">+  const { root, bin } = await setupRepo({</span><span class="add">+    fakeClaudeBody: `#!/bin/bash\nprintf &#39;%s&#39; &#39;${BIG}&#39;\n`,</span><span class="add">+    seed: { spec: BIG, research: BIG, plan: BIG },</span><span class="add">+  });</span><span class="add">+  try {</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      cycleId: CYCLE_ID,</span><span class="add">+      issueId: &quot;SKIP-RES&quot;,</span><span class="add">+      title: TITLE,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      attempt: 1,</span><span class="add">+      skipCompletedOnRetry: true,</span><span class="add">+      resume: { startStepIndex: 0 },</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    // spec (resume entry) ran normally</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.start&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;spec&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.end&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;spec&quot;,&quot;status&quot;:&quot;ok&quot;/);</span><span class="add">+    // research + plan skipped (not at resume entry)</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.skipped&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;research&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;step\.skipped&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;step&quot;:&quot;plan&quot;/);</span><span class="add">+    // cycle.resume rather than cycle.start</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;cycle\.resume&quot;/);</span><span class="add">+  } finally {</span><span class="add">+    await cleanup(root, bin);</span><span class="add">+  }</span><span class="add">+});</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><pre class="md-code" data-lang="markdown"><code># Review: Cycle 0070
+
+## Overall Verdict
+NEEDS-FIX — see MUST-FIX.md
+
+The implementation matches the SPEC&#39;s narrow contract (5+1 unit-test
+matrix passes, types correct, log-tail recognition works, opt-out
+threads end-to-end) but the SPEC itself misses a load-bearing
+assumption about cycle_id reuse. The skip gate cannot fire under the
+real `tbd.jsonl` fresh-pop retry path because `drainFailedRetry`
+deletes `cycle_id` and the next pop allocates a fresh one, yielding a
+fresh empty `artifactDir`. The unit tests pass because they manually
+seed the artifactDir under the same literal `cycleId` they then pass
+to `runCycle` — bypassing the CLI flow. Three documentation claims
+describing the feature are correspondingly unbacked by observable
+production behavior.
+
+## Code Quality Review
+
+### Summary
+The mechanical work is clean: types extended, helper extracted, gate
+placed before the reset block, log-tail accumulator extended,
+opt-out plumbed CLI→YAML with CLI-wins precedence and surfaced on
+`engine.start`. PLAN.md was followed task-by-task. The defect is at
+the design-vs-flow seam, not in the code that was written.
+
+### Findings
+1. **Feature non-functional in primary use case**: `runCycle` skip
+   gate inspects `docs/cycle/&lt;cycleId&gt;-&lt;workflow&gt;-&lt;slug&gt;/&lt;STEP&gt;.md`,
+   but the CLI&#39;s fresh-pop retry path allocates a new `cycleId` per
+   attempt — `src/cli.ts:402`, gated by `drainFailedRetry`&#39;s
+   `delete r.cycle_id` at `src/engine/queue.ts:167`. The skip gate
+   at `src/engine/run-cycle.ts:143-153` therefore never sees the
+   prior attempt&#39;s artifacts during a real retry. See MUST-FIX
+   Task 1.
+2. **Resume path skip semantics rarely engage**: the gate is
+   self-suppressed at `i === startIdx` (`src/engine/run-cycle.ts:141, 143`).
+   On resume, `startStepIndex` already points past all completed
+   steps, so the loop body executes only for steps that did NOT
+   complete in the prior run. In practice this means the
+   `attempt &gt; 0` predicate combined with `!isResumeEntry` matches
+   only contrived scenarios (e.g. a same-`cycleId` resume that
+   re-enters at step 0 with no completed steps). Not a bug, but it
+   underscores that the unit-test seams don&#39;t reflect the actual
+   production flow.
+3. **`headSha` / `isResetEligible` declared above the skip gate**:
+   minor — they&#39;re computed even when the loop will `continue`. No
+   correctness issue (`headSha` stays `null`, `isResetEligible` is
+   pure), but the cleaner placement is inside the post-gate block.
+   Not worth a fix on its own. — `src/engine/run-cycle.ts:139-141`
+4. **`engine.start` emit moved after `materializeFreeformIssue`**:
+   intentional (BUILD.md), to capture the resolved
+   `skip_completed_on_retry` boolean. No tests assert ordering
+   between `materializeFreeformIssue` and `engine.start`, so this is
+   safe. Worth a one-line comment on `src/cli.ts:90-93` noting that
+   the emit was deliberately moved after `loadConfig` for payload
+   completeness. — `src/cli.ts:75-93`
+
+### Spec Compliance Checklist
+- [x] Skip gate predicate exactly matches SPEC: `attempt &gt; 0 &amp;&amp;
+      skipEnabled &amp;&amp; !isResumeEntry &amp;&amp; step.agent !== &quot;bash&quot; &amp;&amp; size &gt; 0`
+      (`src/engine/run-cycle.ts:143-153`, plus `shouldSkipForArtifact`).
+- [x] `step.skipped` event shape matches: `{cycle_id, step, reason:
+      &quot;artifact_present&quot;, artifact_path}` — no `agent` field.
+- [x] `runCycle` emits no `step.start`/`step.end` on skip
+      (`continue` at line 152).
+- [x] `parseLogTail` treats `step.skipped` as terminal-equivalent
+      (`src/engine/log-tail.ts:54-57`).
+- [x] `--no-skip-completed` parsed
+      (`src/cli/parse-args.ts:62, 74`).
+- [x] CLI flag overrides YAML
+      (`src/cli.ts:90-91`: ternary collapses to `false` first).
+- [x] YAML default `true` when field absent
+      (`src/cli.ts:91`: `?? true`).
+- [x] Both `runCycle` call sites pass `attempt` and
+      `skipCompletedOnRetry` (`src/cli.ts:316-318` resume,
+      `src/cli.ts:410-411` fresh-pop).
+- [x] `engine.start` carries `skip_completed_on_retry`
+      (`src/cli.ts:93`).
+- [x] All existing tests still pass (424/424).
+- [x] `npm run typecheck` clean.
+- [x] `npm run test:coverage` passes gate.
+- [x] No `npm run sync-defaults` invocation.
+- [ ] **SPEC AC1 grep semantics**: the AC says the grep &quot;returns the
+      expected lines under the retry test fixture.&quot; The unit tests
+      do produce those lines, but only because they bypass the CLI
+      flow. The same grep against a real production `.cycle/log.jsonl`
+      after a real retry will return zero matches because the gate
+      can&#39;t fire. AC is technically met by the unit fixture; the
+      spirit (real retries skip work) is not. See MUST-FIX Task 1.
+
+## Adversarial Test Review
+
+### Summary
+Adequate at the unit-contract layer; weak at the integration layer.
+The four `shouldSkipForArtifact` tests and the six `runCycle` matrix
+tests cover the gate predicate exhaustively in isolation. The
+log-tail tests cover the `completedSteps` accumulator including
+cross-`cycle_id` filtering. The parse-args tests cover both flag
+states. What&#39;s missing is any test that drives the gate from the CLI
+pop loop — the only seam where the design defect surfaces.
+
+### Findings
+1. **Mock-by-omission**: tests invoke `runCycle` directly with a
+   literal `cycleId: &quot;0001&quot;` and pre-seed
+   `docs/cycle/0001-feature-skip-test/` under that same id. There&#39;s
+   no test that re-pops the same `tbd.jsonl` row and verifies the
+   second `runCycle` call sees the first&#39;s artifacts. The test
+   surface is correct for the helper; it&#39;s silent on the integration
+   contract that the source issue actually asks for. —
+   `tests/engine/run-cycle.skip-completed.test.ts:144-152`
+2. **Source-issue AC drift**: the source issue&#39;s AC explicitly calls
+   for an &quot;Integration test: full feature workflow on a retry pop
+   completes without re-running spec/research/plan when artifacts
+   exist on the cycle branch.&quot; SPEC.md downscoped this to the unit
+   matrix (&quot;No new integration test fixture for this cycle&quot;). The
+   downscope is what allowed the cycle_id-reuse bug to ship
+   undetected. — `docs/cycle/issues/todo/refl-0028-engine-retries-redo-spec-research-plan-w-retry-economics.md:34`
+3. **Resume-entry test is a tautology against an impossible state**:
+   the &quot;skip gate self-suppresses on resume entry&quot; test passes
+   `cycleId: &quot;0001&quot;`, `attempt: 1`, `resume: {startStepIndex: 0}`,
+   and pre-seeded artifacts. In production, a resume that lands at
+   `startStepIndex: 0` with `attempt: 1` implies a same-cycleId
+   crash before any step ran, which means there&#39;s nothing to skip
+   anyway. The test exercises the gate&#39;s predicate but doesn&#39;t
+   correspond to any real recovery scenario. —
+   `tests/engine/run-cycle.skip-completed.test.ts:283-313`
+4. **Assertion strength**: assertions use anchored regexes against
+   `log.jsonl` text (good — exact event-shape matching). Mock
+   `claude` exits 1 in the &quot;agent NOT invoked when skipped&quot; test
+   (good — proves the agent didn&#39;t run, not just that a log line
+   appears).
+5. **Test independence**: each test owns its own `mkdtemp` repo and
+   `mkdtemp` PATH dir; cleanup is `try/finally`. No shared state. Good.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: **99.01% / 93.04% / 97.01%** (all gates pass)
+- Per-file regressions vs base: none. `src/engine/run-cycle.ts` is at
+  100% line / 96.81% branch despite new branches. `src/engine/triage.ts`
+  per-file floor 99.45% ≥ 95%.
+- New code without tests: none — the helper, the gate, the log-tail
+  change, and the CLI flag parser all have direct unit coverage.
+- Specific scenarios missing tests:
+  - End-to-end retry: pop, attempt 0, fail, drainFailedRetry, pop
+    again, observe `step.skipped` events. Today&#39;s tests skip this
+    seam entirely. Adding it surfaces the Task 1 defect immediately.
+  - The interaction between resume and `cycleId` mismatch (resume
+    detects the prior `cycle_id` doesn&#39;t equal the pending row&#39;s,
+    falls through to fresh pop). The resume path&#39;s
+    `skipCompletedOnRetry` threading is correct but untested for
+    the case where resume self-suppresses and then the fresh pop
+    runs with a new `cycleId`.
+
+## Doc-vs-Code Claim Verification
+
+The diff touches `CLAUDE.md`, `README.md`, and `docs/ARCHITECTURE.md`
+— all in-scope.
+
+| Claim | Source (doc:line) | Backing (code:line) | Status |
+|---|---|---|---|
+| `step.skipped` event shape `{cycle_id, step, reason: &quot;artifact_present&quot;, artifact_path}` | `CLAUDE.md:78`, `docs/ARCHITECTURE.md:725` | `src/engine/run-cycle.ts:146-151` | OK |
+| Skip predicate: `attempt &gt; 0`, agent not bash, strict `&gt; 0` bytes | `CLAUDE.md:78` | `src/engine/run-cycle.ts:143` + `shouldSkipForArtifact` line 39 (`st.size &gt; 0`) | OK |
+| Gate self-suppresses on resume entry | `CLAUDE.md:78`, `docs/ARCHITECTURE.md:730` | `src/engine/run-cycle.ts:141, 143` (`!isResumeEntry`) | OK |
+| Opt-out: `cycle run --no-skip-completed` CLI flag, wins over YAML | `CLAUDE.md:78`, `README.md:42`, `docs/ARCHITECTURE.md:722-723` | `src/cli/parse-args.ts:62, 74`; `src/cli.ts:90-91` | OK |
+| YAML field `engine.skip_completed_on_retry`, default `true` | `CLAUDE.md:78`, `docs/ARCHITECTURE.md:722` | `src/engine/workflow.ts:24`; `src/cli.ts:91` (`?? true`) | OK |
+| Resolved boolean logged on `engine.start` as `skip_completed_on_retry` | `CLAUDE.md:78`, `docs/ARCHITECTURE.md:728` | `src/cli.ts:93` | OK |
+| `parseLogTail` treats `step.skipped` as terminal-equivalent to `step.end status:&quot;ok&quot;` | `CLAUDE.md:78`, `docs/ARCHITECTURE.md:728-729` | `src/engine/log-tail.ts:52-58` | OK |
+| `SKIP_ELIGIBLE_STEPS` hard-coded disjoint from `RESET_ELIGIBLE_STEPS` | `CLAUDE.md:78`, `docs/ARCHITECTURE.md:732-733` | `src/engine/run-cycle.ts:23, 29` (`{build, fix}` vs `{spec, research, plan}`) | OK |
+| &quot;On retry, the engine skips pre-build steps whose artifact files already exist non-empty&quot; | `README.md:42` | no backing — `src/cli.ts:402` allocates fresh `cycleId` per pop; `src/engine/queue.ts:167` deletes `r.cycle_id`; `artifactDir` (`src/engine/branch.ts:36, 44, 59`) is therefore empty on the retry pop and the gate at `src/engine/run-cycle.ts:143-153` cannot fire | **UNBACKED** |
+| &quot;on `tbd.jsonl` retry pops with `attempt &gt; 0`, the engine skips each of `{spec, research, plan}` whose `&lt;artifactDir&gt;/&lt;STEP&gt;.md` already exists with `&gt; 0` bytes&quot; | `CLAUDE.md:78` | same as above — predicate matches, but the inspected path is always a fresh empty dir on a real retry pop | **UNBACKED** |
+| &quot;on the second and later attempts of the same `(issue_id, cycle_id)` pair, the engine skips `{spec, research, plan}` if the corresponding `&lt;artifactDir&gt;/&lt;STEP&gt;.md` is present&quot; | `docs/ARCHITECTURE.md:721-722` | the predicate is true, but `(issue_id, cycle_id)` pair changes across attempts under `src/engine/queue.ts:167` + `src/cli.ts:402` — so &quot;second and later attempts of the same pair&quot; never occurs in production | **UNBACKED** |
+
+The three unbacked claims share a single root cause: the CLI retry-pop
+flow allocates a fresh `cycle_id` per attempt, so the artifact dir the
+gate inspects is always empty. Fix per MUST-FIX Task 1 (preserve
+`cycle_id` across `drainFailedRetry`, reuse in `src/cli.ts:402`)
+restores backing for all three claims simultaneously.</code></pre>
+<p>Wrote MUST-FIX.md with one critical task (preserve cycle_id across drainFailedRetry + reuse on retry pop) plus two unbacked-doc-claim tasks. REVIEW.md content above for stdout capture.</p>
+<p><strong>Verdict: NEEDS-FIX.</strong> Tests green, coverage healthy, mechanics clean — but skip gate cannot fire under real <code>tbd.jsonl</code> retry-pop flow because <code>drainFailedRetry</code> (<code>src/engine/queue.ts:167</code>) deletes <code>cycle_id</code> and <code>src/cli.ts:402</code> allocates fresh, yielding empty <code>artifactDir</code>. Unit tests bypass this by passing literal <code>cycleId</code> to <code>runCycle</code>. Three doc claims (CLAUDE.md, README.md, ARCHITECTURE.md) describe the feature as if it engages on retry — UNBACKED by production paths.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0069.html">← Cycle 0069</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0071.html">Cycle 0071 →</a>
+</nav>
+
+<footer>Generated from <code>82b06a7</code></footer>
+</body>
+</html>

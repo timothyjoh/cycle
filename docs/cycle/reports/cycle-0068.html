@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0068 · Add regression test for commit.sh worktree-missing-path branch</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0068</h1>
+  <div class="subtitle">Add regression test for commit.sh worktree-missing-path branch</div>
+  <div class="meta-row">
+    <code>3f980bb</code> · Timothy Johnson · 2026-05-15 15:33:28 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0067.html">← Cycle 0067</a>
+  <span class="center">68 of 61 · <a href="index.html">index</a></span>
+  <a href="cycle-0069.html">Cycle 0069 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><h3>SPEC — Cycle 0068: Regression test for commit.sh worktree-missing-path branch</h3>
+<h4>Objective</h4>
+<p>Lock in the staged-deletion branch added in <code>src/defaults/scripts/commit.sh:59-64</code> with an automated test so a future edit that reintroduces unflagged <code>git add -- &quot;$path&quot;</code> on a missing-worktree path fails fast in CI instead of surfacing as a sparse runtime incident during a real commit step.</p>
+<h4>Source Issue</h4>
+<p><code>refl-0028-commit-sh-missing-path-branch-has-no-reg</code> — &quot;Add regression test for commit.sh worktree-missing-path branch&quot;</p>
+<h4>Scope</h4>
+<h5>In Scope</h5>
+<ul>
+<li>New test file <code>tests/defaults/commit_sh.test.ts</code> driving <code>src/defaults/scripts/commit.sh</code> against ephemeral git repos via <code>spawnSync</code>, covering the three staged/unstaged-deletion + control cases.</li>
+</ul>
+<h5>Out of Scope</h5>
+<ul>
+<li>Refactoring or merging with the existing <code>tests/defaults/commit-staging.test.ts</code> (separate file per issue acceptance text; consolidation is a future cycle if desired).</li>
+<li>Changes to <code>commit.sh</code> itself or to <code>closes.sh</code>.</li>
+<li>Adding similar regression coverage for <code>commit-trunk.sh</code>.</li>
+</ul>
+<h4>Requirements</h4>
+<ul>
+<li>Test file at <code>tests/defaults/commit_sh.test.ts</code>, runnable by <code>npm test</code> via Node&#39;s native test runner, no new dependencies.</li>
+<li>Each case builds an isolated repo with <code>mkdtempSync</code> (or <code>mkdtemp</code>), seeds one commit, copies <code>src/defaults/scripts/commit.sh</code> + <code>src/defaults/scripts/lib/closes.sh</code> into <code>.cycle/scripts/</code>, and invokes the script via <code>spawnSync(&quot;bash&quot;, [&quot;.cycle/scripts/commit.sh&quot;], ...)</code> with array args (no <code>shell: true</code>).</li>
+<li>All <code>spawn</code>/<code>spawnSync</code> calls use array args, per repo subprocess discipline.</li>
+<li>Subprocess env sets <code>CYCLE_ID</code> + <code>CYCLE_TITLE</code>. <code>commit.gpgsign=false</code> + <code>user.email</code>/<code>user.name</code> config to avoid signing prompts.</li>
+<li>Temp dirs cleaned up in a <code>finally</code> block on every test.</li>
+</ul>
+<h4>Acceptance Criteria</h4>
+<ul>
+<li>[ ] <code>tests/defaults/commit_sh.test.ts</code> exists and is picked up by <code>npm test</code>.</li>
+<li>[ ] <strong>Case 1 — staged deletion (<code>D </code> in porcelain).</strong> Seed repo has a tracked <code>victim.txt</code>; remove it with <code>git rm</code> (staging the deletion) before running <code>commit.sh</code>. Script exits 0, creates a commit, and the commit&#39;s name-only diff includes <code>victim.txt</code> as a deletion. No <code>git add</code> pathspec error in stderr.</li>
+<li>[ ] <strong>Case 2 — unstaged worktree deletion (<code> D</code> in porcelain).</strong> Seed repo has a tracked <code>victim.txt</code>; <code>fs.rm</code> it from the worktree without staging. Script exits 0, creates a commit recording the deletion (verified by name-only diff or <code>git ls-tree</code>). No <code>git add</code> pathspec error in stderr.</li>
+<li>[ ] <strong>Case 3 — control: new file + modification.</strong> Add a new tracked-eligible source path under <code>src/</code> and modify the seed <code>README.md</code>. Script exits 0; commit contains both paths.</li>
+<li>[ ] All existing tests still pass (398/398 baseline).</li>
+<li>[ ] No new compiler/linter warnings (<code>npm run typecheck</code> clean).</li>
+<li>[ ] Coverage gates still green (line ≥95, branch ≥75, func ≥90; per-file floor <code>src/engine/triage.ts ≥95%</code> untouched).</li>
+<li>[ ] Reverting the <code>if [ ! -e &quot;$path&quot; ]</code> block in <code>commit.sh</code> causes Case 1 and Case 2 to fail (verified manually during build; documented in BUILD.md).</li>
+</ul>
+<h4>Testing Strategy</h4>
+<ul>
+<li>Node&#39;s native <code>node:test</code> + <code>node:assert/strict</code> runner, mirroring the helper shape in <code>tests/defaults/commit-staging.test.ts:8-54</code> (<code>makeRepo</code>, <code>runScript</code>, <code>commitFiles</code>, <code>porcelainPaths</code>).</li>
+<li>Three <code>test(...)</code> blocks, one per case. Each:</li>
+</ul>
+<p>  1. Builds the repo via the shared helper.   2. Sets up the file-system state that produces the targeted porcelain XY code.   3. Asserts on <code>r.status</code>, <code>r.stderr</code>, and the resulting commit&#39;s tree (<code>git diff-tree --no-commit-id --name-status -r HEAD</code> to distinguish <code>D</code> from <code>A</code>/<code>M</code>).</p>
+<ul>
+<li>Edge / regression coverage: assert stderr is free of <code>pathspec .* did not match</code> for the deletion cases — that&#39;s the precise symptom the guard prevents.</li>
+</ul>
+<h4>Documentation Updates</h4>
+<ul>
+<li><strong>CLAUDE.md / AGENTS.md</strong>: no change. The &quot;Subprocess discipline&quot; section already covers the test&#39;s spawn rules; no new convention introduced.</li>
+<li><strong>README.md</strong>: no change. Internal regression test, not user-visible behavior.</li>
+<li><strong>BUILD.md / FIX.md (cycle artifacts)</strong>: BUILD.md must record the manual revert-and-rerun check that proves the test actually guards the branch.</li>
+</ul>
+<h4>Dependencies</h4>
+<ul>
+<li><code>src/defaults/scripts/commit.sh</code> and <code>src/defaults/scripts/lib/closes.sh</code> exist at HEAD (they do — current source verified).</li>
+<li>Node ≥ 22.6 with <code>--experimental-strip-types</code> for direct <code>.ts</code> test execution (already the project floor).</li>
+<li>No external services or env vars required beyond the per-test <code>CYCLE_ID</code> / <code>CYCLE_TITLE</code> injected via <code>spawnSync</code> env.</li>
+</ul></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">tests/defaults/commit_sh.test.ts | 120 +++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 120 insertions(+)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/tests/defaults/commit_sh.test.ts b/tests/defaults/commit_sh.test.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..32dfb60</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/tests/defaults/commit_sh.test.ts</span><span class="hunk">@@ -0,0 +1,120 @@</span><span class="add">+import { test } from &quot;node:test&quot;;</span><span class="add">+import { strict as assert } from &quot;node:assert&quot;;</span><span class="add">+import { mkdtemp, mkdir, writeFile, rm, copyFile, chmod } from &quot;node:fs/promises&quot;;</span><span class="add">+import { tmpdir } from &quot;node:os&quot;;</span><span class="add">+import { join } from &quot;node:path&quot;;</span><span class="add">+import { spawnSync } from &quot;node:child_process&quot;;</span><span class="add">+</span><span class="add">+function run(cwd: string, cmd: string, args: string[]) {</span><span class="add">+  const r = spawnSync(cmd, args, { cwd, encoding: &quot;utf8&quot; });</span><span class="add">+  if (r.status !== 0) {</span><span class="add">+    throw new Error(`${cmd} ${args.join(&quot; &quot;)} (cwd=${cwd}) failed [${r.status}]: ${r.stderr}`);</span><span class="add">+  }</span><span class="add">+  return r;</span><span class="add">+}</span><span class="add">+</span><span class="add">+async function makeRepo(): Promise&lt;string&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-commit-sh-&quot;));</span><span class="add">+  run(root, &quot;git&quot;, [&quot;init&quot;, &quot;-q&quot;]);</span><span class="add">+  run(root, &quot;git&quot;, [&quot;config&quot;, &quot;user.email&quot;, &quot;test@example.com&quot;]);</span><span class="add">+  run(root, &quot;git&quot;, [&quot;config&quot;, &quot;user.name&quot;, &quot;Test&quot;]);</span><span class="add">+  run(root, &quot;git&quot;, [&quot;config&quot;, &quot;commit.gpgsign&quot;, &quot;false&quot;]);</span><span class="add">+  await writeFile(join(root, &quot;.gitignore&quot;), &quot;.cycle/\n&quot;);</span><span class="add">+  await writeFile(join(root, &quot;README.md&quot;), &quot;seed\n&quot;);</span><span class="add">+  run(root, &quot;git&quot;, [&quot;add&quot;, &quot;.gitignore&quot;, &quot;README.md&quot;]);</span><span class="add">+  run(root, &quot;git&quot;, [&quot;commit&quot;, &quot;-q&quot;, &quot;-m&quot;, &quot;seed&quot;]);</span><span class="add">+  const scripts = join(root, &quot;.cycle/scripts&quot;);</span><span class="add">+  await mkdir(join(scripts, &quot;lib&quot;), { recursive: true });</span><span class="add">+  await copyFile(&quot;src/defaults/scripts/commit.sh&quot;, join(scripts, &quot;commit.sh&quot;));</span><span class="add">+  await copyFile(&quot;src/defaults/scripts/lib/closes.sh&quot;, join(scripts, &quot;lib/closes.sh&quot;));</span><span class="add">+  await chmod(join(scripts, &quot;commit.sh&quot;), 0o755);</span><span class="add">+  await writeFile(</span><span class="add">+    join(root, &quot;.cycle/log.jsonl&quot;),</span><span class="add">+    JSON.stringify({ event: &quot;cycle.start&quot;, cycle_id: &quot;0099&quot;, title: &quot;test&quot;, issue_id: &quot;test-issue&quot; }) + &quot;\n&quot;,</span><span class="add">+  );</span><span class="add">+  return root;</span><span class="add">+}</span><span class="add">+</span><span class="add">+function runScript(cwd: string, env: Record&lt;string, string&gt; = {}) {</span><span class="add">+  return spawnSync(&quot;bash&quot;, [&quot;.cycle/scripts/commit.sh&quot;], {</span><span class="add">+    cwd,</span><span class="add">+    env: { ...process.env, ...env },</span><span class="add">+    encoding: &quot;utf8&quot;,</span><span class="add">+  });</span><span class="add">+}</span><span class="add">+</span><span class="add">+function commitFilesWithStatus(cwd: string): Array&lt;[string, string]&gt; {</span><span class="add">+  const r = run(cwd, &quot;git&quot;, [&quot;diff-tree&quot;, &quot;--no-commit-id&quot;, &quot;--name-status&quot;, &quot;-r&quot;, &quot;HEAD&quot;]);</span><span class="add">+  return r.stdout</span><span class="add">+    .split(&quot;\n&quot;)</span><span class="add">+    .filter((s) =&gt; s.length &gt; 0)</span><span class="add">+    .map((line) =&gt; {</span><span class="add">+      const parts = line.split(/\s+/);</span><span class="add">+      return [parts[0], parts[1]] as [string, string];</span><span class="add">+    })</span><span class="add">+    .sort((a, b) =&gt; a[1].localeCompare(b[1]));</span><span class="add">+}</span><span class="add">+</span><span class="add">+test(&quot;commit.sh stages and commits a staged deletion (D in column 1)&quot;, async () =&gt; {</span><span class="add">+  const root = await makeRepo();</span><span class="add">+  try {</span><span class="add">+    await writeFile(join(root, &quot;victim.txt&quot;), &quot;doomed\n&quot;);</span><span class="add">+    run(root, &quot;git&quot;, [&quot;add&quot;, &quot;victim.txt&quot;]);</span><span class="add">+    run(root, &quot;git&quot;, [&quot;commit&quot;, &quot;-q&quot;, &quot;-m&quot;, &quot;add victim&quot;]);</span><span class="add">+    run(root, &quot;git&quot;, [&quot;rm&quot;, &quot;-q&quot;, &quot;victim.txt&quot;]);</span><span class="add">+</span><span class="add">+    const r = runScript(root, { CYCLE_ID: &quot;0099&quot;, CYCLE_TITLE: &quot;staged deletion&quot; });</span><span class="add">+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);</span><span class="add">+    assert.doesNotMatch(r.stderr, /pathspec .* did not match/);</span><span class="add">+</span><span class="add">+    const files = commitFilesWithStatus(root);</span><span class="add">+    assert.ok(</span><span class="add">+      files.some(([s, p]) =&gt; s === &quot;D&quot; &amp;&amp; p === &quot;victim.txt&quot;),</span><span class="add">+      `expected D victim.txt in commit, got: ${JSON.stringify(files)}`,</span><span class="add">+    );</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;commit.sh stages and commits an unstaged worktree deletion (D in column 2)&quot;, async () =&gt; {</span><span class="add">+  const root = await makeRepo();</span><span class="add">+  try {</span><span class="add">+    await writeFile(join(root, &quot;victim.txt&quot;), &quot;doomed\n&quot;);</span><span class="add">+    run(root, &quot;git&quot;, [&quot;add&quot;, &quot;victim.txt&quot;]);</span><span class="add">+    run(root, &quot;git&quot;, [&quot;commit&quot;, &quot;-q&quot;, &quot;-m&quot;, &quot;add victim&quot;]);</span><span class="add">+    await rm(join(root, &quot;victim.txt&quot;));</span><span class="add">+</span><span class="add">+    const r = runScript(root, { CYCLE_ID: &quot;0099&quot;, CYCLE_TITLE: &quot;unstaged deletion&quot; });</span><span class="add">+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);</span><span class="add">+    assert.doesNotMatch(r.stderr, /pathspec .* did not match/);</span><span class="add">+</span><span class="add">+    const files = commitFilesWithStatus(root);</span><span class="add">+    assert.ok(</span><span class="add">+      files.some(([s, p]) =&gt; s === &quot;D&quot; &amp;&amp; p === &quot;victim.txt&quot;),</span><span class="add">+      `expected D victim.txt in commit, got: ${JSON.stringify(files)}`,</span><span class="add">+    );</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;commit.sh control: stages a new file under src/ and a modified README&quot;, async () =&gt; {</span><span class="add">+  const root = await makeRepo();</span><span class="add">+  try {</span><span class="add">+    await mkdir(join(root, &quot;src&quot;), { recursive: true });</span><span class="add">+    await writeFile(join(root, &quot;src/app.ts&quot;), &quot;export {};\n&quot;);</span><span class="add">+    await writeFile(join(root, &quot;README.md&quot;), &quot;seed\nupdated line\n&quot;);</span><span class="add">+</span><span class="add">+    const r = runScript(root, { CYCLE_ID: &quot;0099&quot;, CYCLE_TITLE: &quot;control&quot; });</span><span class="add">+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);</span><span class="add">+    assert.doesNotMatch(r.stderr, /pathspec .* did not match/);</span><span class="add">+</span><span class="add">+    const files = commitFilesWithStatus(root);</span><span class="add">+    const map = new Map(files.map(([s, p]) =&gt; [p, s]));</span><span class="add">+    assert.equal(map.get(&quot;src/app.ts&quot;), &quot;A&quot;, `expected A for src/app.ts: ${JSON.stringify(files)}`);</span><span class="add">+    assert.equal(map.get(&quot;README.md&quot;), &quot;M&quot;, `expected M for README.md: ${JSON.stringify(files)}`);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>All gates green. Diff scope: new test file only (<code>tests/defaults/commit_sh.test.ts</code>) + cycle housekeeping under <code>docs/cycle/*</code>. No in-scope doc prose changed → Pass 3 skipped.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0068
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+SPEC and PLAN delivered as-written. One new test file, three behavioral cases, helpers cloned from `tests/defaults/commit-staging.test.ts:8-44` per SPEC&#39;s explicit no-cross-file-edit rule. All 409 tests pass, typecheck clean, coverage 98.99 / 92.85 / 96.99 — all floors green, `triage.ts` per-file 99.45% untouched. Manual revert verification was performed and the BUILD.md honestly records that SPEC&#39;s Case-2-on-revert prediction did not reproduce, while still confirming Case 1 trips the regression as designed.
+
+### Findings
+1. **Informational — Case 2 is defense-in-depth, not a tripwire** (`tests/defaults/commit_sh.test.ts:80-100`): SPEC acceptance line 34 predicted reverting `commit.sh:59-64` would break Case 2 as well as Case 1. BUILD.md correctly reports that on the local `git` version `git add -- &lt;tracked-missing-path&gt;` permissively records the deletion, so Case 2 still passes with the guard removed. The test continues to assert correct end-to-end behavior (status 0, no `pathspec … did not match`, `D` in the commit), but it does not function as a regression tripwire for the `*D) git add -u` arm. Not a defect — issue&#39;s primary scenario (staged deletion → Case 1) is fully guarded — but worth knowing if a future cycle adjusts the arm. No fix required; BUILD.md already records the deviation.
+
+2. **Minor — `commitFilesWithStatus` split is whitespace-loose** (`tests/defaults/commit_sh.test.ts:52`): `line.split(/\s+/)` works because `git diff-tree --name-status` uses TAB and the test fixtures use space-free paths. Won&#39;t affect this suite; flag only for future cases that might introduce paths with whitespace (none planned). No fix required.
+
+### Spec Compliance Checklist
+- [x] `tests/defaults/commit_sh.test.ts` exists and runs under `npm test`.
+- [x] Case 1 — staged deletion: present, asserts status 0, no pathspec error, `D victim.txt` in commit (`commit_sh.test.ts:58-78`).
+- [x] Case 2 — unstaged worktree deletion: present, same assertions (`commit_sh.test.ts:80-100`).
+- [x] Case 3 — control new + modified: present, asserts `A src/app.ts` and `M README.md` (`commit_sh.test.ts:102-120`).
+- [x] All existing tests pass: 409/409 (baseline drifted up from 398 between SPEC drafting and build — independent of this cycle).
+- [x] No new compiler/linter warnings (`tsc --noEmit` clean).
+- [x] Coverage gates green: 98.99 / 92.85 / 96.99; `triage.ts` 99.45% ≥ 95% per-file floor.
+- [x] Manual revert verification recorded in BUILD.md, including the honest Case 2 deviation note.
+- [x] `spawnSync` array-args + no `shell: true` throughout (`commit_sh.test.ts:9, 39, 47`).
+- [x] Subprocess env sets `CYCLE_ID` / `CYCLE_TITLE`, `commit.gpgsign=false`, `user.email`/`user.name` (`commit_sh.test.ts:19-21, 66, 88, 109`).
+- [x] Every test wraps body in `try { … } finally { rm(root, {recursive, force}) }` (`commit_sh.test.ts:60/75, 82/97, 104/117`).
+
+## Adversarial Test Review
+
+### Summary
+Strong. No mocks — real `git`, real `bash`, real ephemeral repos. Assertions are specific (status code, stderr regex negative-match, commit-tree contents with `A`/`M`/`D` discrimination). The deletion negative-match (`/pathspec .* did not match/`) is the exact wording git emits on regression, so a real regression would be caught loudly.
+
+### Findings
+1. **Test independence**: each test calls `makeRepo()` for a fresh tmpdir + `finally rm`. No shared state, no execution-order coupling. Clean (`commit_sh.test.ts:59, 81, 103`).
+2. **Assertion quality**: `assert.equal(r.status, 0)` paired with `assert.doesNotMatch(r.stderr, /pathspec .* did not match/)` and `commitFilesWithStatus` lookup. No `toBeTruthy`-style weakness.
+3. **Mock abuse**: zero. Real subprocess against real git. Matches existing `tests/defaults/` discipline.
+4. **Boundary conditions covered**: the two distinct porcelain XY codes (`D `, ` D`) plus a non-deletion control. Untracked-only case and rename (`R*`) deletion are not exercised — both fall outside the worktree-missing-path branch the issue calls out, so omission is consistent with SPEC.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: **98.99 / 92.85 / 96.99**
+- Regressions vs base (per-file): none.
+- New code without tests: none (the cycle adds tests only; no `src/` change).
+- Specific scenarios missing tests: rename-then-delete (`R*` porcelain), untracked-missing edge (impossible by definition), and the denylist + gitlink branches. None are in scope for this cycle&#39;s issue.
+
+## Doc-vs-Code Claim Verification
+
+No documentation prose changed; pass skipped.</code></pre>
+<p>End-of-turn: PASS verdict. 409/409 tests, coverage 98.99/92.85/96.99 all green, no source changed. No MUST-FIX.md written. Case 2 not actually being a regression tripwire is flagged informationally — already disclosed in BUILD.md.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0067.html">← Cycle 0067</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0069.html">Cycle 0069 →</a>
+</nav>
+
+<footer>Generated from <code>3f980bb</code></footer>
+</body>
+</html>

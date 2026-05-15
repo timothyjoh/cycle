@@ -1,7 +1,7 @@
 ---
 id: refl-0060-skip-unless-field-declared-but-not-enfor-regression-test
 title: "Regression test: any step with skip_unless emits step.skipped when artifact absent"
-workflow: feature
+workflow: quickfix
 depends_on: [refl-0041-engine-ignores-skip-unless-fix-step-runs-honor-skip-unless]
 triaged_at: "2026-05-14T22:06:06.979Z"
 source: triage

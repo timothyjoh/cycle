@@ -1,7 +1,7 @@
 ---
 id: refl-0040-createcyclebranch-reuse-path-uncovered-l
 title: Cover createCycleBranch existing-branch reuse path with focused regression test
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-14T03:40:11.386Z"
 source: triage

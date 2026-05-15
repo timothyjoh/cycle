@@ -1,7 +1,7 @@
 ---
 id: refl-0058-lift-duplicated-fake-claude-stub-body-to
 title: Extract shared fake-claude stub helper for run-cycle tests to absorb future artifact byte-floor changes
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-14T21:06:06.988Z"
 source: triage

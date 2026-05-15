@@ -1,7 +1,7 @@
 ---
 id: refl-0030-stdin-end-regression-would-hang-tests-no
 title: Make exec-codex happy-path test self-checking on stdin closure (no hang on missing stdin.end())
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-13T22:08:41.483Z"
 source: triage

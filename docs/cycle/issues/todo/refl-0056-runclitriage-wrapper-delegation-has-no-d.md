@@ -1,7 +1,7 @@
 ---
 id: refl-0056-runclitriage-wrapper-delegation-has-no-d
 title: Pin runCliTriage two-arg wrapper delegation to runCliTriageWithDeps with a dedicated test
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-14T20:27:31.947Z"
 source: triage

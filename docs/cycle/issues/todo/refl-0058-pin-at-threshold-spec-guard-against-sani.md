@@ -1,7 +1,7 @@
 ---
 id: refl-0058-pin-at-threshold-spec-guard-against-sani
 title: Decouple at-threshold spec-guard regression test from sanitizer trailing-newline append
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-14T21:07:45.923Z"
 source: triage

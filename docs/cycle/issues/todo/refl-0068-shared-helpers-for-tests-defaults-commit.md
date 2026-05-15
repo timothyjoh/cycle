@@ -1,7 +1,7 @@
 ---
 id: refl-0068-shared-helpers-for-tests-defaults-commit
 title: Extract shared helpers (makeRepo/runScript/commitFiles) for tests/defaults/commit*.test.ts suites
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-15T19:41:17.968Z"
 source: triage

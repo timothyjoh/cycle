@@ -1,7 +1,7 @@
 ---
 id: refl-0046-reflection-schema-shape-guard-skips-refl
 title: Emit `reflection.summary` from schema-shape guard branch in ingestReflection
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-14T16:58:01.314Z"
 source: triage

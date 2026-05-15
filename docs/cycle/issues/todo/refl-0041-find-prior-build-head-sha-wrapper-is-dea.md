@@ -1,7 +1,7 @@
 ---
 id: refl-0041-find-prior-build-head-sha-wrapper-is-dea
 title: Remove dead `findPriorBuildHeadSha` wrapper (or mark @deprecated) in run-cycle.ts
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-14T04:06:55.168Z"
 source: triage

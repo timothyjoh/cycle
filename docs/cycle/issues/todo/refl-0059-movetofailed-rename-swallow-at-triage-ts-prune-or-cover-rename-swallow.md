@@ -1,7 +1,7 @@
 ---
 id: refl-0059-movetofailed-rename-swallow-at-triage-ts-prune-or-cover-rename-swallow
 title: Prune or cover the moveToFailed rename catch-swallow in triage.ts now that deferred flush narrows its window
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-14T21:37:38.265Z"
 source: triage

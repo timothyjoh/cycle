@@ -1,7 +1,7 @@
 ---
 id: refl-0065-extract-shared-head-capped-truncate-help
 title: Extract shared head-capped truncate helper once third caller lands
-workflow: feature
+workflow: quickfix
 depends_on: [refl-0065-extend-step-end-stderr-surface-to-agent]
 triaged_at: "2026-05-15T18:38:58.474Z"
 source: triage

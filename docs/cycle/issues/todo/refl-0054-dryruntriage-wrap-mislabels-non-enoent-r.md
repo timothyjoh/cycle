@@ -1,7 +1,7 @@
 ---
 id: refl-0054-dryruntriage-wrap-mislabels-non-enoent-r
 title: Narrow dryRunTriage prompt-template catch to ENOENT (stop mislabeling EACCES/EIO/etc as `prompt template missing`)
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-14T19:48:06.180Z"
 source: triage

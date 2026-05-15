@@ -1,7 +1,7 @@
 ---
 id: refl-0042-drop-priority-range-error-omits-default
 title: Fold `default 3` hint into `--priority` range-error suffix in parse-args.ts
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-14T05:30:09.065Z"
 source: triage

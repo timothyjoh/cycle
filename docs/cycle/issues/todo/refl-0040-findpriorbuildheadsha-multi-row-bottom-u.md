@@ -1,7 +1,7 @@
 ---
 id: refl-0040-findpriorbuildheadsha-multi-row-bottom-u
 title: Cover findPriorBuildHeadSha bottom-up scan with two-row same-cycle regression test
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-14T03:42:31.492Z"
 source: triage

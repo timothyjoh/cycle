@@ -1,7 +1,7 @@
 ---
 id: refl-0056-triagedeps-runagent-field-optional-allow-require-runagent-field
 title: Make TriageDeps.runAgent required; wrapper constructs real deps explicitly
-workflow: feature
+workflow: quickfix
 depends_on: [refl-0056-runclitriage-wrapper-delegation-has-no-d]
 triaged_at: "2026-05-14T20:28:18.856Z"
 source: triage

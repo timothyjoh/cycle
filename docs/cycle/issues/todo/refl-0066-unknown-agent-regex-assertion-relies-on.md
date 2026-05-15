@@ -1,7 +1,7 @@
 ---
 id: refl-0066-unknown-agent-regex-assertion-relies-on
 title: Rewrite UnknownAgentError step.end assertion in run-cycle.test.ts to parse JSON structurally
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-15T19:01:32.513Z"
 source: triage

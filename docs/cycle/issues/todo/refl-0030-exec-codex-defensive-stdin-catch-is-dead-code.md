@@ -1,7 +1,7 @@
 ---
 id: refl-0030-exec-codex-defensive-stdin-catch-is-dead-code
 title: Resolve dead try/catch around stdin.write in exec-codex.ts (delete or cite Node behavior)
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-13T22:06:15.615Z"
 source: triage

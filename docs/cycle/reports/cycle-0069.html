@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0069 · Resolve dormant cycle-0027 debris stash: inspect failed-blocked-frontmatter.md, decide delete-vs-requeue, drop stash</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0069</h1>
+  <div class="subtitle">Resolve dormant cycle-0027 debris stash: inspect failed-blocked-frontmatter.md, decide delete-vs-requeue, drop stash</div>
+  <div class="meta-row">
+    <code>7e5018a</code> · Timothy Johnson · 2026-05-15 16:07:40 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0068.html">← Cycle 0068</a>
+  <span class="center">69 of 61 · <a href="index.html">index</a></span>
+  <a href="cycle-0070.html">Cycle 0070 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><h3>SPEC — Cycle 0069: Resolve dormant cycle-0027 debris stash</h3>
+<h4>Objective</h4>
+<p>Eliminate the dormant <code>cycle-0027-debris-quarantine</code> stash and the phantom <code>docs/cycle/issues/todo/failed-blocked-frontmatter.md</code> it points at, putting the queue and working tree into a consistent state before <code>gc.reflogexpire</code> silently reclaims the stash and erases the deletion intent. The underlying issue (<code>b6662c3</code> cycle 0025 + <code>last_cycle_id</code> stamping in <code>src/cli.ts:138,165</code>) has already shipped, so the live <code>todo/</code> entry is a stale duplicate that triage currently treats as real work.</p>
+<h4>Source Issue</h4>
+<p><code>refl-0028-dormant-stash-cycle-0027-debris-quaranti</code> — &quot;Resolve dormant cycle-0027 debris stash: inspect failed-blocked-frontmatter.md, decide delete-vs-requeue, drop stash&quot;</p>
+<h4>Scope</h4>
+<h5>In Scope</h5>
+<ul>
+<li>Delete <code>docs/cycle/issues/todo/failed-blocked-frontmatter.md</code> (phantom — work already shipped via cycle 0025 commit <code>b6662c3</code> and <code>last_cycle_id</code> stamping in <code>src/cli.ts:terminalDrain</code>).</li>
+<li>Drop the local stash entry <code>stash@{0}: On cycle/feature/cleanup-remove-deprecated-tbd-queued-tri: cycle-0027-debris-quarantine</code>.</li>
+</ul>
+<h5>Out of Scope</h5>
+<ul>
+<li>Any code change to <code>src/engine/queue.ts</code>, <code>src/engine/blocked.ts</code>, <code>src/cli.ts</code>, or other engine files. Frontmatter-stamping behavior is already correct; this cycle only repairs on-disk debris.</li>
+<li><code>.cycle/tbd.jsonl.bootstrap-archive</code> portion of the stash (file already absent at HEAD; cycle 0028 settled it).</li>
+<li>Broader phantom-<code>todo/</code> audit; out-of-scope per source issue.</li>
+<li>Any change to <code>.cycle/tbd.jsonl</code> — confirmed via <code>grep failed-blocked-frontmatter .cycle/tbd.jsonl</code> that no live row exists for that id, so the queue is already consistent with deletion.</li>
+</ul>
+<h4>Requirements</h4>
+<ul>
+<li>Pre-disposition verification documented in the commit body: confirm work shipped (<code>git log --oneline --grep=frontmatter</code> → <code>b6662c3 cycle 0025: Add structured frontmatter to failed/ and blocked/ file moves</code>), confirm <code>last_cycle_id</code> is wired (<code>src/cli.ts:138,165</code>), confirm no live <code>tbd.jsonl</code> row for the phantom id.</li>
+<li>Phantom file removed via <code>git rm docs/cycle/issues/todo/failed-blocked-frontmatter.md</code>.</li>
+<li>Stash dropped via <code>git stash drop stash@{0}</code> AFTER the deletion is committed (so the reflog still contains the snapshot until the audit trail is durable).</li>
+<li>Commit message references cycle 0025 (origin of the shipped feature), cycle 0027 (origin of the stash), cycle 0028 (where it was first flagged), this cycle (0069), and the disposition (<code>delete — work already shipped</code>).</li>
+<li>No functional code, prompt, default-workflow, or schema files modified.</li>
+</ul>
+<h4>Acceptance Criteria</h4>
+<ul>
+<li>[ ] <code>git stash list</code> no longer shows the <code>cycle-0027-debris-quarantine</code> entry.</li>
+<li>[ ] <code>docs/cycle/issues/todo/failed-blocked-frontmatter.md</code> does not exist at HEAD.</li>
+<li>[ ] <code>grep failed-blocked-frontmatter .cycle/tbd.jsonl</code> returns empty (no live row resurrected).</li>
+<li>[ ] Exactly one new commit on the cycle branch whose body references cycles 0025 → 0027 → 0028 → 0069 and states <code>disposition: delete (issue shipped in b6662c3)</code>.</li>
+<li>[ ] <code>npm test</code> passes with no new failures.</li>
+<li>[ ] <code>npm run typecheck</code> passes with zero warnings.</li>
+<li>[ ] <code>npm run test:coverage</code> passes the <code>posttest:coverage</code> gate (<code>src/engine/triage.ts ≥ 95%</code>) — unchanged because no engine source is touched.</li>
+<li>[ ] No file under <code>src/</code>, <code>.cycle/workflows.yml</code>, <code>.cycle/prompts/</code>, or <code>src/defaults/</code> is modified.</li>
+</ul>
+<h4>Testing Strategy</h4>
+<ul>
+<li>Native Node test runner — <code>npm test</code> confirms no regression from the file deletion (none expected; the deleted file is a docs-tree artifact, not imported by source).</li>
+<li>Manual verification commands captured in the commit body:</li>
+</ul>
+<p>  - <code>git stash list</code> → no <code>cycle-0027-debris-quarantine</code>.   - <code>ls docs/cycle/issues/todo/failed-blocked-frontmatter.md</code> → ENOENT.   - <code>grep -c failed-blocked-frontmatter .cycle/tbd.jsonl</code> → <code>0</code>.</p>
+<ul>
+<li>No new test files. No E2E. No UI surface.</li>
+</ul>
+<h4>Documentation Updates</h4>
+<ul>
+<li><strong>CLAUDE.md</strong>: no change — the frontmatter-stamping behavior described there is unchanged.</li>
+<li><strong>README.md</strong>: no change — no user-facing surface affected.</li>
+<li><strong>AGENTS.md</strong>: no change.</li>
+<li><strong><code>docs/cycle/issues/done/</code></strong>: rely on the existing <code>failed-blocked-frontmatter_raw.md</code> already at done/ as the historical record; do not relocate it.</li>
+</ul>
+<p>(Documentation is part of &quot;done&quot; — but this cycle&#39;s change is pure debris cleanup with no behavioral surface, so the docs are already correct.)</p>
+<h4>Dependencies</h4>
+<ul>
+<li>Local git stash entry <code>stash@{0}</code> must still exist at cycle start (verified: <code>git stash list</code> shows <code>cycle-0027-debris-quarantine</code>).</li>
+<li><code>docs/cycle/issues/todo/failed-blocked-frontmatter.md</code> must still exist at cycle start (verified present).</li>
+<li>No external services, env vars, or build artifacts required.</li>
+</ul></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <div class="empty">No code changes (docs/markdown-only cycle).</div>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <div class="empty">No code diff.</div>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>Verify done. All green. Now output REVIEW.md.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0069
+
+## Overall Verdict
+PASS — no fixes needed
+
+## Code Quality Review
+
+### Summary
+Pure debris cleanup. Diff is a single file deletion (44-line phantom todo). No source under `src/`, `.cycle/workflows.yml`, `.cycle/prompts/`, `.cycle/scripts/`, or `src/defaults/` touched. Manual commit `903bb5b` carries the SPEC-required rich body referencing cycles 0025 → 0027 → 0028 → 0069 and the explicit `Disposition: delete (issue shipped in b6662c3)` line. Local stash `cycle-0027-debris-quarantine` dropped AFTER push, per SPEC sequencing. Acceptance criteria all satisfied in substance.
+
+### Findings
+1. **SPEC wording (informational, not a fix)**: SPEC.md AC #3 says `grep failed-blocked-frontmatter .cycle/tbd.jsonl` &quot;returns empty&quot; — but the literal substring grep returns `1` line because cycle 0069&#39;s own queue row title contains the substring. BUILD correctly narrowed to `&#39;&quot;id&quot;:&quot;failed-blocked-frontmatter&quot;&#39;` (semantic id check) which returns `0`. SPEC&#39;s loose phrasing produced a false-positive precondition gate that Build had to work around. No code or runtime defect — only a SPEC-authoring lesson worth flagging in REFLECTION.
+
+### Spec Compliance Checklist
+- [x] Phantom file removed via `git rm` — `docs/cycle/issues/todo/failed-blocked-frontmatter.md:ENOENT`
+- [x] Stash dropped after push — `git stash list` empty
+- [x] Commit references cycles 0025/0027/0028/0069 + `Disposition: delete (issue shipped in b6662c3)` — verified in `git log -1 --pretty=%B`
+- [x] No source / workflow / prompt / script files modified — `git diff --name-status HEAD~1 HEAD` is exactly `D docs/cycle/issues/todo/failed-blocked-frontmatter.md`
+- [x] Pre-disposition verification embedded in commit body (ship commit, `last_cycle_id` stamps, tbd.jsonl, stash present)
+- [x] `npm test` 409/409 pass
+- [x] `npm run typecheck` zero warnings
+- [x] Per-file gate `src/engine/triage.ts ≥ 95%` — actual 99.45%
+- [x] Phantom-id semantic check `&#39;&quot;id&quot;:&quot;failed-blocked-frontmatter&quot;&#39;` returns `0` (the substring grep returns `1` only because cycle 0069&#39;s own queue row title contains the literal phrase; SPEC intent satisfied)
+
+## Adversarial Test Review
+
+### Summary
+N/A by SPEC — &quot;No new test files. No E2E. No UI surface.&quot; The deletion target is a markdown doc with no source imports; no existing test asserts on the file&#39;s presence (verified: no test grep hit for `failed-blocked-frontmatter.md` path). Test suite re-ran 409/409 pass post-deletion confirming no regression.
+
+### Findings
+None.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: **98.99 / 92.85 / 96.99** (baselines: 95 / 75 / 90)
+- Regressions vs base (per-file): none — no source file in diff, so coverage is structurally unchanged
+- New code without tests: none — no code added
+- Specific scenarios missing tests: N/A
+
+## Doc-vs-Code Claim Verification
+
+No documentation prose changed; pass skipped.
+
+(Diff touches only `docs/cycle/issues/todo/failed-blocked-frontmatter.md` under the excluded `docs/cycle/*` subtree. `README.md`, `CLAUDE.md`, `AGENTS.md`, and `docs/**/*.md` outside `docs/cycle/*` are untouched.)</code></pre></div></section>
+
+<nav class="pager">
+  <a href="cycle-0068.html">← Cycle 0068</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0070.html">Cycle 0070 →</a>
+</nav>
+
+<footer>Generated from <code>7e5018a</code></footer>
+</body>
+</html>

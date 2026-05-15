@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0071 · Tighten SPEC→PLAN traceability so plan step cannot silently drop SPEC acceptance bullets</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0071</h1>
+  <div class="subtitle">Tighten SPEC→PLAN traceability so plan step cannot silently drop SPEC acceptance bullets</div>
+  <div class="meta-row">
+    <code>ce5c27f</code> · Timothy Johnson · 2026-05-15 17:16:19 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0070.html">← Cycle 0070</a>
+  <span class="center">71 of 61 · <a href="index.html">index</a></span>
+  <a href="cycle-0073.html">Cycle 0073 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><p>Have context. Writing SPEC.</p>
+<pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0071: Require explicit SPEC→PLAN acceptance traceability in plan prompt
+
+## Objective
+
+Close the SPEC→PLAN traceability gap that swallowed one of four required RFC-001 line annotations in cycle 0028. Teach the `plan` step prompt to emit an explicit checklist mapping every SPEC acceptance bullet to a numbered plan task (or to an explicit waiver with rationale), and teach the `review` step prompt to fail-NEEDS-FIX when that checklist is missing or incomplete. Deliver via the prompt-tweak path (issue Direction #1); defer the static verify check (Direction #2) to a sibling cycle.
+
+## Source Issue
+
+`refl-0028-plan-step-silently-dropped-spec-annotati` — &quot;Tighten SPEC→PLAN traceability so plan step cannot silently drop SPEC acceptance bullets&quot;
+
+## Scope
+
+### In Scope
+
+- Extend `src/defaults/prompts/plan.md` (and dogfood mirror `.cycle/prompts/plan.md`) to require a `## SPEC Acceptance Traceability` section in the emitted PLAN.md that enumerates every SPEC `## Acceptance Criteria` bullet verbatim with its covering plan task id, or an explicit `WAIVED — &lt;one-line rationale&gt;`.
+- Extend `src/defaults/prompts/review.md` (and dogfood mirror) so that a missing or incomplete traceability section in PLAN.md is a NEEDS-FIX trigger in Pass 1, with the corresponding MUST-FIX task shape.
+- Document the convention in `CLAUDE.md` under a new short subsection so future workflow-prompt edits preserve it.
+- One regression test under `tests/defaults/` that pins the relevant prompt clauses (byte-equivalence between `src/defaults/prompts/{plan,review}.md` and `.cycle/prompts/{plan,review}.md`, and presence of the new traceability requirement language in both `plan.md` and `review.md`).
+
+### Out of Scope
+
+- Static verify check that mechanically parses SPEC bullets and PLAN tasks (issue Direction #2) — deferred to a sibling cycle once the convention stabilizes.
+- Retroactive audit of past `docs/cycle/&lt;id&gt;-feature-*/PLAN.md` artifacts.
+- Generalizing the traceability requirement to non-`feature` workflows (issue Out of scope #2).
+- Editing the `spec` prompt to standardize bullet-id syntax — the convention is &quot;verbatim re-quote of the bullet text&quot;, not a new bullet-id scheme.
+
+## Requirements
+
+- The `plan` prompt change MUST instruct the agent to fail loudly (omit the PLAN entirely or emit only the traceability stub) rather than silently drop a SPEC bullet.
+- The `review` prompt change MUST make a missing or incomplete `## SPEC Acceptance Traceability` section in PLAN.md a NEEDS-FIX trigger of equal weight to missing-test or coverage-regression findings.
+- The dogfood mirror (`.cycle/prompts/plan.md`, `.cycle/prompts/review.md`) MUST stay byte-identical to `src/defaults/prompts/{plan,review}.md` after `npm run sync-defaults` (existing divergence guard policy; same shape as the Pass-3 pin in `tests/defaults/review-prompt-doc-claim-pass.test.ts`).
+- The new regression test MUST fail if either the source prompt or the dogfood mirror loses the traceability clause, mirroring the existing prompt-pinning test pattern.
+- No engine code changes. No `run-cycle.ts` / `triage.ts` / `queue.ts` edits. Prompt + doc + test only.
+
+## Acceptance Criteria
+
+- [ ] `src/defaults/prompts/plan.md` carries a clause requiring a `## SPEC Acceptance Traceability` section in emitted PLAN.md that re-quotes every SPEC acceptance bullet verbatim and pairs it with a covering plan task id or an explicit `WAIVED — &lt;rationale&gt;`.
+- [ ] `src/defaults/prompts/review.md` Pass 1 carries a clause making a missing or incomplete traceability section in PLAN.md a NEEDS-FIX trigger, with a corresponding MUST-FIX task shape in Output 2.
+- [ ] `.cycle/prompts/plan.md` and `.cycle/prompts/review.md` are byte-identical to their `src/defaults/` originals after `npm run sync-defaults` runs cleanly (exit 0).
+- [ ] `CLAUDE.md` has a short subsection (under existing prompt/architecture context) naming the SPEC→PLAN traceability convention and pointing to the two prompt files as the canonical source.
+- [ ] A new test under `tests/defaults/` (e.g., `plan-prompt-spec-traceability.test.ts`) asserts: (a) `src/defaults/prompts/plan.md` contains the traceability clause; (b) `src/defaults/prompts/review.md` Pass 1 contains the traceability NEEDS-FIX clause; (c) `.cycle/prompts/plan.md` and `.cycle/prompts/review.md` byte-equal their source counterparts.
+- [ ] `npm test` passes (full suite green, no pre-existing test regressions).
+- [ ] `npm run test:coverage` passes the per-file gate; line/branch/function coverage does not regress vs master baseline (≥95% / ≥75% / ≥90%).
+- [ ] `npm run typecheck` clean (no new warnings — this cycle is prompt+doc+test only, so this is a no-op smoke check).
+
+## Testing Strategy
+
+- **Framework:** Node native test runner (`node --test`, spec reporter) — same as all existing tests under `tests/defaults/`.
+- **New test file:** `tests/defaults/plan-prompt-spec-traceability.test.ts` modeled directly on `tests/defaults/review-prompt-doc-claim-pass.test.ts` (the existing byte-equivalence + clause-presence pin for review Pass 3).
+- **Scenarios to cover:**
+  1. `plan.md` source contains the literal traceability-clause anchor text (e.g., the section header `## SPEC Acceptance Traceability` and the key requirement phrase the prompt uses to enforce it).
+  2. `review.md` source contains the corresponding NEEDS-FIX clause anchor text.
+  3. Both dogfood mirrors are byte-identical to their `src/defaults/prompts/` originals (use `fs.readFile` + `Buffer.equals` per the existing pattern).
+- **Regression aspect of issue Acceptance #3 (&quot;SPEC with N bullets, PLAN covering N-1 must fail before reaching build&quot;):** in the prompt-tweak path this is enforced *by the review agent reading the prompt*, not by deterministic code. The regression test therefore pins the prompt clauses that make that enforcement possible. A mechanical end-to-end test that drives an agent through a deficient PLAN is deferred with the static-verify-check work (Direction #2).
+- **Anti-mock posture:** no mocks; read real files from disk via `fs/promises`, as the existing prompt-pinning tests do.
+- **E2E:** none — no UI surface; no engine code path changes.
+
+## Documentation Updates
+
+- **CLAUDE.md:** add a short subsection (1–2 paragraphs) under the existing architecture/prompt context naming the SPEC→PLAN acceptance-traceability convention, why it exists (cycle 0028 incident), and which prompt files are the canonical source. Cross-reference `src/defaults/prompts/plan.md` and `src/defaults/prompts/review.md` by relative path. Mirror-pin policy (sync-defaults byte-identity) should be called out explicitly so future prompt edits remember both files.
+- **README.md:** no user-facing change. The cycle changes agent-internal prompts only; consumer CLI surface is unchanged.
+- **RFC-001:** out of scope. The issue allows &quot;CLAUDE.md or RFC-001&quot;; pick CLAUDE.md to avoid amending an RFC for an agent-prompt convention.
+- **`docs/ARCHITECTURE.md`:** no change required — this cycle does not alter engine architecture, only the agent prompts the engine dispatches. If a &quot;Workflow prompts&quot; subsection already names the prompt files individually, append a one-line pointer to the new CLAUDE.md subsection; otherwise leave untouched.
+
+Documentation is part of &quot;done&quot; — code without updated docs is incomplete.
+
+## Dependencies
+
+- Existing `src/defaults/prompts/{plan,review}.md` and their `.cycle/prompts/` mirrors.
+- Existing `tests/defaults/review-prompt-doc-claim-pass.test.ts` as the structural template for the new test.
+- `npm run sync-defaults` (and its divergence guard) as the mechanism that keeps mirror byte-identity; no behavior change requested from sync-defaults itself.
+- No new external services, no new env vars, no new npm dependencies.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">.cycle/prompts/plan.md                             | 22 +++++++
+ .cycle/prompts/review.md                           | 25 +++++++-
+ src/defaults/prompts/plan.md                       | 22 +++++++
+ src/defaults/prompts/review.md                     | 25 +++++++-
+ .../defaults/plan-prompt-spec-traceability.test.ts | 72 ++++++++++++++++++++++
+ 5 files changed, 162 insertions(+), 4 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/.cycle/prompts/plan.md b/.cycle/prompts/plan.md</span><span class="fileheader">index 8342596..748e6f7 100644</span><span class="meta">--- a/.cycle/prompts/plan.md</span><span class="meta">+++ b/.cycle/prompts/plan.md</span><span class="hunk">@@ -83,6 +83,19 @@ and writes it to `docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/PLAN.md`.</span><span class="ctx"> </span><span class="ctx"> ---</span><span class="ctx"> </span><span class="add">+## SPEC Acceptance Traceability</span><span class="add">+</span><span class="add">+Re-quote every bullet from SPEC.md&#39;s `## Acceptance Criteria` section</span><span class="add">+verbatim and pair it with either the covering plan-task id or an</span><span class="add">+explicit waiver.</span><span class="add">+</span><span class="add">+| SPEC Acceptance Bullet (verbatim) | Covering Task | Notes |</span><span class="add">+|---|---|---|</span><span class="add">+| [exact bullet text including leading `[ ]`] | Task N | [optional] |</span><span class="add">+| [exact bullet text] | WAIVED — [one-line rationale] | |</span><span class="add">+</span><span class="add">+---</span><span class="add">+</span><span class="ctx"> ## Testing Strategy</span><span class="ctx"> </span><span class="ctx"> ### Unit Tests</span><span class="hunk">@@ -111,3 +124,12 @@ and writes it to `docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/PLAN.md`.</span><span class="ctx">    mocking is truly necessary.</span><span class="ctx"> 9. **Include &quot;What We&#39;re NOT Doing.&quot;** Prevent scope creep by being</span><span class="ctx">    explicit.</span><span class="add">+10. **SPEC→PLAN Traceability.** The PLAN.md output MUST include a</span><span class="add">+    `## SPEC Acceptance Traceability` section enumerating every bullet</span><span class="add">+    from SPEC.md&#39;s `## Acceptance Criteria` section verbatim, paired</span><span class="add">+    with a covering plan-task id or an explicit</span><span class="add">+    `WAIVED — &lt;one-line rationale&gt;`. If you cannot map every SPEC</span><span class="add">+    acceptance bullet to a task or a defended waiver, emit only the</span><span class="add">+    traceability stub and fail loudly rather than silently drop a</span><span class="add">+    bullet. The `review` step rejects PLAN.md with a missing or</span><span class="add">+    incomplete traceability section.</span><span class="fileheader">diff --git a/.cycle/prompts/review.md b/.cycle/prompts/review.md</span><span class="fileheader">index a6855ec..86eeaef 100644</span><span class="meta">--- a/.cycle/prompts/review.md</span><span class="meta">+++ b/.cycle/prompts/review.md</span><span class="hunk">@@ -35,6 +35,12 @@ Check:</span><span class="ctx">   corresponding tests. Coverage numbers are required, not optional.</span><span class="ctx"> - **Spec compliance** — does the code deliver what SPEC.md requires?</span><span class="ctx"> - **Plan adherence** — were PLAN.md tasks completed as specified?</span><span class="add">+- **SPEC→PLAN traceability** — does PLAN.md include a</span><span class="add">+  `## SPEC Acceptance Traceability` section that re-quotes every</span><span class="add">+  bullet from SPEC.md&#39;s `## Acceptance Criteria` section verbatim</span><span class="add">+  and pairs it with a covering plan-task id or an explicit</span><span class="add">+  `WAIVED — &lt;rationale&gt;`? A missing or incomplete traceability</span><span class="add">+  section is a NEEDS-FIX trigger.</span><span class="ctx"> - **Code quality** — clean, readable, follows existing patterns from</span><span class="ctx">   RESEARCH.md?</span><span class="ctx"> - **Error handling** — edge cases covered? Failures handled gracefully?</span><span class="hunk">@@ -107,8 +113,9 @@ writes it to `docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/REVIEW.md`.</span><span class="ctx"> [PASS — no fixes needed / NEEDS-FIX — see MUST-FIX.md]</span><span class="ctx"> </span><span class="ctx"> NEEDS-FIX triggers: code-quality findings, missing tests, coverage</span><span class="del">-regressions, missing SPEC requirements, OR any unbacked doc-vs-code</span><span class="del">-claim from Pass 3.</span><span class="add">+regressions, missing SPEC requirements, any unbacked doc-vs-code</span><span class="add">+claim from Pass 3, OR a missing or incomplete SPEC→PLAN traceability</span><span class="add">+section in PLAN.md.</span><span class="ctx"> </span><span class="ctx"> ## Code Quality Review</span><span class="ctx"> </span><span class="hunk">@@ -189,6 +196,20 @@ plan — actionable tasks, not vague observations.</span><span class="ctx">     behavior is not in fact promised.]</span><span class="ctx">   **Verify:** `grep -n &quot;&lt;doc snippet&gt;&quot; path/to/doc.md` returns the</span><span class="ctx">     updated line; cross-check matches the named `file:line`.</span><span class="add">+</span><span class="add">+- [ ] ### Task N (Missing SPEC→PLAN Traceability): [Short title]</span><span class="add">+  **Priority:** Critical</span><span class="add">+  **Files:** `docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/PLAN.md`</span><span class="add">+  **Problem:** PLAN.md is missing the `## SPEC Acceptance Traceability`</span><span class="add">+    section OR the section omits one or more SPEC acceptance bullets</span><span class="add">+    (list the missing bullets verbatim).</span><span class="add">+  **Fix:** Edit PLAN.md to add the traceability section per the plan</span><span class="add">+    prompt&#39;s output template; re-quote each SPEC acceptance bullet</span><span class="add">+    verbatim and pair it with a covering plan-task id or an explicit</span><span class="add">+    `WAIVED — &lt;one-line rationale&gt;`.</span><span class="add">+  **Verify:** `grep -c &quot;^## SPEC Acceptance Traceability$&quot; PLAN.md`</span><span class="add">+    returns `1`; every bullet from SPEC.md&#39;s `## Acceptance Criteria`</span><span class="add">+    section appears verbatim in the table.</span><span class="ctx"> ```</span><span class="ctx"> </span><span class="ctx"> **Rules for MUST-FIX.md:**</span><span class="fileheader">diff --git a/src/defaults/prompts/plan.md b/src/defaults/prompts/plan.md</span><span class="fileheader">index 8342596..748e6f7 100644</span><span class="meta">--- a/src/defaults/prompts/plan.md</span><span class="meta">+++ b/src/defaults/prompts/plan.md</span><span class="hunk">@@ -83,6 +83,19 @@ and writes it to `docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/PLAN.md`.</span><span class="ctx"> </span><span class="ctx"> ---</span><span class="ctx"> </span><span class="add">+## SPEC Acceptance Traceability</span><span class="add">+</span><span class="add">+Re-quote every bullet from SPEC.md&#39;s `## Acceptance Criteria` section</span><span class="add">+verbatim and pair it with either the covering plan-task id or an</span><span class="add">+explicit waiver.</span><span class="add">+</span><span class="add">+| SPEC Acceptance Bullet (verbatim) | Covering Task | Notes |</span><span class="add">+|---|---|---|</span><span class="add">+| [exact bullet text including leading `[ ]`] | Task N | [optional] |</span><span class="add">+| [exact bullet text] | WAIVED — [one-line rationale] | |</span><span class="add">+</span><span class="add">+---</span><span class="add">+</span><span class="ctx"> ## Testing Strategy</span><span class="ctx"> </span><span class="ctx"> ### Unit Tests</span><span class="hunk">@@ -111,3 +124,12 @@ and writes it to `docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/PLAN.md`.</span><span class="ctx">    mocking is truly necessary.</span><span class="ctx"> 9. **Include &quot;What We&#39;re NOT Doing.&quot;** Prevent scope creep by being</span><span class="ctx">    explicit.</span><span class="add">+10. **SPEC→PLAN Traceability.** The PLAN.md output MUST include a</span><span class="add">+    `## SPEC Acceptance Traceability` section enumerating every bullet</span><span class="add">+    from SPEC.md&#39;s `## Acceptance Criteria` section verbatim, paired</span><span class="add">+    with a covering plan-task id or an explicit</span><span class="add">+    `WAIVED — &lt;one-line rationale&gt;`. If you cannot map every SPEC</span><span class="add">+    acceptance bullet to a task or a defended waiver, emit only the</span><span class="add">+    traceability stub and fail loudly rather than silently drop a</span><span class="add">+    bullet. The `review` step rejects PLAN.md with a missing or</span><span class="add">+    incomplete traceability section.</span><span class="fileheader">diff --git a/src/defaults/prompts/review.md b/src/defaults/prompts/review.md</span><span class="fileheader">index a6855ec..86eeaef 100644</span><span class="meta">--- a/src/defaults/prompts/review.md</span><span class="meta">+++ b/src/defaults/prompts/review.md</span><span class="hunk">@@ -35,6 +35,12 @@ Check:</span><span class="ctx">   corresponding tests. Coverage numbers are required, not optional.</span><span class="ctx"> - **Spec compliance** — does the code deliver what SPEC.md requires?</span><span class="ctx"> - **Plan adherence** — were PLAN.md tasks completed as specified?</span><span class="add">+- **SPEC→PLAN traceability** — does PLAN.md include a</span><span class="add">+  `## SPEC Acceptance Traceability` section that re-quotes every</span><span class="add">+  bullet from SPEC.md&#39;s `## Acceptance Criteria` section verbatim</span><span class="add">+  and pairs it with a covering plan-task id or an explicit</span><span class="add">+  `WAIVED — &lt;rationale&gt;`? A missing or incomplete traceability</span><span class="add">+  section is a NEEDS-FIX trigger.</span><span class="ctx"> - **Code quality** — clean, readable, follows existing patterns from</span><span class="ctx">   RESEARCH.md?</span><span class="ctx"> - **Error handling** — edge cases covered? Failures handled gracefully?</span><span class="hunk">@@ -107,8 +113,9 @@ writes it to `docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/REVIEW.md`.</span><span class="ctx"> [PASS — no fixes needed / NEEDS-FIX — see MUST-FIX.md]</span><span class="ctx"> </span><span class="ctx"> NEEDS-FIX triggers: code-quality findings, missing tests, coverage</span><span class="del">-regressions, missing SPEC requirements, OR any unbacked doc-vs-code</span><span class="del">-claim from Pass 3.</span><span class="add">+regressions, missing SPEC requirements, any unbacked doc-vs-code</span><span class="add">+claim from Pass 3, OR a missing or incomplete SPEC→PLAN traceability</span><span class="add">+section in PLAN.md.</span><span class="ctx"> </span><span class="ctx"> ## Code Quality Review</span><span class="ctx"> </span><span class="hunk">@@ -189,6 +196,20 @@ plan — actionable tasks, not vague observations.</span><span class="ctx">     behavior is not in fact promised.]</span><span class="ctx">   **Verify:** `grep -n &quot;&lt;doc snippet&gt;&quot; path/to/doc.md` returns the</span><span class="ctx">     updated line; cross-check matches the named `file:line`.</span><span class="add">+</span><span class="add">+- [ ] ### Task N (Missing SPEC→PLAN Traceability): [Short title]</span><span class="add">+  **Priority:** Critical</span><span class="add">+  **Files:** `docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/PLAN.md`</span><span class="add">+  **Problem:** PLAN.md is missing the `## SPEC Acceptance Traceability`</span><span class="add">+    section OR the section omits one or more SPEC acceptance bullets</span><span class="add">+    (list the missing bullets verbatim).</span><span class="add">+  **Fix:** Edit PLAN.md to add the traceability section per the plan</span><span class="add">+    prompt&#39;s output template; re-quote each SPEC acceptance bullet</span><span class="add">+    verbatim and pair it with a covering plan-task id or an explicit</span><span class="add">+    `WAIVED — &lt;one-line rationale&gt;`.</span><span class="add">+  **Verify:** `grep -c &quot;^## SPEC Acceptance Traceability$&quot; PLAN.md`</span><span class="add">+    returns `1`; every bullet from SPEC.md&#39;s `## Acceptance Criteria`</span><span class="add">+    section appears verbatim in the table.</span><span class="ctx"> ```</span><span class="ctx"> </span><span class="ctx"> **Rules for MUST-FIX.md:**</span><span class="fileheader">diff --git a/tests/defaults/plan-prompt-spec-traceability.test.ts b/tests/defaults/plan-prompt-spec-traceability.test.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..f96e2a0</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/tests/defaults/plan-prompt-spec-traceability.test.ts</span><span class="hunk">@@ -0,0 +1,72 @@</span><span class="add">+import { test } from &quot;node:test&quot;;</span><span class="add">+import { strict as assert } from &quot;node:assert&quot;;</span><span class="add">+import { readFile } from &quot;node:fs/promises&quot;;</span><span class="add">+</span><span class="add">+const PLAN_SRC = &quot;src/defaults/prompts/plan.md&quot;;</span><span class="add">+const PLAN_DOG = &quot;.cycle/prompts/plan.md&quot;;</span><span class="add">+const REVIEW_SRC = &quot;src/defaults/prompts/review.md&quot;;</span><span class="add">+const REVIEW_DOG = &quot;.cycle/prompts/review.md&quot;;</span><span class="add">+</span><span class="add">+test(&quot;plan prompt declares SPEC Acceptance Traceability section header&quot;, async () =&gt; {</span><span class="add">+  const body = await readFile(PLAN_SRC, &quot;utf8&quot;);</span><span class="add">+  assert.match(body, /^## SPEC Acceptance Traceability$/m);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;plan prompt enumerates verbatim-re-quote requirement&quot;, async () =&gt; {</span><span class="add">+  const body = await readFile(PLAN_SRC, &quot;utf8&quot;);</span><span class="add">+  assert.ok(</span><span class="add">+    body.includes(&quot;Re-quote every bullet from SPEC.md&quot;),</span><span class="add">+    &quot;missing verbatim-re-quote requirement phrase&quot;,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;plan prompt Important Guidelines carries SPEC→PLAN Traceability rule&quot;, async () =&gt; {</span><span class="add">+  const body = await readFile(PLAN_SRC, &quot;utf8&quot;);</span><span class="add">+  assert.ok(</span><span class="add">+    body.includes(&quot;**SPEC→PLAN Traceability.**&quot;),</span><span class="add">+    &quot;missing 10th-rule label in Important Guidelines&quot;,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;review prompt Pass 1 names SPEC→PLAN traceability&quot;, async () =&gt; {</span><span class="add">+  const body = await readFile(REVIEW_SRC, &quot;utf8&quot;);</span><span class="add">+  assert.ok(</span><span class="add">+    body.includes(&quot;SPEC→PLAN traceability&quot;),</span><span class="add">+    &quot;missing Pass 1 SPEC→PLAN traceability bullet&quot;,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;review prompt verdict trigger list includes traceability&quot;, async () =&gt; {</span><span class="add">+  const body = await readFile(REVIEW_SRC, &quot;utf8&quot;);</span><span class="add">+  assert.match(</span><span class="add">+    body,</span><span class="add">+    /NEEDS-FIX triggers:[\s\S]*traceability/,</span><span class="add">+    &quot;verdict trigger list missing traceability mention&quot;,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;review prompt MUST-FIX template carries Missing SPEC→PLAN Traceability task shape&quot;, async () =&gt; {</span><span class="add">+  const body = await readFile(REVIEW_SRC, &quot;utf8&quot;);</span><span class="add">+  assert.ok(</span><span class="add">+    body.includes(&quot;### Task N (Missing SPEC→PLAN Traceability):&quot;),</span><span class="add">+    &quot;missing named MUST-FIX task shape&quot;,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;dogfood plan prompt is byte-identical to default&quot;, async () =&gt; {</span><span class="add">+  const [src, dog] = await Promise.all([readFile(PLAN_SRC), readFile(PLAN_DOG)]);</span><span class="add">+  assert.equal(</span><span class="add">+    Buffer.compare(src, dog),</span><span class="add">+    0,</span><span class="add">+    &quot;src/defaults/prompts/plan.md and .cycle/prompts/plan.md must match byte-for-byte&quot;,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;dogfood review prompt is byte-identical to default&quot;, async () =&gt; {</span><span class="add">+  const [src, dog] = await Promise.all([readFile(REVIEW_SRC), readFile(REVIEW_DOG)]);</span><span class="add">+  assert.equal(</span><span class="add">+    Buffer.compare(src, dog),</span><span class="add">+    0,</span><span class="add">+    &quot;src/defaults/prompts/review.md and .cycle/prompts/review.md must match byte-for-byte&quot;,</span><span class="add">+  );</span><span class="add">+});</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><h3>Review: Cycle 0071</h3>
+<h4>Overall Verdict</h4>
+<p>NEEDS-FIX — see MUST-FIX.md.</p>
+<p>The cycle that introduces the <code>## SPEC Acceptance Traceability</code> rule ships a PLAN.md that itself omits the traceability section — the rule must apply to its own cycle. One minor wording issue with SPEC acceptance #3 (<code>exit 0</code> literal vs. documented sync-defaults divergence-guard exit 2).</p>
+<h4>Code Quality Review</h4>
+<h5>Summary</h5>
+<p>Implementation is small, focused, and mechanical. Source edits to <code>src/defaults/prompts/{plan,review}.md</code> match the PLAN exactly. Dogfood mirrors byte-equal source (verified by <code>cmp</code>). <code>CLAUDE.md</code> bullet appended in the right spot with all three named file references backed at HEAD. No engine code touched, no scope creep. The single material flaw is bootstrap order: the plan step for cycle 0071 ran <em>before</em> the build step that landed the new traceability requirement on the prompt, so the cycle&#39;s own PLAN.md visibly violates the rule it ships.</p>
+<h5>Findings</h5>
+<ol>
+<li><strong>Spec compliance — bootstrap rule violation</strong>: PLAN.md at <code>docs/cycle/0071-feature-tighten-spec-plan-traceability-so-plan-s/PLAN.md</code> does not contain a <code>## SPEC Acceptance Traceability</code> section. Under the new <code>src/defaults/prompts/review.md:38-43</code> Pass-1 clause and the verdict trigger at <code>src/defaults/prompts/review.md:113-118</code>, a missing traceability section is a NEEDS-FIX trigger. The cycle that establishes the rule must visibly honor it.</li>
+<li><strong>Spec wording — minor</strong>: SPEC acceptance #3 (<code>SPEC.md:42</code>) requires <code>npm run sync-defaults runs cleanly (exit 0)</code>. <code>BUILD.md</code> documents that <code>sync-defaults</code> exits 2 because <code>.cycle/workflows.yml</code> is in the canonical divergent set (per <code>CLAUDE.md:60-72</code>); the prompt files (<code>plan.md</code>, <code>review.md</code>) did sync cleanly and <code>diff</code> returns empty against source. Substantive intent met, literal wording at odds with the documented divergence-guard contract — observation only, not a blocking fix.</li>
+<li><strong>No engine code touched</strong>: confirmed via <code>git diff master --stat</code> — only <code>src/defaults/prompts/{plan,review}.md</code>, <code>.cycle/prompts/{plan,review}.md</code>, <code>CLAUDE.md</code>, and the new test file in <code>tests/defaults/</code>. No <code>src/engine/<em></code>, no <code>src/cli</em></code>, no <code>scripts/*</code>, no <code>workflows.yml</code>. Matches PLAN.md &quot;What We&#39;re NOT Doing&quot; exactly.</li>
+</ol>
+<h5>Spec Compliance Checklist</h5>
+<ul>
+<li>[x] <code>src/defaults/prompts/plan.md</code> carries the traceability clause (<code>plan.md:86-94</code>, <code>plan.md:127-135</code>).</li>
+<li>[x] <code>src/defaults/prompts/review.md</code> Pass 1 carries the NEEDS-FIX clause and MUST-FIX shape (<code>review.md:38-43</code>, <code>review.md:113-118</code>, <code>review.md:200-213</code>).</li>
+<li>[x] <code>.cycle/prompts/plan.md</code> and <code>.cycle/prompts/review.md</code> byte-identical to source (<code>cmp</code> clean).</li>
+<li>[~] <code>npm run sync-defaults runs cleanly (exit 0)</code> — exits 2 due to canonical workflows.yml divergence; substantive intent (prompt files synced) met. See Task 2.</li>
+<li>[x] <code>CLAUDE.md</code> carries the new <code>SPEC→PLAN traceability:</code> bullet appended after the Pass-3 bullet (<code>CLAUDE.md:82</code>).</li>
+<li>[x] New test <code>tests/defaults/plan-prompt-spec-traceability.test.ts</code> exists and pins all required clauses + byte-equality (8 tests, all green).</li>
+<li>[x] <code>npm test</code> passes — 434/434.</li>
+<li>[x] <code>npm run test:coverage</code> passes per-file gate (<code>src/engine/triage.ts 99.45% ≥ 95%</code>); line/branch/function 99.01% / 93.04% / 97.01% at baseline.</li>
+<li>[x] <code>npm run typecheck</code> clean.</li>
+<li>[ ] PLAN.md itself contains <code>## SPEC Acceptance Traceability</code> section. <strong>MISSING — Task 1.</strong></li>
+</ul>
+<h4>Adversarial Test Review</h4>
+<h5>Summary</h5>
+<p>Test quality is strong for the prompt-tweak scope. Eight tests, each pure <code>fs.readFile</code> reads, no mocks, no shared state, no setup/teardown. Mix of regex anchors (where positional/syntactic uniqueness matters) and <code>includes</code> substring checks (where any-position presence is sufficient). Byte-equivalence checks use <code>Buffer.compare</code> matching the existing Pass-3 prompt-pin test pattern at <code>tests/defaults/review-prompt-doc-claim-pass.test.ts</code>.</p>
+<h5>Findings</h5>
+<ol>
+<li><strong>Prompt-pinning only, no end-to-end NEEDS-FIX exercise</strong> — <code>tests/defaults/plan-prompt-spec-traceability.test.ts</code> pins the prompt clauses but does not exercise a deficient PLAN.md through the review agent to confirm the review agent actually raises NEEDS-FIX. SPEC line 57 explicitly defers this: <code>A mechanical end-to-end test that drives an agent through a deficient PLAN is deferred with the static-verify-check work (Direction #2).</code> Acceptable scope boundary, not a finding to fix in this cycle. Not flagged.</li>
+<li><strong>Test isolation is clean</strong> — each test is independent, no shared mutable state, both <code>Promise.all</code> reads for the byte-compare tests are stateless. No order dependency. No flaky surface.</li>
+<li><strong>Assertion specificity is appropriate</strong> — <code>assert.match(body, /^## SPEC Acceptance Traceability$/m)</code> pins both the literal header text AND the line-anchor multi-line behavior; <code>assert.ok(body.includes(&quot;...&quot;))</code> is used only where substring presence is the spec-correct check (e.g., the verbatim-re-quote requirement phrase appears once but at an arbitrary position in the prompt body).</li>
+<li><strong>Test would catch regression</strong> — manually re-verified: removing the <code>## SPEC Acceptance Traceability</code> header from <code>src/defaults/prompts/plan.md</code> would fail the first test; breaking either dogfood mirror would fail the byte-equivalence tests; dropping the Pass-1 bullet from <code>review.md</code> would fail the Pass-1 test.</li>
+</ol>
+<h5>Test Coverage</h5>
+<ul>
+<li>Command run: <code>npm run test:coverage</code></li>
+<li>Line / branch / function: <strong>99.01% / 93.04% / 97.01%</strong> (all-files)</li>
+<li>Per-file gate: <code>src/engine/triage.ts 99.45% ≥ 95%</code> — passes (unchanged baseline; no engine code touched).</li>
+<li>Regressions vs base (per-file): <strong>none</strong>. Master baseline preserved.</li>
+<li>New code without tests: <strong>none</strong>. The only new code is <code>tests/defaults/plan-prompt-spec-traceability.test.ts</code>, which is itself a test file; prompt + doc edits are non-code and don&#39;t carry coverage.</li>
+<li>Specific scenarios missing tests: end-to-end review-agent-rejects-deficient-PLAN (explicitly deferred by SPEC line 57 to Direction #2 sibling cycle).</li>
+</ul>
+<h4>Doc-vs-Code Claim Verification</h4>
+<p>Diff touches <code>CLAUDE.md</code> (in-scope) and <code>docs/cycle/*</code> (out-of-scope per Pass 3 rules — excluded). Enumerating all introduced/modified claims under <code>CLAUDE.md</code>:</p>
+<p>| Claim | Source (doc:line) | Backing (code:line) | Status | |---|---|---|---| | <code>src/defaults/prompts/plan.md</code> requires PLAN.md to carry a <code>## SPEC Acceptance Traceability</code> section | <code>CLAUDE.md:82</code> | <code>src/defaults/prompts/plan.md:86</code> | OK | | re-quoting every SPEC <code>## Acceptance Criteria</code> bullet verbatim and pairing each with a covering plan-task id or <code>WAIVED — &lt;one-line rationale&gt;</code> | <code>CLAUDE.md:82</code> | <code>src/defaults/prompts/plan.md:88-94</code> and <code>:127-135</code> | OK | | <code>src/defaults/prompts/review.md</code> Pass 1 makes a missing or incomplete traceability section a NEEDS-FIX trigger | <code>CLAUDE.md:82</code> | <code>src/defaults/prompts/review.md:38-43</code> | OK | | corresponding MUST-FIX shape is the named &quot;Missing SPEC→PLAN Traceability&quot; template in <code>review.md</code> | <code>CLAUDE.md:82</code> | <code>src/defaults/prompts/review.md:200</code> | OK | | Dogfood mirrors <code>.cycle/prompts/{plan,review}.md</code> are byte-identical | <code>CLAUDE.md:82</code> | <code>cmp</code> clean; pinned at <code>tests/defaults/plan-prompt-spec-traceability.test.ts:56-72</code> | OK | | pinned by <code>tests/defaults/plan-prompt-spec-traceability.test.ts</code> | <code>CLAUDE.md:82</code> | <code>tests/defaults/plan-prompt-spec-traceability.test.ts</code> exists (file present, 8 tests) | OK | | Convention adopted after cycle 0028, where the plan step silently dropped one of four required RFC-001 line annotations | <code>CLAUDE.md:82</code> | Historical context, not a code claim — out of scope for Pass 3 | N/A |</p>
+<p>All in-scope doc claims backed. No unbacked claims found.</p>
+<p>End of REVIEW.md. MUST-FIX.md written to <code>docs/cycle/0071-feature-tighten-spec-plan-traceability-so-plan-s/MUST-FIX.md</code> with one critical task (backfill PLAN.md traceability section) and one minor observation (SPEC #3 wording vs. divergence guard).</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0070.html">← Cycle 0070</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0073.html">Cycle 0073 →</a>
+</nav>
+
+<footer>Generated from <code>ce5c27f</code></footer>
+</body>
+</html>

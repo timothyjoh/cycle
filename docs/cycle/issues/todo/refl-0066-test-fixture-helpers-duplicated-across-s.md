@@ -1,7 +1,7 @@
 ---
 id: refl-0066-test-fixture-helpers-duplicated-across-s
 title: Extract shared step-end-stderr test fixture helpers (workflowYml/setupRepo/findStepEnd) to a single module
-workflow: feature
+workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-15T19:00:13.653Z"
 source: triage
