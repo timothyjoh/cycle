@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle reports</title>
+<style>
+  body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: #1f2328; }
+  h1 { border-bottom: 1px solid #d0d7de; padding-bottom: .5rem; }
+  ul { list-style: none; padding: 0; }
+  li { padding: .4rem .6rem; border-bottom: 1px solid #f6f8fa; }
+  li:hover { background: #f6f8fa; }
+  a { color: #0969da; text-decoration: none; }
+  .id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #57606a; margin-right: .5rem; }
+</style>
+</head>
+<body>
+<h1>Cycle reports (10)</h1>
+<ul>
+<li><a href="cycle-0001.html"><span class="id">0001</span>add a one-line README.md describing what cycle is (#2)</a></li>
+<li><a href="cycle-0002.html"><span class="id">0002</span>verify.sh resilience to missing node_modules (#3)</a></li>
+<li><a href="cycle-0005.html"><span class="id">0005</span>Fix commit.sh per GitHub issue #4 (https://github.com/timothyjoh/cycle/issues/4) — run &#39;gh issue view 4&#39; first for full context. Stage only the cycle&#39;s expected change surface; drop &#39;git add -A&#39;. (#7)</a></li>
+<li><a href="cycle-0006.html"><span class="id">0006</span>Fix pr.sh per GitHub issue #5 (https://github.com/timothyjoh/cycle/issues/5) — run &#39;gh issue view 5&#39; first for full context. Fall back to immediate merge when auto-merge is disabled on the repo. (#8)</a></li>
+<li><a href="cycle-0007.html"><span class="id">0007</span>pr.sh: after immediate-merge fallback succeeds, delete the remote branch (gh pr merge --delete-branch only deletes when GitHub schedules the merge; the synchronous fallback path leaves origin/cycle/feature/* orphaned). Add explicit &#39;gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/&lt;branch&gt;&#39; after successful fallback merge, with test coverage. (#9)</a></li>
+<li><a href="cycle-0008.html"><span class="id">0008</span>engine: after cycle.end (ok or failed), checkout back to base branch (CYCLE_BASE) so working tree returns to a known state. Currently HEAD remains on the cycle/feature/&lt;slug&gt; branch locally, forcing manual &#39;git checkout master&#39; between runs. Add to run-cycle.ts post-cycle cleanup, with test for both ok + failed terminal states. (#10)</a></li>
+<li><a href="cycle-0009.html"><span class="id">0009</span>commit.sh / pr.sh: include &#39;Closes #N&#39; linkage when the cycle&#39;s issue body references a GitHub issue URL (e.g., &#39;https://github.com/&lt;owner&gt;/&lt;repo&gt;/issues/&lt;N&gt;&#39;). Parse the issue body for one or more github.com issue URLs, append &#39;Closes #&lt;N&gt;&#39; lines to the commit message body (not subject) and PR body. When PR merges, GitHub auto-closes those issues. Test: cycle whose issue body references issue #99 -&gt; commit + PR include &#39;Closes #99&#39;. (#12)</a></li>
+<li><a href="cycle-0010.html"><span class="id">0010</span>scan.ts: dedup tbd.jsonl by issue id. BRIEF says &#39;move first to queued/, then append to tbd.jsonl (dedup by id)&#39; but src/engine/scan.ts has no dedup — re-queuing an existing issue file appends a duplicate jsonl line. Read existing tbd.jsonl on scan, skip appendFile if id already present. Test: re-queue a tbd/ file twice and assert tbd.jsonl contains exactly one entry for that id. (#17)</a></li>
+<li><a href="cycle-0012.html"><span class="id">0012</span>BB-1: Rename docs/cycle/issues/tbd/ -&gt; raw/ and queued/ -&gt; todo/. Drop the empty triaged/ folder. Update src/engine/scan.ts to scan raw/ and move to todo/, with dedup by issue id (fix the existing append-twice bug). Update closes.sh and any other code/test references. See docs/RFC-001-issue-lifecycle.md sections 2, 6, 12 (BB-1). (#20)</a></li>
+<li><a href="cycle-0013.html"><span class="id">0013</span>BB-2: Consolidate workflow + engine + triage config into one src/defaults/workflows.yml file. Top sections: engine: (max_consecutive_failures, base_branch), triage: (agent, prompt, max_turns). Then a workflows: array containing the feature workflow (inline what&#39;s currently in src/defaults/workflows/feature.yaml). Update src/engine/workflow.ts to load this new shape (workflows array; pick workflow by name). Delete src/defaults/workflows/ subdirectory after migration. Update sync-defaults.mjs if needed. See docs/RFC-001-issue-lifecycle.md sections 4, 12 (BB-2). (#21)</a></li>
+</ul>
+</body>
+</html>

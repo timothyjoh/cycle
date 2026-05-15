@@ -24,8 +24,8 @@ const RESET_ELIGIBLE_STEPS = new Set(["build", "fix"]);
 
 export const SPEC_MIN_BYTES = 200;
 
-const MAX_STEP_END_STDERR = 2000;
-const truncateStepEndStderr = (s: string): string =>
+export const MAX_STEP_END_STDERR = 2000;
+export const truncateStepEndStderr = (s: string): string =>
   s.length > MAX_STEP_END_STDERR ? s.slice(0, MAX_STEP_END_STDERR - 1) + "…" : s;
 
 export function formatSpecGuardError(path: string, bytes: number, threshold: number): string {
@@ -175,7 +175,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         step: step.name,
         status: r.status,
         exit_code: r.exitCode,
-        ...(step.agent === "bash" && r.status === "failed"
+        ...(r.status === "failed"
           ? { stderr: truncateStepEndStderr(r.stderr) }
           : {}),
       });

@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0002 · verify.sh resilience to missing node_modules (#3)</title>
+<style>
+  body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: #1f2328; background: #fff; }
+  header { border-bottom: 1px solid #d0d7de; padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 .3rem; }
+  .subtitle { color: #57606a; font-size: .9rem; }
+  .meta-row { margin-top: .4rem; color: #57606a; font-size: .85rem; }
+  .meta-row code { background: #f6f8fa; padding: .1rem .35rem; border-radius: 3px; }
+  nav.pager { display: flex; justify-content: space-between; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid #d0d7de; border-bottom: 1px solid #d0d7de; }
+  nav.pager a { color: #0969da; text-decoration: none; padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: #f6f8fa; }
+  nav.pager .disabled { color: #8c959f; pointer-events: none; }
+  nav.pager .center { color: #57606a; font-size: .85rem; align-self: center; }
+  section { margin-bottom: 1.5rem; }
+  section h2 { font-size: 1rem; margin: 0 0 .5rem; color: #57606a; text-transform: uppercase; letter-spacing: .05em; }
+  pre.commit-msg { background: #f6f8fa; padding: 1rem; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
+  pre.stat { background: #f6f8fa; padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; }
+  pre.diff { background: #fff; padding: 0; border: 1px solid #d0d7de; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.5; overflow-x: auto; white-space: pre; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: #dafbe1; color: #1a7f37; }
+  pre.diff .del { background: #ffebe9; color: #cf222e; }
+  pre.diff .hunk { background: #ddf4ff; color: #0969da; }
+  pre.diff .fileheader { background: #f6f8fa; color: #57606a; font-weight: 600; padding-top: .3rem; padding-bottom: .3rem; }
+  pre.diff .meta { color: #57606a; }
+  pre.diff .ctx { color: #1f2328; }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #d0d7de; color: #8c959f; font-size: .8rem; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0002</h1>
+  <div class="subtitle">verify.sh resilience to missing node_modules (#3)</div>
+  <div class="meta-row">
+    <code>c223338</code> · Timothy Johnson · 2026-05-12 19:20:24 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0001.html">← Cycle 0001</a>
+  <span class="center">2 of 10</span>
+  <a href="cycle-0005.html">Cycle 0005 →</a>
+</nav>
+
+<section>
+  <h2>Commit message</h2>
+  <pre class="commit-msg">cycle 0002: verify.sh resilience to missing node_modules (#3)</pre>
+</section>
+
+<section>
+  <h2>Files changed</h2>
+  <pre class="stat">.cycle/scripts/verify.sh                           |   3 +
+ .../BUILD.md                                       |   1 +
+ .../FIX.md                                         |   3 +
+ .../PLAN.md                                        | 146 +++++++++++++++++++++
+ .../RESEARCH.md                                    |  50 +++++++
+ .../REVIEW.md                                      |  50 +++++++
+ .../SPEC.md                                        | 104 +++++++++++++++
+ ...149-make-cycle-scripts-verify-sh-run-npm-ins.md |   9 ++
+ src/defaults/scripts/verify.sh                     |   3 +
+ tests/defaults/scripts.test.ts                     |   6 +
+ 10 files changed, 375 insertions(+)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/.cycle/scripts/verify.sh b/.cycle/scripts/verify.sh</span>
+<span class="fileheader">index de023ee..5a6245e 100755</span>
+<span class="meta">--- a/.cycle/scripts/verify.sh</span>
+<span class="meta">+++ b/.cycle/scripts/verify.sh</span>
+<span class="hunk">@@ -4,6 +4,9 @@</span>
+<span class="ctx"> set -euo pipefail</span>
+<span class="ctx"> </span>
+<span class="ctx"> if [ -f package.json ] &amp;&amp; grep -q &#39;&quot;test&quot;&#39; package.json; then</span>
+<span class="add">+  if [ ! -d node_modules ]; then</span>
+<span class="add">+    npm install</span>
+<span class="add">+  fi</span>
+<span class="ctx">   npm test</span>
+<span class="ctx"> elif [ -f Cargo.toml ]; then</span>
+<span class="ctx">   cargo test</span>
+<span class="fileheader">diff --git a/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/BUILD.md b/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/BUILD.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..cc3c1f9</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/BUILD.md</span>
+<span class="hunk">@@ -0,0 +1 @@</span>
+<span class="add">+Modified `src/defaults/scripts/verify.sh` (+3 lines: `if [ ! -d node_modules ]; then npm install; fi` guard inserted into Node branch before `npm test`; total 15→18 lines). Modified `tests/defaults/scripts.test.ts` (+6 lines: new top-level `test(&quot;verify.sh installs deps when node_modules is missing&quot;, ...)` block with two `assert.match` calls against `/npm install/` and `/node_modules/`; existing shebang+exec-bit loop untouched). Both PLAN.md tasks now complete: Task 1 (install-on-missing guard) and Task 2 (static assertion). Ran `npm test` (under node v22.22.2 via `~/.nvm/versions/node/v22.22.2/bin` — repo requires Node ≥ 22.6 for `--experimental-strip-types`; default shell `node` was v20.9.0 and could not run the suite); result: 27/27 pass, 0 fail, duration 868ms. `npm run build` succeeded clean, no TypeScript / esbuild warnings. Manual sanity check executed in a `mktemp -d` scratch dir with a minimal `package.json` containing a `&quot;test&quot;` script: fresh (no `node_modules/`) → `bash verify.sh` traced `npm install` then `npm test` (TEST_RAN printed); warm (`mkdir node_modules`) → trace skipped `npm install` and ran `npm test` directly. No deviations from PLAN.md. Deferred work: the installed copy `.cycle/scripts/verify.sh` in this repo still carries the old logic and will propagate via a future `cycle init --upgrade` (explicitly out of scope per SPEC §Scope and PLAN §What We&#39;re NOT Doing). One environmental observation worth noting for follow-up: the project&#39;s `npm test` script requires Node ≥ 22.6 but there is no `engines` field or preflight check enforcing it — running under the default Node 20.9 produces `node: bad option: --experimental-strip-types`; could be addressed in a future cycle by adding `&quot;engines&quot;: { &quot;node&quot;: &quot;&gt;=22.6&quot; }` to `package.json`.</span>
+<span class="fileheader">diff --git a/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/FIX.md b/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/FIX.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..a305fbd</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/FIX.md</span>
+<span class="hunk">@@ -0,0 +1,3 @@</span>
+<span class="add">+Reviewer verdict PASS — no MUST-FIX.md created. Fix step is noop per `skip_unless: MUST-FIX.md`.</span>
+<span class="add">+</span>
+<span class="add">+**Summary:** No fixes required. Review of cycle 0002 (`docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/REVIEW.md`) verdict: PASS. Tests 27/27, build clean, bash syntax OK, mode 0755, implementation matches PLAN exactly, all SPEC acceptance criteria met. No tasks to address, no test suite re-run needed. Proceed to verify/commit/pr.</span>
+<span class="fileheader">diff --git a/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/PLAN.md b/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/PLAN.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..d94f0a2</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/PLAN.md</span>
+<span class="hunk">@@ -0,0 +1,146 @@</span>
+<span class="add">+Plan inputs absorbed. Writing PLAN to stdout for engine capture.</span>
+<span class="add">+</span>
+<span class="add">+```markdown</span>
+<span class="add">+# Implementation Plan: Cycle 0002</span>
+<span class="add">+</span>
+<span class="add">+## Overview</span>
+<span class="add">+Make `src/defaults/scripts/verify.sh` auto-run `npm install` when `package.json` declares a `&quot;test&quot;` script but `node_modules/` is missing, then run `npm test`. Extend `tests/defaults/scripts.test.ts` with a static assertion that the install-on-missing guard exists, while preserving the existing shebang + executable-bit checks.</span>
+<span class="add">+</span>
+<span class="add">+## Current State (from Research)</span>
+<span class="add">+- `src/defaults/scripts/verify.sh` (15 lines, `set -euo pipefail`) has three runner branches; Node branch is `if [ -f package.json ] &amp;&amp; grep -q &#39;&quot;test&quot;&#39; package.json; then npm test` at lines 6–7.</span>
+<span class="add">+- `tests/defaults/scripts.test.ts` loops over `verify.sh`, `commit.sh`, `pr.sh` and asserts only shebang + executable bit. No body-content assertion yet.</span>
+<span class="add">+- Suite is 26 tests, all passing. Test runner: `node --test --experimental-strip-types --test-reporter=spec`. Assertions use `node:assert/strict` + `assert.match`.</span>
+<span class="add">+- Build pipeline stages `src/defaults/` alongside the engine bundle; editing the source file is sufficient — no rebuild required for the assertion, since the test reads from `src/defaults/scripts/verify.sh` directly.</span>
+<span class="add">+- Installed copy `.cycle/scripts/verify.sh` is explicitly out of scope (propagates via `init --upgrade`).</span>
+<span class="add">+</span>
+<span class="add">+## Desired End State</span>
+<span class="add">+- `src/defaults/scripts/verify.sh` Node branch reads:</span>
+<span class="add">+  ```bash</span>
+<span class="add">+  if [ -f package.json ] &amp;&amp; grep -q &#39;&quot;test&quot;&#39; package.json; then</span>
+<span class="add">+    if [ ! -d node_modules ]; then</span>
+<span class="add">+      npm install</span>
+<span class="add">+    fi</span>
+<span class="add">+    npm test</span>
+<span class="add">+  elif ...</span>
+<span class="add">+  ```</span>
+<span class="add">+- `tests/defaults/scripts.test.ts` adds a verify-only `test(...)` block asserting `verify.sh` body contains both `npm install` and a `node_modules` existence check, alongside retained shebang/exec-bit coverage.</span>
+<span class="add">+- `npm test` → 27 tests pass (26 existing + 1 new). `npm run build` succeeds clean.</span>
+<span class="add">+- Manual sanity: scratch dir with minimal `package.json` (with `&quot;test&quot;` script) and no `node_modules/` → `bash src/defaults/scripts/verify.sh` installs deps then runs tests; with `node_modules/` present → skips install.</span>
+<span class="add">+</span>
+<span class="add">+## What We&#39;re NOT Doing</span>
+<span class="add">+- No edits to Cargo/`pyproject` branches (no parallel install guard).</span>
+<span class="add">+- No support for pnpm, yarn, or other package managers.</span>
+<span class="add">+- No engine, workflow YAML, prompt, or sibling-script (`commit.sh`, `pr.sh`) changes.</span>
+<span class="add">+- No `npm run build` invocation inside `verify.sh`.</span>
+<span class="add">+- No regeneration / hand-copy of `.cycle/scripts/verify.sh` (out of cycle scope; propagates via `init --upgrade`).</span>
+<span class="add">+- No new E2E test; static assertion is sufficient per SPEC.</span>
+<span class="add">+- No README, CLAUDE.md, AGENTS.md, or BRIEF.md changes (per SPEC §Documentation Updates).</span>
+<span class="add">+</span>
+<span class="add">+## Implementation Approach</span>
+<span class="add">+Two tightly scoped edits delivered as a single vertical slice:</span>
+<span class="add">+1. Shell change inside the Node branch of `src/defaults/scripts/verify.sh` — a four-line `if [ ! -d node_modules ]; then npm install; fi` block before `npm test`. `set -euo pipefail` already guarantees install-failure propagation; no additional error handling needed.</span>
+<span class="add">+2. Test change in `tests/defaults/scripts.test.ts` — new `test(...)` block (outside the existing loop) that reads `src/defaults/scripts/verify.sh` once and runs two `assert.match` calls: one for `/npm install/`, one for `/node_modules/`. Two regexes (not one compound) keeps each assertion independently informative when one fails and accepts either `[ ! -d node_modules ]` or `[[ ! -d node_modules ]]` formatting.</span>
+<span class="add">+</span>
+<span class="add">+This is the smallest change that satisfies all acceptance criteria. No abstraction, no refactor, no scope creep.</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 1: Add install-on-missing guard to verify.sh Node branch</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+Insert a `node_modules` existence check that runs `npm install` before `npm test`, only when `node_modules/` is absent.</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+**File**: `src/defaults/scripts/verify.sh`</span>
+<span class="add">+**Changes**: Replace the Node branch body (currently a single `npm test`) with a guarded install + `npm test`:</span>
+<span class="add">+</span>
+<span class="add">+```bash</span>
+<span class="add">+if [ -f package.json ] &amp;&amp; grep -q &#39;&quot;test&quot;&#39; package.json; then</span>
+<span class="add">+  if [ ! -d node_modules ]; then</span>
+<span class="add">+    npm install</span>
+<span class="add">+  fi</span>
+<span class="add">+  npm test</span>
+<span class="add">+elif [ -f Cargo.toml ]; then</span>
+<span class="add">+  cargo test</span>
+<span class="add">+elif [ -f pyproject.toml ]; then</span>
+<span class="add">+  pytest</span>
+<span class="add">+else</span>
+<span class="add">+  echo &quot;verify.sh: no test runner detected; passing trivially&quot;</span>
+<span class="add">+fi</span>
+<span class="add">+```</span>
+<span class="add">+</span>
+<span class="add">+Preserve:</span>
+<span class="add">+- Line 1 shebang `#!/usr/bin/env bash` (unchanged).</span>
+<span class="add">+- Line 4 `set -euo pipefail` (unchanged).</span>
+<span class="add">+- Executable mode bit on the file (no `chmod` needed; only body changes).</span>
+<span class="add">+- The two non-Node branches (`Cargo.toml`, `pyproject.toml`) and the final `else` (untouched).</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] `verify.sh` line 1 still matches `^#!/usr/bin/env bash`.</span>
+<span class="add">+- [ ] `verify.sh` retains executable bit (mode &amp; 0o111 != 0).</span>
+<span class="add">+- [ ] Node branch contains both `npm install` and a `node_modules` existence check.</span>
+<span class="add">+- [ ] `npm test` is the last command on the Node branch (after the install guard).</span>
+<span class="add">+- [ ] Cargo and Python branches unchanged.</span>
+<span class="add">+- [ ] `bash -n src/defaults/scripts/verify.sh` parses cleanly (no syntax errors).</span>
+<span class="add">+- [ ] Manual sanity: scratch dir with `package.json` (`&quot;test&quot;` script) + no `node_modules/` → script runs `npm install` then `npm test`; with `node_modules/` present → install is skipped.</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 2: Assert install-on-missing guard in defaults-script tests</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+Add a verify-only `test(...)` block to `tests/defaults/scripts.test.ts` asserting `verify.sh` contains both an `npm install` invocation and a `node_modules` existence check. Existing loop (shebang + exec bit across all three scripts) is left intact.</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+**File**: `tests/defaults/scripts.test.ts`</span>
+<span class="add">+**Changes**: Append a new `test(...)` block after the existing loop:</span>
+<span class="add">+</span>
+<span class="add">+```ts</span>
+<span class="add">+test(&quot;verify.sh installs deps when node_modules is missing&quot;, async () =&gt; {</span>
+<span class="add">+  const body = await readFile(&quot;src/defaults/scripts/verify.sh&quot;, &quot;utf8&quot;);</span>
+<span class="add">+  assert.match(body, /npm install/, &quot;verify.sh should invoke npm install&quot;);</span>
+<span class="add">+  assert.match(body, /node_modules/, &quot;verify.sh should reference node_modules&quot;);</span>
+<span class="add">+});</span>
+<span class="add">+```</span>
+<span class="add">+</span>
+<span class="add">+Rationale for two separate `assert.match` calls vs one compound regex (resolves RESEARCH open question):</span>
+<span class="add">+- Permissive enough to tolerate `[ ! -d node_modules ]` or `[[ ! -d node_modules ]]`.</span>
+<span class="add">+- Each failure mode (missing install vs missing guard) surfaces its own assertion message.</span>
+<span class="add">+- Matches existing style — file already uses `assert.match` with regex literals.</span>
+<span class="add">+</span>
+<span class="add">+Placement choice (resolves RESEARCH open question): new top-level `test(...)` block after the loop, not a conditional inside the loop. Keeps the loop&#39;s shared-contract semantics (shebang + exec bit applies to all three scripts) cleanly separated from verify-only invariants.</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] New `test(...)` block is named `&quot;verify.sh installs deps when node_modules is missing&quot;`.</span>
+<span class="add">+- [ ] Both `assert.match` calls present (`/npm install/` and `/node_modules/`).</span>
+<span class="add">+- [ ] Existing shebang + exec-bit loop unchanged (still covers all three scripts).</span>
+<span class="add">+- [ ] `npm test` runs 27 tests; all pass.</span>
+<span class="add">+- [ ] No new imports needed (`readFile` already imported; `test` + `assert` already imported).</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Testing Strategy</span>
+<span class="add">+</span>
+<span class="add">+### Unit Tests</span>
+<span class="add">+- **New static assertion** (Task 2): regex matches against `verify.sh` body for `npm install` and `node_modules`. Reads real file from `src/defaults/scripts/verify.sh` — no mocking. Real fs read is the established pattern in this file.</span>
+<span class="add">+- **Retained assertions**: shebang regex on line 1 + executable mode bit, looped across `verify.sh`, `commit.sh`, `pr.sh`.</span>
+<span class="add">+</span>
+<span class="add">+### Integration / E2E Tests</span>
+<span class="add">+- None new. Per SPEC §Testing Strategy: &quot;No new E2E: purely a shell-script change inside the defaults surface.&quot;</span>
+<span class="add">+- **Manual sanity check** (gated by Task 1 success criteria): in a tmp directory with a minimal `package.json` containing `{&quot;scripts&quot;:{&quot;test&quot;:&quot;node -e &#39;process.exit(0)&#39;&quot;}}`:</span>
+<span class="add">+  1. With no `node_modules/`: `bash &lt;repo&gt;/src/defaults/scripts/verify.sh` → installs deps, then `npm test` exits 0.</span>
+<span class="add">+  2. With `node_modules/` pre-created (`mkdir node_modules`): same command → skips install, runs `npm test` directly.</span>
+<span class="add">+</span>
+<span class="add">+### Regression Coverage</span>
+<span class="add">+- Existing 26 tests must continue to pass; new total = 27. Run `npm test` after Task 1 and again after Task 2.</span>
+<span class="add">+- `npm run build` must complete clean (no TS / esbuild warnings). Build is not strictly required to validate the test (which reads from `src/defaults/`), but SPEC acceptance lists it.</span>
+<span class="add">+</span>
+<span class="add">+### Mocking Strategy</span>
+<span class="add">+- Zero mocks. Test reads the real `verify.sh` source file via `node:fs/promises`. Anti-mock bias respected — no shell execution mock, no fs mock.</span>
+<span class="add">+</span>
+<span class="add">+## Risk Assessment</span>
+<span class="add">+- **Risk**: A future formatting tweak (e.g. switching `[ ! -d node_modules ]` to `[[ ! -d node_modules ]]`, or moving install to a function) breaks the static assertion. **Mitigation**: regexes are deliberately permissive — `/npm install/` and `/node_modules/` match the substrings anywhere in the file, surviving most reasonable rewrites.</span>
+<span class="add">+- **Risk**: `npm install` failure (network outage, lockfile mismatch) now aborts `verify.sh` where previously it might have surfaced as a test-time error. **Mitigation**: behavior is intentional per SPEC; `set -euo pipefail` already in place; `step.end status=failed` event surfaces in `.cycle/log.jsonl`. Acceptable risk.</span>
+<span class="add">+- **Risk**: The installed copy `.cycle/scripts/verify.sh` in this repo remains on the old logic until next `cycle init --upgrade`. **Mitigation**: explicitly out of scope per SPEC; propagation deferred to a separate cycle. Document in commit message that `init --upgrade` is the propagation path.</span>
+<span class="add">+- **Risk**: User runs verify in a directory with a stale `node_modules/` from a different lockfile. **Mitigation**: out of scope — SPEC explicitly says &quot;if `node_modules/` already exists, behavior is unchanged.&quot; Users with stale deps should `rm -rf node_modules` themselves.</span>
+<span class="add">+```</span>
+<span class="fileheader">diff --git a/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/RESEARCH.md b/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/RESEARCH.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..1812234</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/RESEARCH.md</span>
+<span class="hunk">@@ -0,0 +1,50 @@</span>
+<span class="add">+```markdown</span>
+<span class="add">+# Research: Cycle 0002</span>
+<span class="add">+</span>
+<span class="add">+## Cycle Context</span>
+<span class="add">+SPEC asks for `src/defaults/scripts/verify.sh` Node branch to run `npm install` automatically when `package.json` declares a `&quot;test&quot;` script but `node_modules/` is absent, then run `npm test`. Also update `tests/defaults/scripts.test.ts` to assert the new install-on-missing guard while preserving existing shebang + executable-bit checks. Strictly defaults-surface; no engine, workflow, or prompt changes.</span>
+<span class="add">+</span>
+<span class="add">+## Current Codebase State</span>
+<span class="add">+</span>
+<span class="add">+### Relevant Components</span>
+<span class="add">+- Default verify script (Node/Cargo/Python branches, `set -euo pipefail`) — `src/defaults/scripts/verify.sh:1-15`</span>
+<span class="add">+- Defaults scripts test (loops over `verify.sh`, `commit.sh`, `pr.sh`; asserts shebang + executable bit) — `tests/defaults/scripts.test.ts:1-13`</span>
+<span class="add">+- Sibling default scripts (untouched scope) — `src/defaults/scripts/commit.sh`, `src/defaults/scripts/pr.sh`</span>
+<span class="add">+- Installed copy in this repo (out of scope; propagates via `init --upgrade`) — `.cycle/scripts/verify.sh`</span>
+<span class="add">+- Init test that asserts presence of `.cycle/scripts/verify.sh` after `cycle init` — `tests/cli/init.test.ts:19`</span>
+<span class="add">+</span>
+<span class="add">+### Existing Patterns to Follow</span>
+<span class="add">+- Verify script branch structure: `if [ -f package.json ] &amp;&amp; grep -q &#39;&quot;test&quot;&#39; package.json; then ... elif [ -f Cargo.toml ] ... elif [ -f pyproject.toml ] ... else echo ... fi` — `src/defaults/scripts/verify.sh:6-14`. Node branch is the first `if` clause; install guard goes inside this clause before `npm test`.</span>
+<span class="add">+- Shell discipline: `#!/usr/bin/env bash` on line 1, `set -euo pipefail` on line 4. Any `npm install` failure naturally aborts the script via `pipefail` + non-zero exit.</span>
+<span class="add">+- Test style for defaults scripts: `node:test` with `node:assert/strict`, file content read via `node:fs/promises#readFile`, regex/match-based assertions, stat-based mode bit check — `tests/defaults/scripts.test.ts:1-13`.</span>
+<span class="add">+- Test loop iterates over all three scripts; verify-specific assertions need to be a separate `test(...)` block (or scoped to `verify.sh` only) so commit.sh/pr.sh aren&#39;t held to the new contract.</span>
+<span class="add">+</span>
+<span class="add">+### Dependencies &amp; Integration Points</span>
+<span class="add">+- `npm` CLI: required by the existing Node branch (`npm test`); adding `npm install` introduces no new dependency.</span>
+<span class="add">+- Node ≥ 22.6 (declared in `package.json:engines`) — relevant for the test runner, not the shell script.</span>
+<span class="add">+- Test runner invocation: `node --test --experimental-strip-types --test-reporter=spec` (`package.json:scripts.test`). The new assertion runs as part of this command.</span>
+<span class="add">+- Build pipeline: `node scripts/build.mjs` stages `src/defaults/` alongside the engine bundle (per memory observation 273). Editing `src/defaults/scripts/verify.sh` is enough; no rebuild step required for the asserted contract since the test reads from `src/defaults/`.</span>
+<span class="add">+- Engine consumption path: engine writes `cycle.start` / `step.end` events to `.cycle/log.jsonl`; the script&#39;s non-zero exit surfaces as `step.end status=failed` (per SPEC requirement, already true via `set -euo pipefail`).</span>
+<span class="add">+</span>
+<span class="add">+### Test Infrastructure</span>
+<span class="add">+- **Framework:** `node:test` (built-in) with strict `node:assert`.</span>
+<span class="add">+- **Layout:** `tests/&lt;area&gt;/&lt;name&gt;.test.ts`. Defaults-script tests live in `tests/defaults/scripts.test.ts`.</span>
+<span class="add">+- **Conventions:** TypeScript stripped at runtime via `--experimental-strip-types`; no separate compilation step for tests. Assertions use `assert.match`, `assert.ok`, etc.</span>
+<span class="add">+- **Coverage of the change area:** `tests/defaults/scripts.test.ts` currently covers only shebang + executable bit. No assertion exists yet for script body contents.</span>
+<span class="add">+- **Suite size:** 26 tests total (per recent memory); all must continue passing.</span>
+<span class="add">+</span>
+<span class="add">+## Code References</span>
+<span class="add">+- `src/defaults/scripts/verify.sh:6` — Node branch entry: `if [ -f package.json ] &amp;&amp; grep -q &#39;&quot;test&quot;&#39; package.json; then`</span>
+<span class="add">+- `src/defaults/scripts/verify.sh:7` — `npm test` invocation (current sole body of Node branch)</span>
+<span class="add">+- `src/defaults/scripts/verify.sh:4` — `set -euo pipefail` (guarantees abort on install failure)</span>
+<span class="add">+- `tests/defaults/scripts.test.ts:5` — Loop over the three default scripts</span>
+<span class="add">+- `tests/defaults/scripts.test.ts:8-9` — Shebang regex assertion</span>
+<span class="add">+- `tests/defaults/scripts.test.ts:10-11` — Executable bit assertion</span>
+<span class="add">+- `tests/cli/init.test.ts:19` — Init places `.cycle/scripts/verify.sh` (confirms defaults-copy flow exists but is out of scope here)</span>
+<span class="add">+- `package.json:scripts.test` — Test command (`node --test --experimental-strip-types ...`)</span>
+<span class="add">+</span>
+<span class="add">+## Open Questions</span>
+<span class="add">+- Exact regex shape for the new static assertion: SPEC says permissive enough to tolerate `[ ! -d node_modules ]` vs `[[ ! -d node_modules ]]`. Planner should choose a single regex (e.g. `/node_modules/` plus a separate `/npm install/` match) vs a compound pattern.</span>
+<span class="add">+- Whether the new verify-only assertion is added as a new `test(...)` block outside the existing `for` loop, or as a guarded clause inside it keyed on `s === &quot;verify.sh&quot;`. Either fits the existing style; planner to pick.</span>
+<span class="add">+- Ordering inside the Node branch: install only if `node_modules` missing, then always `npm test` — confirmed by SPEC; planner to encode as a single `if [ ! -d node_modules ]; then npm install; fi` before `npm test`.</span>
+<span class="add">+```</span>
+<span class="fileheader">diff --git a/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/REVIEW.md b/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/REVIEW.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..e3e344c</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/REVIEW.md</span>
+<span class="hunk">@@ -0,0 +1,50 @@</span>
+<span class="add">+Verify all gates pass. Code matches plan. Tests pass 27/27, build clean, bash syntax OK, mode 0755. Writing REVIEW to stdout.</span>
+<span class="add">+</span>
+<span class="add">+```markdown</span>
+<span class="add">+# Review: Cycle 0002</span>
+<span class="add">+</span>
+<span class="add">+## Overall Verdict</span>
+<span class="add">+PASS — no fixes needed.</span>
+<span class="add">+</span>
+<span class="add">+## Code Quality Review</span>
+<span class="add">+</span>
+<span class="add">+### Summary</span>
+<span class="add">+Implementation matches PLAN.md exactly and satisfies every SPEC acceptance criterion. Three-line guard added to the Node branch of `verify.sh`; six-line test block added to `scripts.test.ts`. No scope drift, no incidental refactors, no untouched files changed.</span>
+<span class="add">+</span>
+<span class="add">+### Findings</span>
+<span class="add">+1. **Correctness**: Guard placed correctly inside the Node branch before `npm test` — `src/defaults/scripts/verify.sh:7-9`. `set -euo pipefail` (line 4) propagates `npm install` failure as required by SPEC §Requirements.</span>
+<span class="add">+2. **Patterns**: Cargo branch (`src/defaults/scripts/verify.sh:11`) and pyproject branch (line 13) untouched, matching SPEC §Out of Scope.</span>
+<span class="add">+3. **Shebang + exec bit**: `#!/usr/bin/env bash` preserved on line 1; mode `-rwxr-xr-x` retained. `bash -n` parses cleanly.</span>
+<span class="add">+4. **Comment header preserved**: lines 2–3 untouched.</span>
+<span class="add">+5. **Minor / out-of-scope observation (NOT a fix)**: `grep -q &#39;&quot;test&quot;&#39; package.json` (line 6, pre-existing) is a loose substring match that would match any `&quot;test&quot;` token anywhere in package.json (e.g. inside a dependency name or description). This predates the cycle; explicitly out of scope per SPEC §Out of Scope (&quot;No new package managers… No engine, workflow YAML, or sibling-script changes&quot;). Flagged for awareness only.</span>
+<span class="add">+6. **Deferred propagation acknowledged**: `.cycle/scripts/verify.sh` (the installed copy in this repo) still carries the old logic; will propagate via `cycle init --upgrade`. SPEC §Scope explicitly defers this. Not a defect.</span>
+<span class="add">+</span>
+<span class="add">+### Spec Compliance Checklist</span>
+<span class="add">+- [x] `src/defaults/scripts/verify.sh` contains conditional that runs `npm install` only when `package.json` exists and `node_modules/` does not (lines 6–9).</span>
+<span class="add">+- [x] `npm test` remains final command on Node branch (line 10).</span>
+<span class="add">+- [x] `tests/defaults/scripts.test.ts` asserts install-on-missing branch (lines 15–19), alongside the retained shebang + exec-bit loop (lines 5–13).</span>
+<span class="add">+- [x] All existing tests continue to pass — 27/27 (26 + 1 new).</span>
+<span class="add">+- [x] `npm run build` succeeds with zero TypeScript / esbuild warnings.</span>
+<span class="add">+- [x] Manual sanity check: BUILD.md documents `mktemp -d` scratch-dir run, both fresh and warm states behaving as required.</span>
+<span class="add">+- [x] No CLAUDE.md / README.md / AGENTS.md / BRIEF.md changes (SPEC §Documentation Updates: none required).</span>
+<span class="add">+</span>
+<span class="add">+## Adversarial Test Review</span>
+<span class="add">+</span>
+<span class="add">+### Summary</span>
+<span class="add">+Adequate — test coverage matches what SPEC §Testing Strategy explicitly chose. Zero mocks. Reads the real source file. Trade-offs are deliberate, not accidental.</span>
+<span class="add">+</span>
+<span class="add">+### Findings</span>
+<span class="add">+1. **Permissive substring match — by design**: `/npm install/` and `/node_modules/` would also pass if the script ran `npm install` unconditionally or referenced `node_modules` in a comment only. SPEC §Testing Strategy and PLAN §Implementation Approach explicitly chose permissive regexes to tolerate `[ ! -d node_modules ]` vs `[[ ! -d node_modules ]]` formatting. Accepted trade-off — `tests/defaults/scripts.test.ts:17-18`.</span>
+<span class="add">+2. **No conditional-structure assertion**: The test does NOT verify the `-d node_modules` guard itself — a regression that runs `npm install` every time would still pass. SPEC accepts this; flagged for transparency. Not a fix.</span>
+<span class="add">+3. **No execution test**: Test is static-only — no shell subprocess invocation, no fixture filesystem. SPEC §Testing Strategy: &quot;No new E2E… behavioral validation is via the static assertion plus the manual sanity check.&quot; Manual sanity check was performed and documented in BUILD.md.</span>
+<span class="add">+4. **Independence**: New `test(...)` block is top-level, outside the existing loop — no shared state, no ordering dependency.</span>
+<span class="add">+5. **Assertion quality**: `assert.match` with named failure messages on each call (lines 17–18) — failure mode is independently informative, better than a single compound regex.</span>
+<span class="add">+6. **Existing coverage retained**: Shebang + exec-bit loop (lines 5–13) untouched, still covers all three scripts.</span>
+<span class="add">+</span>
+<span class="add">+### Test Coverage</span>
+<span class="add">+- 27/27 tests pass (was 26, added 1).</span>
+<span class="add">+- Build: clean.</span>
+<span class="add">+- Scenarios NOT covered (all SPEC-accepted): full execution of `verify.sh`; stale/empty `node_modules/` directory; package.json with `&quot;test&quot;` substring but no actual `scripts.test`; non-Node branches&#39; install behavior (out of scope).</span>
+<span class="add">+```</span>
+<span class="add">+</span>
+<span class="add">+End of REVIEW. No MUST-FIX.md created — implementation is clean, plan-faithful, and all acceptance criteria met.</span>
+<span class="fileheader">diff --git a/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/SPEC.md b/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/SPEC.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..c9113aa</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0002-feature-make-cycle-scripts-verify-sh-run-npm-ins/SPEC.md</span>
+<span class="hunk">@@ -0,0 +1,104 @@</span>
+<span class="add">+```markdown</span>
+<span class="add">+# SPEC — Cycle 0002: Auto-install dependencies in default verify script</span>
+<span class="add">+</span>
+<span class="add">+## Objective</span>
+<span class="add">+Make the default `verify.sh` script self-sufficient on a fresh checkout by</span>
+<span class="add">+running `npm install` automatically when a Node project is detected but</span>
+<span class="add">+`node_modules/` is absent. This eliminates the recurring failure mode</span>
+<span class="add">+observed in dogfood Cycle 0001, where verification exited non-zero solely</span>
+<span class="add">+because dependencies had never been installed in the workspace.</span>
+<span class="add">+</span>
+<span class="add">+## Source Issue</span>
+<span class="add">+`txt-20260512-231149-make-cycle-scripts-verify-sh-run-npm-ins` —</span>
+<span class="add">+&quot;Make .cycle/scripts/verify.sh run &#39;npm install&#39; first if package.json</span>
+<span class="add">+exists but node_modules is missing, so cycle survives a fresh checkout.</span>
+<span class="add">+Also update tests/defaults/scripts.test.ts if needed.&quot;</span>
+<span class="add">+</span>
+<span class="add">+## Scope</span>
+<span class="add">+</span>
+<span class="add">+### In Scope</span>
+<span class="add">+- Edit `src/defaults/scripts/verify.sh` so that the Node branch</span>
+<span class="add">+  (`package.json` with a `&quot;test&quot;` script) runs `npm install` first when</span>
+<span class="add">+  `node_modules/` is missing, then runs `npm test`.</span>
+<span class="add">+- Update `tests/defaults/scripts.test.ts` to assert the new behavior</span>
+<span class="add">+  (presence of the install-on-missing-`node_modules` guard) without</span>
+<span class="add">+  becoming brittle to incidental script formatting.</span>
+<span class="add">+</span>
+<span class="add">+### Out of Scope</span>
+<span class="add">+- Changing the Cargo or pyproject branches (no equivalent “install if</span>
+<span class="add">+  missing” behavior introduced for Rust/Python).</span>
+<span class="add">+- Adding new package managers (pnpm, yarn) to the install heuristic.</span>
+<span class="add">+- Modifying the engine, workflow YAML, prompts, or other scripts</span>
+<span class="add">+  (`commit.sh`, `pr.sh`).</span>
+<span class="add">+- Adding a separate `npm run build` step — the issue is strictly about</span>
+<span class="add">+  dependency hydration, not build invocation.</span>
+<span class="add">+- Regenerating or copying the installed `.cycle/scripts/verify.sh` in</span>
+<span class="add">+  this repo (that propagates via `init --upgrade`, out of cycle scope).</span>
+<span class="add">+</span>
+<span class="add">+## Requirements</span>
+<span class="add">+- When `package.json` exists and contains a `&quot;test&quot;` script:</span>
+<span class="add">+  - If `node_modules/` does not exist, run `npm install` before</span>
+<span class="add">+    `npm test`.</span>
+<span class="add">+  - If `node_modules/` already exists, behavior is unchanged</span>
+<span class="add">+    (`npm install` is not re-run).</span>
+<span class="add">+- `set -euo pipefail` semantics preserved: an `npm install` failure</span>
+<span class="add">+  must abort `verify.sh` with a non-zero exit code, surfacing through</span>
+<span class="add">+  the engine&#39;s `step.end status=failed` event.</span>
+<span class="add">+- The script keeps a single shebang `#!/usr/bin/env bash` on line one</span>
+<span class="add">+  and retains its executable bit.</span>
+<span class="add">+- No new external dependencies; behavior is implemented in pure POSIX</span>
+<span class="add">+  shell + the already-required `npm` CLI.</span>
+<span class="add">+</span>
+<span class="add">+## Acceptance Criteria</span>
+<span class="add">+- [ ] `src/defaults/scripts/verify.sh` contains a conditional that</span>
+<span class="add">+      runs `npm install` only when `package.json` exists and</span>
+<span class="add">+      `node_modules/` does not.</span>
+<span class="add">+- [ ] `npm test` is still the final command on the Node branch.</span>
+<span class="add">+- [ ] `tests/defaults/scripts.test.ts` asserts the install-on-missing</span>
+<span class="add">+      branch is present in `verify.sh`, in addition to the existing</span>
+<span class="add">+      shebang + executable checks.</span>
+<span class="add">+- [ ] All 26 existing tests continue to pass.</span>
+<span class="add">+- [ ] `npm run build` succeeds with no new TypeScript / esbuild</span>
+<span class="add">+      warnings.</span>
+<span class="add">+- [ ] Manual sanity check: in a scratch directory with a minimal</span>
+<span class="add">+      `package.json` (containing a `&quot;test&quot;` script) and no</span>
+<span class="add">+      `node_modules/`, running `bash src/defaults/scripts/verify.sh`</span>
+<span class="add">+      installs dependencies and then runs `npm test`. With</span>
+<span class="add">+      `node_modules/` present, it skips install.</span>
+<span class="add">+</span>
+<span class="add">+## Testing Strategy</span>
+<span class="add">+- **Framework:** existing `node:test` runner used by the rest of the</span>
+<span class="add">+  suite.</span>
+<span class="add">+- **Static assertion (added):** read `verify.sh`, assert it contains</span>
+<span class="add">+  both an `npm install` invocation and a `node_modules` existence</span>
+<span class="add">+  check — guards against accidental regression of the new behavior.</span>
+<span class="add">+  Keep the regex permissive enough to tolerate reasonable shell</span>
+<span class="add">+  formatting variations (e.g., `[ ! -d node_modules ]` vs</span>
+<span class="add">+  `[[ ! -d node_modules ]]`).</span>
+<span class="add">+- **Existing assertions retained:** shebang on line 1, executable</span>
+<span class="add">+  mode bit set.</span>
+<span class="add">+- **Regression coverage:** the full `npm test` suite must continue to</span>
+<span class="add">+  pass (currently 26 tests).</span>
+<span class="add">+- **No new E2E:** purely a shell-script change inside the defaults</span>
+<span class="add">+  surface; behavioral validation is via the static assertion plus the</span>
+<span class="add">+  manual sanity check noted above.</span>
+<span class="add">+</span>
+<span class="add">+## Documentation Updates</span>
+<span class="add">+- **CLAUDE.md / AGENTS.md:** no changes — the verify-script behavior</span>
+<span class="add">+  is internal to the defaults surface and does not change the engine</span>
+<span class="add">+  contract or user-facing commands.</span>
+<span class="add">+- **README.md:** no changes — one-line repo description still</span>
+<span class="add">+  accurate.</span>
+<span class="add">+- **BRIEF.md:** no changes — auto-install on a fresh checkout is a</span>
+<span class="add">+  refinement of the existing &quot;no `npm install` required in the</span>
+<span class="add">+  consuming repo after init&quot; stance for the *engine bundle*, not a</span>
+<span class="add">+  contradiction (the verify script is a per-repo script that may</span>
+<span class="add">+  legitimately need its own deps).</span>
+<span class="add">+</span>
+<span class="add">+## Dependencies</span>
+<span class="add">+- Node ≥ 22.6 and `npm` available on `$PATH` (already required by the</span>
+<span class="add">+  project per BRIEF.md).</span>
+<span class="add">+- Bash 3.2+ (default on macOS / every modern Linux); no Bash 4-only</span>
+<span class="add">+  features used.</span>
+<span class="add">+- No new env vars, no external services.</span>
+<span class="add">+```</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/queued/txt-20260512-231149-make-cycle-scripts-verify-sh-run-npm-ins.md b/docs/cycle/issues/queued/txt-20260512-231149-make-cycle-scripts-verify-sh-run-npm-ins.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..1fd6d9b</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/issues/queued/txt-20260512-231149-make-cycle-scripts-verify-sh-run-npm-ins.md</span>
+<span class="hunk">@@ -0,0 +1,9 @@</span>
+<span class="add">+---</span>
+<span class="add">+id: txt-20260512-231149-make-cycle-scripts-verify-sh-run-npm-ins</span>
+<span class="add">+source: text</span>
+<span class="add">+title: &quot;Make .cycle/scripts/verify.sh run &#39;npm install&#39; first if package.json exists but node_modules is missing, so cycle survives a fresh checkout. Also update tests/defaults/scripts.test.ts if needed.&quot;</span>
+<span class="add">+added_at: 2026-05-12T23:11:49.683Z</span>
+<span class="add">+triage_attempts: 0</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+Make .cycle/scripts/verify.sh run &#39;npm install&#39; first if package.json exists but node_modules is missing, so cycle survives a fresh checkout. Also update tests/defaults/scripts.test.ts if needed.</span>
+<span class="fileheader">diff --git a/src/defaults/scripts/verify.sh b/src/defaults/scripts/verify.sh</span>
+<span class="fileheader">index de023ee..5a6245e 100755</span>
+<span class="meta">--- a/src/defaults/scripts/verify.sh</span>
+<span class="meta">+++ b/src/defaults/scripts/verify.sh</span>
+<span class="hunk">@@ -4,6 +4,9 @@</span>
+<span class="ctx"> set -euo pipefail</span>
+<span class="ctx"> </span>
+<span class="ctx"> if [ -f package.json ] &amp;&amp; grep -q &#39;&quot;test&quot;&#39; package.json; then</span>
+<span class="add">+  if [ ! -d node_modules ]; then</span>
+<span class="add">+    npm install</span>
+<span class="add">+  fi</span>
+<span class="ctx">   npm test</span>
+<span class="ctx"> elif [ -f Cargo.toml ]; then</span>
+<span class="ctx">   cargo test</span>
+<span class="fileheader">diff --git a/tests/defaults/scripts.test.ts b/tests/defaults/scripts.test.ts</span>
+<span class="fileheader">index 5454d2e..bdfd419 100644</span>
+<span class="meta">--- a/tests/defaults/scripts.test.ts</span>
+<span class="meta">+++ b/tests/defaults/scripts.test.ts</span>
+<span class="hunk">@@ -11,3 +11,9 @@ for (const s of [&quot;verify.sh&quot;, &quot;commit.sh&quot;, &quot;pr.sh&quot;]) {</span>
+<span class="ctx">     assert.ok((st.mode &amp; 0o111) !== 0, `${s} should be executable`);</span>
+<span class="ctx">   });</span>
+<span class="ctx"> }</span>
+<span class="add">+</span>
+<span class="add">+test(&quot;verify.sh installs deps when node_modules is missing&quot;, async () =&gt; {</span>
+<span class="add">+  const body = await readFile(&quot;src/defaults/scripts/verify.sh&quot;, &quot;utf8&quot;);</span>
+<span class="add">+  assert.match(body, /npm install/, &quot;verify.sh should invoke npm install&quot;);</span>
+<span class="add">+  assert.match(body, /node_modules/, &quot;verify.sh should reference node_modules&quot;);</span>
+<span class="add">+});</span>
+<span class="ctx">&nbsp;</span></pre>
+</section>
+
+<nav class="pager">
+  <a href="cycle-0001.html">← Cycle 0001</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0005.html">Cycle 0005 →</a>
+</nav>
+
+<footer>Generated from <code>c223338</code></footer>
+</body>
+</html>

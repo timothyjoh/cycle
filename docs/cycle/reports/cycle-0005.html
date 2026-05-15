@@ -1,0 +1,1031 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0005 · Fix commit.sh per GitHub issue #4 (https://github.com/timothyjoh/cycle/issues/4) — run &#39;gh issue view 4&#39; first for full context. Stage only the cycle&#39;s expected change surface; drop &#39;git add -A&#39;. (#7)</title>
+<style>
+  body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: #1f2328; background: #fff; }
+  header { border-bottom: 1px solid #d0d7de; padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 .3rem; }
+  .subtitle { color: #57606a; font-size: .9rem; }
+  .meta-row { margin-top: .4rem; color: #57606a; font-size: .85rem; }
+  .meta-row code { background: #f6f8fa; padding: .1rem .35rem; border-radius: 3px; }
+  nav.pager { display: flex; justify-content: space-between; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid #d0d7de; border-bottom: 1px solid #d0d7de; }
+  nav.pager a { color: #0969da; text-decoration: none; padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: #f6f8fa; }
+  nav.pager .disabled { color: #8c959f; pointer-events: none; }
+  nav.pager .center { color: #57606a; font-size: .85rem; align-self: center; }
+  section { margin-bottom: 1.5rem; }
+  section h2 { font-size: 1rem; margin: 0 0 .5rem; color: #57606a; text-transform: uppercase; letter-spacing: .05em; }
+  pre.commit-msg { background: #f6f8fa; padding: 1rem; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
+  pre.stat { background: #f6f8fa; padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; }
+  pre.diff { background: #fff; padding: 0; border: 1px solid #d0d7de; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.5; overflow-x: auto; white-space: pre; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: #dafbe1; color: #1a7f37; }
+  pre.diff .del { background: #ffebe9; color: #cf222e; }
+  pre.diff .hunk { background: #ddf4ff; color: #0969da; }
+  pre.diff .fileheader { background: #f6f8fa; color: #57606a; font-weight: 600; padding-top: .3rem; padding-bottom: .3rem; }
+  pre.diff .meta { color: #57606a; }
+  pre.diff .ctx { color: #1f2328; }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #d0d7de; color: #8c959f; font-size: .8rem; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0005</h1>
+  <div class="subtitle">Fix commit.sh per GitHub issue #4 (https://github.com/timothyjoh/cycle/issues/4) — run &#39;gh issue view 4&#39; first for full context. Stage only the cycle&#39;s expected change surface; drop &#39;git add -A&#39;. (#7)</div>
+  <div class="meta-row">
+    <code>1b54a48</code> · Timothy Johnson · 2026-05-12 20:52:57 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0002.html">← Cycle 0002</a>
+  <span class="center">5 of 10</span>
+  <a href="cycle-0006.html">Cycle 0006 →</a>
+</nav>
+
+<section>
+  <h2>Commit message</h2>
+  <pre class="commit-msg">cycle 0005: Fix commit.sh per GitHub issue #4 (https://github.com/timothyjoh/cycle/issues/4) — run &#39;gh issue view 4&#39; first for full context. Stage only the cycle&#39;s expected change surface; drop &#39;git add -A&#39;. (#7)</pre>
+</section>
+
+<section>
+  <h2>Files changed</h2>
+  <pre class="stat">.cycle/scripts/commit.sh                           |  54 ++++-
+ docs/DOGFOOD.md                                    |   2 +
+ .../BUILD.md                                       |  25 +++
+ .../FIX.md                                         |   7 +
+ .../PLAN.md                                        | 241 +++++++++++++++++++++
+ .../RESEARCH.md                                    |  78 +++++++
+ .../REVIEW.md                                      |  45 ++++
+ .../SPEC.md                                        | 141 ++++++++++++
+ ...907-fix-commit-sh-per-github-issue-4-https-g.md |   9 +
+ ...907-fix-pr-sh-per-github-issue-5-https-githu.md |   9 +
+ src/defaults/scripts/commit.sh                     |  54 ++++-
+ tests/defaults/commit-staging.test.ts              | 190 ++++++++++++++++
+ 12 files changed, 847 insertions(+), 8 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/.cycle/scripts/commit.sh b/.cycle/scripts/commit.sh</span>
+<span class="fileheader">index 5096647..67ace88 100755</span>
+<span class="meta">--- a/.cycle/scripts/commit.sh</span>
+<span class="meta">+++ b/.cycle/scripts/commit.sh</span>
+<span class="hunk">@@ -1,13 +1,59 @@</span>
+<span class="ctx"> #!/usr/bin/env bash</span>
+<span class="del">-# Stage everything and create a single commit. Cycle ID + title come</span>
+<span class="del">-# from CYCLE_ID / CYCLE_TITLE env vars set by the engine before</span>
+<span class="del">-# invoking this script.</span>
+<span class="add">+# Selectively stage the cycle&#39;s intended change surface and create one</span>
+<span class="add">+# commit. Honors a hard denylist (.claude, dist, node_modules, *.lock,</span>
+<span class="add">+# .cycle/cycle.pid, 160000 gitlinks). Residual untracked/modified paths</span>
+<span class="add">+# are reported on stderr but never staged. CYCLE_ID + CYCLE_TITLE come</span>
+<span class="add">+# from the engine.</span>
+<span class="ctx"> set -euo pipefail</span>
+<span class="ctx"> </span>
+<span class="ctx"> : &quot;${CYCLE_ID:?CYCLE_ID must be set by cycle engine}&quot;</span>
+<span class="ctx"> : &quot;${CYCLE_TITLE:?CYCLE_TITLE must be set}&quot;</span>
+<span class="ctx"> </span>
+<span class="del">-git add -A</span>
+<span class="add">+is_denied() {</span>
+<span class="add">+  local p=&quot;$1&quot;</span>
+<span class="add">+  local q=&quot;${p%/}&quot;</span>
+<span class="add">+  case &quot;$q&quot; in</span>
+<span class="add">+    .claude|.claude/*) return 0 ;;</span>
+<span class="add">+    dist|dist/*) return 0 ;;</span>
+<span class="add">+    node_modules|node_modules/*) return 0 ;;</span>
+<span class="add">+    .cycle/cycle.pid) return 0 ;;</span>
+<span class="add">+    *.lock) return 0 ;;</span>
+<span class="add">+  esac</span>
+<span class="add">+  return 1</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="add">+gitlink_paths=$(git ls-files --stage 2&gt;/dev/null | awk &#39;$1 == &quot;160000&quot; { print $4 }&#39; || true)</span>
+<span class="add">+is_gitlink() {</span>
+<span class="add">+  local p=&quot;$1&quot;</span>
+<span class="add">+  local q=&quot;${p%/}&quot;</span>
+<span class="add">+  if [ -n &quot;$gitlink_paths&quot; ]; then</span>
+<span class="add">+    if printf &#39;%s\n&#39; &quot;$gitlink_paths&quot; | grep -Fxq -- &quot;$q&quot;; then</span>
+<span class="add">+      return 0</span>
+<span class="add">+    fi</span>
+<span class="add">+  fi</span>
+<span class="add">+  [ -e &quot;$q/.git&quot; ] &amp;&amp; return 0</span>
+<span class="add">+  return 1</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="add">+while IFS= read -r line; do</span>
+<span class="add">+  [ -z &quot;$line&quot; ] &amp;&amp; continue</span>
+<span class="add">+  xy=&quot;${line:0:2}&quot;</span>
+<span class="add">+  path=&quot;${line:3}&quot;</span>
+<span class="add">+  case &quot;$xy&quot; in</span>
+<span class="add">+    R*|C*)</span>
+<span class="add">+      path=&quot;${path##* -&gt; }&quot;</span>
+<span class="add">+      ;;</span>
+<span class="add">+  esac</span>
+<span class="add">+  path=&quot;${path#\&quot;}&quot;</span>
+<span class="add">+  path=&quot;${path%\&quot;}&quot;</span>
+<span class="add">+  if is_denied &quot;$path&quot; || is_gitlink &quot;$path&quot;; then</span>
+<span class="add">+    printf &#39;commit.sh: unstaged residual: %s\n&#39; &quot;$path&quot; &gt;&amp;2</span>
+<span class="add">+    git reset -q HEAD -- &quot;$path&quot; 2&gt;/dev/null || true</span>
+<span class="add">+    continue</span>
+<span class="add">+  fi</span>
+<span class="add">+  git add -- &quot;$path&quot;</span>
+<span class="add">+done &lt; &lt;(git status --porcelain --untracked-files=all)</span>
+<span class="add">+</span>
+<span class="ctx"> if git diff --cached --quiet; then</span>
+<span class="ctx">   echo &quot;commit.sh: nothing to commit&quot;</span>
+<span class="ctx">   exit 0</span>
+<span class="fileheader">diff --git a/docs/DOGFOOD.md b/docs/DOGFOOD.md</span>
+<span class="fileheader">index c699fe3..14163d0 100644</span>
+<span class="meta">--- a/docs/DOGFOOD.md</span>
+<span class="meta">+++ b/docs/DOGFOOD.md</span>
+<span class="hunk">@@ -76,6 +76,8 @@ policy. Either use `git add --intent-to-add` + commit only files that</span>
+<span class="ctx"> match the cycle&#39;s expected change surface, or add common transients</span>
+<span class="ctx"> to `.gitignore` defaults that `cycle init` ships.</span>
+<span class="ctx"> </span>
+<span class="add">+**Resolved in cycle 0005 (GH #4).**</span>
+<span class="add">+</span>
+<span class="ctx"> ### 4. No engine-side recovery after a step failure</span>
+<span class="ctx"> </span>
+<span class="ctx"> When `verify` failed, the engine emitted `cycle.end status=failed` and</span>
+<span class="fileheader">diff --git a/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/BUILD.md b/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/BUILD.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..134ca33</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/BUILD.md</span>
+<span class="hunk">@@ -0,0 +1,25 @@</span>
+<span class="add">+Build complete. Summary follows.</span>
+<span class="add">+</span>
+<span class="add">+# BUILD Summary — Cycle 0005</span>
+<span class="add">+</span>
+<span class="add">+## Files modified / created</span>
+<span class="add">+- `src/defaults/scripts/commit.sh` (rewrite, 16 → 62 lines): replaced `git add -A` with selective-staging loop driven by `git status --porcelain --untracked-files=all`, denylist (`.claude/**`, `dist/**`, `node_modules/**`, `*.lock`, `.cycle/cycle.pid`), and gitlink detection (mode 160000 via `git ls-files --stage` + fs probe for `$path/.git`). Residuals emit `commit.sh: unstaged residual: &lt;path&gt;` to stderr; denylisted entries already in the index are defensively unstaged via `git reset -q HEAD -- &quot;$path&quot;`. Preserves `nothing to commit` exit-0 and trailing `git rev-parse HEAD`.</span>
+<span class="add">+- `.cycle/scripts/commit.sh` (auto, 62 lines): synced byte-for-byte from `src/defaults/scripts/commit.sh` via `npm run sync-defaults`.</span>
+<span class="add">+- `tests/defaults/commit-staging.test.ts` (new, 190 lines): 6 behavioral tests over tmpdir git fixtures — happy path, transient rejection (incl. mode 160000 cacheinfo gitlink), node_modules + arbitrary `.lock`, nothing-to-commit with only transients, triaged issue file location, and source-level `git add -A` regression guard.</span>
+<span class="add">+- `docs/DOGFOOD.md` (one line appended after line 77): `**Resolved in cycle 0005 (GH #4).**`</span>
+<span class="add">+</span>
+<span class="add">+## PLAN tasks complete</span>
+<span class="add">+Task 1 (test suite — red phase initially confirmed: 4/6 new tests failed against the original `git add -A`), Task 2 (script rewrite — green phase), Task 3 (sync, DOGFOOD annotation, gate run) — all complete.</span>
+<span class="add">+</span>
+<span class="add">+## Test run</span>
+<span class="add">+`npm test` — `node --test --experimental-strip-types --test-reporter=spec` → 43 pass, 0 fail, 0 skipped, ~2.6 s. Includes the 6 new tests under `tests/defaults/commit-staging.test.ts` and the prior `tests/defaults/scripts.test.ts` regression (`commit.sh has shebang and is executable`).</span>
+<span class="add">+</span>
+<span class="add">+## Deviations from PLAN</span>
+<span class="add">+1. **`git status --porcelain --untracked-files=all`** instead of bare `--porcelain`. The default `normal` untracked mode collapses directories (`?? .claude/`), which would have produced a single coarse residual line and broken per-file SPEC assertions. `-uall` enumerates each file and is required to satisfy the SPEC&#39;s &quot;each residual path on its own line&quot; guarantee.</span>
+<span class="add">+2. **Defensive `git reset -q HEAD -- &quot;$path&quot;`** added for denylist/gitlink matches. Necessary because already-indexed denylisted entries (e.g. a 160000 cacheinfo or a stray `git add` from upstream steps) would otherwise survive the staging pass and end up in the commit. Implements the SPEC&#39;s &quot;MUST treat … never stage them, even if they match the allowlist by accident.&quot;</span>
+<span class="add">+3. **Test fixture seeds a `.gitignore` containing `.cycle/`** so the test&#39;s own fixture scaffolding (`.cycle/log.jsonl`, `.cycle/scripts/commit.sh`) doesn&#39;t pollute `git status` output — mirrors the real-repo `.gitignore` setup.</span>
+<span class="add">+4. **Issue-file resolution simplified** per the PLAN&#39;s own resolution of RESEARCH open questions: porcelain naturally enumerates the issue file as an untracked addition, so no explicit `.cycle/log.jsonl` parse is needed. The `.cycle/log.jsonl` is still produced by the engine and remains available for diagnostic use.</span>
+<span class="add">+</span>
+<span class="add">+## Known follow-ups (not in this cycle)</span>
+<span class="add">+- `npm run typecheck` reports two **pre-existing** errors in `tests/cli/multi-loop.test.ts` (TS2550 on `Array.findLast` — `lib` target needs `es2023`). Unrelated to this cycle; flagged for a separate fix.</span>
+<span class="add">+- `dist/defaults/scripts/commit.sh` is the build-output copy and was intentionally NOT edited (out of SPEC); `scripts/build.mjs` will regenerate it from `src/defaults/` on next build.</span>
+<span class="fileheader">diff --git a/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/FIX.md b/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/FIX.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..ce30a89</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/FIX.md</span>
+<span class="hunk">@@ -0,0 +1,7 @@</span>
+<span class="add">+Review verdict: PASS. No MUST-FIX.md written. No blocking issues.</span>
+<span class="add">+</span>
+<span class="add">+Per skill: &quot;This step runs only when a MUST-FIX.md exists from the review step (`skip_unless: MUST-FIX.md`).&quot; Engine fired fix anyway, but no fixes needed.</span>
+<span class="add">+</span>
+<span class="add">+Writing FIX.md note to stdout per output spec.</span>
+<span class="add">+</span>
+<span class="add">+**Summary:** No MUST-FIX.md exists for cycle 0005 — review verdict was PASS with only non-blocking findings (path-quoting hardening, missing M/R/C/UTF-8 test coverage, pre-existing tsc errors in unrelated test file). Zero tasks to address. Skipping fix work; ran no test suite since no changes were made. Recommend engine proceed to verify/commit/pr.</span>
+<span class="fileheader">diff --git a/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/PLAN.md b/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/PLAN.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..9bc37c1</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/PLAN.md</span>
+<span class="hunk">@@ -0,0 +1,241 @@</span>
+<span class="add">+Resolved open questions. Now emitting plan to stdout.</span>
+<span class="add">+</span>
+<span class="add">+```markdown</span>
+<span class="add">+# Implementation Plan: Cycle 0005</span>
+<span class="add">+</span>
+<span class="add">+## Overview</span>
+<span class="add">+Rewrite `src/defaults/scripts/commit.sh` to stage an explicit allowlist (cycle artifact dir, source issue file, all non-denylisted working-tree changes) instead of `git add -A`, with a hard denylist that refuses `.claude/**`, `dist/**`, `node_modules/**`, `*.lock`, and `160000` gitlinks. Backed by new `node:test` behavioral coverage in `tests/defaults/commit-staging.test.ts` and synced into the repo&#39;s own engine via `npm run sync-defaults`.</span>
+<span class="add">+</span>
+<span class="add">+## Current State (from Research)</span>
+<span class="add">+- Authoritative script: `src/defaults/scripts/commit.sh:1-16` — 16 lines, currently `git add -A` then commit + `git rev-parse HEAD`. Mirrored byte-for-byte to `.cycle/scripts/commit.sh:1`.</span>
+<span class="add">+- Engine env contract: `CYCLE_ID`, `CYCLE_TITLE`, `CYCLE_BASE` exported by `src/engine/run-cycle.ts:27`; `issue_id` is NOT exported.</span>
+<span class="add">+- Issue ↔ cycle lookup table: `.cycle/log.jsonl` records carry `{event:&quot;cycle.start&quot;, cycle_id, issue_id, ...}`.</span>
+<span class="add">+- Artifact dir convention: `docs/cycle/&lt;CYCLE_ID&gt;-&lt;workflow&gt;-&lt;slug&gt;/` (`src/engine/branch.ts:20`).</span>
+<span class="add">+- Tests use `node:test` + `node:assert/strict` with `mkdtemp` + `try/finally rm` tmpdir fixtures (`tests/engine/exec-bash.test.ts:8-22`). Existing `tests/defaults/scripts.test.ts:5-13` covers shebang/exec bit only.</span>
+<span class="add">+- Sync helper: `scripts/sync-defaults.mjs:9-13` mirrors `src/defaults/scripts/` → `.cycle/scripts/`.</span>
+<span class="add">+- DOGFOOD retrospective entry to mark resolved: `docs/DOGFOOD.md:67-77`.</span>
+<span class="add">+</span>
+<span class="add">+## Desired End State</span>
+<span class="add">+- `src/defaults/scripts/commit.sh` contains zero occurrences of `git add -A` and `git add .` and instead resolves the issue file via `.cycle/log.jsonl`, walks `git status --porcelain`, and stages only allowed paths.</span>
+<span class="add">+- New file `tests/defaults/commit-staging.test.ts` exercises happy path, transient rejection (incl. mode `160000` gitlink), residual stderr reporting, empty staging, and issue-file location handling against a tmpdir git fixture.</span>
+<span class="add">+- `.cycle/scripts/commit.sh` is byte-identical to `src/defaults/scripts/commit.sh` after `npm run sync-defaults`.</span>
+<span class="add">+- `docs/DOGFOOD.md` section 3 ends with a one-line resolution annotation pointing at cycle 0005 + GH #4.</span>
+<span class="add">+- `npm test` green, `npm run typecheck` green.</span>
+<span class="add">+</span>
+<span class="add">+## What We&#39;re NOT Doing</span>
+<span class="add">+- Editing `dist/defaults/scripts/commit.sh` (build output, regenerated by `scripts/build.mjs`).</span>
+<span class="add">+- Engine changes — `src/engine/run-cycle.ts` will NOT be modified to export `issue_id`. Resolution stays inside the script via `.cycle/log.jsonl`.</span>
+<span class="add">+- Edits to `verify.sh`, `pr.sh`, or other default scripts.</span>
+<span class="add">+- `.gitignore` defaults emitted by `cycle init`.</span>
+<span class="add">+- Adding `--intent-to-add` or interactive staging — SPEC mandates one-shot porcelain-driven staging.</span>
+<span class="add">+- Sorting residual stderr output — we preserve `git status --porcelain` order for determinism.</span>
+<span class="add">+</span>
+<span class="add">+## Implementation Approach</span>
+<span class="add">+</span>
+<span class="add">+**Staging algorithm.** Single pass over `git status --porcelain` (parsed line by line, two-char XY status then space then path; rename lines `R…` produce `orig -&gt; new` — only the new path is staged). For each path:</span>
+<span class="add">+1. If path matches denylist → skip and emit residual line.</span>
+<span class="add">+2. If path is in the pre-computed gitlink set (paths with mode `160000` from `git ls-files --stage`) → skip and emit residual.</span>
+<span class="add">+3. Otherwise → `git add -- &quot;$path&quot;`.</span>
+<span class="add">+</span>
+<span class="add">+This unifies &quot;cycle artifact dir&quot;, &quot;issue file&quot;, and &quot;ordinary working-tree changes&quot; into one allowlist: anything in `git status --porcelain` that survives the denylist. The artifact dir and issue file are implicitly captured because they will be in `git status` output as untracked/modified entries when this script runs. We do NOT need to glob `docs/cycle/${CYCLE_ID}-*/` separately — porcelain already enumerates them. (This simplifies the SPEC&#39;s tri-part allowlist into a single denylist-driven filter and matches the SPEC&#39;s literal text: &quot;stage every path reported by `git status --porcelain` that is not matched by the denylist and is not a directory gitlink.&quot;)</span>
+<span class="add">+</span>
+<span class="add">+**Issue-file resolution** is therefore not required for staging correctness — the issue file appears in porcelain output if it changed during the cycle. We still resolve `issue_id` from `.cycle/log.jsonl` and log it for diagnostic purposes (so if the issue file is missing from staging, the residual log makes the omission visible).</span>
+<span class="add">+</span>
+<span class="add">+**Resolution of RESEARCH open questions:**</span>
+<span class="add">+- *Issue-file resolution mechanism*: Use the simpler unified-porcelain approach above. Read `.cycle/log.jsonl` once via `grep &#39;&quot;event&quot;:&quot;cycle.start&quot;&#39; | grep &quot;\&quot;cycle_id\&quot;:\&quot;$CYCLE_ID\&quot;&quot; | tail -1 | sed` for diagnostic logging only.</span>
+<span class="add">+- *Gitlink detection*: Pre-compute via `git ls-files --stage` and filter `awk &#39;$1 == &quot;160000&quot; { print $4 }&#39;`. For untracked worktree dirs that aren&#39;t yet indexed, they appear as `?? path/` in porcelain — denylist `.claude/worktrees/**` covers the known case, and any path containing `/.git` inside a directory we detect with `[ -e &quot;$path/.git&quot; ]` test as a secondary gate.</span>
+<span class="add">+- *Fixture gitlink construction*: `git update-index --add --cacheinfo 160000,&lt;40-char-sha&gt;,&lt;path&gt;` using a deterministic fake sha (`0000000000000000000000000000000000000000` rejected by some git versions — use a real blob sha from `git hash-object` of a stub file).</span>
+<span class="add">+- *Allowlist batching vs per-path*: Per-path `git add -- &quot;$path&quot;`. Clearer stderr ordering, no quoting edge cases with `xargs`.</span>
+<span class="add">+- *Residual output ordering*: Preserve `git status --porcelain` order. Tests assert exact lines via `assert.match` against the captured stderr.</span>
+<span class="add">+- *DOGFOOD format*: Append `**Resolved in cycle 0005 (GH #4).**` as the last line of section 3.</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 1: Behavioral test suite for selective staging (red phase)</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+Create `tests/defaults/commit-staging.test.ts` exercising the new staging contract against a tmpdir git fixture. Tests will fail against the current `git add -A` implementation; they form the regression net.</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+**File**: `tests/defaults/commit-staging.test.ts` (new)</span>
+<span class="add">+**Pattern**: mirror `tests/engine/exec-bash.test.ts:8-22` tmpdir shape. Each test creates a fresh tmpdir, runs `git init`, sets `user.email`/`user.name`, makes an initial commit, copies `src/defaults/scripts/commit.sh` into `&lt;tmp&gt;/.cycle/scripts/commit.sh` (chmod 0o755), seeds `.cycle/log.jsonl` with a synthetic `cycle.start` record, lays out fixture files, then invokes `spawnSync(&quot;bash&quot;, [&quot;.cycle/scripts/commit.sh&quot;], { cwd, env: {...process.env, CYCLE_ID, CYCLE_TITLE}, encoding: &quot;utf8&quot; })` and asserts on `stdout`, `stderr`, exit code, and `git show --stat --name-only HEAD`.</span>
+<span class="add">+</span>
+<span class="add">+**Test cases** (each its own `test(...)` block):</span>
+<span class="add">+</span>
+<span class="add">+1. `stages cycle artifact dir, issue file, and source change` (happy path):</span>
+<span class="add">+   - Fixture: `docs/cycle/0099-feature-test/SPEC.md`, `docs/cycle/issues/queued/test-issue.md`, `src/app.ts` modified from initial commit.</span>
+<span class="add">+   - Assert: `git show --name-only HEAD` lists exactly those three paths (sorted).</span>
+<span class="add">+   - Assert: exit code 0; stdout includes commit sha (40 hex chars on its own line).</span>
+<span class="add">+</span>
+<span class="add">+2. `rejects .claude lock, dist artifact, and 160000 gitlink`:</span>
+<span class="add">+   - Fixture: happy-path files plus `.claude/scheduled_tasks.lock`, `dist/foo.js`, and a fake gitlink injected via `git update-index --add --cacheinfo 160000,&lt;sha&gt;,fake-submodule` where `&lt;sha&gt;` is `git hash-object -w stub.txt`.</span>
+<span class="add">+   - Assert: commit&#39;s name-only listing does NOT contain `.claude/scheduled_tasks.lock`, `dist/foo.js`, or `fake-submodule`.</span>
+<span class="add">+   - Assert: stderr contains `commit.sh: unstaged residual: .claude/scheduled_tasks.lock`, same prefix for `dist/foo.js` and `fake-submodule` (use `assert.match` per line).</span>
+<span class="add">+   - Assert: `git status --porcelain` after script still shows the three transients.</span>
+<span class="add">+</span>
+<span class="add">+3. `rejects arbitrary .lock and node_modules paths`:</span>
+<span class="add">+   - Fixture: happy-path + `node_modules/junk/index.js` + `something.lock` at repo root.</span>
+<span class="add">+   - Assert: neither path in commit; both in stderr residual lines.</span>
+<span class="add">+</span>
+<span class="add">+4. `exits 0 with nothing-to-commit when only transients are present`:</span>
+<span class="add">+   - Fixture: only `.claude/scheduled_tasks.lock` and `dist/foo.js` present, no allowlist paths changed.</span>
+<span class="add">+   - Assert: stdout contains `commit.sh: nothing to commit`; exit code 0; `git log --oneline` shows only the seed commit; stderr contains the residual lines.</span>
+<span class="add">+</span>
+<span class="add">+5. `triaged-dir issue file is staged just like queued`:</span>
+<span class="add">+   - Fixture: issue file lives at `docs/cycle/issues/triaged/test-issue.md` rather than queued.</span>
+<span class="add">+   - Assert: file present in commit listing.</span>
+<span class="add">+</span>
+<span class="add">+6. `script source contains no blanket git add invocation` (regression):</span>
+<span class="add">+   - Read `src/defaults/scripts/commit.sh`, `assert.doesNotMatch` against `/git add -A/` and `/git add \.\s/`.</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] File `tests/defaults/commit-staging.test.ts` compiles under `--experimental-strip-types` (`tsc --noEmit` passes).</span>
+<span class="add">+- [ ] All 6 tests FAIL when run against unmodified `commit.sh` (proves they exercise the new contract).</span>
+<span class="add">+- [ ] No flakiness across two consecutive runs (tmpdir cleanup verified).</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 2: Rewrite `commit.sh` with selective staging (green phase)</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+Replace `git add -A` with the unified-porcelain + denylist algorithm. Preserve `nothing to commit` exit-0 semantics and trailing `git rev-parse HEAD`.</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+**File**: `src/defaults/scripts/commit.sh`</span>
+<span class="add">+**New body** (replaces lines 10-16; lines 1-9 preserved with the comment updated to describe selective staging):</span>
+<span class="add">+</span>
+<span class="add">+```bash</span>
+<span class="add">+#!/usr/bin/env bash</span>
+<span class="add">+# Selectively stage the cycle&#39;s intended change surface and create one</span>
+<span class="add">+# commit. Honors a hard denylist (.claude, dist, node_modules, *.lock,</span>
+<span class="add">+# 160000 gitlinks). Residual untracked/modified paths are reported on</span>
+<span class="add">+# stderr but never staged. CYCLE_ID + CYCLE_TITLE come from the engine.</span>
+<span class="add">+set -euo pipefail</span>
+<span class="add">+</span>
+<span class="add">+: &quot;${CYCLE_ID:?CYCLE_ID must be set by cycle engine}&quot;</span>
+<span class="add">+: &quot;${CYCLE_TITLE:?CYCLE_TITLE must be set}&quot;</span>
+<span class="add">+</span>
+<span class="add">+is_denied() {</span>
+<span class="add">+  local p=&quot;$1&quot;</span>
+<span class="add">+  case &quot;$p&quot; in</span>
+<span class="add">+    .claude/*|.claude) return 0 ;;</span>
+<span class="add">+    dist/*|dist) return 0 ;;</span>
+<span class="add">+    node_modules/*|node_modules) return 0 ;;</span>
+<span class="add">+    .cycle/cycle.pid) return 0 ;;</span>
+<span class="add">+    *.lock) return 0 ;;</span>
+<span class="add">+  esac</span>
+<span class="add">+  return 1</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="add">+# Pre-compute paths that are tracked as gitlinks (mode 160000).</span>
+<span class="add">+gitlink_paths=$(git ls-files --stage 2&gt;/dev/null | awk &#39;$1 == &quot;160000&quot; { print $4 }&#39; || true)</span>
+<span class="add">+is_gitlink() {</span>
+<span class="add">+  local p=&quot;$1&quot;</span>
+<span class="add">+  [ -n &quot;$gitlink_paths&quot; ] &amp;&amp; printf &#39;%s\n&#39; &quot;$gitlink_paths&quot; | grep -Fxq -- &quot;$p&quot; &amp;&amp; return 0</span>
+<span class="add">+  [ -e &quot;$p/.git&quot; ] &amp;&amp; return 0</span>
+<span class="add">+  return 1</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="add">+# Iterate git status --porcelain. Each line: XY&lt;space&gt;&lt;path&gt;; for renames the</span>
+<span class="add">+# path is &quot;orig -&gt; new&quot; and we want only the new path.</span>
+<span class="add">+while IFS= read -r line; do</span>
+<span class="add">+  [ -z &quot;$line&quot; ] &amp;&amp; continue</span>
+<span class="add">+  xy=&quot;${line:0:2}&quot;</span>
+<span class="add">+  path=&quot;${line:3}&quot;</span>
+<span class="add">+  # Handle rename: &quot;R  orig -&gt; new&quot; — keep new side.</span>
+<span class="add">+  case &quot;$xy&quot; in</span>
+<span class="add">+    R*|C*)</span>
+<span class="add">+      path=&quot;${path##* -&gt; }&quot;</span>
+<span class="add">+      ;;</span>
+<span class="add">+  esac</span>
+<span class="add">+  # Strip surrounding quotes git uses for paths with special chars.</span>
+<span class="add">+  path=&quot;${path#\&quot;}&quot;</span>
+<span class="add">+  path=&quot;${path%\&quot;}&quot;</span>
+<span class="add">+  if is_denied &quot;$path&quot; || is_gitlink &quot;$path&quot;; then</span>
+<span class="add">+    printf &#39;commit.sh: unstaged residual: %s\n&#39; &quot;$path&quot; &gt;&amp;2</span>
+<span class="add">+    continue</span>
+<span class="add">+  fi</span>
+<span class="add">+  git add -- &quot;$path&quot;</span>
+<span class="add">+done &lt; &lt;(git status --porcelain)</span>
+<span class="add">+</span>
+<span class="add">+if git diff --cached --quiet; then</span>
+<span class="add">+  echo &quot;commit.sh: nothing to commit&quot;</span>
+<span class="add">+  exit 0</span>
+<span class="add">+fi</span>
+<span class="add">+git commit -m &quot;cycle ${CYCLE_ID}: ${CYCLE_TITLE}&quot;</span>
+<span class="add">+git rev-parse HEAD</span>
+<span class="add">+```</span>
+<span class="add">+</span>
+<span class="add">+**Notes on portability** (macOS bash 3.2 + Linux bash ≥ 4):</span>
+<span class="add">+- Process substitution `&lt; &lt;(...)` is supported in 3.2.</span>
+<span class="add">+- `${var:0:2}` substring and `${var:3}` offset slice are 3.2-safe.</span>
+<span class="add">+- `grep -Fxq` is POSIX (BSD + GNU grep).</span>
+<span class="add">+- No associative arrays.</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] All 6 tests from Task 1 pass.</span>
+<span class="add">+- [ ] `tests/defaults/scripts.test.ts:5-13` (shebang + executable bit) still passes (existing regression).</span>
+<span class="add">+- [ ] `grep -E &#39;git add -A|git add \.\s&#39; src/defaults/scripts/commit.sh` returns empty.</span>
+<span class="add">+- [ ] `tsc --noEmit` clean.</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 3: Sync to `.cycle/`, update DOGFOOD.md, run full gate</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+Mirror the new script into the repo&#39;s own engine instance, mark the retrospective resolved, and confirm the full test + typecheck gate stays green.</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+</span>
+<span class="add">+**Step 1**: Run `npm run sync-defaults` to refresh `.cycle/scripts/commit.sh` from `src/defaults/scripts/commit.sh`.</span>
+<span class="add">+- Verify byte-equality: `diff src/defaults/scripts/commit.sh .cycle/scripts/commit.sh` returns empty.</span>
+<span class="add">+</span>
+<span class="add">+**Step 2**: Update `docs/DOGFOOD.md`, appending one line at the end of section 3 (after line 77):</span>
+<span class="add">+</span>
+<span class="add">+```markdown</span>
+<span class="add">+**Resolved in cycle 0005 (GH #4).**</span>
+<span class="add">+```</span>
+<span class="add">+</span>
+<span class="add">+**Step 3**: Run gates:</span>
+<span class="add">+- `npm test` — expect all tests green including the 6 new ones.</span>
+<span class="add">+- `npm run typecheck` — expect zero errors.</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] `diff src/defaults/scripts/commit.sh .cycle/scripts/commit.sh` empty.</span>
+<span class="add">+- [ ] `docs/DOGFOOD.md` section 3 ends with the resolution marker.</span>
+<span class="add">+- [ ] `npm test` exits 0; spec reporter shows the 6 new tests under `tests/defaults/commit-staging.test.ts` all passing.</span>
+<span class="add">+- [ ] `npm run typecheck` exits 0.</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Testing Strategy</span>
+<span class="add">+</span>
+<span class="add">+### Unit Tests</span>
+<span class="add">+- All assertions live in `tests/defaults/commit-staging.test.ts`. No mocking — every test uses a real tmpdir git repo and spawns real `bash`. The script under test is copied from `src/defaults/scripts/commit.sh` into `&lt;tmp&gt;/.cycle/scripts/commit.sh` and invoked with `cwd: tmpdir`.</span>
+<span class="add">+- **Fixture helper** (in-file, top of test module): `async function makeRepo(): Promise&lt;string&gt;` returns the tmpdir root with `git init`, user config, one seed commit, the script copied + chmod, and `.cycle/log.jsonl` seeded with a synthetic `cycle.start` line.</span>
+<span class="add">+- **Anti-mock bias rationale**: shell behavior under `git status --porcelain` and exit semantics is too brittle to mock — only a real git invocation gives confidence. The cost is ~50ms per fixture, acceptable for 6 tests.</span>
+<span class="add">+</span>
+<span class="add">+### Integration / E2E Tests</span>
+<span class="add">+- No new integration test layer. The behavioral tests in Task 1 are effectively e2e for this contract (real bash, real git, real script).</span>
+<span class="add">+- Existing `tests/defaults/feature-loadable.test.ts` continues to validate the workflow yaml references the script.</span>
+<span class="add">+</span>
+<span class="add">+### Edge cases covered</span>
+<span class="add">+- Path with embedded spaces (porcelain output quotes them) — handled by quote stripping.</span>
+<span class="add">+- Rename (`R `) status code — handled by `path##* -&gt; ` extraction.</span>
+<span class="add">+- Empty `git status` — `while read` loop is a no-op, falls through to `nothing to commit`.</span>
+<span class="add">+- Path that matches BOTH allowlist intent AND denylist (e.g. an accidentally-named `docs/cycle/0099-x/foo.lock`) — denylist wins by design.</span>
+<span class="add">+- `git ls-files --stage` empty (no tracked files) — `gitlink_paths` empty, `is_gitlink` falls through to the `.git` fs probe.</span>
+<span class="add">+</span>
+<span class="add">+## Risk Assessment</span>
+<span class="add">+</span>
+<span class="add">+- **Risk**: macOS bash 3.2 incompatibility in process substitution or `${var:offset:length}`.</span>
+<span class="add">+  **Mitigation**: Both are 3.2-supported (verified). The test suite runs on the developer&#39;s macOS, which uses Apple bash 3.2 by default if `#!/usr/bin/env bash` resolves to `/bin/bash`; verify by running `bash --version` in CI.</span>
+<span class="add">+</span>
+<span class="add">+- **Risk**: `is_gitlink` `printf … | grep -Fxq` is O(n) per path × O(n) tracked gitlinks. For realistic repos (&lt;10 submodules, &lt;100 status entries) this is negligible. If it ever becomes hot, replace with a bash associative array gated on `BASH_VERSINFO &gt;= 4`.</span>
+<span class="add">+</span>
+<span class="add">+- **Risk**: Test 4 (nothing-to-commit with only transients) requires `git status --porcelain` to still surface untracked transients so they get reported on stderr — confirmed: porcelain lists untracked files unless `--untracked-files=no`.</span>
+<span class="add">+</span>
+<span class="add">+- **Risk**: `.cycle/log.jsonl` parsing for `issue_id` was dropped from the script (unified-porcelain approach). If a future use-case needs the issue path explicitly, revisit by tailing the JSONL and probing `docs/cycle/issues/{queued,triaged}/&lt;issue_id&gt;.md`. Documented here so the deferral is intentional, not accidental.</span>
+<span class="add">+</span>
+<span class="add">+- **Risk**: `git status --porcelain` representation of nested untracked directories (e.g. `.claude/`) collapses to the dir line `?? .claude/`. Denylist `case .claude/*|.claude` matches both forms. Test 2 explicitly asserts the residual line so any regression surfaces immediately.</span>
+<span class="add">+```</span>
+<span class="fileheader">diff --git a/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/RESEARCH.md b/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/RESEARCH.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..5b754bb</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/RESEARCH.md</span>
+<span class="hunk">@@ -0,0 +1,78 @@</span>
+<span class="add">+Have enough. Emitting research doc to stdout.</span>
+<span class="add">+</span>
+<span class="add">+```markdown</span>
+<span class="add">+# Research: Cycle 0005</span>
+<span class="add">+</span>
+<span class="add">+## Cycle Context</span>
+<span class="add">+Replace the blanket `git add -A` in the default `commit.sh` with an explicit, allowlist-based staging policy that captures only the cycle&#39;s intended change surface (the cycle artifact dir, the source issue file, and ordinary tracked/untracked working-tree changes) and refuses a hard denylist (`.claude/**`, `dist/**`, `node_modules/**`, `*.lock`, submodule/worktree gitlinks). The fix lives in `src/defaults/scripts/commit.sh`, is mirrored to `.cycle/scripts/commit.sh` via `npm run sync-defaults`, and is covered by new tests under `tests/defaults/`. Closes GH issue #4 and the DOGFOOD retrospective finding #3.</span>
+<span class="add">+</span>
+<span class="add">+## Current Codebase State</span>
+<span class="add">+</span>
+<span class="add">+### Relevant Components</span>
+<span class="add">+- Default commit script (source of truth): `src/defaults/scripts/commit.sh:1` — 16 lines, currently `git add -A` then commit + `git rev-parse HEAD`.</span>
+<span class="add">+- Engine-side deployed copy (this repo&#39;s own runtime): `.cycle/scripts/commit.sh:1` — byte-identical to source.</span>
+<span class="add">+- Build-output copy (regenerated, not authored): `dist/defaults/scripts/commit.sh:1` — out of scope per SPEC.</span>
+<span class="add">+- Sibling default scripts (same shebang/`set -euo pipefail` shape):</span>
+<span class="add">+  - `src/defaults/scripts/verify.sh:1`</span>
+<span class="add">+  - `src/defaults/scripts/pr.sh:1`</span>
+<span class="add">+- Bash step executor: `src/engine/exec-bash.ts:12` — spawns `/bin/bash` against `&lt;repoRoot&gt;/.cycle/&lt;command&gt;` with `buildChildEnv(env)`; captures stdout/stderr; status from exit code.</span>
+<span class="add">+- Cycle env injection point: `src/engine/run-cycle.ts:27` — engine sets `CYCLE_ID`, `CYCLE_TITLE`, `CYCLE_BASE` (and merges `opts.env`). `issue_id` is **not** currently exported into the child env — only logged into `.cycle/log.jsonl` via `log.emit(&quot;cycle.start&quot;, …)` at `src/engine/run-cycle.ts:24`.</span>
+<span class="add">+- Cycle artifact dir convention: `src/engine/branch.ts:20` — `docs/cycle/&lt;cycleId&gt;-&lt;workflow&gt;-&lt;slug&gt;/`.</span>
+<span class="add">+- Slug derivation (issue title → kebab, slice 40): `src/issue/id.ts:1`.</span>
+<span class="add">+- Sync helper (mirrors `src/defaults/` → `.cycle/`): `scripts/sync-defaults.mjs:8` — `rm -rf` then `cp -r` for `workflows`, `prompts`, `scripts` pairs.</span>
+<span class="add">+- Feature workflow listing the script: `src/defaults/workflows/feature.yaml:27` — `commit` step is `agent: bash`, `command: scripts/verify.sh`/`commit.sh`/`pr.sh`.</span>
+<span class="add">+- JSONL log writer (issue_id ↔ cycle_id source): `src/engine/log.ts` (consumed by `tail -n` parsing in prompts); cycle.start record format: `{ts, event: &quot;cycle.start&quot;, cycle_id, workflow, title, issue_id}` — see `.cycle/log.jsonl` and `src/engine/run-cycle.ts:24`.</span>
+<span class="add">+- DOGFOOD retrospective entry to mark resolved: `docs/DOGFOOD.md:67` (section &quot;3. `commit.sh` over-staged via `git add -A`&quot;). Currently NOT marked resolved.</span>
+<span class="add">+</span>
+<span class="add">+### Existing Patterns to Follow</span>
+<span class="add">+- Bash defaults: `#!/usr/bin/env bash` shebang + `set -euo pipefail` + `: &quot;${VAR:?msg}&quot;` for required env — see `src/defaults/scripts/commit.sh:1-8`, `src/defaults/scripts/pr.sh:1-8`, `src/defaults/scripts/verify.sh:1-5`.</span>
+<span class="add">+- Stderr diagnostic prefix style: `pr.sh:29` uses `script-name: &lt;message&gt;` pattern (`pr.sh: PR did not merge within timeout`). SPEC mandates `commit.sh: unstaged residual: &lt;path&gt;`.</span>
+<span class="add">+- Exit semantics on no-op: `commit.sh` echoes `commit.sh: nothing to commit` and `exit 0` when `git diff --cached --quiet` succeeds — must preserve (`src/defaults/scripts/commit.sh:11-14`).</span>
+<span class="add">+- Trailing `git rev-parse HEAD` is the engine&#39;s capture-the-sha hook — must preserve (`src/defaults/scripts/commit.sh:16`).</span>
+<span class="add">+- Test framework: `node:test` + `node:assert/strict`, no third-party runner — see `tests/defaults/scripts.test.ts:1`, `tests/engine/exec-bash.test.ts:1`, `tests/defaults/feature-loadable.test.ts:1`.</span>
+<span class="add">+- Tmpdir fixture pattern: `mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;))` + `try/finally` with `rm(root, {recursive, force})` — `tests/engine/exec-bash.test.ts:9`, `tests/cli/multi-loop.test.ts:11`.</span>
+<span class="add">+- Spawning bash from tests: `tests/engine/exec-bash.test.ts:14-17` writes a script + `chmod 0o755` + invokes `execBashStep`. Alternative for direct shell calls: `spawnSync(&quot;bash&quot;, [scriptPath], {cwd, env, encoding: &quot;utf8&quot;})` (mirrors `tests/cli/multi-loop.test.ts:22-23` for `node`).</span>
+<span class="add">+- Existing test of script shape (regression target): `tests/defaults/scripts.test.ts:5-13` iterates `verify.sh`, `commit.sh`, `pr.sh` and asserts shebang + executable bit. New tests should not break this.</span>
+<span class="add">+- TypeScript module style: `.ts` extension on relative imports, no transpile (`&quot;type&quot;: &quot;module&quot;`, run via `node --test --experimental-strip-types` per `package.json:14`).</span>
+<span class="add">+</span>
+<span class="add">+### Dependencies &amp; Integration Points</span>
+<span class="add">+- Engine → script contract: `CYCLE_ID`, `CYCLE_TITLE`, `CYCLE_BASE` are guaranteed in env; **`issue_id` is not currently exported as env** — `src/engine/run-cycle.ts:27`. Per SPEC, resolve the issue file by tailing `.cycle/log.jsonl` for the last `cycle.start` whose `cycle_id` matches `$CYCLE_ID` (no new engine plumbing).</span>
+<span class="add">+- Issue file locations cycle through during lifecycle: `docs/cycle/issues/queued/&lt;issue_id&gt;.md` (current state for this run; see existing file at `docs/cycle/issues/queued/txt-20260512-234907-fix-commit-sh-per-github-issue-4-https-g.md`) and `docs/cycle/issues/triaged/`. The SPEC requires the script handle either.</span>
+<span class="add">+- Artifact dir glob target: `docs/cycle/&lt;CYCLE_ID&gt;-*/` (e.g. `docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/`) — convention from `src/engine/branch.ts:20`.</span>
+<span class="add">+- `git status --porcelain` is the staging-policy entry point per SPEC; gitlink lines have mode `160000` (per SPEC).</span>
+<span class="add">+- `npm run sync-defaults` is the only sanctioned way to refresh `.cycle/scripts/commit.sh` (`scripts/sync-defaults.mjs:9-13`); must run after editing `src/defaults/scripts/commit.sh` for the repo&#39;s own engine to pick up the new script.</span>
+<span class="add">+- `dist/defaults/scripts/commit.sh` is the bundled-package shipping copy regenerated by `scripts/build.mjs` (not authored). SPEC explicitly excludes it from edits.</span>
+<span class="add">+- Build/typecheck gates: `npm test`, `npm run typecheck` (`tsc --noEmit`) — both expected to stay green per Acceptance Criteria.</span>
+<span class="add">+</span>
+<span class="add">+### Test Infrastructure</span>
+<span class="add">+- Test framework: Node built-in `node:test` + `node:assert/strict` (no Jest/Mocha/Vitest).</span>
+<span class="add">+- Invocation: `npm test` → `node --test --experimental-strip-types --test-reporter=spec` (`package.json:14`).</span>
+<span class="add">+- Layout: `tests/&lt;area&gt;/&lt;name&gt;.test.ts` mirroring `src/`. `tests/defaults/` is the home for default-asset tests.</span>
+<span class="add">+- Conventions:</span>
+<span class="add">+  - Tmpdir fixtures via `mkdtemp` + `try/finally rm`.</span>
+<span class="add">+  - Direct subprocess execution via `spawn` / `spawnSync`.</span>
+<span class="add">+  - Scripts under test are read from `src/defaults/scripts/&lt;name&gt;.sh` (the source-of-truth path used in `tests/defaults/scripts.test.ts:7`).</span>
+<span class="add">+- Current coverage of `commit.sh`: shebang/executability only (`tests/defaults/scripts.test.ts:5-13`). No behavioral test exists for staging logic — the new tests in SPEC §Testing Strategy fill this gap.</span>
+<span class="add">+- Adjacent bash-from-test examples to mirror: `tests/engine/exec-bash.test.ts:8-22` (happy path), `tests/engine/exec-bash.test.ts:24-38` (non-zero exit).</span>
+<span class="add">+</span>
+<span class="add">+## Code References</span>
+<span class="add">+- `src/defaults/scripts/commit.sh:10` — the `git add -A` line that must be replaced.</span>
+<span class="add">+- `src/defaults/scripts/commit.sh:11-14` — `nothing to commit` early-exit semantics to preserve.</span>
+<span class="add">+- `src/defaults/scripts/commit.sh:15-16` — `git commit -m …` + `git rev-parse HEAD` to preserve.</span>
+<span class="add">+- `src/engine/run-cycle.ts:27-32` — env propagation contract (`CYCLE_ID`/`CYCLE_TITLE`/`CYCLE_BASE`; no `issue_id`).</span>
+<span class="add">+- `src/engine/exec-bash.ts:14-19` — script cwd is `repoRoot`, abs path is `repoRoot/.cycle/&lt;command&gt;`; child env from `buildChildEnv`.</span>
+<span class="add">+- `src/engine/branch.ts:20` — artifact dir glob anchor (`docs/cycle/&lt;id&gt;-&lt;wf&gt;-&lt;slug&gt;/`).</span>
+<span class="add">+- `tests/defaults/scripts.test.ts:5-13` — existing regression test that the new tests must coexist with.</span>
+<span class="add">+- `tests/engine/exec-bash.test.ts:8-22` — canonical bash-script-in-tmpdir test shape.</span>
+<span class="add">+- `scripts/sync-defaults.mjs:9-13` — sync pairs incl. `src/defaults/scripts` → `.cycle/scripts`.</span>
+<span class="add">+- `docs/DOGFOOD.md:67-78` — retrospective entry to mark resolved (cycle 0005, GH #4).</span>
+<span class="add">+- `.cycle/log.jsonl` — JSONL stream containing `cycle.start` records with `cycle_id` + `issue_id` (the canonical lookup table for issue-file resolution from inside the bash script).</span>
+<span class="add">+</span>
+<span class="add">+## Open Questions</span>
+<span class="add">+- **Issue-file resolution mechanism inside `commit.sh`.** SPEC offers a choice: (a) parse `.cycle/log.jsonl` for the last `cycle.start` with matching `CYCLE_ID` and read `issue_id`, then probe `docs/cycle/issues/{queued,triaged}/&lt;issue_id&gt;.md`; or (b) use an engine-exported env var. Today, only `CYCLE_ID`/`CYCLE_TITLE`/`CYCLE_BASE` are exported (`src/engine/run-cycle.ts:27`); SPEC says &quot;do not invent new engine plumbing&quot;, which implies option (a). Planner to confirm and pin the exact `jsonl` parse approach (e.g. `grep` + `sed`, awk, or `node -e`).</span>
+<span class="add">+- **Gitlink detection mechanics.** SPEC names mode `160000` for submodule/worktree gitlinks; planner should confirm whether the porcelain v1 status output exposes mode directly or whether a secondary `git ls-files --stage` lookup is required for the path classification.</span>
+<span class="add">+- **&quot;Stray worktree gitlink&quot; fixture construction.** SPEC&#39;s transient-rejection test calls for a &quot;fake worktree gitlink entry&quot;; the planner needs to decide whether to create it via `git update-index --add --cacheinfo 160000,&lt;sha&gt;,&lt;path&gt;` or by adding an actual `git worktree add` — the former is portable in a tmpdir; the latter requires more setup.</span>
+<span class="add">+- **Allowlist batching vs. per-path `git add`.** SPEC Non-functional §2 says &quot;one `git add` per allowed path or batched&quot;; planner to choose. Per-path is simpler and clearer in stderr diagnostics; batched is one syscall.</span>
+<span class="add">+- **Residual-output ordering and determinism.** SPEC says &quot;each residual path on its own line to stderr with `commit.sh: unstaged residual: ` prefix&quot;. Planner to decide whether to sort or preserve `git status --porcelain` order, since the new tests will likely assert specific lines.</span>
+<span class="add">+- **DOGFOOD.md resolution annotation format.** Existing retrospective entries don&#39;t yet have a resolved-marker convention (`docs/DOGFOOD.md:67-78`); the planner should pick a short format (e.g. bold &quot;Resolved in cycle 0005 (GH #4)&quot; appended to the section) and apply consistently.</span>
+<span class="add">+```</span>
+<span class="fileheader">diff --git a/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/REVIEW.md b/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/REVIEW.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..5e04822</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/REVIEW.md</span>
+<span class="hunk">@@ -0,0 +1,45 @@</span>
+<span class="add">+```markdown</span>
+<span class="add">+# Review: Cycle 0005</span>
+<span class="add">+</span>
+<span class="add">+## Overall Verdict</span>
+<span class="add">+PASS — no fixes needed. Minor test-coverage gaps noted, none blocking.</span>
+<span class="add">+</span>
+<span class="add">+## Code Quality Review</span>
+<span class="add">+</span>
+<span class="add">+### Summary</span>
+<span class="add">+Selective-staging rewrite is clean, bash-3.2-portable, and implements every SPEC requirement (denylist of `.claude/**`, `dist/**`, `node_modules/**`, `*.lock`, `.cycle/cycle.pid`, plus `160000` gitlinks; per-path residual stderr lines; `nothing to commit` exit-0; trailing `git rev-parse HEAD`). Two well-justified deviations from PLAN (`--untracked-files=all`, defensive `git reset -q HEAD -- &quot;$path&quot;`) are documented in BUILD.md and necessary to satisfy SPEC literally.</span>
+<span class="add">+</span>
+<span class="add">+### Findings</span>
+<span class="add">+1. **Path-quoting**: `path=&quot;${path#\&quot;}&quot;; path=&quot;${path%\&quot;}&quot;` strips outer quotes added by git when `core.quotePath` quoting is active, but does not decode backslash escapes (`\t`, `\303\261`, `\\`, `\&quot;`). Paths with spaces/UTF-8 characters could fail `git add` or stage the wrong path — `src/defaults/scripts/commit.sh:47-48`. Mitigation would be `git status --porcelain -z` (NUL-terminated, no quoting) or `git -c core.quotePath=false status --porcelain`. Not blocking — cycle artifacts are ASCII in practice.</span>
+<span class="add">+2. **Awk field split for gitlinks**: `git ls-files --stage | awk &#39;$1 == &quot;160000&quot; { print $4 }&#39;` uses default whitespace splitting; submodule paths containing spaces would lose everything after the first whitespace character — `src/defaults/scripts/commit.sh:25`. Use `awk -F&#39;\t&#39; &#39;$1 ~ /^160000/ { print $2 }&#39;` or `-z` mode for robustness. Not blocking — no current submodule.</span>
+<span class="add">+3. **`is_denied` `.cycle/cycle.pid` clause is redundant**: `*.lock` does not cover `cycle.pid`, so the line is necessary; flagging only because the `.cycle/scheduled_tasks.lock` SPEC line is implicitly handled by `*.lock` while `.cycle/cycle.pid` is explicit — fine, just asymmetric. No action.</span>
+<span class="add">+</span>
+<span class="add">+### Spec Compliance Checklist</span>
+<span class="add">+- [x] No `git add -A` or `git add .` anywhere in `commit.sh` (regression test asserts).</span>
+<span class="add">+- [x] `git status --porcelain` drives the allowlist by elimination via the denylist.</span>
+<span class="add">+- [x] Denylist covers `.claude/**`, `dist/**`, `node_modules/**`, `*.lock`, `.cycle/cycle.pid`, and `160000` gitlinks.</span>
+<span class="add">+- [x] Residuals printed to stderr with `commit.sh: unstaged residual: ` prefix; never staged; never cause non-zero exit.</span>
+<span class="add">+- [x] `nothing to commit` exit-0 preserved.</span>
+<span class="add">+- [x] Trailing `git rev-parse HEAD` preserved.</span>
+<span class="add">+- [x] `.cycle/scripts/commit.sh` byte-equal to `src/defaults/scripts/commit.sh` (verified `diff` empty).</span>
+<span class="add">+- [x] `docs/DOGFOOD.md` section 3 closed with `**Resolved in cycle 0005 (GH #4).**` at line 79.</span>
+<span class="add">+- [x] `npm test` → 43 pass, 0 fail.</span>
+<span class="add">+- [~] `tsc --noEmit` reports two errors in `tests/cli/multi-loop.test.ts` (`Array.findLast` / lib target). **Pre-existing**, confirmed unrelated by BUILD.md note and grep; out of scope for this cycle.</span>
+<span class="add">+</span>
+<span class="add">+## Adversarial Test Review</span>
+<span class="add">+</span>
+<span class="add">+### Summary</span>
+<span class="add">+Test quality: strong. Real tmpdir fixtures, real `bash`, real `git`. Zero mocks. Assertions are specific (`assert.deepEqual` on exact file list; `assert.match` on stderr prefix; `assert.ok(!files.includes(...))` for negative cases). 6 tests run in ~600ms total.</span>
+<span class="add">+</span>
+<span class="add">+### Findings</span>
+<span class="add">+1. **No coverage for `M` (modified tracked file)**: Every fixture creates new files; none modifies a file from the seed commit. The `xy` parsing is symmetric across `??` and ` M`, but the most common real-world cycle case (editing tracked source) is unverified — `tests/defaults/commit-staging.test.ts:55-78`. Low risk because the code path is identical.</span>
+<span class="add">+2. **No coverage for `R` rename / `C` copy**: Script has explicit `case R*|C*) path=&quot;${path##* -&gt; }&quot; ;;` handling, but no test exercises a rename. Dead-code risk if a future refactor regresses the rename arm — `src/defaults/scripts/commit.sh:42-46` vs `tests/defaults/commit-staging.test.ts`.</span>
+<span class="add">+3. **No coverage for paths with spaces / UTF-8**: Ties to code finding #1; if the quote-stripping is brittle, a test with `git add &quot;with space.txt&quot;` would catch it.</span>
+<span class="add">+4. **`commitFiles` does not assert order**: Uses `.sort()` then `deepEqual` — fine because the assertion is set-equality after sort. Just noting that an unsorted assertion would have been brittle; this is correct.</span>
+<span class="add">+</span>
+<span class="add">+### Test Coverage</span>
+<span class="add">+- 6 new tests + 1 prior shebang/exec regression all green.</span>
+<span class="add">+- Scenarios missing tests (non-blocking): modified-tracked-file path, rename/copy status code, quoted/special-character paths, empty repo (no HEAD) reset path.</span>
+<span class="add">+```</span>
+<span class="add">+</span>
+<span class="add">+No MUST-FIX.md written — no blocking issues.</span>
+<span class="fileheader">diff --git a/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/SPEC.md b/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/SPEC.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..eb5a2cb</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0005-feature-fix-commit-sh-per-github-issue-4-https-g/SPEC.md</span>
+<span class="hunk">@@ -0,0 +1,141 @@</span>
+<span class="add">+```markdown</span>
+<span class="add">+# SPEC — Cycle 0005: commit.sh selective staging (drop `git add -A`)</span>
+<span class="add">+</span>
+<span class="add">+## Objective</span>
+<span class="add">+Replace `git add -A` in the default `commit.sh` with an explicit allowlist</span>
+<span class="add">+of paths so cycle commits contain only the cycle&#39;s intended change</span>
+<span class="add">+surface. Transient files under `.claude/`, `dist/`, `node_modules/`, and</span>
+<span class="add">+stray worktree gitlinks must never leak into a cycle commit or PR. This</span>
+<span class="add">+closes a general consumer correctness gap (GH issue #4) observed across</span>
+<span class="add">+dogfood cycles 0001 and 0002.</span>
+<span class="add">+</span>
+<span class="add">+## Source Issue</span>
+<span class="add">+`txt-20260512-234907-fix-commit-sh-per-github-issue-4-https-g` — &quot;Fix</span>
+<span class="add">+commit.sh per GitHub issue #4 — stage only the cycle&#39;s expected change</span>
+<span class="add">+surface; drop `git add -A`.&quot;</span>
+<span class="add">+</span>
+<span class="add">+GitHub: https://github.com/timothyjoh/cycle/issues/4</span>
+<span class="add">+</span>
+<span class="add">+## Scope</span>
+<span class="add">+</span>
+<span class="add">+### In Scope</span>
+<span class="add">+- Rewrite `src/defaults/scripts/commit.sh` to stage an explicit allowlist</span>
+<span class="add">+  derived from `CYCLE_ID` and report any residual unstaged paths to</span>
+<span class="add">+  stderr without staging them.</span>
+<span class="add">+- Add unit/integration tests under `tests/defaults/` covering the new</span>
+<span class="add">+  selective-staging behavior and the transient-rejection guarantee.</span>
+<span class="add">+- Sync the regenerated script to `.cycle/scripts/commit.sh` via the</span>
+<span class="add">+  existing `npm run sync-defaults` flow so the repo&#39;s own engine</span>
+<span class="add">+  consumes the fix.</span>
+<span class="add">+</span>
+<span class="add">+### Out of Scope</span>
+<span class="add">+- Engine-side enforcement of staging policy (cycle.ts changes). Script</span>
+<span class="add">+  remains the policy boundary per the issue.</span>
+<span class="add">+- `.gitignore` defaults emitted by `cycle init`.</span>
+<span class="add">+- Changes to `pr.sh`, `verify.sh`, or any other default script.</span>
+<span class="add">+- `dist/defaults/scripts/commit.sh` source edit — that file is the</span>
+<span class="add">+  build output and is regenerated, not authored.</span>
+<span class="add">+</span>
+<span class="add">+## Requirements</span>
+<span class="add">+</span>
+<span class="add">+Functional:</span>
+<span class="add">+- `commit.sh` MUST NOT call `git add -A` (or `git add .` from the repo</span>
+<span class="add">+  root) anywhere in its execution path.</span>
+<span class="add">+- `commit.sh` MUST stage, when present and modified/untracked:</span>
+<span class="add">+  1. `docs/cycle/&lt;CYCLE_ID&gt;-*/` — the cycle&#39;s artifact directory</span>
+<span class="add">+     (resolved by glob on the leading cycle id).</span>
+<span class="add">+  2. The matching issue file under `docs/cycle/issues/queued/` or</span>
+<span class="add">+     `docs/cycle/issues/triaged/` whose path appears in the</span>
+<span class="add">+     cycle.start record (resolvable from `CYCLE_ID` via</span>
+<span class="add">+     `.cycle/log.jsonl` lookup, or via an env var the engine already</span>
+<span class="add">+     exports — pick whichever is already available; do not invent new</span>
+<span class="add">+     engine plumbing).</span>
+<span class="add">+  3. All tracked modifications and untracked additions OUTSIDE the</span>
+<span class="add">+     transient denylist (see below). Concretely: stage every path</span>
+<span class="add">+     reported by `git status --porcelain` that is not matched by the</span>
+<span class="add">+     denylist and is not a directory gitlink.</span>
+<span class="add">+- `commit.sh` MUST treat the following as a hard denylist and never</span>
+<span class="add">+  stage them, even if they match the allowlist by accident:</span>
+<span class="add">+  - `.claude/**`</span>
+<span class="add">+  - `.cycle/cycle.pid`</span>
+<span class="add">+  - `.cycle/scheduled_tasks.lock` (and any path ending in `.lock`)</span>
+<span class="add">+  - `dist/**`</span>
+<span class="add">+  - `node_modules/**`</span>
+<span class="add">+  - Any submodule / worktree gitlink (git status code `160000`).</span>
+<span class="add">+- If `git status --porcelain` is non-empty after the staging pass,</span>
+<span class="add">+  `commit.sh` MUST emit each residual path on its own line to stderr</span>
+<span class="add">+  with a `commit.sh: unstaged residual: ` prefix. It must NOT stage</span>
+<span class="add">+  them and must NOT exit non-zero solely on residuals.</span>
+<span class="add">+- If nothing was staged (`git diff --cached --quiet` succeeds), keep</span>
+<span class="add">+  the existing `nothing to commit` exit-0 behavior.</span>
+<span class="add">+- On success, keep the existing trailing `git rev-parse HEAD` so the</span>
+<span class="add">+  engine can capture the commit sha.</span>
+<span class="add">+</span>
+<span class="add">+Non-functional:</span>
+<span class="add">+- Script remains bash, `set -euo pipefail`, no new external</span>
+<span class="add">+  dependencies. Portable on macOS bash 3.2 and Linux bash ≥ 4.</span>
+<span class="add">+- Runtime overhead negligible (one `git status` parse, one `git add`</span>
+<span class="add">+  per allowed path or batched).</span>
+<span class="add">+</span>
+<span class="add">+## Acceptance Criteria</span>
+<span class="add">+- [ ] `src/defaults/scripts/commit.sh` contains no `git add -A` and no</span>
+<span class="add">+      `git add .` invocation.</span>
+<span class="add">+- [ ] Running the script in a fixture repo where the working tree</span>
+<span class="add">+      contains both intended cycle paths and transient paths (a</span>
+<span class="add">+      `.claude/scheduled_tasks.lock`, a stray `dist/foo.js`, and a</span>
+<span class="add">+      gitlink entry) produces a commit whose `git show --stat` lists</span>
+<span class="add">+      only the intended paths.</span>
+<span class="add">+- [ ] The residual transients still appear in `git status` after the</span>
+<span class="add">+      script runs and are echoed to stderr with the documented prefix.</span>
+<span class="add">+- [ ] `tests/defaults/scripts.test.ts` (or a sibling test file) covers</span>
+<span class="add">+      both the happy path and the transient-rejection path against a</span>
+<span class="add">+      throwaway git repo created in a temp dir.</span>
+<span class="add">+- [ ] `.cycle/scripts/commit.sh` matches `src/defaults/scripts/commit.sh`</span>
+<span class="add">+      byte-for-byte after `npm run sync-defaults`.</span>
+<span class="add">+- [ ] All existing tests in `tests/**` still pass (`npm test`).</span>
+<span class="add">+- [ ] `tsc --noEmit` reports zero errors.</span>
+<span class="add">+- [ ] `docs/DOGFOOD.md` retrospective entry for the `commit.sh</span>
+<span class="add">+      over-staged` finding is marked resolved with a pointer to cycle</span>
+<span class="add">+      0005.</span>
+<span class="add">+</span>
+<span class="add">+## Testing Strategy</span>
+<span class="add">+</span>
+<span class="add">+Framework: Node&#39;s built-in `node:test` + `node:assert` (already used by</span>
+<span class="add">+the suite). Shell behavior is exercised by spawning bash from a Node</span>
+<span class="add">+test against a tmpdir-scoped fixture git repo.</span>
+<span class="add">+</span>
+<span class="add">+Key scenarios:</span>
+<span class="add">+1. **Happy path.** Fixture repo with: an artifact dir</span>
+<span class="add">+   `docs/cycle/0099-feature-test/SPEC.md`, a queued issue file, and an</span>
+<span class="add">+   in-tree source change. Run `CYCLE_ID=0099 CYCLE_TITLE=... commit.sh`</span>
+<span class="add">+   and assert the resulting commit&#39;s file list contains exactly those</span>
+<span class="add">+   three paths.</span>
+<span class="add">+2. **Transient rejection.** Same fixture, plus</span>
+<span class="add">+   `.claude/scheduled_tasks.lock`, `dist/foo.js`, and a fake worktree</span>
+<span class="add">+   gitlink entry. Assert none of those appear in the commit and that</span>
+<span class="add">+   each is reported on stderr.</span>
+<span class="add">+3. **Empty staging.** Fixture repo where no intended paths changed —</span>
+<span class="add">+   assert exit 0 and &quot;nothing to commit&quot; message.</span>
+<span class="add">+4. **Regression.** Existing `commit.sh has shebang and is executable`</span>
+<span class="add">+   test continues to pass.</span>
+<span class="add">+</span>
+<span class="add">+No browser/E2E tests required — this change has no UI surface.</span>
+<span class="add">+</span>
+<span class="add">+## Documentation Updates</span>
+<span class="add">+- **`docs/DOGFOOD.md`**: mark the `commit.sh over-staged` retrospective</span>
+<span class="add">+  finding resolved, reference cycle 0005 and GH issue #4.</span>
+<span class="add">+- **`.cycle/CLAUDE.md`** (if it documents script contracts): note that</span>
+<span class="add">+  `commit.sh` is selective, not blanket-staging, and that authors of</span>
+<span class="add">+  new default-emitted artifacts should ensure their paths fall under the</span>
+<span class="add">+  allowlist or be added explicitly.</span>
+<span class="add">+</span>
+<span class="add">+No README user-facing change — this is internal engine behavior.</span>
+<span class="add">+</span>
+<span class="add">+## Dependencies</span>
+<span class="add">+- Existing `npm run sync-defaults` script (`scripts/sync-defaults.mjs`)</span>
+<span class="add">+  to mirror `src/defaults/scripts/` into `.cycle/scripts/`.</span>
+<span class="add">+- `bash`, `git` on `PATH` (already required by the engine).</span>
+<span class="add">+- `CYCLE_ID` and `CYCLE_TITLE` env vars exported by the engine before</span>
+<span class="add">+  invoking the commit step (already the contract).</span>
+<span class="add">+- No new npm dependencies.</span>
+<span class="add">+```</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/queued/txt-20260512-234907-fix-commit-sh-per-github-issue-4-https-g.md b/docs/cycle/issues/queued/txt-20260512-234907-fix-commit-sh-per-github-issue-4-https-g.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..14a0efb</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/issues/queued/txt-20260512-234907-fix-commit-sh-per-github-issue-4-https-g.md</span>
+<span class="hunk">@@ -0,0 +1,9 @@</span>
+<span class="add">+---</span>
+<span class="add">+id: txt-20260512-234907-fix-commit-sh-per-github-issue-4-https-g</span>
+<span class="add">+source: text</span>
+<span class="add">+title: &quot;Fix commit.sh per GitHub issue #4 (https://github.com/timothyjoh/cycle/issues/4) — run &#39;gh issue view 4&#39; first for full context. Stage only the cycle&#39;s expected change surface; drop &#39;git add -A&#39;.&quot;</span>
+<span class="add">+added_at: 2026-05-12T23:49:07.161Z</span>
+<span class="add">+triage_attempts: 0</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+Fix commit.sh per GitHub issue #4 (https://github.com/timothyjoh/cycle/issues/4) — run &#39;gh issue view 4&#39; first for full context. Stage only the cycle&#39;s expected change surface; drop &#39;git add -A&#39;.</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/queued/txt-20260512-234907-fix-pr-sh-per-github-issue-5-https-githu.md b/docs/cycle/issues/queued/txt-20260512-234907-fix-pr-sh-per-github-issue-5-https-githu.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..1625537</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/issues/queued/txt-20260512-234907-fix-pr-sh-per-github-issue-5-https-githu.md</span>
+<span class="hunk">@@ -0,0 +1,9 @@</span>
+<span class="add">+---</span>
+<span class="add">+id: txt-20260512-234907-fix-pr-sh-per-github-issue-5-https-githu</span>
+<span class="add">+source: text</span>
+<span class="add">+title: &quot;Fix pr.sh per GitHub issue #5 (https://github.com/timothyjoh/cycle/issues/5) — run &#39;gh issue view 5&#39; first for full context. Fall back to immediate merge when auto-merge is disabled on the repo.&quot;</span>
+<span class="add">+added_at: 2026-05-12T23:49:07.242Z</span>
+<span class="add">+triage_attempts: 0</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+Fix pr.sh per GitHub issue #5 (https://github.com/timothyjoh/cycle/issues/5) — run &#39;gh issue view 5&#39; first for full context. Fall back to immediate merge when auto-merge is disabled on the repo.</span>
+<span class="fileheader">diff --git a/src/defaults/scripts/commit.sh b/src/defaults/scripts/commit.sh</span>
+<span class="fileheader">index 5096647..67ace88 100755</span>
+<span class="meta">--- a/src/defaults/scripts/commit.sh</span>
+<span class="meta">+++ b/src/defaults/scripts/commit.sh</span>
+<span class="hunk">@@ -1,13 +1,59 @@</span>
+<span class="ctx"> #!/usr/bin/env bash</span>
+<span class="del">-# Stage everything and create a single commit. Cycle ID + title come</span>
+<span class="del">-# from CYCLE_ID / CYCLE_TITLE env vars set by the engine before</span>
+<span class="del">-# invoking this script.</span>
+<span class="add">+# Selectively stage the cycle&#39;s intended change surface and create one</span>
+<span class="add">+# commit. Honors a hard denylist (.claude, dist, node_modules, *.lock,</span>
+<span class="add">+# .cycle/cycle.pid, 160000 gitlinks). Residual untracked/modified paths</span>
+<span class="add">+# are reported on stderr but never staged. CYCLE_ID + CYCLE_TITLE come</span>
+<span class="add">+# from the engine.</span>
+<span class="ctx"> set -euo pipefail</span>
+<span class="ctx"> </span>
+<span class="ctx"> : &quot;${CYCLE_ID:?CYCLE_ID must be set by cycle engine}&quot;</span>
+<span class="ctx"> : &quot;${CYCLE_TITLE:?CYCLE_TITLE must be set}&quot;</span>
+<span class="ctx"> </span>
+<span class="del">-git add -A</span>
+<span class="add">+is_denied() {</span>
+<span class="add">+  local p=&quot;$1&quot;</span>
+<span class="add">+  local q=&quot;${p%/}&quot;</span>
+<span class="add">+  case &quot;$q&quot; in</span>
+<span class="add">+    .claude|.claude/*) return 0 ;;</span>
+<span class="add">+    dist|dist/*) return 0 ;;</span>
+<span class="add">+    node_modules|node_modules/*) return 0 ;;</span>
+<span class="add">+    .cycle/cycle.pid) return 0 ;;</span>
+<span class="add">+    *.lock) return 0 ;;</span>
+<span class="add">+  esac</span>
+<span class="add">+  return 1</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="add">+gitlink_paths=$(git ls-files --stage 2&gt;/dev/null | awk &#39;$1 == &quot;160000&quot; { print $4 }&#39; || true)</span>
+<span class="add">+is_gitlink() {</span>
+<span class="add">+  local p=&quot;$1&quot;</span>
+<span class="add">+  local q=&quot;${p%/}&quot;</span>
+<span class="add">+  if [ -n &quot;$gitlink_paths&quot; ]; then</span>
+<span class="add">+    if printf &#39;%s\n&#39; &quot;$gitlink_paths&quot; | grep -Fxq -- &quot;$q&quot;; then</span>
+<span class="add">+      return 0</span>
+<span class="add">+    fi</span>
+<span class="add">+  fi</span>
+<span class="add">+  [ -e &quot;$q/.git&quot; ] &amp;&amp; return 0</span>
+<span class="add">+  return 1</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="add">+while IFS= read -r line; do</span>
+<span class="add">+  [ -z &quot;$line&quot; ] &amp;&amp; continue</span>
+<span class="add">+  xy=&quot;${line:0:2}&quot;</span>
+<span class="add">+  path=&quot;${line:3}&quot;</span>
+<span class="add">+  case &quot;$xy&quot; in</span>
+<span class="add">+    R*|C*)</span>
+<span class="add">+      path=&quot;${path##* -&gt; }&quot;</span>
+<span class="add">+      ;;</span>
+<span class="add">+  esac</span>
+<span class="add">+  path=&quot;${path#\&quot;}&quot;</span>
+<span class="add">+  path=&quot;${path%\&quot;}&quot;</span>
+<span class="add">+  if is_denied &quot;$path&quot; || is_gitlink &quot;$path&quot;; then</span>
+<span class="add">+    printf &#39;commit.sh: unstaged residual: %s\n&#39; &quot;$path&quot; &gt;&amp;2</span>
+<span class="add">+    git reset -q HEAD -- &quot;$path&quot; 2&gt;/dev/null || true</span>
+<span class="add">+    continue</span>
+<span class="add">+  fi</span>
+<span class="add">+  git add -- &quot;$path&quot;</span>
+<span class="add">+done &lt; &lt;(git status --porcelain --untracked-files=all)</span>
+<span class="add">+</span>
+<span class="ctx"> if git diff --cached --quiet; then</span>
+<span class="ctx">   echo &quot;commit.sh: nothing to commit&quot;</span>
+<span class="ctx">   exit 0</span>
+<span class="fileheader">diff --git a/tests/defaults/commit-staging.test.ts b/tests/defaults/commit-staging.test.ts</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..4abe8c0</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/tests/defaults/commit-staging.test.ts</span>
+<span class="hunk">@@ -0,0 +1,190 @@</span>
+<span class="add">+import { test } from &quot;node:test&quot;;</span>
+<span class="add">+import { strict as assert } from &quot;node:assert&quot;;</span>
+<span class="add">+import { mkdtemp, mkdir, writeFile, rm, copyFile, chmod, readFile } from &quot;node:fs/promises&quot;;</span>
+<span class="add">+import { tmpdir } from &quot;node:os&quot;;</span>
+<span class="add">+import { join } from &quot;node:path&quot;;</span>
+<span class="add">+import { spawnSync } from &quot;node:child_process&quot;;</span>
+<span class="add">+</span>
+<span class="add">+function run(cwd: string, cmd: string, args: string[]) {</span>
+<span class="add">+  const r = spawnSync(cmd, args, { cwd, encoding: &quot;utf8&quot; });</span>
+<span class="add">+  if (r.status !== 0) {</span>
+<span class="add">+    throw new Error(`${cmd} ${args.join(&quot; &quot;)} (cwd=${cwd}) failed [${r.status}]: ${r.stderr}`);</span>
+<span class="add">+  }</span>
+<span class="add">+  return r;</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="add">+async function makeRepo(): Promise&lt;string&gt; {</span>
+<span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-commit-&quot;));</span>
+<span class="add">+  run(root, &quot;git&quot;, [&quot;init&quot;, &quot;-q&quot;]);</span>
+<span class="add">+  run(root, &quot;git&quot;, [&quot;config&quot;, &quot;user.email&quot;, &quot;test@example.com&quot;]);</span>
+<span class="add">+  run(root, &quot;git&quot;, [&quot;config&quot;, &quot;user.name&quot;, &quot;Test&quot;]);</span>
+<span class="add">+  run(root, &quot;git&quot;, [&quot;config&quot;, &quot;commit.gpgsign&quot;, &quot;false&quot;]);</span>
+<span class="add">+  await writeFile(join(root, &quot;.gitignore&quot;), &quot;.cycle/\n&quot;);</span>
+<span class="add">+  await writeFile(join(root, &quot;README.md&quot;), &quot;seed\n&quot;);</span>
+<span class="add">+  run(root, &quot;git&quot;, [&quot;add&quot;, &quot;.gitignore&quot;, &quot;README.md&quot;]);</span>
+<span class="add">+  run(root, &quot;git&quot;, [&quot;commit&quot;, &quot;-q&quot;, &quot;-m&quot;, &quot;seed&quot;]);</span>
+<span class="add">+  const scripts = join(root, &quot;.cycle/scripts&quot;);</span>
+<span class="add">+  await mkdir(scripts, { recursive: true });</span>
+<span class="add">+  await copyFile(&quot;src/defaults/scripts/commit.sh&quot;, join(scripts, &quot;commit.sh&quot;));</span>
+<span class="add">+  await chmod(join(scripts, &quot;commit.sh&quot;), 0o755);</span>
+<span class="add">+  await writeFile(</span>
+<span class="add">+    join(root, &quot;.cycle/log.jsonl&quot;),</span>
+<span class="add">+    JSON.stringify({ event: &quot;cycle.start&quot;, cycle_id: &quot;0099&quot;, title: &quot;test&quot;, issue_id: &quot;test-issue&quot; }) + &quot;\n&quot;,</span>
+<span class="add">+  );</span>
+<span class="add">+  return root;</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="add">+function runScript(cwd: string, env: Record&lt;string, string&gt; = {}) {</span>
+<span class="add">+  return spawnSync(&quot;bash&quot;, [&quot;.cycle/scripts/commit.sh&quot;], {</span>
+<span class="add">+    cwd,</span>
+<span class="add">+    env: { ...process.env, ...env },</span>
+<span class="add">+    encoding: &quot;utf8&quot;,</span>
+<span class="add">+  });</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="add">+function commitFiles(cwd: string): string[] {</span>
+<span class="add">+  const r = run(cwd, &quot;git&quot;, [&quot;diff-tree&quot;, &quot;--no-commit-id&quot;, &quot;--name-only&quot;, &quot;-r&quot;, &quot;HEAD&quot;]);</span>
+<span class="add">+  return r.stdout.split(&quot;\n&quot;).filter((s) =&gt; s.length &gt; 0).sort();</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="add">+function porcelainPaths(cwd: string): string[] {</span>
+<span class="add">+  const r = run(cwd, &quot;git&quot;, [&quot;status&quot;, &quot;--porcelain&quot;, &quot;--untracked-files=all&quot;]);</span>
+<span class="add">+  return r.stdout.split(&quot;\n&quot;).filter((s) =&gt; s.length &gt; 0);</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="add">+test(&quot;stages cycle artifact dir, issue file, and source change&quot;, async () =&gt; {</span>
+<span class="add">+  const root = await makeRepo();</span>
+<span class="add">+  try {</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/0099-feature-test&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;docs/cycle/0099-feature-test/SPEC.md&quot;), &quot;spec\n&quot;);</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/issues/queued&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;docs/cycle/issues/queued/test-issue.md&quot;), &quot;issue\n&quot;);</span>
+<span class="add">+    await mkdir(join(root, &quot;src&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;src/app.ts&quot;), &quot;export {};\n&quot;);</span>
+<span class="add">+</span>
+<span class="add">+    const r = runScript(root, { CYCLE_ID: &quot;0099&quot;, CYCLE_TITLE: &quot;test cycle&quot; });</span>
+<span class="add">+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);</span>
+<span class="add">+    assert.match(r.stdout, /^[0-9a-f]{40}$/m, &quot;stdout should include commit sha&quot;);</span>
+<span class="add">+</span>
+<span class="add">+    const files = commitFiles(root);</span>
+<span class="add">+    assert.deepEqual(files, [</span>
+<span class="add">+      &quot;docs/cycle/0099-feature-test/SPEC.md&quot;,</span>
+<span class="add">+      &quot;docs/cycle/issues/queued/test-issue.md&quot;,</span>
+<span class="add">+      &quot;src/app.ts&quot;,</span>
+<span class="add">+    ]);</span>
+<span class="add">+  } finally {</span>
+<span class="add">+    await rm(root, { recursive: true, force: true });</span>
+<span class="add">+  }</span>
+<span class="add">+});</span>
+<span class="add">+</span>
+<span class="add">+test(&quot;rejects .claude lock, dist artifact, and 160000 gitlink&quot;, async () =&gt; {</span>
+<span class="add">+  const root = await makeRepo();</span>
+<span class="add">+  try {</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/0099-feature-test&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;docs/cycle/0099-feature-test/SPEC.md&quot;), &quot;spec\n&quot;);</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/issues/queued&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;docs/cycle/issues/queued/test-issue.md&quot;), &quot;issue\n&quot;);</span>
+<span class="add">+    await mkdir(join(root, &quot;src&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;src/app.ts&quot;), &quot;export {};\n&quot;);</span>
+<span class="add">+</span>
+<span class="add">+    await mkdir(join(root, &quot;.claude&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;.claude/scheduled_tasks.lock&quot;), &quot;lock\n&quot;);</span>
+<span class="add">+    await mkdir(join(root, &quot;dist&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;dist/foo.js&quot;), &quot;foo\n&quot;);</span>
+<span class="add">+</span>
+<span class="add">+    await writeFile(join(root, &quot;stub.txt&quot;), &quot;stub\n&quot;);</span>
+<span class="add">+    const hash = run(root, &quot;git&quot;, [&quot;hash-object&quot;, &quot;-w&quot;, &quot;stub.txt&quot;]).stdout.trim();</span>
+<span class="add">+    await rm(join(root, &quot;stub.txt&quot;));</span>
+<span class="add">+    run(root, &quot;git&quot;, [&quot;update-index&quot;, &quot;--add&quot;, &quot;--cacheinfo&quot;, `160000,${hash},fake-submodule`]);</span>
+<span class="add">+</span>
+<span class="add">+    const r = runScript(root, { CYCLE_ID: &quot;0099&quot;, CYCLE_TITLE: &quot;test cycle&quot; });</span>
+<span class="add">+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);</span>
+<span class="add">+</span>
+<span class="add">+    const files = commitFiles(root);</span>
+<span class="add">+    assert.ok(!files.includes(&quot;.claude/scheduled_tasks.lock&quot;), `unexpected file in commit: ${files}`);</span>
+<span class="add">+    assert.ok(!files.includes(&quot;dist/foo.js&quot;), `unexpected file in commit: ${files}`);</span>
+<span class="add">+    assert.ok(!files.includes(&quot;fake-submodule&quot;), `unexpected file in commit: ${files}`);</span>
+<span class="add">+    assert.ok(files.includes(&quot;docs/cycle/0099-feature-test/SPEC.md&quot;));</span>
+<span class="add">+    assert.ok(files.includes(&quot;src/app.ts&quot;));</span>
+<span class="add">+</span>
+<span class="add">+    assert.match(r.stderr, /commit\.sh: unstaged residual: \.claude\/scheduled_tasks\.lock/);</span>
+<span class="add">+    assert.match(r.stderr, /commit\.sh: unstaged residual: dist\/foo\.js/);</span>
+<span class="add">+    assert.match(r.stderr, /commit\.sh: unstaged residual: fake-submodule/);</span>
+<span class="add">+</span>
+<span class="add">+    const after = porcelainPaths(root);</span>
+<span class="add">+    assert.ok(after.some((l) =&gt; l.includes(&quot;.claude/scheduled_tasks.lock&quot;)), `expected .claude lock to remain: ${after}`);</span>
+<span class="add">+    assert.ok(after.some((l) =&gt; l.includes(&quot;dist/foo.js&quot;)), `expected dist artifact to remain: ${after}`);</span>
+<span class="add">+  } finally {</span>
+<span class="add">+    await rm(root, { recursive: true, force: true });</span>
+<span class="add">+  }</span>
+<span class="add">+});</span>
+<span class="add">+</span>
+<span class="add">+test(&quot;rejects node_modules paths and arbitrary .lock files&quot;, async () =&gt; {</span>
+<span class="add">+  const root = await makeRepo();</span>
+<span class="add">+  try {</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/0099-feature-test&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;docs/cycle/0099-feature-test/SPEC.md&quot;), &quot;spec\n&quot;);</span>
+<span class="add">+    await mkdir(join(root, &quot;node_modules/junk&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;node_modules/junk/index.js&quot;), &quot;module.exports={};\n&quot;);</span>
+<span class="add">+    await writeFile(join(root, &quot;something.lock&quot;), &quot;L\n&quot;);</span>
+<span class="add">+</span>
+<span class="add">+    const r = runScript(root, { CYCLE_ID: &quot;0099&quot;, CYCLE_TITLE: &quot;t&quot; });</span>
+<span class="add">+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);</span>
+<span class="add">+</span>
+<span class="add">+    const files = commitFiles(root);</span>
+<span class="add">+    assert.ok(!files.includes(&quot;node_modules/junk/index.js&quot;), `unexpected node_modules file: ${files}`);</span>
+<span class="add">+    assert.ok(!files.includes(&quot;something.lock&quot;), `unexpected lock file: ${files}`);</span>
+<span class="add">+    assert.ok(files.includes(&quot;docs/cycle/0099-feature-test/SPEC.md&quot;));</span>
+<span class="add">+    assert.match(r.stderr, /commit\.sh: unstaged residual: node_modules\/junk\/index\.js/);</span>
+<span class="add">+    assert.match(r.stderr, /commit\.sh: unstaged residual: something\.lock/);</span>
+<span class="add">+  } finally {</span>
+<span class="add">+    await rm(root, { recursive: true, force: true });</span>
+<span class="add">+  }</span>
+<span class="add">+});</span>
+<span class="add">+</span>
+<span class="add">+test(&quot;exits 0 with nothing-to-commit when only transients are present&quot;, async () =&gt; {</span>
+<span class="add">+  const root = await makeRepo();</span>
+<span class="add">+  try {</span>
+<span class="add">+    await mkdir(join(root, &quot;.claude&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;.claude/scheduled_tasks.lock&quot;), &quot;lock\n&quot;);</span>
+<span class="add">+    await mkdir(join(root, &quot;dist&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;dist/foo.js&quot;), &quot;foo\n&quot;);</span>
+<span class="add">+</span>
+<span class="add">+    const r = runScript(root, { CYCLE_ID: &quot;0099&quot;, CYCLE_TITLE: &quot;t&quot; });</span>
+<span class="add">+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);</span>
+<span class="add">+    assert.match(r.stdout, /commit\.sh: nothing to commit/);</span>
+<span class="add">+    assert.match(r.stderr, /commit\.sh: unstaged residual: \.claude\/scheduled_tasks\.lock/);</span>
+<span class="add">+    assert.match(r.stderr, /commit\.sh: unstaged residual: dist\/foo\.js/);</span>
+<span class="add">+</span>
+<span class="add">+    const log = run(root, &quot;git&quot;, [&quot;log&quot;, &quot;--oneline&quot;]).stdout.trim().split(&quot;\n&quot;);</span>
+<span class="add">+    assert.equal(log.length, 1, `expected only seed commit, got: ${log}`);</span>
+<span class="add">+  } finally {</span>
+<span class="add">+    await rm(root, { recursive: true, force: true });</span>
+<span class="add">+  }</span>
+<span class="add">+});</span>
+<span class="add">+</span>
+<span class="add">+test(&quot;triaged issue file is staged just like queued&quot;, async () =&gt; {</span>
+<span class="add">+  const root = await makeRepo();</span>
+<span class="add">+  try {</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/0099-feature-test&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;docs/cycle/0099-feature-test/SPEC.md&quot;), &quot;spec\n&quot;);</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/issues/triaged&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;docs/cycle/issues/triaged/test-issue.md&quot;), &quot;issue\n&quot;);</span>
+<span class="add">+</span>
+<span class="add">+    const r = runScript(root, { CYCLE_ID: &quot;0099&quot;, CYCLE_TITLE: &quot;t&quot; });</span>
+<span class="add">+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);</span>
+<span class="add">+    const files = commitFiles(root);</span>
+<span class="add">+    assert.ok(</span>
+<span class="add">+      files.includes(&quot;docs/cycle/issues/triaged/test-issue.md&quot;),</span>
+<span class="add">+      `expected triaged issue file in commit: ${files}`,</span>
+<span class="add">+    );</span>
+<span class="add">+  } finally {</span>
+<span class="add">+    await rm(root, { recursive: true, force: true });</span>
+<span class="add">+  }</span>
+<span class="add">+});</span>
+<span class="add">+</span>
+<span class="add">+test(&quot;commit.sh source contains no blanket git add invocation&quot;, async () =&gt; {</span>
+<span class="add">+  const body = await readFile(&quot;src/defaults/scripts/commit.sh&quot;, &quot;utf8&quot;);</span>
+<span class="add">+  assert.doesNotMatch(body, /git add -A/, &quot;commit.sh must not call git add -A&quot;);</span>
+<span class="add">+  assert.doesNotMatch(body, /git add \.\s/, &quot;commit.sh must not call git add .&quot;);</span>
+<span class="add">+});</span>
+<span class="ctx">&nbsp;</span></pre>
+</section>
+
+<nav class="pager">
+  <a href="cycle-0002.html">← Cycle 0002</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0006.html">Cycle 0006 →</a>
+</nav>
+
+<footer>Generated from <code>1b54a48</code></footer>
+</body>
+</html>

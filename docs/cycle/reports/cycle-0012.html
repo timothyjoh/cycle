@@ -1,0 +1,1543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0012 · BB-1: Rename docs/cycle/issues/tbd/ -&gt; raw/ and queued/ -&gt; todo/. Drop the empty triaged/ folder. Update src/engine/scan.ts to scan raw/ and move to todo/, with dedup by issue id (fix the existing append-twice bug). Update closes.sh and any other code/test references. See docs/RFC-001-issue-lifecycle.md sections 2, 6, 12 (BB-1). (#20)</title>
+<style>
+  body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: #1f2328; background: #fff; }
+  header { border-bottom: 1px solid #d0d7de; padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 .3rem; }
+  .subtitle { color: #57606a; font-size: .9rem; }
+  .meta-row { margin-top: .4rem; color: #57606a; font-size: .85rem; }
+  .meta-row code { background: #f6f8fa; padding: .1rem .35rem; border-radius: 3px; }
+  nav.pager { display: flex; justify-content: space-between; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid #d0d7de; border-bottom: 1px solid #d0d7de; }
+  nav.pager a { color: #0969da; text-decoration: none; padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: #f6f8fa; }
+  nav.pager .disabled { color: #8c959f; pointer-events: none; }
+  nav.pager .center { color: #57606a; font-size: .85rem; align-self: center; }
+  section { margin-bottom: 1.5rem; }
+  section h2 { font-size: 1rem; margin: 0 0 .5rem; color: #57606a; text-transform: uppercase; letter-spacing: .05em; }
+  pre.commit-msg { background: #f6f8fa; padding: 1rem; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
+  pre.stat { background: #f6f8fa; padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; }
+  pre.diff { background: #fff; padding: 0; border: 1px solid #d0d7de; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.5; overflow-x: auto; white-space: pre; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: #dafbe1; color: #1a7f37; }
+  pre.diff .del { background: #ffebe9; color: #cf222e; }
+  pre.diff .hunk { background: #ddf4ff; color: #0969da; }
+  pre.diff .fileheader { background: #f6f8fa; color: #57606a; font-weight: 600; padding-top: .3rem; padding-bottom: .3rem; }
+  pre.diff .meta { color: #57606a; }
+  pre.diff .ctx { color: #1f2328; }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #d0d7de; color: #8c959f; font-size: .8rem; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0012</h1>
+  <div class="subtitle">BB-1: Rename docs/cycle/issues/tbd/ -&gt; raw/ and queued/ -&gt; todo/. Drop the empty triaged/ folder. Update src/engine/scan.ts to scan raw/ and move to todo/, with dedup by issue id (fix the existing append-twice bug). Update closes.sh and any other code/test references. See docs/RFC-001-issue-lifecycle.md sections 2, 6, 12 (BB-1). (#20)</div>
+  <div class="meta-row">
+    <code>65822b0</code> · Timothy Johnson · 2026-05-13 09:01:22 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0010.html">← Cycle 0010</a>
+  <span class="center">12 of 10</span>
+  <a href="cycle-0013.html">Cycle 0013 →</a>
+</nav>
+
+<section>
+  <h2>Commit message</h2>
+  <pre class="commit-msg">cycle 0012: BB-1: Rename docs/cycle/issues/tbd/ -&gt; raw/ and queued/ -&gt; todo/. Drop the empty triaged/ folder. Update src/engine/scan.ts to scan raw/ and move to todo/, with dedup by issue id (fix the existing append-twice bug). Update closes.sh and any other code/test references. See docs/RFC-001-issue-lifecycle.md sections 2, 6, 12 (BB-1). (#20)</pre>
+</section>
+
+<section>
+  <h2>Files changed</h2>
+  <pre class="stat">.cycle/prompts/research.md                         |   2 +-
+ .cycle/prompts/spec.md                             |   2 +-
+ .cycle/scripts/commit.sh                           |   6 +-
+ .cycle/scripts/pr.sh                               |   6 +-
+ BRIEF.md                                           |   2 +-
+ CLAUDE.md                                          |   4 +-
+ docs/ARCHITECTURE.md                               |  50 ++--
+ .../BUILD.md                                       |   1 +
+ .../FIX.md                                         |   1 +
+ .../MUST-FIX.md                                    |  52 ++++
+ .../PLAN.md                                        | 297 +++++++++++++++++++++
+ .../RESEARCH.md                                    |  83 ++++++
+ .../REVIEW.md                                      |  53 ++++
+ .../SPEC.md                                        |  68 +++++
+ docs/cycle/issues/queued/.gitkeep                  |   0
+ docs/cycle/issues/tbd/.gitkeep                     |   0
+ ...328-bb-1-rename-docs-cycle-issues-tbd-raw-an.md |   0
+ ...4336-bb-2-consolidate-workflow-engine-triage.md |   0
+ ...4347-bb-3-new-tbd-jsonl-row-schema-and-drain.md |   0
+ ...359-bb-4-build-the-triage-subroutine-new-src.md |   0
+ ...416-bb-5-resume-logic-from-log-jsonl-tail-at.md |   0
+ ...426-bb-6-propagateblocked-engine-wide-halt-p.md |   0
+ ...434-bb-7-reflection-step-in-feature-workflow.md |   0
+ docs/cycle/issues/triaged/.gitkeep                 |   0
+ src/cli.ts                                         |  10 +-
+ src/cli/init.ts                                    |   2 +-
+ src/defaults/prompts/research.md                   |   2 +-
+ src/defaults/prompts/spec.md                       |   2 +-
+ src/defaults/scripts/commit.sh                     |   6 +-
+ src/defaults/scripts/pr.sh                         |   6 +-
+ src/engine/scan.ts                                 |  14 +-
+ src/issue/materialize.ts                           |   2 +-
+ tests/cli/init.test.ts                             |  10 +-
+ tests/cli/multi-loop.test.ts                       |  11 +-
+ tests/defaults/closes-linkage.test.ts              |  24 +-
+ tests/defaults/commit-staging.test.ts              |  20 +-
+ tests/engine/scan.test.ts                          | 102 ++++---
+ tests/issue/materialize.test.ts                    |   4 +-
+ 38 files changed, 716 insertions(+), 126 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/.cycle/prompts/research.md b/.cycle/prompts/research.md</span>
+<span class="fileheader">index 1a256b4..5f0d673 100644</span>
+<span class="meta">--- a/.cycle/prompts/research.md</span>
+<span class="meta">+++ b/.cycle/prompts/research.md</span>
+<span class="hunk">@@ -20,7 +20,7 @@ You are a documentarian, not an evaluator.</span>
+<span class="ctx">    `workflow`, `title`, `issue_id`.</span>
+<span class="ctx"> 2. **SPEC.md**: `docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/SPEC.md` — read</span>
+<span class="ctx">    this first; it tells you what the change area is.</span>
+<span class="del">-3. **Issue file**: `docs/cycle/issues/queued/&lt;issue_id&gt;.md`.</span>
+<span class="add">+3. **Issue file**: `docs/cycle/issues/todo/&lt;issue_id&gt;.md`.</span>
+<span class="ctx"> 4. **Repo conventions**: any `CLAUDE.md` / `AGENTS.md` at the repo root.</span>
+<span class="ctx"> 5. **Reference Documentation**: if `BRIEF.md` has a `## Reference</span>
+<span class="ctx">    Documentation` section, read every file listed there.</span>
+<span class="fileheader">diff --git a/.cycle/prompts/spec.md b/.cycle/prompts/spec.md</span>
+<span class="fileheader">index 3375f86..8bf298b 100644</span>
+<span class="meta">--- a/.cycle/prompts/spec.md</span>
+<span class="meta">+++ b/.cycle/prompts/spec.md</span>
+<span class="hunk">@@ -9,7 +9,7 @@ Read these to know what you&#39;re working on:</span>
+<span class="ctx"> </span>
+<span class="ctx"> 1. **`.cycle/log.jsonl` — last line with `&quot;event&quot;:&quot;cycle.start&quot;`**: gives</span>
+<span class="ctx">    you `cycle_id`, `workflow`, `title`, and `issue_id`.</span>
+<span class="del">-2. **Issue file**: `docs/cycle/issues/queued/&lt;issue_id&gt;.md` — the source</span>
+<span class="add">+2. **Issue file**: `docs/cycle/issues/todo/&lt;issue_id&gt;.md` — the source</span>
+<span class="ctx">    work item (YAML frontmatter + body). This is your primary input.</span>
+<span class="ctx"> 3. **Project Brief**: `BRIEF.md` (and `docs/ARCHITECTURE.md` if present)</span>
+<span class="ctx">    — read for context, but scope from the issue.</span>
+<span class="fileheader">diff --git a/.cycle/scripts/commit.sh b/.cycle/scripts/commit.sh</span>
+<span class="fileheader">index 564c0be..703e46f 100755</span>
+<span class="meta">--- a/.cycle/scripts/commit.sh</span>
+<span class="meta">+++ b/.cycle/scripts/commit.sh</span>
+<span class="hunk">@@ -64,9 +64,9 @@ fi</span>
+<span class="ctx"> . &quot;$(dirname &quot;$0&quot;)/lib/closes.sh&quot;</span>
+<span class="ctx"> issue_file=&quot;&quot;</span>
+<span class="ctx"> if [ -n &quot;${CYCLE_ISSUE_ID:-}&quot; ]; then</span>
+<span class="del">-  for d in docs/cycle/issues/triaged docs/cycle/issues/queued; do</span>
+<span class="del">-    if [ -f &quot;$d/${CYCLE_ISSUE_ID}.md&quot; ]; then issue_file=&quot;$d/${CYCLE_ISSUE_ID}.md&quot;; break; fi</span>
+<span class="del">-  done</span>
+<span class="add">+  if [ -f &quot;docs/cycle/issues/todo/${CYCLE_ISSUE_ID}.md&quot; ]; then</span>
+<span class="add">+    issue_file=&quot;docs/cycle/issues/todo/${CYCLE_ISSUE_ID}.md&quot;</span>
+<span class="add">+  fi</span>
+<span class="ctx"> fi</span>
+<span class="ctx"> repo_slug=&quot;$(gh repo view --json nameWithOwner -q .nameWithOwner 2&gt;/dev/null || true)&quot;</span>
+<span class="ctx"> closes=&quot;$(closes_block &quot;$issue_file&quot; &quot;$repo_slug&quot;)&quot;</span>
+<span class="fileheader">diff --git a/.cycle/scripts/pr.sh b/.cycle/scripts/pr.sh</span>
+<span class="fileheader">index 019c0d2..103531a 100755</span>
+<span class="meta">--- a/.cycle/scripts/pr.sh</span>
+<span class="meta">+++ b/.cycle/scripts/pr.sh</span>
+<span class="hunk">@@ -17,9 +17,9 @@ git push --set-upstream origin &quot;${branch}&quot;</span>
+<span class="ctx"> repo_slug=$(gh repo view --json nameWithOwner -q .nameWithOwner 2&gt;/dev/null || true)</span>
+<span class="ctx"> issue_file=&quot;&quot;</span>
+<span class="ctx"> if [ -n &quot;${CYCLE_ISSUE_ID:-}&quot; ]; then</span>
+<span class="del">-  for d in docs/cycle/issues/triaged docs/cycle/issues/queued; do</span>
+<span class="del">-    if [ -f &quot;$d/${CYCLE_ISSUE_ID}.md&quot; ]; then issue_file=&quot;$d/${CYCLE_ISSUE_ID}.md&quot;; break; fi</span>
+<span class="del">-  done</span>
+<span class="add">+  if [ -f &quot;docs/cycle/issues/todo/${CYCLE_ISSUE_ID}.md&quot; ]; then</span>
+<span class="add">+    issue_file=&quot;docs/cycle/issues/todo/${CYCLE_ISSUE_ID}.md&quot;</span>
+<span class="add">+  fi</span>
+<span class="ctx"> fi</span>
+<span class="ctx"> closes=$(closes_block &quot;$issue_file&quot; &quot;$repo_slug&quot;)</span>
+<span class="ctx"> body=&quot;Generated by cycle.&quot;</span>
+<span class="fileheader">diff --git a/BRIEF.md b/BRIEF.md</span>
+<span class="fileheader">index 07e30d3..e203afa 100644</span>
+<span class="meta">--- a/BRIEF.md</span>
+<span class="meta">+++ b/BRIEF.md</span>
+<span class="hunk">@@ -261,7 +261,7 @@ in a bad state.</span>
+<span class="ctx"> - Push the final attempt&#39;s branch to `cycle/abandoned/&lt;cycle-id&gt;-&lt;slug&gt;`.</span>
+<span class="ctx"> - Open a PR titled `Failed Attempt: &lt;title&gt;` (cold storage with GitHub</span>
+<span class="ctx">   visibility — not intended to merge).</span>
+<span class="del">-- Move the issue file from `triaged/` to `blocked/` with `blocked_at:`</span>
+<span class="add">+- Move the issue file from `todo/` to `blocked/` with `blocked_at:`</span>
+<span class="ctx">   and `blocked_cycle:` in frontmatter; write a `BLOCKED.md` note.</span>
+<span class="ctx"> - **Skip the remaining planned cycles of that issue.** They never</span>
+<span class="ctx">   started, so they consume no IDs — the next issue&#39;s first cycle gets</span>
+<span class="fileheader">diff --git a/CLAUDE.md b/CLAUDE.md</span>
+<span class="fileheader">index 55a52fe..41e84ab 100644</span>
+<span class="meta">--- a/CLAUDE.md</span>
+<span class="meta">+++ b/CLAUDE.md</span>
+<span class="hunk">@@ -33,7 +33,7 @@ Project conventions for cycle. Read before touching code or running the workflow</span>
+<span class="ctx"> - CLI surface: `src/cli.ts`, `src/cli/{parse-args,init}.ts`.</span>
+<span class="ctx"> - Default workflow + prompts + scripts that ship into consumer repos: `src/defaults/`.</span>
+<span class="ctx"> - After editing `src/defaults/`, run `npm run sync-defaults`.</span>
+<span class="del">-- Issue state machine: `docs/cycle/issues/{tbd,queued,triaged,blocked,failed}/`.</span>
+<span class="add">+- Issue state machine: `docs/cycle/issues/{raw,todo,done,blocked,failed}/`. See `docs/RFC-001-issue-lifecycle.md` for the authoritative lifecycle.</span>
+<span class="ctx"> - Append-only audit log: `.cycle/log.jsonl`.</span>
+<span class="ctx"> </span>
+<span class="ctx"> ## Subprocess discipline</span>
+<span class="hunk">@@ -44,5 +44,5 @@ Project conventions for cycle. Read before touching code or running the workflow</span>
+<span class="ctx"> ## Workflow defaults</span>
+<span class="ctx"> </span>
+<span class="ctx"> - Force `--workflow feature` until triage + multi-cycle decomposition land.</span>
+<span class="del">-- Multi-loop run halts on first cycle failure; remaining queue stays in `tbd/`.</span>
+<span class="add">+- Multi-loop run halts on first cycle failure; remaining queue stays in `todo/`.</span>
+<span class="ctx"> - See `BRIEF.md` and `docs/ARCHITECTURE.md` for the full system design.</span>
+<span class="fileheader">diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md</span>
+<span class="fileheader">index f4ad9c1..1bd06e3 100644</span>
+<span class="meta">--- a/docs/ARCHITECTURE.md</span>
+<span class="meta">+++ b/docs/ARCHITECTURE.md</span>
+<span class="hunk">@@ -43,13 +43,13 @@ Contracts:</span>
+<span class="ctx"> - **In:** one or more *issues*. An issue is any unit of work — free-text</span>
+<span class="ctx">   task, Jira card, GH issue, PRD, BRIEF. Any entry point (positional</span>
+<span class="ctx">   `&quot;task text&quot;`, `--issue &lt;id&gt;`, `--issues-file`, `--issues-stdin`, or</span>
+<span class="del">-  files dropped into `docs/cycle/issues/tbd/` by an external agent)</span>
+<span class="del">-  materializes as a markdown file in the `tbd/` inbox. The engine&#39;s</span>
+<span class="add">+  files dropped into `docs/cycle/issues/raw/` by an external agent)</span>
+<span class="add">+  materializes as a markdown file in the `raw/` inbox. The engine&#39;s</span>
+<span class="ctx">   scan loop then picks them up.</span>
+<span class="ctx"> - **Out:** JSONL event stream on stdout (mirrored to `.cycle/log.jsonl`);</span>
+<span class="ctx">   durable per-cycle artifacts under `docs/cycle/&lt;cycle-id&gt;-&lt;workflow&gt;-&lt;slug&gt;/`;</span>
+<span class="ctx">   one branch, commit set, and PR per cycle; issue files advance through</span>
+<span class="del">-  `tbd/ → queued/ → triaged/` as state changes; a final exit code.</span>
+<span class="add">+  `raw/ → todo/ → done/` as state changes; a final exit code.</span>
+<span class="ctx"> </span>
+<span class="ctx"> ## 2. Distribution &amp; Runtime</span>
+<span class="ctx"> </span>
+<span class="hunk">@@ -235,7 +235,7 @@ Subcommands:</span>
+<span class="ctx"> </span>
+<span class="ctx"> ```jsonl</span>
+<span class="ctx"> {&quot;ts&quot;:&quot;…&quot;,&quot;event&quot;:&quot;engine.start&quot;}</span>
+<span class="del">-{&quot;ts&quot;:&quot;…&quot;,&quot;event&quot;:&quot;issue.ingested&quot;,&quot;issue_id&quot;:&quot;JIRA-123&quot;,&quot;path&quot;:&quot;docs/cycle/issues/queued/JIRA-123.md&quot;}</span>
+<span class="add">+{&quot;ts&quot;:&quot;…&quot;,&quot;event&quot;:&quot;issue.ingested&quot;,&quot;issue_id&quot;:&quot;JIRA-123&quot;,&quot;path&quot;:&quot;docs/cycle/issues/todo/JIRA-123.md&quot;}</span>
+<span class="ctx"> {&quot;ts&quot;:&quot;…&quot;,&quot;event&quot;:&quot;tbd.pop&quot;,&quot;issue_id&quot;:&quot;JIRA-123&quot;}</span>
+<span class="ctx"> {&quot;ts&quot;:&quot;…&quot;,&quot;event&quot;:&quot;triage.start&quot;,&quot;issue_id&quot;:&quot;JIRA-123&quot;,&quot;attempt&quot;:1}</span>
+<span class="ctx"> {&quot;ts&quot;:&quot;…&quot;,&quot;event&quot;:&quot;triage.decision&quot;,&quot;issue_id&quot;:&quot;JIRA-123&quot;,&quot;plan&quot;:[{&quot;workflow&quot;:&quot;feature&quot;,&quot;title&quot;:&quot;…&quot;},{&quot;workflow&quot;:&quot;feature&quot;,&quot;title&quot;:&quot;…&quot;}]}</span>
+<span class="hunk">@@ -279,26 +279,26 @@ timestamps.</span>
+<span class="ctx"> ### Engine lifecycle</span>
+<span class="ctx"> </span>
+<span class="ctx"> 1. **Parse args.** For any CLI-supplied input, materialize a markdown</span>
+<span class="del">-   file in `docs/cycle/issues/tbd/` (filename derived from `id`, or a</span>
+<span class="add">+   file in `docs/cycle/issues/raw/` (filename derived from `id`, or a</span>
+<span class="ctx">    `txt-&lt;ts&gt;-&lt;slug&gt;` for freeform text).</span>
+<span class="ctx"> 2. **Start.** Emit `engine.start`.</span>
+<span class="del">-3. **Scan `tbd/`.** For each file not yet reflected in `tbd.jsonl`:</span>
+<span class="del">-   `mv` it to `queued/`, then append a line to `tbd.jsonl` (dedup by</span>
+<span class="add">+3. **Scan `raw/`.** For each file not yet reflected in `tbd.jsonl`:</span>
+<span class="add">+   `mv` it to `todo/`, then append a line to `tbd.jsonl` (dedup by</span>
+<span class="ctx">    `id`). Emit one `issue.ingested` per file.</span>
+<span class="ctx"> 4. **Process loop** (until `tbd.jsonl` is empty):</span>
+<span class="ctx">    - **Pop** the next issue from `tbd.jsonl`; emit `tbd.pop`.</span>
+<span class="ctx">    - **Skip if blocked** by `depends_on:` — if any dependency is still</span>
+<span class="del">-     in `tbd/`, `queued/`, or is an unmerged cycle, re-append the line</span>
+<span class="add">+     in `raw/`, `todo/`, or is an unmerged cycle, re-append the line</span>
+<span class="ctx">      to the tail of `tbd.jsonl` and continue to the next entry. (Cycle</span>
+<span class="ctx">      detection: after a full pass where no issue can progress, abort.)</span>
+<span class="del">-   - **Triage** the `queued/` file → a *plan* of 1+ cycles, each</span>
+<span class="add">+   - **Triage** the `todo/` file → a *plan* of 1+ cycles, each</span>
+<span class="ctx">      tagged with a workflow (`bug` / `feature` / `research`) and a</span>
+<span class="ctx">      spec. No cycle IDs assigned yet.</span>
+<span class="ctx">      - On triage failure: increment `triage_attempts` in frontmatter,</span>
+<span class="ctx">        re-append to `tbd.jsonl`. After 3 attempts, move the file to</span>
+<span class="ctx">        `failed/` with a `FAILURE.md` note; emit `triage.abandoned`.</span>
+<span class="ctx">    - **Write `TRIAGE.md`** (populated once the first cycle ID is</span>
+<span class="del">-     assigned); `mv` the issue file from `queued/` to `triaged/`.</span>
+<span class="add">+     assigned); the issue file stays in `todo/` until cycle completion.</span>
+<span class="ctx">    - **Cycle sub-loop** (for each planned cycle):</span>
+<span class="ctx">      - **Allocate the cycle ID** by scanning `log.jsonl` for the</span>
+<span class="ctx">        highest existing ID and incrementing. Append it to the issue&#39;s</span>
+<span class="hunk">@@ -324,16 +324,16 @@ timestamps.</span>
+<span class="ctx">        skipped (they consume no IDs). Move the issue file to</span>
+<span class="ctx">        `blocked/` with `BLOCKED.md`; emit `issue.blocked`. In `stack`</span>
+<span class="ctx">        mode the engine halts entirely (default `--on-abandon halt`).</span>
+<span class="del">-     - On issue completion (all planned cycles merged): append</span>
+<span class="del">-       `completed_at:` to the issue file in `triaged/`; emit</span>
+<span class="add">+     - On issue completion (all planned cycles merged): move the issue</span>
+<span class="add">+       file from `todo/` to `done/` and append `completed_at:`; emit</span>
+<span class="ctx">        `issue.completed`.</span>
+<span class="del">-5. **Re-scan `tbd/`.** If new files appeared during the run, loop back</span>
+<span class="add">+5. **Re-scan `raw/`.** If new files appeared during the run, loop back</span>
+<span class="ctx">    to step 4.</span>
+<span class="del">-6. **Finalize.** When `tbd.jsonl` is empty and `tbd/` is empty, emit</span>
+<span class="add">+6. **Finalize.** When `tbd.jsonl` is empty and `raw/` is empty, emit</span>
+<span class="ctx">    `engine.stop` and exit 0.</span>
+<span class="ctx"> </span>
+<span class="ctx"> Triage is lazy (per issue, just before its cycles run). The backlog in</span>
+<span class="del">-`tbd/` + `tbd.jsonl` stays a meaningful live queue. Crash-resume is</span>
+<span class="add">+`raw/` + `tbd.jsonl` stays a meaningful live queue. Crash-resume is</span>
+<span class="ctx"> trivial — re-invoking `cycle run` with no arguments picks up from</span>
+<span class="ctx"> whatever&#39;s still in the folders and `tbd.jsonl`.</span>
+<span class="ctx"> </span>
+<span class="hunk">@@ -627,9 +627,9 @@ Example: parent agent invokes cycle with 7 Jira issues, 3 of them big.</span>
+<span class="ctx"> </span>
+<span class="ctx"> 1. Parent runs</span>
+<span class="ctx">    `./.cycle/bin/cycle.js run --issues-file jira-todo.json`.</span>
+<span class="del">-2. cycle writes 7 markdown files into `docs/cycle/issues/tbd/` (one per</span>
+<span class="add">+2. cycle writes 7 markdown files into `docs/cycle/issues/raw/` (one per</span>
+<span class="ctx">    Jira card). Emits `engine.start`.</span>
+<span class="del">-3. Scan: each file is moved to `queued/` and a line is appended to</span>
+<span class="add">+3. Scan: each file is moved to `todo/` and a line is appended to</span>
+<span class="ctx">    `.cycle/tbd.jsonl`. Emits 7 `issue.ingested` events.</span>
+<span class="ctx"> 4. Process loop begins. Pops the first line from `tbd.jsonl` (say</span>
+<span class="ctx">    `JIRA-123`); emits `tbd.pop`.</span>
+<span class="hunk">@@ -637,8 +637,8 @@ Example: parent agent invokes cycle with 7 Jira issues, 3 of them big.</span>
+<span class="ctx">    `triage.decision`. Engine scans `log.jsonl`, finds the previous</span>
+<span class="ctx">    highest cycle ID was `0041`, so this cycle gets `0042`. Writes</span>
+<span class="ctx">    `TRIAGE.md` into `docs/cycle/0042-feature-safari-login/`, updates</span>
+<span class="del">-   the issue file&#39;s `cycles: [0042]` frontmatter, moves the file to</span>
+<span class="del">-   `triaged/`.</span>
+<span class="add">+   the issue file&#39;s `cycles: [0042]` frontmatter. The file stays in</span>
+<span class="add">+   `todo/` until cycle completion.</span>
+<span class="ctx"> 6. Cycle `0042` runs:</span>
+<span class="ctx">    - Branch `cycle/feature/safari-login` created off `main`.</span>
+<span class="ctx">    - `docs/cycle/0042-feature-safari-login/` gets its workflow</span>
+<span class="hunk">@@ -649,14 +649,14 @@ Example: parent agent invokes cycle with 7 Jira issues, 3 of them big.</span>
+<span class="ctx">    - PR opened; `gh pr merge --squash --auto` enabled.</span>
+<span class="ctx">    - Engine polls until the PR lands on `main`. Emits `pr.merged` and</span>
+<span class="ctx">      `cycle.end`.</span>
+<span class="del">-   - Since `0042` was the only cycle from `JIRA-123`, the engine</span>
+<span class="del">-     appends `completed_at:` to the issue file in `triaged/` and emits</span>
+<span class="del">-     `issue.completed`.</span>
+<span class="add">+   - Since `0042` was the only cycle from `JIRA-123`, the engine moves</span>
+<span class="add">+     the issue file from `todo/` to `done/`, appends `completed_at:`,</span>
+<span class="add">+     and emits `issue.completed`.</span>
+<span class="ctx"> 7. Engine loops back. Pops `JIRA-124`. Triage decomposes into 3</span>
+<span class="ctx">    cycles (`0043`, `0044`, `0045`). Each runs in turn, branched off the</span>
+<span class="ctx">    updated `main`. After `0045` merges, `JIRA-124.md` gets its</span>
+<span class="ctx">    `completed_at:`.</span>
+<span class="del">-8. And so on, until `tbd.jsonl` is empty. Final scan of `tbd/` —</span>
+<span class="add">+8. And so on, until `tbd.jsonl` is empty. Final scan of `raw/` —</span>
+<span class="ctx">    nothing new. Emits `engine.stop` with status `ok`. Exit 0.</span>
+<span class="ctx"> </span>
+<span class="ctx"> **`--merge-mode stack`:** each cycle&#39;s PR is opened with the prior</span>
+<span class="hunk">@@ -665,13 +665,13 @@ the next cycle. Humans merge the stack bottom-up later.</span>
+<span class="ctx"> </span>
+<span class="ctx"> **Crash recovery:** if the engine crashes after cycle `0044` merges,</span>
+<span class="ctx"> `tbd.jsonl` still has `JIRA-125`–`JIRA-127`, `log.jsonl` records</span>
+<span class="del">-everything that did happen, and the `triaged/`/`queued/` folders reflect</span>
+<span class="add">+everything that did happen, and the `todo/`/`done/` folders reflect</span>
+<span class="ctx"> true state. Re-invoking `./.cycle/bin/cycle.js run` with no</span>
+<span class="ctx"> arguments picks up automatically — starting with any cycle left</span>
+<span class="ctx"> mid-flight (detected from the log), then continuing through the queue.</span>
+<span class="ctx"> </span>
+<span class="ctx"> **External agent drop:** while the engine is processing cycle `0042`,</span>
+<span class="del">-another agent drops `JIRA-200.md` into `tbd/`. The engine sees it on</span>
+<span class="add">+another agent drops `JIRA-200.md` into `raw/`. The engine sees it on</span>
+<span class="ctx"> the next scan (after the current queue empties) and keeps running</span>
+<span class="ctx"> instead of stopping.</span>
+<span class="ctx"> </span>
+<span class="fileheader">diff --git a/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/BUILD.md b/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/BUILD.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..8b13789</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/BUILD.md</span>
+<span class="hunk">@@ -0,0 +1 @@</span>
+<span class="add">+</span>
+<span class="fileheader">diff --git a/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/FIX.md b/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/FIX.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..8b13789</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/FIX.md</span>
+<span class="hunk">@@ -0,0 +1 @@</span>
+<span class="add">+</span>
+<span class="fileheader">diff --git a/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/MUST-FIX.md b/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/MUST-FIX.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..d396297</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/MUST-FIX.md</span>
+<span class="hunk">@@ -0,0 +1,52 @@</span>
+<span class="add">+# Must-Fix Items: Cycle 0012</span>
+<span class="add">+</span>
+<span class="add">+## Summary</span>
+<span class="add">+3 issues found: 2 documentation deliverables required by SPEC were skipped (ARCHITECTURE.md, BRIEF.md), and the build agent left BUILD.md empty. Code, tests, prompts, scripts, CLAUDE.md, and disk migration are correct.</span>
+<span class="add">+</span>
+<span class="add">+## Tasks</span>
+<span class="add">+</span>
+<span class="add">+- [ ] ### Task 1: Update `docs/ARCHITECTURE.md` lifecycle folder strings</span>
+<span class="add">+  **Priority:** Critical</span>
+<span class="add">+  **Files:** `docs/ARCHITECTURE.md`</span>
+<span class="add">+  **Problem:** SPEC §Documentation Updates explicitly requires this file to be updated, and SPEC says &quot;Documentation is part of done — code without updated docs is incomplete.&quot; 21 occurrences of `tbd/`, `queued/`, `triaged/` remain at lines 46, 47, 52, 238, 282, 285, 286, 291, 294, 301, 328, 330, 332, 336, 630, 632, 641, 653, 659, 668, 674. PLAN.md Task 7 enumerated this exact set.</span>
+<span class="add">+  **Fix:** In-place string replacement only — do NOT restructure prose. Apply:</span>
+<span class="add">+    - `docs/cycle/issues/tbd/` → `docs/cycle/issues/raw/`</span>
+<span class="add">+    - `tbd/` → `raw/` (when referring to the folder)</span>
+<span class="add">+    - `queued/` → `todo/`</span>
+<span class="add">+    - `triaged/` → drop the reference or replace with `done/` if the surrounding sentence describes the post-cycle-end state (see RFC-001 §6 — `todo → done` on cycle.ok; `triaged/` no longer exists)</span>
+<span class="add">+    - Leave `tbd.jsonl` filename alone (BB-3 renames it later)</span>
+<span class="add">+    - Line 52 phrase `tbd/ → queued/ → triaged/` → `raw/ → todo/ → done/` (per RFC-001 §6)</span>
+<span class="add">+    - For the worked-example section (lines 630–674), update folder names in-place; the example&#39;s flow logic stays valid under the new names</span>
+<span class="add">+  **Verify:**</span>
+<span class="add">+    1. `grep -n &quot;tbd/\|queued/\|triaged/&quot; docs/ARCHITECTURE.md` returns no matches (the only allowed survivors are `tbd.jsonl` — a filename, not a folder, and intentional per BB-3 scope).</span>
+<span class="add">+    2. Manual read of the modified §4/Triage/Workflows + step-by-step sections — no orphan sentences, no contradictions with RFC-001 §6 lifecycle.</span>
+<span class="add">+</span>
+<span class="add">+- [ ] ### Task 2: Update `BRIEF.md` lifecycle folder strings</span>
+<span class="add">+  **Priority:** Critical</span>
+<span class="add">+  **Files:** `BRIEF.md`</span>
+<span class="add">+  **Problem:** SPEC §Documentation Updates explicitly lists BRIEF.md. 9 residual occurrences at lines 264, 310, 311, 456, 457, 504, 527, 536, 538. PLAN.md Task 7 enumerated the same set.</span>
+<span class="add">+  **Fix:** Same in-place rewrite as Task 1:</span>
+<span class="add">+    - `tbd/` → `raw/`, `queued/` → `todo/`, `triaged/` → drop or `done/` as appropriate per RFC-001 §6</span>
+<span class="add">+    - Line 264 &quot;Move the issue file from `triaged/` to `blocked/`&quot; → `Move the issue file from todo/ to blocked/` (per RFC-001 §6 the post-triage state is `todo/`, not `triaged/`)</span>
+<span class="add">+    - Lines 310–311 (five-folder list): replace with `raw/`, `todo/`, `done/`, `blocked/`, `failed/`</span>
+<span class="add">+    - Lines 456–457 (empty-folder list under file-tree): same five-folder replacement</span>
+<span class="add">+    - Line 527 `tbd/ → queued/ → triaged/` → `raw/ → todo/ → done/`</span>
+<span class="add">+    - Line 536 &quot;External agents dropping files into `tbd/`&quot; → `…into raw/`</span>
+<span class="add">+    - Line 538 &quot;Pre-emptive `tbd/`&quot; → `Pre-emptive raw/`</span>
+<span class="add">+    - If BRIEF still has a paragraph describing the MVP `tbd/queued` drain flow as the canonical spec, append one sentence to that paragraph: &quot;See `docs/RFC-001-issue-lifecycle.md` for the authoritative lifecycle.&quot; Do not delete surrounding context.</span>
+<span class="add">+  **Verify:**</span>
+<span class="add">+    1. `grep -n &quot;tbd/\|queued/\|triaged/&quot; BRIEF.md` returns no matches.</span>
+<span class="add">+    2. `grep -n &quot;RFC-001&quot; BRIEF.md` returns at least one cross-reference.</span>
+<span class="add">+</span>
+<span class="add">+- [ ] ### Task 3: Populate `BUILD.md` with the build summary</span>
+<span class="add">+  **Priority:** Minor</span>
+<span class="add">+  **Files:** `docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/BUILD.md`</span>
+<span class="add">+  **Problem:** File is zero bytes. The build step ran (code, tests, disk migration all landed) but the agent did not capture the build report. SPEC&#39;s testing/coverage criteria require coverage numbers be reported in BUILD.md (per CLAUDE.md &quot;Coverage policy: Report coverage numbers (line / branch / func, plus any per-file regressions) in BUILD.md and FIX.md outputs.&quot;).</span>
+<span class="add">+  **Fix:** Write a concise BUILD.md with:</span>
+<span class="add">+    1. Slice-by-slice list of files touched (see git status: 8 src changes, 6 test changes, 4 sync-defaults targets, 1 CLAUDE.md, disk migration of 7 bb-* + delete of `tbd/.gitkeep` + `queued/.gitkeep` + `triaged/.gitkeep`)</span>
+<span class="add">+    2. Coverage numbers from `npm run test:coverage`: **line 98.44%, branch 82.54%, function 91.11%** — no regression vs cycle 0011 baseline.</span>
+<span class="add">+    3. Test count: **89/89 passing**.</span>
+<span class="add">+    4. Outstanding deviations from SPEC: ARCHITECTURE.md and BRIEF.md doc updates were NOT performed during build (now tracked as Tasks 1–2 above for the fix step).</span>
+<span class="add">+  **Verify:**</span>
+<span class="add">+    1. `wc -l docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/BUILD.md` &gt; 0.</span>
+<span class="add">+    2. File contains the three required coverage percentages and the test count.</span>
+<span class="fileheader">diff --git a/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/PLAN.md b/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/PLAN.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..32b707e</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/PLAN.md</span>
+<span class="hunk">@@ -0,0 +1,297 @@</span>
+<span class="add">+```markdown</span>
+<span class="add">+# Implementation Plan: Cycle 0012</span>
+<span class="add">+</span>
+<span class="add">+## Overview</span>
+<span class="add">+Rename issue lifecycle folders `tbd/` → `raw/` and `queued/` → `todo/`, drop empty `triaged/`, and retarget `src/engine/scan.ts` (preserving the cycle-0010 `readKnownIds` dedup) plus every in-repo path reference (CLI, defaults, prompts, tests, docs). First migration step of RFC-001 §12 BB-1.</span>
+<span class="add">+</span>
+<span class="add">+## Current State (from Research)</span>
+<span class="add">+- `src/engine/scan.ts:38` exports `scanTbd(repoRoot)`. Body reads `docs/cycle/issues/tbd/*.md`, renames to `queued/`, then appends a dedup-checked row to `.cycle/tbd.jsonl`. The cycle-0010 dedup (`readKnownIds`, lines 17–36) is the load-bearing invariant — preserve it verbatim, only the source/dest folder names change.</span>
+<span class="add">+- Sole caller: `src/cli.ts:4,48`.</span>
+<span class="add">+- `src/cli/init.ts:21` scaffolds `[&quot;tbd&quot;,&quot;queued&quot;,&quot;triaged&quot;,&quot;blocked&quot;,&quot;failed&quot;]` under `docs/cycle/issues/`.</span>
+<span class="add">+- `src/issue/materialize.ts:7` writes new drops under `tbd/`.</span>
+<span class="add">+- Default scripts (`commit.sh:64-72`, `pr.sh:17-24`) loop over `triaged docs/cycle/issues/queued` to locate the issue file for closes-line generation.</span>
+<span class="add">+- Default prompts (`spec.md:12`, `research.md:23`) document the `queued/&lt;issue_id&gt;.md` path.</span>
+<span class="add">+- Tests scoped to old folder names: `tests/engine/scan.test.ts` (5 tests), `tests/cli/init.test.ts:20`, `tests/issue/materialize.test.ts:12`, `tests/cli/multi-loop.test.ts:21,94,110-111`, `tests/defaults/commit-staging.test.ts:61-185`, `tests/defaults/closes-linkage.test.ts:222-460` (6 `triaged/` fixtures).</span>
+<span class="add">+- Live state: 7 untracked `bb-*` files currently live in `docs/cycle/issues/queued/`. `triaged/` exists and is empty. `raw/` already exists with 8 pre-existing markdown files (open-question captures); `done/` and `blocked/` already exist.</span>
+<span class="add">+- Convention: `npm run sync-defaults` mirrors `src/defaults/` → `.cycle/` after any defaults edit.</span>
+<span class="add">+</span>
+<span class="add">+## Desired End State</span>
+<span class="add">+- On disk: `docs/cycle/issues/{raw,todo,done,blocked,failed}/` exist; `tbd/`, `queued/`, `triaged/` do not.</span>
+<span class="add">+- The 7 in-flight `bb-*` issues live under `todo/` (untracked, ready for the next engine.start).</span>
+<span class="add">+- The 8 pre-existing `raw/*.md` files stay put.</span>
+<span class="add">+- `src/engine/scan.ts` exports `scanRaw(repoRoot)` (renamed for clarity); reads `raw/`, moves to `todo/`, dedups `.cycle/tbd.jsonl` via the existing `readKnownIds` helper unchanged.</span>
+<span class="add">+- `src/cli.ts`, `src/cli/init.ts`, `src/issue/materialize.ts`, `src/defaults/scripts/{commit,pr}.sh`, `src/defaults/prompts/{spec,research}.md` reference only `raw/` and `todo/`.</span>
+<span class="add">+- After `npm run sync-defaults`, `.cycle/scripts/` and `.cycle/prompts/` mirror the updated defaults.</span>
+<span class="add">+- `grep -rn &quot;issues/tbd\|issues/queued\|issues/triaged&quot; src tests src/defaults` returns no matches.</span>
+<span class="add">+- `npm test`, `npm run typecheck`, `npm run test:coverage` (line ≥ 95 / branch ≥ 75 / func ≥ 90) all pass.</span>
+<span class="add">+- CLAUDE.md, ARCHITECTURE.md, BRIEF.md updated in-place; `.claude/skills/cycle.md` updated if present.</span>
+<span class="add">+</span>
+<span class="add">+## What We&#39;re NOT Doing</span>
+<span class="add">+- BB-2..BB-7 (single `workflows.yml`, new `tbd.jsonl` schema/file rename, triage subroutine, resume logic, `propagateBlocked`, reflection step). Each is its own cycle.</span>
+<span class="add">+- Renaming `.cycle/tbd.jsonl` itself — BB-3 owns the schema/file change.</span>
+<span class="add">+- Introducing or modifying `closes.sh` (no such script exists; speculative in the issue title).</span>
+<span class="add">+- New `raw/` frontmatter fields (priority, source taxonomy) — RFC-001 §3 scope but not BB-1.</span>
+<span class="add">+- Rewriting or relocating the 8 pre-existing files in `raw/`.</span>
+<span class="add">+- Rewriting historical `docs/cycle/&lt;cycle_id&gt;-…/` artifacts that mention the old folder names — those are immutable cycle records.</span>
+<span class="add">+- Aggressively restructuring ARCHITECTURE.md / BRIEF.md prose. Only path strings get replaced; section-level rewrites defer to a doc-cleanup cycle.</span>
+<span class="add">+</span>
+<span class="add">+## Implementation Approach</span>
+<span class="add">+Eight vertical slices, each delivering one self-contained, testable change. Order minimizes flap on `npm test` between slices: engine source first (it&#39;s what every other layer depends on), then CLI surface, then defaults, then prompts/sync, then disk migration of live queue, then docs, then full verification. Each slice updates production code AND tests together — no two-step &quot;code now, tests later&quot;. The `readKnownIds` dedup helper is preserved byte-for-byte; only the scan function&#39;s source/dest folder strings change. The engine is mid-run inside this cycle&#39;s worktree; the disk migration of the 7 `bb-*` files happens as part of the build commit (they&#39;re untracked, so `mv` doesn&#39;t touch git history), and the next engine.start will scan `raw/` post-rename.</span>
+<span class="add">+</span>
+<span class="add">+### Open-Question Resolutions (made before planning)</span>
+<span class="add">+1. **Pre-existing 8 `raw/*.md` files**: keep in place. They already conform to the target folder; SPEC out-of-scope on their contents. No rewrite, no move.</span>
+<span class="add">+2. **`scanTbd` rename**: rename export to `scanRaw` (function and call-site). Only one caller (`src/cli.ts:4,48`), trivial to update; clearer naming long-term.</span>
+<span class="add">+3. **`tests/defaults/commit-staging.test.ts:167-185` &quot;triaged issue file is staged just like queued&quot;**: rewrite as a single `todo/` assertion. The two prior queued/triaged cases collapse into one `todo/` case under RFC-001; delete the now-redundant duplicate, keep one explicit `todo/` test.</span>
+<span class="add">+4. **`tests/defaults/closes-linkage.test.ts` 6× `triaged/foo.md` fixtures**: migrate all six to `todo/foo.md`. BB-3 may add a `done/` lookup later; not BB-1&#39;s job.</span>
+<span class="add">+5. **ARCHITECTURE.md / BRIEF.md**: minimal in-place string replacement of folder names. No section rewrites; cross-reference to RFC-001 only where folder names appear in headings or first-mention prose.</span>
+<span class="add">+6. **Engine mid-run safety**: the 7 `bb-*` files in `queued/` are untracked. `mv` them to `todo/` during the build commit step. The current cycle 0012 itself does not call `scanRaw` again (it&#39;s past the scan phase, in build/review/commit). Next engine.start reads `raw/` (which has the 8 pre-existing captures, none of which are intended for engine pickup yet — that&#39;s an out-of-cycle concern for a later triage pass).</span>
+<span class="add">+7. **`.claude/skills/cycle.md`**: glob first; edit only if present.</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 1: Retarget `src/engine/scan.ts` to `raw/ → todo/` and rename export</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+Rename the exported function `scanTbd` → `scanRaw`. Change source folder constant `tbd` → `raw`, dest folder constant `queued` → `todo`. Preserve `readKnownIds` and the `.cycle/tbd.jsonl` path verbatim — BB-3 owns the JSONL rename later.</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+**File**: `src/engine/scan.ts`</span>
+<span class="add">+- Rename `export async function scanTbd(repoRoot)` → `scanRaw(repoRoot)`.</span>
+<span class="add">+- Replace `const tbdDir = join(repoRoot, &quot;docs&quot;, &quot;cycle&quot;, &quot;issues&quot;, &quot;tbd&quot;)` → `const rawDir = join(repoRoot, &quot;docs&quot;, &quot;cycle&quot;, &quot;issues&quot;, &quot;raw&quot;)`.</span>
+<span class="add">+- Replace `const queuedDir = join(repoRoot, &quot;docs&quot;, &quot;cycle&quot;, &quot;issues&quot;, &quot;queued&quot;)` → `const todoDir = join(repoRoot, &quot;docs&quot;, &quot;cycle&quot;, &quot;issues&quot;, &quot;todo&quot;)`.</span>
+<span class="add">+- Keep `const jsonlPath = join(repoRoot, &quot;.cycle&quot;, &quot;tbd.jsonl&quot;)` unchanged.</span>
+<span class="add">+- Update local variable names `tbd`/`queued` → `raw`/`todo` for readability.</span>
+<span class="add">+- `readKnownIds` body unchanged.</span>
+<span class="add">+- Update any type alias names that include the old folder (e.g., `TbdEntry` → keep the type name, the export name change is enough for BB-1; renaming the type leaks across more callers than needed and BB-3 will re-touch this).</span>
+<span class="add">+</span>
+<span class="add">+**File**: `tests/engine/scan.test.ts`</span>
+<span class="add">+- Update import: `import { scanRaw } from &quot;../../src/engine/scan.ts&quot;`.</span>
+<span class="add">+- Replace every fixture path string `tbd` → `raw` (source) and `queued` → `todo` (dest) in setup and assertions.</span>
+<span class="add">+- Add one explicit test: &quot;re-drop same id appends zero new lines&quot; — pre-seed `raw/X.md` with id `X`, call `scanRaw`, then write a new `raw/X.md` with the same id, call `scanRaw` again, assert `.cycle/tbd.jsonl` line count for id `X` is exactly 1. (Cycle 0010 covered intra-scan dedup; this asserts cross-scan dedup explicitly so the regression boundary is obvious.)</span>
+<span class="add">+- Keep all 5 existing test scenarios; only path strings change.</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] `npm run typecheck` passes.</span>
+<span class="add">+- [ ] `tests/engine/scan.test.ts` all pass (≥6 cases including new re-drop case).</span>
+<span class="add">+- [ ] `grep -n &quot;tbd\b\|queued\b&quot; src/engine/scan.ts` returns no folder-path matches (only `tbd.jsonl` remains, which is intentional).</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 2: Retarget `src/issue/materialize.ts` and `src/cli.ts`</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+`materialize` writes new drops; it now writes into `raw/`. `cli.ts` imports `scanRaw` and updates its drain-loop comment.</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+**File**: `src/issue/materialize.ts`</span>
+<span class="add">+- Line 7: `const dir = join(repoRoot, &quot;docs&quot;, &quot;cycle&quot;, &quot;issues&quot;, &quot;tbd&quot;)` → `&quot;raw&quot;`.</span>
+<span class="add">+</span>
+<span class="add">+**File**: `src/cli.ts`</span>
+<span class="add">+- Line 4: `import { scanTbd } from &quot;./engine/scan.ts&quot;` → `import { scanRaw } from &quot;./engine/scan.ts&quot;`.</span>
+<span class="add">+- Line 48 (drain loop call): `scanTbd(cwd)` → `scanRaw(cwd)`.</span>
+<span class="add">+- Lines 33–34 comment: replace `tbd/` references with `raw/`. New text: &quot;materialize it into raw/ before draining. Without text, drain whatever&#39;s already in raw/.&quot;</span>
+<span class="add">+</span>
+<span class="add">+**File**: `tests/issue/materialize.test.ts`</span>
+<span class="add">+- Line 12: assertion `path.endsWith(&quot;/docs/cycle/issues/tbd/&quot;)` → `&quot;/docs/cycle/issues/raw/&quot;`.</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] `npm run typecheck` passes.</span>
+<span class="add">+- [ ] `tests/issue/materialize.test.ts` passes.</span>
+<span class="add">+- [ ] `grep -n &quot;tbd\|queued&quot; src/cli.ts src/issue/materialize.ts` returns no folder matches.</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 3: Retarget `src/cli/init.ts` scaffold</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+`cycle init` creates `raw/`, `todo/`, `done/`, `failed/`, `blocked/`. Drops `tbd/`, `queued/`, `triaged/` from the scaffold list.</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+**File**: `src/cli/init.ts`</span>
+<span class="add">+- Line 21: replace `[&quot;tbd&quot;,&quot;queued&quot;,&quot;triaged&quot;,&quot;blocked&quot;,&quot;failed&quot;]` with `[&quot;raw&quot;,&quot;todo&quot;,&quot;done&quot;,&quot;blocked&quot;,&quot;failed&quot;]`.</span>
+<span class="add">+- No other changes (locateEngineBundle and defaults-copy logic are folder-agnostic).</span>
+<span class="add">+</span>
+<span class="add">+**File**: `tests/cli/init.test.ts`</span>
+<span class="add">+- Replace `stat(join(root, &quot;docs/cycle/issues/tbd&quot;))` (line 20) and any sibling asserts with checks for `raw/`, `todo/`, `done/`, `blocked/`, `failed/`.</span>
+<span class="add">+- Add explicit negative asserts: `stat` of `tbd`, `queued`, `triaged` rejects with `ENOENT`.</span>
+<span class="add">+</span>
+<span class="add">+**File**: `tests/cli/multi-loop.test.ts`</span>
+<span class="add">+- Lines 21, 94, 110, 111: comment + fixture path strings `tbd` → `raw`. Confirm the drop-target assertion checks `raw/` (since the test drops a fresh issue and expects to find it).</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] `tests/cli/init.test.ts` passes (positive + negative asserts).</span>
+<span class="add">+- [ ] `tests/cli/multi-loop.test.ts` passes end-to-end (drop + dry-run cycle).</span>
+<span class="add">+- [ ] `npm run typecheck` passes.</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 4: Retarget default scripts (`commit.sh`, `pr.sh`) and their tests</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+Replace the `for d in docs/cycle/issues/triaged docs/cycle/issues/queued` lookup loops with a single `todo/` lookup. (BB-3 will revisit when `done/` lookup may be needed.) Migrate all `tests/defaults` fixtures.</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+**File**: `src/defaults/scripts/commit.sh`</span>
+<span class="add">+- Lines 64–72: replace loop body. New:</span>
+<span class="add">+  ```sh</span>
+<span class="add">+  if [ -f &quot;docs/cycle/issues/todo/$CYCLE_ISSUE_ID.md&quot; ]; then</span>
+<span class="add">+    issue_file=&quot;docs/cycle/issues/todo/$CYCLE_ISSUE_ID.md&quot;</span>
+<span class="add">+  fi</span>
+<span class="add">+  ```</span>
+<span class="add">+- No change to the `git status --porcelain` denylist walk (lines 38–55) — it already stages all surviving paths.</span>
+<span class="add">+</span>
+<span class="add">+**File**: `src/defaults/scripts/pr.sh`</span>
+<span class="add">+- Lines 17–24: identical replacement to `commit.sh` for closes-block file lookup.</span>
+<span class="add">+</span>
+<span class="add">+**File**: `tests/defaults/commit-staging.test.ts`</span>
+<span class="add">+- Replace `queued/`/`triaged/` fixture paths with `todo/` throughout (lines 61, 62, 73, 86, 87).</span>
+<span class="add">+- Lines 167–185 &quot;triaged issue file is staged just like queued&quot;: rewrite as a single `todo/` case. Delete the now-redundant duplicate (whichever of the two old cases is purely structural duplicate after the rename). Keep at least one explicit `todo/` test that asserts the commit stages the file from `todo/`.</span>
+<span class="add">+</span>
+<span class="add">+**File**: `tests/defaults/closes-linkage.test.ts`</span>
+<span class="add">+- All 6 `triaged/foo.md` fixtures (lines 222, 257, 288, 394, 432, 458 and the matching dir-creation lines) → `todo/foo.md`. Both `commit.sh` and `pr.sh` suites pass through the same shim infrastructure (`installGhShim`, `makePrRepo`); the rename is mechanical.</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] `tests/defaults/commit-staging.test.ts` passes.</span>
+<span class="add">+- [ ] `tests/defaults/closes-linkage.test.ts` passes.</span>
+<span class="add">+- [ ] `grep -n &quot;triaged\|queued&quot; src/defaults/scripts/*.sh` returns no matches.</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 5: Retarget default prompts and run `sync-defaults`</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+Update the path documentation in spec and research prompts. Mirror to `.cycle/` so the dogfooded engine sees the change.</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+**File**: `src/defaults/prompts/spec.md`</span>
+<span class="add">+- Line 12: `docs/cycle/issues/queued/&lt;issue_id&gt;.md` → `docs/cycle/issues/todo/&lt;issue_id&gt;.md`.</span>
+<span class="add">+</span>
+<span class="add">+**File**: `src/defaults/prompts/research.md`</span>
+<span class="add">+- Line 23: same replacement.</span>
+<span class="add">+</span>
+<span class="add">+**Run**: `npm run sync-defaults` to copy `src/defaults/{scripts,prompts,workflows}/` into `.cycle/`. This refreshes `.cycle/scripts/commit.sh`, `.cycle/scripts/pr.sh`, `.cycle/prompts/spec.md`, `.cycle/prompts/research.md`.</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] `diff -r src/defaults .cycle | grep -v &#39;Only in&#39;` shows no in-place differences across the synced subtree (apart from intentional `.cycle/`-only files like `tbd.jsonl`, `log.jsonl`).</span>
+<span class="add">+- [ ] `grep -n &quot;queued\|triaged&quot; src/defaults/prompts/*.md` returns no matches.</span>
+<span class="add">+- [ ] `grep -n &quot;queued\|triaged&quot; .cycle/prompts/*.md .cycle/scripts/*.sh` returns no matches after sync.</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 6: Disk migration of live queue (`queued/` → `todo/`, delete `triaged/`)</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+Move the 7 in-flight `bb-*` files from `queued/` to `todo/`. Delete empty `triaged/` directory. The files are untracked so `mv` is sufficient — no `git mv` needed; the commit step will see them as untracked at the new path. `tbd/` is already absent from the working tree (cycle 0010 emptied it).</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+**Commands** (run from repo root, sequential):</span>
+<span class="add">+```sh</span>
+<span class="add">+mkdir -p docs/cycle/issues/todo</span>
+<span class="add">+mv docs/cycle/issues/queued/*.md docs/cycle/issues/todo/   # 7 bb-* files</span>
+<span class="add">+rmdir docs/cycle/issues/queued</span>
+<span class="add">+rmdir docs/cycle/issues/triaged   # asserted empty by SPEC</span>
+<span class="add">+```</span>
+<span class="add">+- If `tbd/` directory still exists empty on disk (it should be absent per RESEARCH and git status, but verify), `rmdir docs/cycle/issues/tbd` too.</span>
+<span class="add">+- Verify `docs/cycle/issues/raw/` is untouched (still contains its 8 pre-existing files).</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] `ls docs/cycle/issues/` shows exactly `raw todo done blocked failed`.</span>
+<span class="add">+- [ ] `ls docs/cycle/issues/todo/ | wc -l` reports 7.</span>
+<span class="add">+- [ ] `ls docs/cycle/issues/raw/ | wc -l` reports 8 (unchanged).</span>
+<span class="add">+- [ ] None of `tbd`, `queued`, `triaged` directories exist.</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 7: Documentation updates</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+Replace folder-name strings in `CLAUDE.md`, `docs/ARCHITECTURE.md`, `BRIEF.md`. Update `.claude/skills/cycle.md` only if present.</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+**File**: `CLAUDE.md` (Architecture quick reference)</span>
+<span class="add">+- Replace `Issue state machine: docs/cycle/issues/{tbd,queued,triaged,blocked,failed}/` → `docs/cycle/issues/{raw,todo,done,failed,blocked}/`.</span>
+<span class="add">+</span>
+<span class="add">+**File**: `docs/ARCHITECTURE.md`</span>
+<span class="add">+- In-place string replace `tbd/` → `raw/`, `queued/` → `todo/`, drop `triaged/` mentions (delete the bullet or replace with a one-line pointer to RFC-001 §3 when the surrounding prose is about lifecycle).</span>
+<span class="add">+- Lines flagged in RESEARCH: 46–47, 52, 119, 217, 238–239, 282–336, 375, 456–460, 501–546, 630–714, 824–840. Each occurrence treated as a string substitution; do not rewrite section structure.</span>
+<span class="add">+</span>
+<span class="add">+**File**: `BRIEF.md`</span>
+<span class="add">+- Same string-replace pass on lines 145–151, 264, 288, 307–325, 421–429, 456–459, 504, 527–538.</span>
+<span class="add">+- If BRIEF still has a paragraph describing the old MVP `tbd/queued` drain flow as the canonical spec, replace that paragraph&#39;s last sentence with a one-liner: &quot;See `docs/RFC-001-issue-lifecycle.md` for the authoritative lifecycle.&quot; Do not delete the surrounding context.</span>
+<span class="add">+</span>
+<span class="add">+**File**: `.claude/skills/cycle.md` (conditional)</span>
+<span class="add">+- `ls .claude/skills/cycle.md 2&gt;/dev/null`; if present, replace `tbd/` and `queued/` in any user-facing description of drop locations with `raw/` and `todo/`.</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] `grep -rn &quot;issues/tbd\|issues/queued\|issues/triaged&quot; CLAUDE.md BRIEF.md docs/ARCHITECTURE.md` returns no matches.</span>
+<span class="add">+- [ ] Documentation reads coherently (manual smoke read — no orphan sentences left after deletions).</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 8: Final verification (grep, test, typecheck, coverage)</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+Whole-repo verification gate before the engine&#39;s `verify` and `commit` steps run.</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+None — read-only checks.</span>
+<span class="add">+</span>
+<span class="add">+**Run**:</span>
+<span class="add">+```sh</span>
+<span class="add">+# 1. No old folder strings in live code or tests</span>
+<span class="add">+grep -rn &quot;issues/tbd\|issues/queued\|issues/triaged&quot; src tests src/defaults || true</span>
+<span class="add">+# expected: no output</span>
+<span class="add">+</span>
+<span class="add">+# 2. Type cleanliness</span>
+<span class="add">+npm run typecheck</span>
+<span class="add">+</span>
+<span class="add">+# 3. Full suite</span>
+<span class="add">+npm test</span>
+<span class="add">+</span>
+<span class="add">+# 4. Coverage gate</span>
+<span class="add">+npm run test:coverage</span>
+<span class="add">+# expected: line ≥ 95, branch ≥ 75, function ≥ 90; no per-file regressions vs master baseline</span>
+<span class="add">+</span>
+<span class="add">+# 5. Smoke scan: post-migration scan finds nothing new in raw/ (the 8 pre-existing</span>
+<span class="add">+#    files were never seeded into tbd.jsonl, so they will be ingested on first</span>
+<span class="add">+#    scan — which is exactly the engine&#39;s job and out of this cycle&#39;s scope to</span>
+<span class="add">+#    suppress. Sanity-check: re-run scan immediately, assert it produces zero</span>
+<span class="add">+#    additional rows due to dedup.)</span>
+<span class="add">+node --experimental-strip-types -e &quot;import(&#39;./src/engine/scan.ts&#39;).then(m =&gt; m.scanRaw(process.cwd()).then(r =&gt; console.log(&#39;first:&#39;, r.length))).then(() =&gt; import(&#39;./src/engine/scan.ts&#39;)).then(m =&gt; m.scanRaw(process.cwd()).then(r =&gt; console.log(&#39;second (should be 0):&#39;, r.length)))&quot;</span>
+<span class="add">+```</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] Grep returns no matches across `src`, `tests`, `src/defaults`.</span>
+<span class="add">+- [ ] `npm run typecheck` exits 0 with no warnings.</span>
+<span class="add">+- [ ] `npm test` reports all suites green.</span>
+<span class="add">+- [ ] Coverage: line ≥ 95%, branch ≥ 75%, function ≥ 90%, no per-file regression.</span>
+<span class="add">+- [ ] Second scan smoke prints `second (should be 0): 0`.</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Testing Strategy</span>
+<span class="add">+</span>
+<span class="add">+### Unit Tests</span>
+<span class="add">+- **`tests/engine/scan.test.ts`** (6+ tests): happy path (raw → todo, jsonl appended), pre-existing-id skip, two-scan idempotency, intra-scan dup collapse, malformed-jsonl tolerance, explicit cross-scan re-drop dedup. Real fs via `mkdtemp`; no mocking — Node fs is stable enough that mocking adds noise.</span>
+<span class="add">+- **`tests/cli/init.test.ts`**: positive (5 new folders exist) and negative (3 old folders absent) assertions. Real `init` invocation on a temp dir.</span>
+<span class="add">+- **`tests/issue/materialize.test.ts`**: path-ending assertion updated. No mocking.</span>
+<span class="add">+</span>
+<span class="add">+### Integration / E2E Tests</span>
+<span class="add">+- **`tests/cli/multi-loop.test.ts`**: end-to-end drop + dry-run cycle in a temp repo, asserting drops land in `raw/`. This is the load-bearing cross-module test; do not weaken it.</span>
+<span class="add">+- **`tests/defaults/commit-staging.test.ts`**: temp-repo fixture with seeded `todo/` issue; runs the real `commit.sh` shim and asserts staging behavior. Real bash invocation under `installGhShim` infrastructure; no mocking of shell.</span>
+<span class="add">+- **`tests/defaults/closes-linkage.test.ts`**: same shim infra for both `commit.sh` and `pr.sh` closes-block coverage. All 6 fixtures migrated to `todo/`.</span>
+<span class="add">+</span>
+<span class="add">+### Anti-mock Bias Notes</span>
+<span class="add">+- No new mocks introduced. The codebase already prefers real fs + temp dirs + real bash; this cycle preserves that posture.</span>
+<span class="add">+- The only place where mocking would be tempting is the GitHub-CLI shim (`installGhShim`), and it&#39;s already a deterministic local script — no need to change.</span>
+<span class="add">+</span>
+<span class="add">+## Risk Assessment</span>
+<span class="add">+</span>
+<span class="add">+- **Engine mid-run modifying its own working tree.** Mitigation: cycle 0012 is past the `scan` step (it&#39;s in `plan` now and progressing to `build`); the rename and disk migration happen inside `build`, after which `verify`/`commit`/`pr` operate on the renamed tree. No subsequent step in this cycle re-invokes `scanRaw`. Next engine.start (cycle 0013) reads `raw/` — clean.</span>
+<span class="add">+- **8 pre-existing `raw/*.md` files get ingested by next cycle.** Not a regression — they were placed there during RFC-001 drafting as future-work captures; the engine ingesting them is the intended outcome of RFC-001 §12 once BB-1 lands. SPEC explicitly leaves their fate to the operator.</span>
+<span class="add">+- **`.cycle/tbd.jsonl` filename still old.** Intentional. BB-3 renames the JSONL file/schema; renaming it here would conflate two RFC stages and break the cycle-0010 dedup invariant mid-flight.</span>
+<span class="add">+- **`triaged/` deletion error if non-empty.** Mitigation: `rmdir` (not `rm -rf`) — fails loudly if non-empty. SPEC asserts it&#39;s empty; build step verifies before `rmdir`.</span>
+<span class="add">+- **Doc-string replacements miss occurrences.** Mitigation: final-step grep across the whole repo (`grep -rn &quot;issues/tbd\|issues/queued\|issues/triaged&quot; .` minus immutable `docs/cycle/&lt;cycle_id&gt;-…/` artifact dirs) before the verify gate.</span>
+<span class="add">+- **Coverage regression from net-deleted test code (triaged-vs-queued dup collapse).** Mitigation: the deleted duplicate test was structural redundancy; the surviving `todo/` test exercises the same code paths. If coverage dips on `commit.sh` / `pr.sh`, add a single positive `pr.sh`-finds-issue-in-`todo/` test to restore parity.</span>
+<span class="add">+- **`scanTbd` → `scanRaw` rename leaks beyond `src/cli.ts`.** Mitigation: `grep -rn &quot;scanTbd&quot; src tests` before commit; expect zero matches post-rename.</span>
+<span class="add">+```</span>
+<span class="fileheader">diff --git a/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/RESEARCH.md b/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/RESEARCH.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..a158a89</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/RESEARCH.md</span>
+<span class="hunk">@@ -0,0 +1,83 @@</span>
+<span class="add">+```markdown</span>
+<span class="add">+# Research: Cycle 0012</span>
+<span class="add">+</span>
+<span class="add">+## Cycle Context</span>
+<span class="add">+BB-1 renames `docs/cycle/issues/tbd/` → `raw/` and `queued/` → `todo/`, deletes empty `triaged/`, retargets `src/engine/scan.ts` (preserving the cycle-0010 `readKnownIds` dedup) to scan `raw/` and move into `todo/`, and updates every in-repo path reference (CLI, materialize, default scripts, default prompts, tests, docs). First migration step of RFC-001 bootstrap (§12 BB-1). `closes.sh` itself contains no path refs and is out of scope; `triaged/` references in scripts/tests stay only insofar as they need to be replaced by `todo/`.</span>
+<span class="add">+</span>
+<span class="add">+## Current Codebase State</span>
+<span class="add">+</span>
+<span class="add">+### Relevant Components</span>
+<span class="add">+</span>
+<span class="add">+- **Scan / drain function**: `src/engine/scan.ts:38` — `scanTbd(repoRoot)` reads `docs/cycle/issues/tbd/*.md`, parses frontmatter, `rename`s file to `docs/cycle/issues/queued/`, then appends a JSONL row to `.cycle/tbd.jsonl` only when `entry.id` is not already in `knownIds` (Set built by `readKnownIds`, `src/engine/scan.ts:17-36`). Returns `TbdEntry[]` (id/source/title/path/added_at).</span>
+<span class="add">+- **Sole caller of scan**: `src/cli.ts:4`, `src/cli.ts:48` — `scanTbd(cwd)` invoked inside the `outer: while (true)` drain loop. Comment on `src/cli.ts:33-34` still says &quot;materialize it into tbd/ before draining. Without text, drain whatever&#39;s already in tbd/.&quot;</span>
+<span class="add">+- **Drop / materialize**: `src/issue/materialize.ts:7` — writes file under `docs/cycle/issues/tbd/&lt;id&gt;.md` with frontmatter (`id`, `source: text`, `title`, `added_at`, `triage_attempts: 0`).</span>
+<span class="add">+- **`cycle init` scaffold**: `src/cli/init.ts:21` — creates `[&quot;tbd&quot;,&quot;queued&quot;,&quot;triaged&quot;,&quot;blocked&quot;,&quot;failed&quot;]` under `docs/cycle/issues/`. Locates engine bundle (`locateEngineBundle`, line 26) and ships defaults dir (line 38).</span>
+<span class="add">+- **Default commit script**: `src/defaults/scripts/commit.sh:67` — loop `for d in docs/cycle/issues/triaged docs/cycle/issues/queued; do ... fi` to locate `$CYCLE_ISSUE_ID.md` for closes-line generation. Generic `git status --porcelain` walk (line 38–55) stages any modified path that survives the denylist, so issue files under any subfolder get staged today.</span>
+<span class="add">+- **Default PR script**: `src/defaults/scripts/pr.sh:20` — same `for d in docs/cycle/issues/triaged docs/cycle/issues/queued; do ... fi` lookup for closes block.</span>
+<span class="add">+- **Closes helper**: `src/defaults/scripts/lib/closes.sh:9` — `closes_block &lt;issue_file&gt; &lt;repo_slug&gt;` is path-agnostic (takes the file path as arg). No folder names hardcoded.</span>
+<span class="add">+- **Spec prompt**: `src/defaults/prompts/spec.md:12` — `2. **Issue file**: \`docs/cycle/issues/queued/&lt;issue_id&gt;.md\``.</span>
+<span class="add">+- **Research prompt**: `src/defaults/prompts/research.md:23` — `3. **Issue file**: \`docs/cycle/issues/queued/&lt;issue_id&gt;.md\`.`</span>
+<span class="add">+- **Engine run-cycle**: `src/engine/run-cycle.ts` — does NOT reference any of these folders directly. It receives `issueId` from the caller and emits `cycle.start`. Cycle artifacts go under `docs/cycle/&lt;cycle_id&gt;-...`. No change needed.</span>
+<span class="add">+</span>
+<span class="add">+### Existing Patterns to Follow</span>
+<span class="add">+- **Subprocess discipline**: `spawn` / `spawnSync` with array args; never `exec`; never `shell: true` (CLAUDE.md). All current `src/engine/` and `src/cli/` code conforms.</span>
+<span class="add">+- **TS-on-the-fly**: Node ≥ 22.6 with `--experimental-strip-types`. No build step required for tests; `tsc --noEmit` enforces type cleanliness.</span>
+<span class="add">+- **Defaults mirroring**: `npm run sync-defaults` copies `src/defaults/` → `.cycle/`. After any `src/defaults/**` edit (scripts or prompts), the dogfooded engine sees the change only after running this.</span>
+<span class="add">+- **Frontmatter parse**: `parseFrontmatter` (`src/engine/scan.ts:6-15`) — `^---\n(.+?)\n---` regex + `(\w+):\s*(.+)` key/value split, strips surrounding double-quotes. Conventions used by every issue file.</span>
+<span class="add">+- **Dedup pattern from cycle 0010**: `readKnownIds(jsonlPath)` (`src/engine/scan.ts:17-36`) tolerates `ENOENT`, blank lines, and malformed JSON. Membership check before `appendFile` (`src/engine/scan.ts:68`). This is the load-bearing invariant — BB-1 must preserve it after the rename.</span>
+<span class="add">+- **Test temp-dir + cleanup**: every test creates a `mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;))`, sets up minimal fixtures, asserts, then `rm(root, { recursive: true, force: true })` in `finally`.</span>
+<span class="add">+</span>
+<span class="add">+### Dependencies &amp; Integration Points</span>
+<span class="add">+- `src/cli.ts` is the only importer of `scanTbd`. If the function is renamed, this is the single call site to update.</span>
+<span class="add">+- `src/cli/init.ts` is only invoked from `src/cli.ts:15-17` via `await import(&quot;./cli/init.ts&quot;)` when `argv[0] === &quot;init&quot;`.</span>
+<span class="add">+- `src/issue/materialize.ts` is imported by `src/cli.ts:3` (drop command) and `src/cli.ts:36` (run with positional text).</span>
+<span class="add">+- Default scripts are shipped to consumer repos by `src/cli/init.ts:17-19` (`cp src/defaults/{workflows,prompts,scripts} → .cycle/`); they also run for the dogfooded repo&#39;s own cycles via the synced `.cycle/scripts/`.</span>
+<span class="add">+- `.cycle/prompts/spec.md` and `.cycle/prompts/research.md` are the current synced copies in this repo and still contain the old `queued/` path — they refresh on `npm run sync-defaults`.</span>
+<span class="add">+- The 7 in-flight `docs/cycle/issues/queued/*.md` files are visible in the working tree (untracked, per the cycle-start git status: `?? docs/cycle/issues/queued/txt-…-bb-{1..7}-…md`). They must travel to `todo/` as part of this cycle to keep the live queue intact.</span>
+<span class="add">+- `docs/cycle/issues/raw/` already exists with 8 files (`cli-drop-writes-to-raw.md`, `depends-on-inference.md`, `engine-paused-recovery.md`, `failed-blocked-frontmatter.md`, `migration-cleanup.md`, `multi-agent-abstraction.md`, `re-triage-flag.md`, `step-restart-tolerance-audit.md`). These predate this cycle and the SPEC does not mention them.</span>
+<span class="add">+- `docs/cycle/issues/done/` and `docs/cycle/issues/blocked/` already exist on disk; no work needed.</span>
+<span class="add">+</span>
+<span class="add">+### Test Infrastructure</span>
+<span class="add">+- **Framework**: Node native test runner (`node --test`), `node:assert/strict`, spec reporter. No external test framework.</span>
+<span class="add">+- **Coverage**: `npm run test:coverage` via `--experimental-test-coverage`. Master baseline (per CLAUDE.md, 2026-05-13): line ≥ 95 %, branch ≥ 75 %, function ≥ 90 %. Both `build` and `fix` step prompts must verify no regression.</span>
+<span class="add">+- **Layout**: `tests/&lt;area&gt;/&lt;file&gt;.test.ts` mirroring `src/&lt;area&gt;/&lt;file&gt;.ts`.</span>
+<span class="add">+- **Existing relevant test files**:</span>
+<span class="add">+  - `tests/engine/scan.test.ts` — 5 tests covering happy path, dedup against pre-existing row, two-scan idempotency, intra-scan dup collapse, malformed-JSONL tolerance. All currently scoped to `tbd → queued`. Helper `mkBody` and `countMatching` defined at lines 8–23.</span>
+<span class="add">+  - `tests/cli/init.test.ts:20` — asserts `docs/cycle/issues/tbd` exists post-init.</span>
+<span class="add">+  - `tests/issue/materialize.test.ts:12` — asserts return path ends with `/docs/cycle/issues/tbd/txt-...md`.</span>
+<span class="add">+  - `tests/cli/multi-loop.test.ts:21-22,94-112` — comments reference `tbd/`; the test exercises `drop` + `run --dry-run` end-to-end; `drop` materializes into the current `tbd/` location, then the bundled cycle scans it.</span>
+<span class="add">+  - `tests/defaults/commit-staging.test.ts:61-63,86-87,167-185` — fixture builds files under `docs/cycle/issues/queued/` (and the explicit `triaged/` test at L167 asserts `commit.sh` finds an issue file in `triaged/`).</span>
+<span class="add">+  - `tests/defaults/closes-linkage.test.ts:222,257,288,394,432,458` — six setup blocks seed `docs/cycle/issues/triaged/foo.md` to exercise the closes-block lookup; both `commit.sh` and `pr.sh` paths are tested through the shim infrastructure starting at line ~200 (`installGhShim`) and ~318 (`makePrRepo`).</span>
+<span class="add">+- **No E2E / Playwright** in this repo today; SPEC explicitly says none needed.</span>
+<span class="add">+</span>
+<span class="add">+## Code References</span>
+<span class="add">+- `src/engine/scan.ts:38-75` — `scanTbd` function body; rename targets and `rename(src,dst)` call.</span>
+<span class="add">+- `src/engine/scan.ts:17-36` — `readKnownIds` dedup helper (preserve verbatim).</span>
+<span class="add">+- `src/cli.ts:4,48,33-34` — import + call site + stale comment referencing `tbd/`.</span>
+<span class="add">+- `src/cli/init.ts:21` — subdir list passed to `mkdir` (`[&quot;tbd&quot;,&quot;queued&quot;,&quot;triaged&quot;,&quot;blocked&quot;,&quot;failed&quot;]`).</span>
+<span class="add">+- `src/issue/materialize.ts:7` — `dir = join(repoRoot, &quot;docs&quot;, &quot;cycle&quot;, &quot;issues&quot;, &quot;tbd&quot;)`.</span>
+<span class="add">+- `src/defaults/scripts/commit.sh:64-72` — `for d in docs/cycle/issues/triaged docs/cycle/issues/queued; do ... fi` issue-file lookup.</span>
+<span class="add">+- `src/defaults/scripts/pr.sh:17-24` — same loop pattern.</span>
+<span class="add">+- `src/defaults/prompts/spec.md:12` — `docs/cycle/issues/queued/&lt;issue_id&gt;.md` path doc.</span>
+<span class="add">+- `src/defaults/prompts/research.md:23` — same.</span>
+<span class="add">+- `tests/engine/scan.test.ts:25-149` — five tests scoped to `tbd`/`queued`.</span>
+<span class="add">+- `tests/cli/init.test.ts:20` — `stat(join(root, &quot;docs/cycle/issues/tbd&quot;))`.</span>
+<span class="add">+- `tests/issue/materialize.test.ts:12` — path assertion.</span>
+<span class="add">+- `tests/cli/multi-loop.test.ts:21,94,110,111` — fixture comments + drop-target assertion.</span>
+<span class="add">+- `tests/defaults/commit-staging.test.ts:61,62,73,86,87,167-185` — queued/triaged fixtures.</span>
+<span class="add">+- `tests/defaults/closes-linkage.test.ts:222,224,257,258,288,290,394,396,432,433,458,460` — `triaged/foo.md` fixtures across commit.sh + pr.sh suites.</span>
+<span class="add">+- `CLAUDE.md` &quot;Architecture quick reference&quot; — current line `Issue state machine: docs/cycle/issues/{tbd,queued,triaged,blocked,failed}/`.</span>
+<span class="add">+- `docs/ARCHITECTURE.md:46-47,52,119,217,238-239,282-336,375,456-460,501-546,630-714,824-840` — extensive prose still describing the `tbd/queued/triaged` MVP flow.</span>
+<span class="add">+- `BRIEF.md:145-151,264,288,307-325,421-429,456-459,504,527-538` — Brief sections describing folder layout and live queue.</span>
+<span class="add">+- `docs/RFC-001-issue-lifecycle.md:20-35,229-265,388-406` — accepted target layout (`raw → todo → done/failed/blocked`) and bootstrap §12 BB-1 entry.</span>
+<span class="add">+- `.cycle/prompts/spec.md`, `.cycle/prompts/research.md` — dogfooded copies of the synced defaults; they currently still say `queued/` and will be overwritten by `npm run sync-defaults` after `src/defaults/prompts/*` is edited.</span>
+<span class="add">+</span>
+<span class="add">+## Open Questions</span>
+<span class="add">+- `docs/cycle/issues/raw/` already contains 8 markdown files (open-questions / future-work captures from RFC-001 drafting). The SPEC says `tbd/` is empty and `queued/` files migrate to `todo/`, but is silent on the pre-existing `raw/` contents. Plan step must decide: keep them (they&#39;re already in the correct new folder), check their frontmatter conforms to the raw schema (RFC-001 §3), and confirm they should not be moved or rewritten as part of BB-1.</span>
+<span class="add">+- `scanTbd` rename. SPEC requires locals to be renamed to `raw`/`todo` and notes &quot;if the function is renamed, all callers update in the same cycle.&quot; Decision: keep the exported name `scanTbd` (only the JSONL is still `tbd.jsonl` per BB-3 deferring schema/file changes), or rename to something neutral (`scanRaw` / `drainRaw`)? Both are mechanically simple; the plan step picks one and updates the lone caller in `src/cli.ts`.</span>
+<span class="add">+- `tests/defaults/commit-staging.test.ts:167-185` &quot;triaged issue file is staged just like queued&quot; — under RFC-001 there is no `triaged/` anymore. SPEC says rename to reflect the new lifecycle (`todo/` case) or delete if it duplicates the existing `todo/` case. Plan step picks: rewrite into a `todo/` assertion or delete entirely.</span>
+<span class="add">+- `tests/defaults/closes-linkage.test.ts` uses `triaged/` in 6 places. Under RFC-001 the lookup folder becomes `todo/`. Plan step decides whether to migrate all six fixtures to `todo/` or split coverage between `todo/` and (future) `done/` lookup once BB-3 lands. SPEC&#39;s lookup-loop scope is just `todo/` for now.</span>
+<span class="add">+- ARCHITECTURE.md and BRIEF.md prose updates: SPEC says &quot;ARCHITECTURE.md should defer to RFC-001 instead of restating.&quot; How aggressively to strip vs. cross-reference is a judgment call for the plan step — the diff could be small (replace folder names in place) or large (replace whole sections with a pointer to RFC-001).</span>
+<span class="add">+- The engine is currently mid-run for cycle 0012 inside this branch&#39;s worktree. The SPEC flags that the live engine&#39;s working tree must not be modified out-of-band during build; the plan step needs to confirm whether the rename of `docs/cycle/issues/queued/` (which holds the 7 in-flight bb-* files) is safe to do while the engine is reading from it, or if it must be staged differently (e.g., do the file move as part of the same commit that updates `scan.ts`).</span>
+<span class="add">+- `.claude/skills/cycle.md` — SPEC mentions updating &quot;if present.&quot; Existence in this repo is not yet confirmed; plan step should glob and treat as no-op if absent.</span>
+<span class="add">+```</span>
+<span class="fileheader">diff --git a/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/REVIEW.md b/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/REVIEW.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..6928966</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/REVIEW.md</span>
+<span class="hunk">@@ -0,0 +1,53 @@</span>
+<span class="add">+Now emit REVIEW.md to stdout.</span>
+<span class="add">+</span>
+<span class="add">+```markdown</span>
+<span class="add">+# Review: Cycle 0012</span>
+<span class="add">+</span>
+<span class="add">+## Overall Verdict</span>
+<span class="add">+NEEDS-FIX — see MUST-FIX.md. Two docs (`ARCHITECTURE.md`, `BRIEF.md`) explicitly required by SPEC §Documentation Updates were not updated; `BUILD.md` is empty (zero bytes). Code, tests, prompts, scripts, disk migration, and `CLAUDE.md` are correct.</span>
+<span class="add">+</span>
+<span class="add">+## Code Quality Review</span>
+<span class="add">+</span>
+<span class="add">+### Summary</span>
+<span class="add">+Implementation is clean and faithful to PLAN for every code/test slice. `src/engine/scan.ts` retargets to `raw/ → todo/` with the cycle-0010 `readKnownIds` dedup preserved verbatim; `.cycle/tbd.jsonl` path intentionally unchanged (BB-3 owns the JSONL rename). All call sites, defaults, prompts, and tests are migrated consistently. The build agent skipped the doc-update slice (Task 7) and failed to write BUILD.md.</span>
+<span class="add">+</span>
+<span class="add">+### Findings</span>
+<span class="add">+1. **SPEC deviation — ARCHITECTURE.md not updated**: 21 residual `tbd/`/`queued/`/`triaged/` occurrences. SPEC §Documentation Updates is explicit. — `docs/ARCHITECTURE.md:46,47,52,238,282,285,286,291,294,301,328,330,332,336,630,632,641,653,659,668,674`</span>
+<span class="add">+2. **SPEC deviation — BRIEF.md not updated**: 9 residual occurrences. — `BRIEF.md:264,310,311,456,457,504,527,536,538`</span>
+<span class="add">+3. **Process — BUILD.md is empty**: build agent did not write its report; coverage numbers were not captured per CLAUDE.md coverage-policy convention. — `docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/BUILD.md`</span>
+<span class="add">+4. **Pre-existing, not introduced this cycle — `findLast` typecheck failures** (TS2550) at `tests/cli/multi-loop.test.ts:34,85`. Verified by `git stash`-then-typecheck against baseline. Out-of-scope for BB-1; flag for a separate `lib: es2023` tsconfig bump.</span>
+<span class="add">+5. **Subtle behavior note (pre-existing)**: `scan.ts:60` `rename(src, dst)` runs before the id-dedup check at `scan.ts:68`. A duplicate id silently overwrites `todo/X.md`. Tests assert this behavior; not new in this cycle. Worth a comment in a future cycle, not a fix here.</span>
+<span class="add">+</span>
+<span class="add">+### Spec Compliance Checklist</span>
+<span class="add">+- [x] `docs/cycle/issues/{raw,todo,done,blocked,failed}/` exist; `tbd/`, `queued/`, `triaged/` do not (`ls docs/cycle/issues/` confirms).</span>
+<span class="add">+- [x] 7 bb-* issues now in `docs/cycle/issues/todo/`.</span>
+<span class="add">+- [x] 8 pre-existing files in `docs/cycle/issues/raw/` untouched.</span>
+<span class="add">+- [x] `grep -rn &quot;issues/tbd\|issues/queued\|issues/triaged&quot; src tests src/defaults` returns no matches.</span>
+<span class="add">+- [x] `npm test` passes — 89/89.</span>
+<span class="add">+- [x] `npm run test:coverage` line 98.44% / branch 82.54% / func 91.11% — no regression vs cycle-0011 baseline.</span>
+<span class="add">+- [x] Cross-scan re-drop regression test present (`tests/engine/scan.test.ts:151`).</span>
+<span class="add">+- [x] `.cycle/scripts` and `.cycle/prompts` mirror `src/defaults` (`diff -r` clean).</span>
+<span class="add">+- [x] `CLAUDE.md` Architecture quick reference updated to new folder list.</span>
+<span class="add">+- [ ] `docs/ARCHITECTURE.md` updated — **NOT DONE**.</span>
+<span class="add">+- [ ] `BRIEF.md` updated — **NOT DONE**.</span>
+<span class="add">+- [x] `.claude/skills/cycle.md` — file absent; PLAN&#39;s conditional guard correct.</span>
+<span class="add">+- [~] `npm run typecheck` — fails on 2 pre-existing `findLast` errors at `tests/cli/multi-loop.test.ts:34,85`. Not introduced by this cycle; reproduces on `git stash`.</span>
+<span class="add">+</span>
+<span class="add">+## Adversarial Test Review</span>
+<span class="add">+</span>
+<span class="add">+### Summary</span>
+<span class="add">+Test quality is strong. Real fs via `mkdtemp`, real `bash` invocation through deterministic local `gh` shims, no mocks of fs or shell. Both positive and negative assertions present where SPEC asked for them. Cross-scan re-drop dedup is now explicitly exercised, closing the regression boundary requested by SPEC.</span>
+<span class="add">+</span>
+<span class="add">+### Findings</span>
+<span class="add">+1. **Coverage adequate, no weakening**: `tests/engine/scan.test.ts` has 6 tests, all preserved/strengthened from cycle-0010. New `cross-scan re-drop` test (line 151) explicitly seeds, re-writes, re-scans, asserts `countMatching(jsonl,&quot;Y&quot;) === 1`. — `tests/engine/scan.test.ts:151-175`</span>
+<span class="add">+2. **Positive + negative assertions on init scaffold**: `init.test.ts:20-28` asserts `raw,todo,done,blocked,failed` exist AND asserts `tbd,queued,triaged` reject with `ENOENT`. Exactly what SPEC asked for. — `tests/cli/init.test.ts:20-28`</span>
+<span class="add">+3. **Migrated fixtures land cleanly**: all 6 `triaged/foo.md` fixtures in `closes-linkage.test.ts` migrated to `todo/foo.md` (lines 222, 257, 288, 394, 432, 458). Tests still exercise the closes-block extraction through `commit.sh` and `pr.sh` end-to-end with real `bash`. — `tests/defaults/closes-linkage.test.ts:219-479`</span>
+<span class="add">+4. **`commit-staging.test.ts` consolidation correct**: the formerly-duplicate &quot;triaged issue file is staged just like queued&quot; test is now a single &quot;todo/ issue file is staged by the porcelain walk&quot; case (line 167) plus the principal stage-test (line 56). No code-path coverage lost — both still exercise `commit.sh`&#39;s porcelain walk against a `todo/`-seeded fixture. — `tests/defaults/commit-staging.test.ts:56,167`</span>
+<span class="add">+5. **Minor redundancy (not a fix)**: `tests/engine/scan.test.ts:31` pre-creates `todo/` via `mkdir`, but `scanRaw` already does `mkdir(todo, {recursive: true})` at `scan.ts:43`. Pre-creation is a harmless belt-and-suspenders; left alone.</span>
+<span class="add">+</span>
+<span class="add">+### Test Coverage</span>
+<span class="add">+- Command run: `npm run test:coverage`</span>
+<span class="add">+- Line / branch / function: **98.44 / 82.54 / 91.11**</span>
+<span class="add">+- Regressions vs base: **none** (matches cycle-0011 baseline 98.44/82.54/91.11)</span>
+<span class="add">+- New code without tests: **none** — the new `cross-scan re-drop` case explicitly covers the only behaviorally-new boundary (id rename in `scan.ts`).</span>
+<span class="add">+- Specific scenarios missing tests: none for BB-1&#39;s surface. (Out of scope for this cycle: `scan.ts` overwrite behavior on duplicate id in `todo/` — already-flagged subtle pre-existing edge.)</span>
+<span class="fileheader">diff --git a/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/SPEC.md b/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/SPEC.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..97846a3</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0012-feature-bb-1-rename-docs-cycle-issues-tbd-raw-an/SPEC.md</span>
+<span class="hunk">@@ -0,0 +1,68 @@</span>
+<span class="add">+```markdown</span>
+<span class="add">+# SPEC — Cycle 0012: BB-1 Rename issue folders (tbd→raw, queued→todo) and dedup scan</span>
+<span class="add">+</span>
+<span class="add">+## Objective</span>
+<span class="add">+Rename the issue lifecycle folders from `tbd/` → `raw/` and `queued/` → `todo/`, drop the empty `triaged/` folder, and update `src/engine/scan.ts` to scan `raw/` and move to `todo/` with id-dedup in `tbd.jsonl`. Update all in-repo references (scripts, init, prompts, tests, docs) so the bootstrap stage 1 of RFC-001 lands without breaking the dogfooded engine. This is the first migration step toward the RFC-001 lifecycle (raw → todo → done/failed/blocked).</span>
+<span class="add">+</span>
+<span class="add">+## Source Issue</span>
+<span class="add">+`txt-20260513-034328-bb-1-rename-docs-cycle-issues-tbd-raw-an` — &quot;BB-1: Rename docs/cycle/issues/tbd/ -&gt; raw/ and queued/ -&gt; todo/. Drop the empty triaged/ folder. Update src/engine/scan.ts to scan raw/ and move to todo/, with dedup by issue id (fix the existing append-twice bug). Update closes.sh and any other code/test references. See docs/RFC-001-issue-lifecycle.md sections 2, 6, 12 (BB-1).&quot;</span>
+<span class="add">+</span>
+<span class="add">+## Scope</span>
+<span class="add">+</span>
+<span class="add">+### In Scope</span>
+<span class="add">+- Rename `docs/cycle/issues/tbd/` → `raw/` and `docs/cycle/issues/queued/` → `todo/` on disk; delete empty `triaged/`. Move any existing files into the new locations.</span>
+<span class="add">+- Update `src/engine/scan.ts` to scan `raw/`, move to `todo/`, and dedup `tbd.jsonl` appends by issue id (the existing scan already has a `readKnownIds` dedup from cycle 0010; preserve and re-target it).</span>
+<span class="add">+- Update every in-repo path reference: `src/cli/init.ts` (subdir list), `src/issue/materialize.ts` (drop dir), `src/cli.ts` comments, `src/defaults/scripts/commit.sh` and `pr.sh` (staging globs), `src/defaults/prompts/spec.md` and `research.md` (path docs), tests in `tests/cli/`, `tests/issue/`, `tests/engine/`, `tests/defaults/`. Run `npm run sync-defaults` after editing `src/defaults/`.</span>
+<span class="add">+</span>
+<span class="add">+### Out of Scope</span>
+<span class="add">+- BB-2..BB-7 (workflows.yml consolidation, new tbd.jsonl schema, triage subroutine, resume logic, propagateBlocked, reflection step).</span>
+<span class="add">+- New raw frontmatter fields (priority, source taxonomy beyond what already exists).</span>
+<span class="add">+- `closes.sh` — no such script exists in the repo today; the issue mentions it speculatively. Defer to the cycle that introduces it.</span>
+<span class="add">+- Bootstrap-archive of `tbd.jsonl` (that belongs to BB-3 when the schema actually changes).</span>
+<span class="add">+- Migration of historical artifact dirs under `docs/cycle/&lt;cycle_id&gt;-…/` that mention old folder names — those are immutable cycle records.</span>
+<span class="add">+</span>
+<span class="add">+## Requirements</span>
+<span class="add">+- Engine source code, default scripts, default prompts, and tests all reference `raw/` and `todo/` exclusively; no live code path references `tbd/`, `queued/`, or `triaged/`.</span>
+<span class="add">+- `scan.ts` renamed function/var locals to match new names (`raw`, `todo`), but the public export remains a working drain function consumed by `runCycle`; if the function is renamed, all callers update in the same cycle.</span>
+<span class="add">+- `tbd.jsonl` dedup behavior is preserved: re-scanning a file whose id is already in `tbd.jsonl` must not append a duplicate line.</span>
+<span class="add">+- `cycle init` creates `raw/`, `todo/`, `done/`, `failed/`, `blocked/` (no `tbd/`, `queued/`, or `triaged/`).</span>
+<span class="add">+- `cycle drop &quot;&lt;text&gt;&quot;` writes the materialized file into `raw/`.</span>
+<span class="add">+- Default scripts (`commit.sh`, `pr.sh`) stage from `todo/` (and `done/` if those are also tracked); no references to `triaged/` or `queued/` remain in shipped defaults after `npm run sync-defaults`.</span>
+<span class="add">+- Existing in-flight `docs/cycle/issues/queued/*.md` files (currently 7 bb-* issues) are moved to `todo/` as part of this change so the next engine run pops from the right folder. Existing `tbd/` is empty so nothing to move; `triaged/` is empty so deletion is safe.</span>
+<span class="add">+</span>
+<span class="add">+## Acceptance Criteria</span>
+<span class="add">+- [ ] `docs/cycle/issues/raw/` exists; `docs/cycle/issues/todo/` exists; `docs/cycle/issues/tbd/`, `docs/cycle/issues/queued/`, and `docs/cycle/issues/triaged/` do not exist.</span>
+<span class="add">+- [ ] All 7 bb-* issue files now live in `docs/cycle/issues/todo/` (they were the `queued/` contents at cycle start).</span>
+<span class="add">+- [ ] `grep -rn &quot;issues/tbd\|issues/queued\|issues/triaged&quot; src tests src/defaults` returns no matches.</span>
+<span class="add">+- [ ] `npm test` passes (all suites, including renamed scan/init/materialize/commit-staging tests).</span>
+<span class="add">+- [ ] `npm run typecheck` passes with no warnings.</span>
+<span class="add">+- [ ] `npm run test:coverage` shows line ≥ 95%, branch ≥ 75%, function ≥ 90% (no regression vs master baseline).</span>
+<span class="add">+- [ ] A regression test asserts: pre-seed `raw/X.md` with frontmatter id `X`, run scan twice — first call moves the file to `todo/` and appends one `tbd.jsonl` line; second call (after re-creating `raw/X.md` with same id) appends zero lines.</span>
+<span class="add">+- [ ] After `npm run sync-defaults`, `.cycle/defaults/` mirrors `src/defaults/` (scripts and prompts both updated).</span>
+<span class="add">+</span>
+<span class="add">+## Testing Strategy</span>
+<span class="add">+- Node native test runner (existing convention; no new framework).</span>
+<span class="add">+- Update existing tests in-place rather than creating parallel new ones:</span>
+<span class="add">+  - `tests/engine/scan.test.ts`: rename `tbd`/`queued` locals to `raw`/`todo`; keep the dedup assertion from cycle 0010; add an explicit &quot;re-drop same id&quot; scenario if not already covered.</span>
+<span class="add">+  - `tests/cli/init.test.ts`: assert `raw/`, `todo/` are created; assert `tbd/`, `queued/`, `triaged/` are NOT created.</span>
+<span class="add">+  - `tests/issue/materialize.test.ts`: assert path ends with `/docs/cycle/issues/raw/…`.</span>
+<span class="add">+  - `tests/cli/multi-loop.test.ts`: update fixture setup to seed `raw/`; assert drop writes to `raw/`.</span>
+<span class="add">+  - `tests/defaults/commit-staging.test.ts`: replace `queued/`/`triaged/` fixtures with `todo/`; rename the &quot;triaged issue file is staged just like queued&quot; test to reflect the new lifecycle (or delete if it duplicates the `todo/` case).</span>
+<span class="add">+- No E2E/Playwright needed — no UI surface.</span>
+<span class="add">+- Smoke-test the renamed scan against the in-tree `docs/cycle/issues/todo/` after the file move: `node --experimental-strip-types -e &quot;import(&#39;./src/engine/scan.ts&#39;).then(m =&gt; m.scan(process.cwd()).then(console.log))&quot;` should report zero new ingestions (because the bb-* files were moved by the migration, not scanned).</span>
+<span class="add">+</span>
+<span class="add">+## Documentation Updates</span>
+<span class="add">+- **CLAUDE.md**: under &quot;Architecture quick reference&quot;, change `Issue state machine: docs/cycle/issues/{tbd,queued,triaged,blocked,failed}/` → `docs/cycle/issues/{raw,todo,done,failed,blocked}/`.</span>
+<span class="add">+- **docs/ARCHITECTURE.md**: any §4 / Triage / Workflows references to `tbd/` / `queued/` / `triaged/` get the new names. RFC-001 already documents the target layout; ARCHITECTURE.md should defer to it instead of restating.</span>
+<span class="add">+- **BRIEF.md**: search/replace lifecycle folder names; if BRIEF still describes the MVP `tbd/queued` flow, replace with a one-liner pointing at RFC-001.</span>
+<span class="add">+- **`.claude/skills/cycle.md`** (if present): update the user-facing description of where dropped issues land.</span>
+<span class="add">+- No README change — README does not document the issue folder layout.</span>
+<span class="add">+</span>
+<span class="add">+Documentation is part of &quot;done&quot; — code without updated docs is incomplete.</span>
+<span class="add">+</span>
+<span class="add">+## Dependencies</span>
+<span class="add">+- Node ≥ 22.6 (existing repo requirement).</span>
+<span class="add">+- No new external services or env vars.</span>
+<span class="add">+- Relies on the cycle 0010 `readKnownIds` dedup already merged in `src/engine/scan.ts`; this cycle re-targets it but does not re-implement it.</span>
+<span class="add">+- Engine is currently mid-run for cycle 0012; the file rename happens in the cycle&#39;s branch worktree, so the live engine&#39;s working tree must not be modified out-of-band during the build step.</span>
+<span class="add">+```</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/queued/.gitkeep b/docs/cycle/issues/queued/.gitkeep</span>
+<span class="fileheader">deleted file mode 100644</span>
+<span class="fileheader">index e69de29..0000000</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/.gitkeep b/docs/cycle/issues/tbd/.gitkeep</span>
+<span class="fileheader">deleted file mode 100644</span>
+<span class="fileheader">index e69de29..0000000</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-034328-bb-1-rename-docs-cycle-issues-tbd-raw-an.md b/docs/cycle/issues/todo/txt-20260513-034328-bb-1-rename-docs-cycle-issues-tbd-raw-an.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-034328-bb-1-rename-docs-cycle-issues-tbd-raw-an.md</span>
+<span class="fileheader">rename to docs/cycle/issues/todo/txt-20260513-034328-bb-1-rename-docs-cycle-issues-tbd-raw-an.md</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-034336-bb-2-consolidate-workflow-engine-triage.md b/docs/cycle/issues/todo/txt-20260513-034336-bb-2-consolidate-workflow-engine-triage.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-034336-bb-2-consolidate-workflow-engine-triage.md</span>
+<span class="fileheader">rename to docs/cycle/issues/todo/txt-20260513-034336-bb-2-consolidate-workflow-engine-triage.md</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-034347-bb-3-new-tbd-jsonl-row-schema-and-drain.md b/docs/cycle/issues/todo/txt-20260513-034347-bb-3-new-tbd-jsonl-row-schema-and-drain.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-034347-bb-3-new-tbd-jsonl-row-schema-and-drain.md</span>
+<span class="fileheader">rename to docs/cycle/issues/todo/txt-20260513-034347-bb-3-new-tbd-jsonl-row-schema-and-drain.md</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-034359-bb-4-build-the-triage-subroutine-new-src.md b/docs/cycle/issues/todo/txt-20260513-034359-bb-4-build-the-triage-subroutine-new-src.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-034359-bb-4-build-the-triage-subroutine-new-src.md</span>
+<span class="fileheader">rename to docs/cycle/issues/todo/txt-20260513-034359-bb-4-build-the-triage-subroutine-new-src.md</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-034416-bb-5-resume-logic-from-log-jsonl-tail-at.md b/docs/cycle/issues/todo/txt-20260513-034416-bb-5-resume-logic-from-log-jsonl-tail-at.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-034416-bb-5-resume-logic-from-log-jsonl-tail-at.md</span>
+<span class="fileheader">rename to docs/cycle/issues/todo/txt-20260513-034416-bb-5-resume-logic-from-log-jsonl-tail-at.md</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-034426-bb-6-propagateblocked-engine-wide-halt-p.md b/docs/cycle/issues/todo/txt-20260513-034426-bb-6-propagateblocked-engine-wide-halt-p.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-034426-bb-6-propagateblocked-engine-wide-halt-p.md</span>
+<span class="fileheader">rename to docs/cycle/issues/todo/txt-20260513-034426-bb-6-propagateblocked-engine-wide-halt-p.md</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-034434-bb-7-reflection-step-in-feature-workflow.md b/docs/cycle/issues/todo/txt-20260513-034434-bb-7-reflection-step-in-feature-workflow.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-034434-bb-7-reflection-step-in-feature-workflow.md</span>
+<span class="fileheader">rename to docs/cycle/issues/todo/txt-20260513-034434-bb-7-reflection-step-in-feature-workflow.md</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/triaged/.gitkeep b/docs/cycle/issues/triaged/.gitkeep</span>
+<span class="fileheader">deleted file mode 100644</span>
+<span class="fileheader">index e69de29..0000000</span>
+<span class="fileheader">diff --git a/src/cli.ts b/src/cli.ts</span>
+<span class="fileheader">index 2e24486..77b2666 100644</span>
+<span class="meta">--- a/src/cli.ts</span>
+<span class="meta">+++ b/src/cli.ts</span>
+<span class="hunk">@@ -1,7 +1,7 @@</span>
+<span class="ctx"> import { getVersion } from &quot;./version.ts&quot;;</span>
+<span class="ctx"> import { parseArgs } from &quot;./cli/parse-args.ts&quot;;</span>
+<span class="ctx"> import { materializeFreeformIssue } from &quot;./issue/materialize.ts&quot;;</span>
+<span class="del">-import { scanTbd } from &quot;./engine/scan.ts&quot;;</span>
+<span class="add">+import { scanRaw } from &quot;./engine/scan.ts&quot;;</span>
+<span class="ctx"> import { createLogger } from &quot;./engine/log.ts&quot;;</span>
+<span class="ctx"> import { runCycle } from &quot;./engine/run-cycle.ts&quot;;</span>
+<span class="ctx"> </span>
+<span class="hunk">@@ -30,8 +30,8 @@ if (args.command === &quot;drop&quot;) {</span>
+<span class="ctx"> const log = await createLogger(cwd);</span>
+<span class="ctx"> await log.emit(&quot;engine.start&quot;, {});</span>
+<span class="ctx"> </span>
+<span class="del">-// If freeform text was supplied on this invocation, materialize it into tbd/</span>
+<span class="del">-// before draining. Without text, drain whatever&#39;s already in tbd/.</span>
+<span class="add">+// If freeform text was supplied on this invocation, materialize it into raw/</span>
+<span class="add">+// before draining. Without text, drain whatever&#39;s already in raw/.</span>
+<span class="ctx"> if (args.text) {</span>
+<span class="ctx">   await materializeFreeformIssue(args.text, cwd);</span>
+<span class="ctx"> }</span>
+<span class="hunk">@@ -39,13 +39,13 @@ if (args.text) {</span>
+<span class="ctx"> // Halt-on-failure policy: during dogfood + early use, each cycle failure</span>
+<span class="ctx"> // is a real bug worth eyes on before the queue advances. We do NOT</span>
+<span class="ctx"> // continue past a failed cycle. The remaining queue stays in tbd.jsonl /</span>
+<span class="del">-// queued/ for the next invocation to pick up after the human fixes the</span>
+<span class="add">+// todo/ for the next invocation to pick up after the human fixes the</span>
+<span class="ctx"> // root cause and re-cycles the failed issue.</span>
+<span class="ctx"> let cyclesProcessed = 0;</span>
+<span class="ctx"> let halted: { issueId: string; failingStep: string | undefined } | null = null;</span>
+<span class="ctx"> </span>
+<span class="ctx"> outer: while (true) {</span>
+<span class="del">-  const ingested = await scanTbd(cwd);</span>
+<span class="add">+  const ingested = await scanRaw(cwd);</span>
+<span class="ctx">   if (ingested.length === 0) break;</span>
+<span class="ctx"> </span>
+<span class="ctx">   for (const issue of ingested) {</span>
+<span class="fileheader">diff --git a/src/cli/init.ts b/src/cli/init.ts</span>
+<span class="fileheader">index 2029342..f4ae99c 100644</span>
+<span class="meta">--- a/src/cli/init.ts</span>
+<span class="meta">+++ b/src/cli/init.ts</span>
+<span class="hunk">@@ -18,7 +18,7 @@ export async function runInit(opts: { targetRoot: string; force: boolean }) {</span>
+<span class="ctx">   await cp(join(defaults, &quot;prompts&quot;), join(t, &quot;.cycle/prompts&quot;), { recursive: true });</span>
+<span class="ctx">   await cp(join(defaults, &quot;scripts&quot;), join(t, &quot;.cycle/scripts&quot;), { recursive: true });</span>
+<span class="ctx"> </span>
+<span class="del">-  for (const sub of [&quot;tbd&quot;, &quot;queued&quot;, &quot;triaged&quot;, &quot;blocked&quot;, &quot;failed&quot;]) {</span>
+<span class="add">+  for (const sub of [&quot;raw&quot;, &quot;todo&quot;, &quot;done&quot;, &quot;blocked&quot;, &quot;failed&quot;]) {</span>
+<span class="ctx">     await mkdir(join(t, &quot;docs/cycle/issues&quot;, sub), { recursive: true });</span>
+<span class="ctx">   }</span>
+<span class="ctx"> }</span>
+<span class="fileheader">diff --git a/src/defaults/prompts/research.md b/src/defaults/prompts/research.md</span>
+<span class="fileheader">index 1a256b4..5f0d673 100644</span>
+<span class="meta">--- a/src/defaults/prompts/research.md</span>
+<span class="meta">+++ b/src/defaults/prompts/research.md</span>
+<span class="hunk">@@ -20,7 +20,7 @@ You are a documentarian, not an evaluator.</span>
+<span class="ctx">    `workflow`, `title`, `issue_id`.</span>
+<span class="ctx"> 2. **SPEC.md**: `docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/SPEC.md` — read</span>
+<span class="ctx">    this first; it tells you what the change area is.</span>
+<span class="del">-3. **Issue file**: `docs/cycle/issues/queued/&lt;issue_id&gt;.md`.</span>
+<span class="add">+3. **Issue file**: `docs/cycle/issues/todo/&lt;issue_id&gt;.md`.</span>
+<span class="ctx"> 4. **Repo conventions**: any `CLAUDE.md` / `AGENTS.md` at the repo root.</span>
+<span class="ctx"> 5. **Reference Documentation**: if `BRIEF.md` has a `## Reference</span>
+<span class="ctx">    Documentation` section, read every file listed there.</span>
+<span class="fileheader">diff --git a/src/defaults/prompts/spec.md b/src/defaults/prompts/spec.md</span>
+<span class="fileheader">index 3375f86..8bf298b 100644</span>
+<span class="meta">--- a/src/defaults/prompts/spec.md</span>
+<span class="meta">+++ b/src/defaults/prompts/spec.md</span>
+<span class="hunk">@@ -9,7 +9,7 @@ Read these to know what you&#39;re working on:</span>
+<span class="ctx"> </span>
+<span class="ctx"> 1. **`.cycle/log.jsonl` — last line with `&quot;event&quot;:&quot;cycle.start&quot;`**: gives</span>
+<span class="ctx">    you `cycle_id`, `workflow`, `title`, and `issue_id`.</span>
+<span class="del">-2. **Issue file**: `docs/cycle/issues/queued/&lt;issue_id&gt;.md` — the source</span>
+<span class="add">+2. **Issue file**: `docs/cycle/issues/todo/&lt;issue_id&gt;.md` — the source</span>
+<span class="ctx">    work item (YAML frontmatter + body). This is your primary input.</span>
+<span class="ctx"> 3. **Project Brief**: `BRIEF.md` (and `docs/ARCHITECTURE.md` if present)</span>
+<span class="ctx">    — read for context, but scope from the issue.</span>
+<span class="fileheader">diff --git a/src/defaults/scripts/commit.sh b/src/defaults/scripts/commit.sh</span>
+<span class="fileheader">index 564c0be..703e46f 100755</span>
+<span class="meta">--- a/src/defaults/scripts/commit.sh</span>
+<span class="meta">+++ b/src/defaults/scripts/commit.sh</span>
+<span class="hunk">@@ -64,9 +64,9 @@ fi</span>
+<span class="ctx"> . &quot;$(dirname &quot;$0&quot;)/lib/closes.sh&quot;</span>
+<span class="ctx"> issue_file=&quot;&quot;</span>
+<span class="ctx"> if [ -n &quot;${CYCLE_ISSUE_ID:-}&quot; ]; then</span>
+<span class="del">-  for d in docs/cycle/issues/triaged docs/cycle/issues/queued; do</span>
+<span class="del">-    if [ -f &quot;$d/${CYCLE_ISSUE_ID}.md&quot; ]; then issue_file=&quot;$d/${CYCLE_ISSUE_ID}.md&quot;; break; fi</span>
+<span class="del">-  done</span>
+<span class="add">+  if [ -f &quot;docs/cycle/issues/todo/${CYCLE_ISSUE_ID}.md&quot; ]; then</span>
+<span class="add">+    issue_file=&quot;docs/cycle/issues/todo/${CYCLE_ISSUE_ID}.md&quot;</span>
+<span class="add">+  fi</span>
+<span class="ctx"> fi</span>
+<span class="ctx"> repo_slug=&quot;$(gh repo view --json nameWithOwner -q .nameWithOwner 2&gt;/dev/null || true)&quot;</span>
+<span class="ctx"> closes=&quot;$(closes_block &quot;$issue_file&quot; &quot;$repo_slug&quot;)&quot;</span>
+<span class="fileheader">diff --git a/src/defaults/scripts/pr.sh b/src/defaults/scripts/pr.sh</span>
+<span class="fileheader">index 019c0d2..103531a 100755</span>
+<span class="meta">--- a/src/defaults/scripts/pr.sh</span>
+<span class="meta">+++ b/src/defaults/scripts/pr.sh</span>
+<span class="hunk">@@ -17,9 +17,9 @@ git push --set-upstream origin &quot;${branch}&quot;</span>
+<span class="ctx"> repo_slug=$(gh repo view --json nameWithOwner -q .nameWithOwner 2&gt;/dev/null || true)</span>
+<span class="ctx"> issue_file=&quot;&quot;</span>
+<span class="ctx"> if [ -n &quot;${CYCLE_ISSUE_ID:-}&quot; ]; then</span>
+<span class="del">-  for d in docs/cycle/issues/triaged docs/cycle/issues/queued; do</span>
+<span class="del">-    if [ -f &quot;$d/${CYCLE_ISSUE_ID}.md&quot; ]; then issue_file=&quot;$d/${CYCLE_ISSUE_ID}.md&quot;; break; fi</span>
+<span class="del">-  done</span>
+<span class="add">+  if [ -f &quot;docs/cycle/issues/todo/${CYCLE_ISSUE_ID}.md&quot; ]; then</span>
+<span class="add">+    issue_file=&quot;docs/cycle/issues/todo/${CYCLE_ISSUE_ID}.md&quot;</span>
+<span class="add">+  fi</span>
+<span class="ctx"> fi</span>
+<span class="ctx"> closes=$(closes_block &quot;$issue_file&quot; &quot;$repo_slug&quot;)</span>
+<span class="ctx"> body=&quot;Generated by cycle.&quot;</span>
+<span class="fileheader">diff --git a/src/engine/scan.ts b/src/engine/scan.ts</span>
+<span class="fileheader">index f710c3a..2a76f40 100644</span>
+<span class="meta">--- a/src/engine/scan.ts</span>
+<span class="meta">+++ b/src/engine/scan.ts</span>
+<span class="hunk">@@ -35,17 +35,17 @@ async function readKnownIds(jsonlPath: string): Promise&lt;Set&lt;string&gt;&gt; {</span>
+<span class="ctx">   return ids;</span>
+<span class="ctx"> }</span>
+<span class="ctx"> </span>
+<span class="del">-export async function scanTbd(repoRoot: string): Promise&lt;TbdEntry[]&gt; {</span>
+<span class="del">-  const tbd = join(repoRoot, &quot;docs/cycle/issues/tbd&quot;);</span>
+<span class="del">-  const queued = join(repoRoot, &quot;docs/cycle/issues/queued&quot;);</span>
+<span class="add">+export async function scanRaw(repoRoot: string): Promise&lt;TbdEntry[]&gt; {</span>
+<span class="add">+  const raw = join(repoRoot, &quot;docs/cycle/issues/raw&quot;);</span>
+<span class="add">+  const todo = join(repoRoot, &quot;docs/cycle/issues/todo&quot;);</span>
+<span class="ctx">   const cycleDir = join(repoRoot, &quot;.cycle&quot;);</span>
+<span class="ctx">   const jsonlPath = join(cycleDir, &quot;tbd.jsonl&quot;);</span>
+<span class="del">-  await mkdir(queued, { recursive: true });</span>
+<span class="add">+  await mkdir(todo, { recursive: true });</span>
+<span class="ctx">   await mkdir(cycleDir, { recursive: true });</span>
+<span class="ctx"> </span>
+<span class="ctx">   let files: string[] = [];</span>
+<span class="ctx">   try {</span>
+<span class="del">-    files = (await readdir(tbd)).filter(f =&gt; f.endsWith(&quot;.md&quot;));</span>
+<span class="add">+    files = (await readdir(raw)).filter(f =&gt; f.endsWith(&quot;.md&quot;));</span>
+<span class="ctx">   } catch {</span>
+<span class="ctx">     return [];</span>
+<span class="ctx">   }</span>
+<span class="hunk">@@ -53,8 +53,8 @@ export async function scanTbd(repoRoot: string): Promise&lt;TbdEntry[]&gt; {</span>
+<span class="ctx">   const knownIds = await readKnownIds(jsonlPath);</span>
+<span class="ctx">   const ingested: TbdEntry[] = [];</span>
+<span class="ctx">   for (const f of files) {</span>
+<span class="del">-    const src = join(tbd, f);</span>
+<span class="del">-    const dst = join(queued, f);</span>
+<span class="add">+    const src = join(raw, f);</span>
+<span class="add">+    const dst = join(todo, f);</span>
+<span class="ctx">     const body = await readFile(src, &quot;utf8&quot;);</span>
+<span class="ctx">     const fm = parseFrontmatter(body);</span>
+<span class="ctx">     await rename(src, dst);</span>
+<span class="fileheader">diff --git a/src/issue/materialize.ts b/src/issue/materialize.ts</span>
+<span class="fileheader">index 585c187..ecbf485 100644</span>
+<span class="meta">--- a/src/issue/materialize.ts</span>
+<span class="meta">+++ b/src/issue/materialize.ts</span>
+<span class="hunk">@@ -4,7 +4,7 @@ import { freeformId } from &quot;./id.ts&quot;;</span>
+<span class="ctx"> </span>
+<span class="ctx"> export async function materializeFreeformIssue(text: string, repoRoot: string, now: Date = new Date()) {</span>
+<span class="ctx">   const id = freeformId(text, now);</span>
+<span class="del">-  const dir = join(repoRoot, &quot;docs&quot;, &quot;cycle&quot;, &quot;issues&quot;, &quot;tbd&quot;);</span>
+<span class="add">+  const dir = join(repoRoot, &quot;docs&quot;, &quot;cycle&quot;, &quot;issues&quot;, &quot;raw&quot;);</span>
+<span class="ctx">   await mkdir(dir, { recursive: true });</span>
+<span class="ctx">   const path = join(dir, `${id}.md`);</span>
+<span class="ctx">   const frontmatter = [</span>
+<span class="fileheader">diff --git a/tests/cli/init.test.ts b/tests/cli/init.test.ts</span>
+<span class="fileheader">index fc2ab50..5fa8d95 100644</span>
+<span class="meta">--- a/tests/cli/init.test.ts</span>
+<span class="meta">+++ b/tests/cli/init.test.ts</span>
+<span class="hunk">@@ -17,7 +17,15 @@ test(&quot;init scaffolds .cycle/bin/cycle.js (exec), workflows, prompts, scripts&quot;, a</span>
+<span class="ctx">     await stat(join(root, &quot;.cycle/workflows/feature.yaml&quot;));</span>
+<span class="ctx">     await stat(join(root, &quot;.cycle/prompts/spec.md&quot;));</span>
+<span class="ctx">     await stat(join(root, &quot;.cycle/scripts/verify.sh&quot;));</span>
+<span class="del">-    await stat(join(root, &quot;docs/cycle/issues/tbd&quot;));</span>
+<span class="add">+    for (const sub of [&quot;raw&quot;, &quot;todo&quot;, &quot;done&quot;, &quot;blocked&quot;, &quot;failed&quot;]) {</span>
+<span class="add">+      await stat(join(root, &quot;docs/cycle/issues&quot;, sub));</span>
+<span class="add">+    }</span>
+<span class="add">+    for (const sub of [&quot;tbd&quot;, &quot;queued&quot;, &quot;triaged&quot;]) {</span>
+<span class="add">+      await assert.rejects(</span>
+<span class="add">+        () =&gt; stat(join(root, &quot;docs/cycle/issues&quot;, sub)),</span>
+<span class="add">+        (e: NodeJS.ErrnoException) =&gt; e.code === &quot;ENOENT&quot;</span>
+<span class="add">+      );</span>
+<span class="add">+    }</span>
+<span class="ctx">   } finally {</span>
+<span class="ctx">     await rm(root, { recursive: true, force: true });</span>
+<span class="ctx">   }</span>
+<span class="fileheader">diff --git a/tests/cli/multi-loop.test.ts b/tests/cli/multi-loop.test.ts</span>
+<span class="fileheader">index 291e0d6..4ac2482 100644</span>
+<span class="meta">--- a/tests/cli/multi-loop.test.ts</span>
+<span class="meta">+++ b/tests/cli/multi-loop.test.ts</span>
+<span class="hunk">@@ -18,7 +18,7 @@ test(&quot;&#39;run&#39; drains two pre-dropped issues in one invocation (dry-run)&quot;, async ()</span>
+<span class="ctx">       spawnSync(&quot;npm&quot;, [&quot;run&quot;, &quot;build&quot;], { cwd: REPO, stdio: &quot;inherit&quot; });</span>
+<span class="ctx">     }</span>
+<span class="ctx"> </span>
+<span class="del">-    // pre-populate tbd/ with two dropped issues</span>
+<span class="add">+    // pre-populate raw/ with two dropped issues</span>
+<span class="ctx">     spawnSync(&quot;node&quot;, [distPath, &quot;drop&quot;, &quot;task alpha&quot;], { cwd: root, stdio: &quot;inherit&quot; });</span>
+<span class="ctx">     spawnSync(&quot;node&quot;, [distPath, &quot;drop&quot;, &quot;task beta&quot;], { cwd: root, stdio: &quot;inherit&quot; });</span>
+<span class="ctx"> </span>
+<span class="hunk">@@ -91,7 +91,7 @@ test(&quot;&#39;run&#39; halts on cycle failure and leaves remaining queue intact&quot;, async ()</span>
+<span class="ctx">   }</span>
+<span class="ctx"> });</span>
+<span class="ctx"> </span>
+<span class="del">-test(&quot;&#39;drop&#39; materializes an issue to tbd/ without running&quot;, async () =&gt; {</span>
+<span class="add">+test(&quot;&#39;drop&#39; materializes an issue to raw/ without running&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
+<span class="ctx">   try {</span>
+<span class="ctx">     const distPath = join(REPO, &quot;dist&quot;, &quot;cycle.js&quot;);</span>
+<span class="hunk">@@ -107,9 +107,10 @@ test(&quot;&#39;drop&#39; materializes an issue to tbd/ without running&quot;, async () =&gt; {</span>
+<span class="ctx">     assert.equal(out.event, &quot;issue.dropped&quot;);</span>
+<span class="ctx">     assert.match(out.issue_id, /^txt-\d{8}-\d{6}-park-this-for-later$/);</span>
+<span class="ctx"> </span>
+<span class="del">-    // tbd/ has the file, no log.jsonl (drop is engine-side silent)</span>
+<span class="del">-    const tbdFile = await readFile(out.path, &quot;utf8&quot;);</span>
+<span class="del">-    assert.match(tbdFile, /park this for later/);</span>
+<span class="add">+    // raw/ has the file, no log.jsonl (drop is engine-side silent)</span>
+<span class="add">+    const rawFile = await readFile(out.path, &quot;utf8&quot;);</span>
+<span class="add">+    assert.match(rawFile, /park this for later/);</span>
+<span class="add">+    assert.match(out.path, /\/docs\/cycle\/issues\/raw\//);</span>
+<span class="ctx">     try {</span>
+<span class="ctx">       await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span>
+<span class="ctx">       assert.fail(&quot;drop should not write log.jsonl&quot;);</span>
+<span class="fileheader">diff --git a/tests/defaults/closes-linkage.test.ts b/tests/defaults/closes-linkage.test.ts</span>
+<span class="fileheader">index d41d5ec..c9ceff6 100644</span>
+<span class="meta">--- a/tests/defaults/closes-linkage.test.ts</span>
+<span class="meta">+++ b/tests/defaults/closes-linkage.test.ts</span>
+<span class="hunk">@@ -219,9 +219,9 @@ exit 0</span>
+<span class="ctx"> test(&quot;commit.sh: appends Closes #N body when issue URL matches repo&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await makeCommitRepo();</span>
+<span class="ctx">   try {</span>
+<span class="del">-    await mkdir(join(root, &quot;docs/cycle/issues/triaged&quot;), { recursive: true });</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/issues/todo&quot;), { recursive: true });</span>
+<span class="ctx">     await writeFile(</span>
+<span class="del">-      join(root, &quot;docs/cycle/issues/triaged/foo.md&quot;),</span>
+<span class="add">+      join(root, &quot;docs/cycle/issues/todo/foo.md&quot;),</span>
+<span class="ctx">       &quot;Reproduces https://github.com/acme/cycle/issues/99 in the wild.\n&quot;,</span>
+<span class="ctx">     );</span>
+<span class="ctx">     await mkdir(join(root, &quot;src&quot;), { recursive: true });</span>
+<span class="hunk">@@ -254,8 +254,8 @@ test(&quot;commit.sh: appends Closes #N body when issue URL matches repo&quot;, async () =</span>
+<span class="ctx"> test(&quot;commit.sh: byte-identical message when issue body has no qualifying URL&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await makeCommitRepo();</span>
+<span class="ctx">   try {</span>
+<span class="del">-    await mkdir(join(root, &quot;docs/cycle/issues/triaged&quot;), { recursive: true });</span>
+<span class="del">-    await writeFile(join(root, &quot;docs/cycle/issues/triaged/foo.md&quot;), &quot;No urls here.\n&quot;);</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/issues/todo&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;docs/cycle/issues/todo/foo.md&quot;), &quot;No urls here.\n&quot;);</span>
+<span class="ctx">     await mkdir(join(root, &quot;src&quot;), { recursive: true });</span>
+<span class="ctx">     await writeFile(join(root, &quot;src/app.ts&quot;), &quot;export {};\n&quot;);</span>
+<span class="ctx"> </span>
+<span class="hunk">@@ -285,9 +285,9 @@ test(&quot;commit.sh: byte-identical message when issue body has no qualifying URL&quot;,</span>
+<span class="ctx"> test(&quot;commit.sh: cross-repo URL produces no Closes line&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await makeCommitRepo();</span>
+<span class="ctx">   try {</span>
+<span class="del">-    await mkdir(join(root, &quot;docs/cycle/issues/triaged&quot;), { recursive: true });</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/issues/todo&quot;), { recursive: true });</span>
+<span class="ctx">     await writeFile(</span>
+<span class="del">-      join(root, &quot;docs/cycle/issues/triaged/foo.md&quot;),</span>
+<span class="add">+      join(root, &quot;docs/cycle/issues/todo/foo.md&quot;),</span>
+<span class="ctx">       &quot;Refs https://github.com/someone/else/issues/5 unrelated.\n&quot;,</span>
+<span class="ctx">     );</span>
+<span class="ctx">     await mkdir(join(root, &quot;src&quot;), { recursive: true });</span>
+<span class="hunk">@@ -391,9 +391,9 @@ exit 0</span>
+<span class="ctx"> test(&quot;pr.sh: PR body appends Closes #N when issue URL matches repo&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await makePrRepo();</span>
+<span class="ctx">   try {</span>
+<span class="del">-    await mkdir(join(root, &quot;docs/cycle/issues/triaged&quot;), { recursive: true });</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/issues/todo&quot;), { recursive: true });</span>
+<span class="ctx">     await writeFile(</span>
+<span class="del">-      join(root, &quot;docs/cycle/issues/triaged/foo.md&quot;),</span>
+<span class="add">+      join(root, &quot;docs/cycle/issues/todo/foo.md&quot;),</span>
+<span class="ctx">       &quot;Refs https://github.com/acme/cycle/issues/99 here.\n&quot;,</span>
+<span class="ctx">     );</span>
+<span class="ctx">     const { shim, bodyFile, log } = await installPrGhShim(root, &quot;acme/cycle&quot;);</span>
+<span class="hunk">@@ -429,8 +429,8 @@ test(&quot;pr.sh: PR body appends Closes #N when issue URL matches repo&quot;, async () =&gt;</span>
+<span class="ctx"> test(&quot;pr.sh: PR body is byte-identical to legacy when no qualifying URL&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await makePrRepo();</span>
+<span class="ctx">   try {</span>
+<span class="del">-    await mkdir(join(root, &quot;docs/cycle/issues/triaged&quot;), { recursive: true });</span>
+<span class="del">-    await writeFile(join(root, &quot;docs/cycle/issues/triaged/foo.md&quot;), &quot;No urls.\n&quot;);</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/issues/todo&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;docs/cycle/issues/todo/foo.md&quot;), &quot;No urls.\n&quot;);</span>
+<span class="ctx">     const { shim, bodyFile } = await installPrGhShim(root, &quot;acme/cycle&quot;);</span>
+<span class="ctx">     const r = spawnSync(&quot;bash&quot;, [&quot;.cycle/scripts/pr.sh&quot;], {</span>
+<span class="ctx">       cwd: root,</span>
+<span class="hunk">@@ -455,9 +455,9 @@ test(&quot;pr.sh: PR body is byte-identical to legacy when no qualifying URL&quot;, async</span>
+<span class="ctx"> test(&quot;pr.sh: cross-repo URL is omitted from PR body&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await makePrRepo();</span>
+<span class="ctx">   try {</span>
+<span class="del">-    await mkdir(join(root, &quot;docs/cycle/issues/triaged&quot;), { recursive: true });</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/issues/todo&quot;), { recursive: true });</span>
+<span class="ctx">     await writeFile(</span>
+<span class="del">-      join(root, &quot;docs/cycle/issues/triaged/foo.md&quot;),</span>
+<span class="add">+      join(root, &quot;docs/cycle/issues/todo/foo.md&quot;),</span>
+<span class="ctx">       &quot;Refs https://github.com/someone/else/issues/5 only.\n&quot;,</span>
+<span class="ctx">     );</span>
+<span class="ctx">     const { shim, bodyFile } = await installPrGhShim(root, &quot;acme/cycle&quot;);</span>
+<span class="fileheader">diff --git a/tests/defaults/commit-staging.test.ts b/tests/defaults/commit-staging.test.ts</span>
+<span class="fileheader">index 6dfeb66..236bcb9 100644</span>
+<span class="meta">--- a/tests/defaults/commit-staging.test.ts</span>
+<span class="meta">+++ b/tests/defaults/commit-staging.test.ts</span>
+<span class="hunk">@@ -58,8 +58,8 @@ test(&quot;stages cycle artifact dir, issue file, and source change&quot;, async () =&gt; {</span>
+<span class="ctx">   try {</span>
+<span class="ctx">     await mkdir(join(root, &quot;docs/cycle/0099-feature-test&quot;), { recursive: true });</span>
+<span class="ctx">     await writeFile(join(root, &quot;docs/cycle/0099-feature-test/SPEC.md&quot;), &quot;spec\n&quot;);</span>
+<span class="del">-    await mkdir(join(root, &quot;docs/cycle/issues/queued&quot;), { recursive: true });</span>
+<span class="del">-    await writeFile(join(root, &quot;docs/cycle/issues/queued/test-issue.md&quot;), &quot;issue\n&quot;);</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/issues/todo&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;docs/cycle/issues/todo/test-issue.md&quot;), &quot;issue\n&quot;);</span>
+<span class="ctx">     await mkdir(join(root, &quot;src&quot;), { recursive: true });</span>
+<span class="ctx">     await writeFile(join(root, &quot;src/app.ts&quot;), &quot;export {};\n&quot;);</span>
+<span class="ctx"> </span>
+<span class="hunk">@@ -70,7 +70,7 @@ test(&quot;stages cycle artifact dir, issue file, and source change&quot;, async () =&gt; {</span>
+<span class="ctx">     const files = commitFiles(root);</span>
+<span class="ctx">     assert.deepEqual(files, [</span>
+<span class="ctx">       &quot;docs/cycle/0099-feature-test/SPEC.md&quot;,</span>
+<span class="del">-      &quot;docs/cycle/issues/queued/test-issue.md&quot;,</span>
+<span class="add">+      &quot;docs/cycle/issues/todo/test-issue.md&quot;,</span>
+<span class="ctx">       &quot;src/app.ts&quot;,</span>
+<span class="ctx">     ]);</span>
+<span class="ctx">   } finally {</span>
+<span class="hunk">@@ -83,8 +83,8 @@ test(&quot;rejects .claude lock, dist artifact, and 160000 gitlink&quot;, async () =&gt; {</span>
+<span class="ctx">   try {</span>
+<span class="ctx">     await mkdir(join(root, &quot;docs/cycle/0099-feature-test&quot;), { recursive: true });</span>
+<span class="ctx">     await writeFile(join(root, &quot;docs/cycle/0099-feature-test/SPEC.md&quot;), &quot;spec\n&quot;);</span>
+<span class="del">-    await mkdir(join(root, &quot;docs/cycle/issues/queued&quot;), { recursive: true });</span>
+<span class="del">-    await writeFile(join(root, &quot;docs/cycle/issues/queued/test-issue.md&quot;), &quot;issue\n&quot;);</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/issues/todo&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;docs/cycle/issues/todo/test-issue.md&quot;), &quot;issue\n&quot;);</span>
+<span class="ctx">     await mkdir(join(root, &quot;src&quot;), { recursive: true });</span>
+<span class="ctx">     await writeFile(join(root, &quot;src/app.ts&quot;), &quot;export {};\n&quot;);</span>
+<span class="ctx"> </span>
+<span class="hunk">@@ -164,20 +164,20 @@ test(&quot;exits 0 with nothing-to-commit when only transients are present&quot;, async ()</span>
+<span class="ctx">   }</span>
+<span class="ctx"> });</span>
+<span class="ctx"> </span>
+<span class="del">-test(&quot;triaged issue file is staged just like queued&quot;, async () =&gt; {</span>
+<span class="add">+test(&quot;todo/ issue file is staged by the porcelain walk&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await makeRepo();</span>
+<span class="ctx">   try {</span>
+<span class="ctx">     await mkdir(join(root, &quot;docs/cycle/0099-feature-test&quot;), { recursive: true });</span>
+<span class="ctx">     await writeFile(join(root, &quot;docs/cycle/0099-feature-test/SPEC.md&quot;), &quot;spec\n&quot;);</span>
+<span class="del">-    await mkdir(join(root, &quot;docs/cycle/issues/triaged&quot;), { recursive: true });</span>
+<span class="del">-    await writeFile(join(root, &quot;docs/cycle/issues/triaged/test-issue.md&quot;), &quot;issue\n&quot;);</span>
+<span class="add">+    await mkdir(join(root, &quot;docs/cycle/issues/todo&quot;), { recursive: true });</span>
+<span class="add">+    await writeFile(join(root, &quot;docs/cycle/issues/todo/test-issue.md&quot;), &quot;issue\n&quot;);</span>
+<span class="ctx"> </span>
+<span class="ctx">     const r = runScript(root, { CYCLE_ID: &quot;0099&quot;, CYCLE_TITLE: &quot;t&quot; });</span>
+<span class="ctx">     assert.equal(r.status, 0, `stderr: ${r.stderr}`);</span>
+<span class="ctx">     const files = commitFiles(root);</span>
+<span class="ctx">     assert.ok(</span>
+<span class="del">-      files.includes(&quot;docs/cycle/issues/triaged/test-issue.md&quot;),</span>
+<span class="del">-      `expected triaged issue file in commit: ${files}`,</span>
+<span class="add">+      files.includes(&quot;docs/cycle/issues/todo/test-issue.md&quot;),</span>
+<span class="add">+      `expected todo/ issue file in commit: ${files}`,</span>
+<span class="ctx">     );</span>
+<span class="ctx">   } finally {</span>
+<span class="ctx">     await rm(root, { recursive: true, force: true });</span>
+<span class="fileheader">diff --git a/tests/engine/scan.test.ts b/tests/engine/scan.test.ts</span>
+<span class="fileheader">index 3f95dc6..39a05b8 100644</span>
+<span class="meta">--- a/tests/engine/scan.test.ts</span>
+<span class="meta">+++ b/tests/engine/scan.test.ts</span>
+<span class="hunk">@@ -3,7 +3,7 @@ import { strict as assert } from &quot;node:assert&quot;;</span>
+<span class="ctx"> import { mkdtemp, mkdir, readFile, writeFile, readdir, rm } from &quot;node:fs/promises&quot;;</span>
+<span class="ctx"> import { tmpdir } from &quot;node:os&quot;;</span>
+<span class="ctx"> import { join } from &quot;node:path&quot;;</span>
+<span class="del">-import { scanTbd } from &quot;../../src/engine/scan.ts&quot;;</span>
+<span class="add">+import { scanRaw } from &quot;../../src/engine/scan.ts&quot;;</span>
+<span class="ctx"> </span>
+<span class="ctx"> function mkBody(id: string): string {</span>
+<span class="ctx">   return `---\nid: ${id}\nsource: text\ntitle: &quot;t&quot;\nadded_at: 2026-05-12T10:30:00Z\n---\n\nb\n`;</span>
+<span class="hunk">@@ -22,23 +22,23 @@ function countMatching(jsonl: string, id: string): number {</span>
+<span class="ctx">     }).length;</span>
+<span class="ctx"> }</span>
+<span class="ctx"> </span>
+<span class="del">-test(&quot;moves tbd file to queued and appends tbd.jsonl line&quot;, async () =&gt; {</span>
+<span class="add">+test(&quot;moves raw file to todo and appends tbd.jsonl line&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
+<span class="ctx">   try {</span>
+<span class="del">-    const tbd = join(root, &quot;docs/cycle/issues/tbd&quot;);</span>
+<span class="del">-    const queued = join(root, &quot;docs/cycle/issues/queued&quot;);</span>
+<span class="del">-    await mkdir(tbd, { recursive: true });</span>
+<span class="del">-    await mkdir(queued, { recursive: true });</span>
+<span class="add">+    const raw = join(root, &quot;docs/cycle/issues/raw&quot;);</span>
+<span class="add">+    const todo = join(root, &quot;docs/cycle/issues/todo&quot;);</span>
+<span class="add">+    await mkdir(raw, { recursive: true });</span>
+<span class="add">+    await mkdir(todo, { recursive: true });</span>
+<span class="ctx">     await mkdir(join(root, &quot;.cycle&quot;), { recursive: true });</span>
+<span class="ctx">     const body = `---\nid: TEST-1\nsource: text\ntitle: &quot;hi&quot;\nadded_at: 2026-05-12T10:30:00Z\n---\n\nhi\n`;</span>
+<span class="del">-    await writeFile(join(tbd, &quot;TEST-1.md&quot;), body, &quot;utf8&quot;);</span>
+<span class="add">+    await writeFile(join(raw, &quot;TEST-1.md&quot;), body, &quot;utf8&quot;);</span>
+<span class="ctx"> </span>
+<span class="del">-    const moved = await scanTbd(root);</span>
+<span class="add">+    const moved = await scanRaw(root);</span>
+<span class="ctx">     assert.deepEqual(moved.map(m =&gt; m.id), [&quot;TEST-1&quot;]);</span>
+<span class="del">-    const queuedFiles = await readdir(queued);</span>
+<span class="del">-    assert.deepEqual(queuedFiles, [&quot;TEST-1.md&quot;]);</span>
+<span class="del">-    const tbdFiles = await readdir(tbd);</span>
+<span class="del">-    assert.deepEqual(tbdFiles, []);</span>
+<span class="add">+    const todoFiles = await readdir(todo);</span>
+<span class="add">+    assert.deepEqual(todoFiles, [&quot;TEST-1.md&quot;]);</span>
+<span class="add">+    const rawFiles = await readdir(raw);</span>
+<span class="add">+    assert.deepEqual(rawFiles, []);</span>
+<span class="ctx">     const jsonl = await readFile(join(root, &quot;.cycle/tbd.jsonl&quot;), &quot;utf8&quot;);</span>
+<span class="ctx">     assert.match(jsonl, /&quot;id&quot;:&quot;TEST-1&quot;/);</span>
+<span class="ctx">   } finally {</span>
+<span class="hunk">@@ -49,23 +49,23 @@ test(&quot;moves tbd file to queued and appends tbd.jsonl line&quot;, async () =&gt; {</span>
+<span class="ctx"> test(&quot;skips appendFile when id already in tbd.jsonl&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
+<span class="ctx">   try {</span>
+<span class="del">-    const tbd = join(root, &quot;docs/cycle/issues/tbd&quot;);</span>
+<span class="del">-    const queued = join(root, &quot;docs/cycle/issues/queued&quot;);</span>
+<span class="add">+    const raw = join(root, &quot;docs/cycle/issues/raw&quot;);</span>
+<span class="add">+    const todo = join(root, &quot;docs/cycle/issues/todo&quot;);</span>
+<span class="ctx">     const cycleDir = join(root, &quot;.cycle&quot;);</span>
+<span class="del">-    await mkdir(tbd, { recursive: true });</span>
+<span class="del">-    await mkdir(queued, { recursive: true });</span>
+<span class="add">+    await mkdir(raw, { recursive: true });</span>
+<span class="add">+    await mkdir(todo, { recursive: true });</span>
+<span class="ctx">     await mkdir(cycleDir, { recursive: true });</span>
+<span class="ctx">     await writeFile(</span>
+<span class="ctx">       join(cycleDir, &quot;tbd.jsonl&quot;),</span>
+<span class="ctx">       JSON.stringify({ id: &quot;X&quot;, source: &quot;text&quot;, title: &quot;old&quot;, path: &quot;/old&quot;, added_at: &quot;2026-05-12T09:00:00Z&quot; }) + &quot;\n&quot;,</span>
+<span class="ctx">       &quot;utf8&quot;</span>
+<span class="ctx">     );</span>
+<span class="del">-    await writeFile(join(tbd, &quot;X.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    await writeFile(join(raw, &quot;X.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="ctx"> </span>
+<span class="del">-    const moved = await scanTbd(root);</span>
+<span class="add">+    const moved = await scanRaw(root);</span>
+<span class="ctx">     assert.deepEqual(moved, []);</span>
+<span class="del">-    assert.deepEqual(await readdir(queued), [&quot;X.md&quot;]);</span>
+<span class="del">-    assert.deepEqual(await readdir(tbd), []);</span>
+<span class="add">+    assert.deepEqual(await readdir(todo), [&quot;X.md&quot;]);</span>
+<span class="add">+    assert.deepEqual(await readdir(raw), []);</span>
+<span class="ctx">     const jsonl = await readFile(join(cycleDir, &quot;tbd.jsonl&quot;), &quot;utf8&quot;);</span>
+<span class="ctx">     assert.equal(countMatching(jsonl, &quot;X&quot;), 1);</span>
+<span class="ctx">   } finally {</span>
+<span class="hunk">@@ -76,16 +76,16 @@ test(&quot;skips appendFile when id already in tbd.jsonl&quot;, async () =&gt; {</span>
+<span class="ctx"> test(&quot;two-scan dup collapses to one row&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
+<span class="ctx">   try {</span>
+<span class="del">-    const tbd = join(root, &quot;docs/cycle/issues/tbd&quot;);</span>
+<span class="add">+    const raw = join(root, &quot;docs/cycle/issues/raw&quot;);</span>
+<span class="ctx">     const cycleDir = join(root, &quot;.cycle&quot;);</span>
+<span class="del">-    await mkdir(tbd, { recursive: true });</span>
+<span class="add">+    await mkdir(raw, { recursive: true });</span>
+<span class="ctx"> </span>
+<span class="del">-    await writeFile(join(tbd, &quot;X.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="del">-    const first = await scanTbd(root);</span>
+<span class="add">+    await writeFile(join(raw, &quot;X.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    const first = await scanRaw(root);</span>
+<span class="ctx">     assert.deepEqual(first.map(m =&gt; m.id), [&quot;X&quot;]);</span>
+<span class="ctx"> </span>
+<span class="del">-    await writeFile(join(tbd, &quot;X.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="del">-    const second = await scanTbd(root);</span>
+<span class="add">+    await writeFile(join(raw, &quot;X.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    const second = await scanRaw(root);</span>
+<span class="ctx">     assert.deepEqual(second, []);</span>
+<span class="ctx"> </span>
+<span class="ctx">     const jsonl = await readFile(join(cycleDir, &quot;tbd.jsonl&quot;), &quot;utf8&quot;);</span>
+<span class="hunk">@@ -98,17 +98,17 @@ test(&quot;two-scan dup collapses to one row&quot;, async () =&gt; {</span>
+<span class="ctx"> test(&quot;intra-scan dup collapses to one row&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
+<span class="ctx">   try {</span>
+<span class="del">-    const tbd = join(root, &quot;docs/cycle/issues/tbd&quot;);</span>
+<span class="add">+    const raw = join(root, &quot;docs/cycle/issues/raw&quot;);</span>
+<span class="ctx">     const cycleDir = join(root, &quot;.cycle&quot;);</span>
+<span class="del">-    await mkdir(tbd, { recursive: true });</span>
+<span class="add">+    await mkdir(raw, { recursive: true });</span>
+<span class="ctx"> </span>
+<span class="del">-    await writeFile(join(tbd, &quot;X-a.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="del">-    await writeFile(join(tbd, &quot;X-b.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    await writeFile(join(raw, &quot;X-a.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    await writeFile(join(raw, &quot;X-b.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="ctx"> </span>
+<span class="del">-    const moved = await scanTbd(root);</span>
+<span class="add">+    const moved = await scanRaw(root);</span>
+<span class="ctx">     assert.equal(moved.length, 1);</span>
+<span class="ctx">     assert.equal(moved[0].id, &quot;X&quot;);</span>
+<span class="del">-    assert.deepEqual(await readdir(tbd), []);</span>
+<span class="add">+    assert.deepEqual(await readdir(raw), []);</span>
+<span class="ctx">     const jsonl = await readFile(join(cycleDir, &quot;tbd.jsonl&quot;), &quot;utf8&quot;);</span>
+<span class="ctx">     assert.equal(countMatching(jsonl, &quot;X&quot;), 1);</span>
+<span class="ctx">   } finally {</span>
+<span class="hunk">@@ -119,9 +119,9 @@ test(&quot;intra-scan dup collapses to one row&quot;, async () =&gt; {</span>
+<span class="ctx"> test(&quot;tolerates malformed lines in existing tbd.jsonl&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
+<span class="ctx">   try {</span>
+<span class="del">-    const tbd = join(root, &quot;docs/cycle/issues/tbd&quot;);</span>
+<span class="add">+    const raw = join(root, &quot;docs/cycle/issues/raw&quot;);</span>
+<span class="ctx">     const cycleDir = join(root, &quot;.cycle&quot;);</span>
+<span class="del">-    await mkdir(tbd, { recursive: true });</span>
+<span class="add">+    await mkdir(raw, { recursive: true });</span>
+<span class="ctx">     await mkdir(cycleDir, { recursive: true });</span>
+<span class="ctx">     const seed =</span>
+<span class="ctx">       &quot;not json\n&quot; +</span>
+<span class="hunk">@@ -130,16 +130,16 @@ test(&quot;tolerates malformed lines in existing tbd.jsonl&quot;, async () =&gt; {</span>
+<span class="ctx">       JSON.stringify({ no_id: true }) + &quot;\n&quot;;</span>
+<span class="ctx">     await writeFile(join(cycleDir, &quot;tbd.jsonl&quot;), seed, &quot;utf8&quot;);</span>
+<span class="ctx"> </span>
+<span class="del">-    await writeFile(join(tbd, &quot;NEW.md&quot;), mkBody(&quot;NEW&quot;), &quot;utf8&quot;);</span>
+<span class="del">-    const moved = await scanTbd(root);</span>
+<span class="add">+    await writeFile(join(raw, &quot;NEW.md&quot;), mkBody(&quot;NEW&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    const moved = await scanRaw(root);</span>
+<span class="ctx">     assert.deepEqual(moved.map(m =&gt; m.id), [&quot;NEW&quot;]);</span>
+<span class="ctx"> </span>
+<span class="ctx">     let jsonl = await readFile(join(cycleDir, &quot;tbd.jsonl&quot;), &quot;utf8&quot;);</span>
+<span class="ctx">     assert.equal(countMatching(jsonl, &quot;NEW&quot;), 1);</span>
+<span class="ctx">     assert.equal(countMatching(jsonl, &quot;OLD&quot;), 1);</span>
+<span class="ctx"> </span>
+<span class="del">-    await writeFile(join(tbd, &quot;NEW.md&quot;), mkBody(&quot;NEW&quot;), &quot;utf8&quot;);</span>
+<span class="del">-    const second = await scanTbd(root);</span>
+<span class="add">+    await writeFile(join(raw, &quot;NEW.md&quot;), mkBody(&quot;NEW&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    const second = await scanRaw(root);</span>
+<span class="ctx">     assert.deepEqual(second, []);</span>
+<span class="ctx">     jsonl = await readFile(join(cycleDir, &quot;tbd.jsonl&quot;), &quot;utf8&quot;);</span>
+<span class="ctx">     assert.equal(countMatching(jsonl, &quot;NEW&quot;), 1);</span>
+<span class="hunk">@@ -147,3 +147,29 @@ test(&quot;tolerates malformed lines in existing tbd.jsonl&quot;, async () =&gt; {</span>
+<span class="ctx">     await rm(root, { recursive: true, force: true });</span>
+<span class="ctx">   }</span>
+<span class="ctx"> });</span>
+<span class="add">+</span>
+<span class="add">+test(&quot;cross-scan re-drop same id appends zero new lines&quot;, async () =&gt; {</span>
+<span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
+<span class="add">+  try {</span>
+<span class="add">+    const raw = join(root, &quot;docs/cycle/issues/raw&quot;);</span>
+<span class="add">+    const todo = join(root, &quot;docs/cycle/issues/todo&quot;);</span>
+<span class="add">+    const cycleDir = join(root, &quot;.cycle&quot;);</span>
+<span class="add">+    await mkdir(raw, { recursive: true });</span>
+<span class="add">+</span>
+<span class="add">+    await writeFile(join(raw, &quot;Y.md&quot;), mkBody(&quot;Y&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    const first = await scanRaw(root);</span>
+<span class="add">+    assert.equal(first.length, 1);</span>
+<span class="add">+    assert.equal(first[0].id, &quot;Y&quot;);</span>
+<span class="add">+    assert.deepEqual(await readdir(todo), [&quot;Y.md&quot;]);</span>
+<span class="add">+</span>
+<span class="add">+    // Re-create raw/Y.md with same id and re-scan; jsonl must stay at 1 row.</span>
+<span class="add">+    await writeFile(join(raw, &quot;Y.md&quot;), mkBody(&quot;Y&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    const second = await scanRaw(root);</span>
+<span class="add">+    assert.deepEqual(second, []);</span>
+<span class="add">+</span>
+<span class="add">+    const jsonl = await readFile(join(cycleDir, &quot;tbd.jsonl&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    assert.equal(countMatching(jsonl, &quot;Y&quot;), 1);</span>
+<span class="add">+  } finally {</span>
+<span class="add">+    await rm(root, { recursive: true, force: true });</span>
+<span class="add">+  }</span>
+<span class="add">+});</span>
+<span class="fileheader">diff --git a/tests/issue/materialize.test.ts b/tests/issue/materialize.test.ts</span>
+<span class="fileheader">index 6e64a79..d033503 100644</span>
+<span class="meta">--- a/tests/issue/materialize.test.ts</span>
+<span class="meta">+++ b/tests/issue/materialize.test.ts</span>
+<span class="hunk">@@ -5,11 +5,11 @@ import { tmpdir } from &quot;node:os&quot;;</span>
+<span class="ctx"> import { join } from &quot;node:path&quot;;</span>
+<span class="ctx"> import { materializeFreeformIssue } from &quot;../../src/issue/materialize.ts&quot;;</span>
+<span class="ctx"> </span>
+<span class="del">-test(&quot;writes a markdown file with frontmatter to tbd/&quot;, async () =&gt; {</span>
+<span class="add">+test(&quot;writes a markdown file with frontmatter to raw/&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
+<span class="ctx">   try {</span>
+<span class="ctx">     const { path, id } = await materializeFreeformIssue(&quot;fix login bug&quot;, root, new Date(&quot;2026-05-12T10:30:00Z&quot;));</span>
+<span class="del">-    assert.ok(path.endsWith(&quot;/docs/cycle/issues/tbd/txt-20260512-103000-fix-login-bug.md&quot;));</span>
+<span class="add">+    assert.ok(path.endsWith(&quot;/docs/cycle/issues/raw/txt-20260512-103000-fix-login-bug.md&quot;));</span>
+<span class="ctx">     assert.equal(id, &quot;txt-20260512-103000-fix-login-bug&quot;);</span>
+<span class="ctx">     const body = await readFile(path, &quot;utf8&quot;);</span>
+<span class="ctx">     assert.match(body, /^---\n/);</span>
+<span class="ctx">&nbsp;</span></pre>
+</section>
+
+<nav class="pager">
+  <a href="cycle-0010.html">← Cycle 0010</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0013.html">Cycle 0013 →</a>
+</nav>
+
+<footer>Generated from <code>65822b0</code></footer>
+</body>
+</html>

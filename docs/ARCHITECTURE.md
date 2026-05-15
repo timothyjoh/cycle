@@ -259,6 +259,15 @@ Cycle-attempt / abandon variants:
 {"ts":"…","event":"issue.blocked","issue_id":"JIRA-123","blocked_cycle":"0042","path":"docs/cycle/issues/blocked/JIRA-123.md"}
 ```
 
+Failed `step.end` events (any agent) carry a head-capped `stderr` field
+(2000-char convention, slice to `MAX-1` + `…`). Both bash-step subprocess
+failures and dispatch-time `UnknownAgentError` synthesis surface here.
+Successful `step.end` events on all paths omit the field.
+
+```jsonl
+{"ts":"…","event":"step.end","cycle_id":"0042","step":"verify","status":"failed","exit_code":1,"stderr":"npm test failed: 3 assertions…"}
+```
+
 Triage failure / rate-limit variants:
 
 ```jsonl

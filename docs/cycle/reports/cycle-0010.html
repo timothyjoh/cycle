@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0010 · scan.ts: dedup tbd.jsonl by issue id. BRIEF says &#39;move first to queued/, then append to tbd.jsonl (dedup by id)&#39; but src/engine/scan.ts has no dedup — re-queuing an existing issue file appends a duplicate jsonl line. Read existing tbd.jsonl on scan, skip appendFile if id already present. Test: re-queue a tbd/ file twice and assert tbd.jsonl contains exactly one entry for that id. (#17)</title>
+<style>
+  body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: #1f2328; background: #fff; }
+  header { border-bottom: 1px solid #d0d7de; padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 .3rem; }
+  .subtitle { color: #57606a; font-size: .9rem; }
+  .meta-row { margin-top: .4rem; color: #57606a; font-size: .85rem; }
+  .meta-row code { background: #f6f8fa; padding: .1rem .35rem; border-radius: 3px; }
+  nav.pager { display: flex; justify-content: space-between; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid #d0d7de; border-bottom: 1px solid #d0d7de; }
+  nav.pager a { color: #0969da; text-decoration: none; padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: #f6f8fa; }
+  nav.pager .disabled { color: #8c959f; pointer-events: none; }
+  nav.pager .center { color: #57606a; font-size: .85rem; align-self: center; }
+  section { margin-bottom: 1.5rem; }
+  section h2 { font-size: 1rem; margin: 0 0 .5rem; color: #57606a; text-transform: uppercase; letter-spacing: .05em; }
+  pre.commit-msg { background: #f6f8fa; padding: 1rem; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
+  pre.stat { background: #f6f8fa; padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; }
+  pre.diff { background: #fff; padding: 0; border: 1px solid #d0d7de; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.5; overflow-x: auto; white-space: pre; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: #dafbe1; color: #1a7f37; }
+  pre.diff .del { background: #ffebe9; color: #cf222e; }
+  pre.diff .hunk { background: #ddf4ff; color: #0969da; }
+  pre.diff .fileheader { background: #f6f8fa; color: #57606a; font-weight: 600; padding-top: .3rem; padding-bottom: .3rem; }
+  pre.diff .meta { color: #57606a; }
+  pre.diff .ctx { color: #1f2328; }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #d0d7de; color: #8c959f; font-size: .8rem; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0010</h1>
+  <div class="subtitle">scan.ts: dedup tbd.jsonl by issue id. BRIEF says &#39;move first to queued/, then append to tbd.jsonl (dedup by id)&#39; but src/engine/scan.ts has no dedup — re-queuing an existing issue file appends a duplicate jsonl line. Read existing tbd.jsonl on scan, skip appendFile if id already present. Test: re-queue a tbd/ file twice and assert tbd.jsonl contains exactly one entry for that id. (#17)</div>
+  <div class="meta-row">
+    <code>619d82c</code> · Timothy Johnson · 2026-05-13 00:28:50 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0009.html">← Cycle 0009</a>
+  <span class="center">10 of 10</span>
+  <a href="cycle-0012.html">Cycle 0012 →</a>
+</nav>
+
+<section>
+  <h2>Commit message</h2>
+  <pre class="commit-msg">cycle 0010: scan.ts: dedup tbd.jsonl by issue id. BRIEF says &#39;move first to queued/, then append to tbd.jsonl (dedup by id)&#39; but src/engine/scan.ts has no dedup — re-queuing an existing issue file appends a duplicate jsonl line. Read existing tbd.jsonl on scan, skip appendFile if id already present. Test: re-queue a tbd/ file twice and assert tbd.jsonl contains exactly one entry for that id. (#17)</pre>
+</section>
+
+<section>
+  <h2>Files changed</h2>
+  <pre class="stat">.../BUILD.md                                       |   3 +
+ .../FIX.md                                         |   5 +
+ .../PLAN.md                                        | 163 +++++++++++++++++++++
+ .../RESEARCH.md                                    |  47 ++++++
+ .../REVIEW.md                                      |  49 +++++++
+ .../SPEC.md                                        |  55 +++++++
+ ...816-scan-ts-dedup-tbd-jsonl-by-issue-id-brie.md |   0
+ ...0016-engine-pull-origin-master-or-cycle-base.md |   9 ++
+ ...328-bb-1-rename-docs-cycle-issues-tbd-raw-an.md |   0
+ ...4336-bb-2-consolidate-workflow-engine-triage.md |   0
+ ...4347-bb-3-new-tbd-jsonl-row-schema-and-drain.md |   0
+ ...359-bb-4-build-the-triage-subroutine-new-src.md |   0
+ ...416-bb-5-resume-logic-from-log-jsonl-tail-at.md |   0
+ ...426-bb-6-propagateblocked-engine-wide-halt-p.md |   0
+ ...434-bb-7-reflection-step-in-feature-workflow.md |   0
+ src/engine/scan.ts                                 |  30 +++-
+ tests/engine/scan.test.ts                          | 119 +++++++++++++++
+ 17 files changed, 478 insertions(+), 2 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/BUILD.md b/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/BUILD.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..b35408c</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/BUILD.md</span>
+<span class="hunk">@@ -0,0 +1,3 @@</span>
+<span class="add">+All gates green. Compose BUILD.md summary.</span>
+<span class="add">+</span>
+<span class="add">+src/engine/scan.ts modified (+22 lines: readKnownIds helper, dedup gate, jsonlPath hoist). tests/engine/scan.test.ts modified (+109 lines: mkBody/countMatching helpers + 4 new tests: skips appendFile when id already in tbd.jsonl; two-scan dup collapses; intra-scan dup collapses; tolerates malformed lines). PLAN.md Task 1 (readKnownIds + dedup gate in scanTbd) and Task 2 (test coverage for dedup, intra-scan dup, malformed jsonl) both complete. Ran `npm test` — 82 tests pass, 0 fail. Ran `npm run test:coverage` — overall line 98.34% / branch 81.58% / func 92.31%, all above baseline (≥95 / ≥75 / ≥90). Per-file scan.ts: line 94.67% / branch 85.71% / func 100%; uncovered lines are 24-25 (readdir-fail early-return on missing tbd/ dir, pre-existing gap from prior test pass) and 50-51 (function-closing braces — node coverage edge artifact); both predate this cycle, no regression introduced. `npm run typecheck` shows two pre-existing `findLast` errors in tests/cli/multi-loop.test.ts — file untouched by this cycle (verified `git diff HEAD` empty); not introduced here. No deviations from PLAN. No deferred work. Returned-array policy resolved per PLAN (excludes skipped duplicate-id entries); CLAUDE.md / BRIEF.md / README.md unchanged per SPEC.</span>
+<span class="fileheader">diff --git a/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/FIX.md b/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/FIX.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..db1fb5c</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/FIX.md</span>
+<span class="hunk">@@ -0,0 +1,5 @@</span>
+<span class="add">+Review verdict: PASS, no MUST-FIX. No `MUST-FIX.md` file exists.</span>
+<span class="add">+</span>
+<span class="add">+Per `feature.yaml` `skip_unless: MUST-FIX.md`, fix step has nothing to do. All 82 tests pass. Coverage 98.34/81.58/92.31 — above baseline. Proceed to verify/commit/pr.</span>
+<span class="add">+</span>
+<span class="add">+**Summary**: No MUST-FIX.md present. Review reached PASS verdict with zero fix items. No code changes needed. Final test outcome: 82/82 passing. Final coverage: line 98.34% / branch 81.58% / function 92.31% — at or above BUILD.md baseline (≥95/≥75/≥90). No tasks could not be fixed because no tasks were filed.</span>
+<span class="fileheader">diff --git a/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/PLAN.md b/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/PLAN.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..43d9842</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/PLAN.md</span>
+<span class="hunk">@@ -0,0 +1,163 @@</span>
+<span class="add">+```markdown</span>
+<span class="add">+# Implementation Plan: Cycle 0010</span>
+<span class="add">+</span>
+<span class="add">+## Overview</span>
+<span class="add">+Add deduplication-by-id to `scanTbd` so re-staging an issue file whose id already lives in `.cycle/tbd.jsonl` does not write a duplicate JSONL row. File-rename `tbd/ → queued/` still occurs; the dedup gate protects only the `appendFile` call and the returned `TbdEntry[]`.</span>
+<span class="add">+</span>
+<span class="add">+## Current State (from Research)</span>
+<span class="add">+- `scanTbd` (`src/engine/scan.ts:17-49`) unconditionally appends one JSONL row per `tbd/*.md` and pushes the entry into the returned array.</span>
+<span class="add">+- Single call site `src/cli.ts:48` consumes every returned entry as a cycle to run.</span>
+<span class="add">+- Test infra: Node native `node:test` + `node:assert/strict`, per-test `mkdtemp` tmpdirs, no fs mocks; one happy-path test exists at `tests/engine/scan.test.ts:8-30`.</span>
+<span class="add">+- File I/O uses `node:fs/promises` named imports (already in `scan.ts:1`).</span>
+<span class="add">+- Frontmatter parser already follows a &quot;tolerate non-matching, skip silently&quot; stance — same posture applies to malformed JSONL lines.</span>
+<span class="add">+- Coverage gate: line ≥ 95% / branch ≥ 75% / func ≥ 90%.</span>
+<span class="add">+</span>
+<span class="add">+## Desired End State</span>
+<span class="add">+- `scanTbd` reads `.cycle/tbd.jsonl` (if present) on entry, builds `Set&lt;string&gt;` of known ids tolerating malformed lines, and guards both the `appendFile` and the `ingested.push` on `!knownIds.has(id)`. Newly-appended ids are added to the same Set to dedup intra-scan duplicates.</span>
+<span class="add">+- Caller at `src/cli.ts:48` continues to drive a cycle per returned entry; duplicates are silently absorbed (file moved, no new cycle scheduled, no new JSONL row).</span>
+<span class="add">+- `tests/engine/scan.test.ts` covers: cold start (existing), dup-from-prior-jsonl, two-scan dup, intra-scan dup, malformed-line tolerance.</span>
+<span class="add">+- `npm test`, `npm run typecheck`, `npm run test:coverage` all green; coverage non-regressing.</span>
+<span class="add">+</span>
+<span class="add">+## What We&#39;re NOT Doing</span>
+<span class="add">+- No reordering / priority of `tbd.jsonl` (RFC-001 priority queue scope).</span>
+<span class="add">+- No drain-on-completion mutation of `tbd.jsonl` from `runCycle`.</span>
+<span class="add">+- No migration / rewrite of historical duplicate rows already on disk.</span>
+<span class="add">+- No changes to `TbdEntry` shape or `scanTbd` signature.</span>
+<span class="add">+- No new public exports, no new modules, no new dependencies.</span>
+<span class="add">+- No `triage.attempts` / `status` schema work.</span>
+<span class="add">+- No special handling for `tbd.jsonl` permission errors (only ENOENT is silenced; other read errors propagate).</span>
+<span class="add">+</span>
+<span class="add">+## Implementation Approach</span>
+<span class="add">+One small, local change to `src/engine/scan.ts`: introduce a private `readKnownIds` helper, call it once at the top of `scanTbd`, gate the existing `appendFile` + `ingested.push` behind a `Set.has(id)` check, and `Set.add(id)` after successful append. Returned array **excludes** skipped entries (decision below). Tests live in the existing `tests/engine/scan.test.ts`, mirroring its tmpdir fixture pattern.</span>
+<span class="add">+</span>
+<span class="add">+### Resolved Open Question — Return-Array Policy</span>
+<span class="add">+**Decision: exclude skipped (duplicate-id) entries from the returned array.**</span>
+<span class="add">+Rationale: `src/cli.ts:48` runs one cycle per returned entry. If an id is already in `tbd.jsonl`, the queue already owns it — re-emitting it would schedule a duplicate cycle on the same issue (double-write of branches, commits, PRs). The whole purpose of dedup is to make `tbd.jsonl` the canonical source of truth, so a returned entry must mean &quot;newly admitted to the queue this scan&quot;. The `tbd/ → queued/` rename still happens for the re-staged file, matching BRIEF&#39;s &quot;move first … then append (dedup by id)&quot; contract.</span>
+<span class="add">+</span>
+<span class="add">+### Resolved Open Question — Pre-existing duplicate rows on disk</span>
+<span class="add">+SPEC §Out of Scope confirms no migration. `readKnownIds` only builds a Set; it does not rewrite `tbd.jsonl`. Pre-existing dups collapse harmlessly into one Set entry.</span>
+<span class="add">+</span>
+<span class="add">+### Resolved Open Question — Read failure modes</span>
+<span class="add">+ENOENT (cold start) → empty Set, no throw. Any other error from `readFile` propagates (consistent with current code&#39;s posture that unexpected fs errors crash the scan). Malformed lines inside an existing file → tolerate-and-skip (per SPEC acceptance criterion).</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 1: Add `readKnownIds` helper + dedup gate in `scanTbd`</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+Read existing `.cycle/tbd.jsonl` into a `Set&lt;string&gt;` of ids, then guard `appendFile` + `ingested.push` on `!knownIds.has(id)`. Add freshly-appended ids back into the Set so two `tbd/*.md` files with the same id within a single scan also collapse to one row.</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+**File**: `src/engine/scan.ts`</span>
+<span class="add">+**Changes**:</span>
+<span class="add">+</span>
+<span class="add">+Add a private helper above `scanTbd`:</span>
+<span class="add">+</span>
+<span class="add">+```ts</span>
+<span class="add">+async function readKnownIds(jsonlPath: string): Promise&lt;Set&lt;string&gt;&gt; {</span>
+<span class="add">+  const ids = new Set&lt;string&gt;();</span>
+<span class="add">+  let raw: string;</span>
+<span class="add">+  try {</span>
+<span class="add">+    raw = await readFile(jsonlPath, &quot;utf8&quot;);</span>
+<span class="add">+  } catch (e: unknown) {</span>
+<span class="add">+    if ((e as NodeJS.ErrnoException).code === &quot;ENOENT&quot;) return ids;</span>
+<span class="add">+    throw e;</span>
+<span class="add">+  }</span>
+<span class="add">+  for (const line of raw.split(&quot;\n&quot;)) {</span>
+<span class="add">+    if (!line.trim()) continue;</span>
+<span class="add">+    try {</span>
+<span class="add">+      const obj = JSON.parse(line);</span>
+<span class="add">+      if (obj &amp;&amp; typeof obj.id === &quot;string&quot;) ids.add(obj.id);</span>
+<span class="add">+    } catch {</span>
+<span class="add">+      // tolerate malformed line</span>
+<span class="add">+    }</span>
+<span class="add">+  }</span>
+<span class="add">+  return ids;</span>
+<span class="add">+}</span>
+<span class="add">+```</span>
+<span class="add">+</span>
+<span class="add">+Modify `scanTbd` (`src/engine/scan.ts:17-49`):</span>
+<span class="add">+</span>
+<span class="add">+- Compute `jsonlPath = join(cycleDir, &quot;tbd.jsonl&quot;)` once.</span>
+<span class="add">+- After `mkdir(cycleDir, …)`, call `const knownIds = await readKnownIds(jsonlPath);`.</span>
+<span class="add">+- Replace the unconditional `appendFile` + `ingested.push` with:</span>
+<span class="add">+  ```ts</span>
+<span class="add">+  await rename(src, dst);</span>
+<span class="add">+  const entry: TbdEntry = { id: fm.id, source: fm.source, title: fm.title, path: dst, added_at: fm.added_at };</span>
+<span class="add">+  if (!knownIds.has(entry.id)) {</span>
+<span class="add">+    await appendFile(jsonlPath, JSON.stringify(entry) + &quot;\n&quot;, &quot;utf8&quot;);</span>
+<span class="add">+    knownIds.add(entry.id);</span>
+<span class="add">+    ingested.push(entry);</span>
+<span class="add">+  }</span>
+<span class="add">+  ```</span>
+<span class="add">+- Keep `rename` outside the `if` so re-staged files always move to `queued/`.</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] `npm run typecheck` clean.</span>
+<span class="add">+- [ ] `npm test` green (all prior tests pass).</span>
+<span class="add">+- [ ] Manual: drop two `tbd/X.md` files with same id `X`, run scan in a tmpdir REPL → `tbd.jsonl` contains exactly one row; both files removed from `tbd/`; `queued/` ends with one `X.md` (second `rename` overwrites the first, fine).</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Task 2: Test coverage for dedup, intra-scan dup, malformed jsonl, cold-start</span>
+<span class="add">+</span>
+<span class="add">+### Overview</span>
+<span class="add">+Extend `tests/engine/scan.test.ts` with four new tests covering all SPEC acceptance criteria. Mirror the existing tmpdir + `try/finally` pattern; no mocks.</span>
+<span class="add">+</span>
+<span class="add">+### Changes Required</span>
+<span class="add">+**File**: `tests/engine/scan.test.ts`</span>
+<span class="add">+**Changes**: Add four `test(...)` blocks alongside the existing one.</span>
+<span class="add">+</span>
+<span class="add">+1. **`skips appendFile when id already in tbd.jsonl`**</span>
+<span class="add">+   - Seed `.cycle/tbd.jsonl` with one row `{&quot;id&quot;:&quot;X&quot;, …}`.</span>
+<span class="add">+   - Drop `tbd/X.md` with matching frontmatter id `X`.</span>
+<span class="add">+   - `await scanTbd(root)` → assert returned array is `[]` (excluded), `queued/` contains `X.md`, `tbd/` is empty, `tbd.jsonl` contains exactly one line matching `&quot;id&quot;:&quot;X&quot;` (verify via `raw.split(&quot;\n&quot;).filter(Boolean).length === 1`).</span>
+<span class="add">+</span>
+<span class="add">+2. **`two-scan dup collapses to one row`**</span>
+<span class="add">+   - Cold start. Drop `tbd/X.md`, `scanTbd` → row appended.</span>
+<span class="add">+   - Drop a fresh `tbd/X.md` with same id again, `scanTbd` → assert `tbd.jsonl` still has exactly one matching row; second scan returns `[]`.</span>
+<span class="add">+</span>
+<span class="add">+3. **`intra-scan dup collapses to one row`**</span>
+<span class="add">+   - Drop two files in `tbd/` (`X-a.md`, `X-b.md`) with the same frontmatter id `X` but different filenames.</span>
+<span class="add">+   - `scanTbd` once → assert exactly one row for `X` in `tbd.jsonl`; returned array length 1; both files removed from `tbd/`.</span>
+<span class="add">+   - Note: file rename for the second file will overwrite the first in `queued/` (same `id`-derived filename only if they share names — using different filenames here keeps both moved). Document with one inline comment if not obvious.</span>
+<span class="add">+</span>
+<span class="add">+4. **`tolerates malformed lines in existing tbd.jsonl`**</span>
+<span class="add">+   - Seed `.cycle/tbd.jsonl` with: `&quot;not json\n&quot;` + `&#39;{&quot;id&quot;:&quot;OLD&quot;}\n&#39;` + `&quot;\n&quot;` + `&#39;{&quot;no_id&quot;:true}\n&#39;`.</span>
+<span class="add">+   - Drop `tbd/NEW.md` with id `NEW`.</span>
+<span class="add">+   - `scanTbd` → does not throw; returned array `[{id:&quot;NEW&quot;,…}]`; `tbd.jsonl` final content includes the original four lines plus the new `NEW` row; re-running scan with another fresh `tbd/NEW.md` collapses (no duplicate row).</span>
+<span class="add">+</span>
+<span class="add">+5. **(regression-guard, optional)** Confirm cold-start (no `.cycle/tbd.jsonl` file at all) by adding a second cold-start variation — existing happy-path test already exercises this; skip unless coverage report shows a gap.</span>
+<span class="add">+</span>
+<span class="add">+### Success Criteria</span>
+<span class="add">+- [ ] All four new tests pass under `npm test`.</span>
+<span class="add">+- [ ] `npm run test:coverage` shows line ≥ 95%, branch ≥ 75%, func ≥ 90% with **no regression vs master baseline** for `src/engine/scan.ts`.</span>
+<span class="add">+- [ ] `readKnownIds` branches covered: ENOENT path, non-JSON line, missing-id JSON line, blank line, valid line.</span>
+<span class="add">+- [ ] No new TypeScript or lint warnings.</span>
+<span class="add">+</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+## Testing Strategy</span>
+<span class="add">+</span>
+<span class="add">+### Unit Tests</span>
+<span class="add">+- All in `tests/engine/scan.test.ts`. No new test file.</span>
+<span class="add">+- Use `mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;))` per test; clean up via `rm(root, {recursive,force})` in `finally`.</span>
+<span class="add">+- Assertions via `readFile` / `readdir` of real fs paths — **no fs mocks**, no stubs.</span>
+<span class="add">+- Branch coverage of `readKnownIds` driven by malformed-line test (covers JSON.parse throw + missing-id arm + blank-line skip + ENOENT via cold-start test).</span>
+<span class="add">+</span>
+<span class="add">+### Integration / E2E Tests</span>
+<span class="add">+- The four new tests above are themselves integration-level: real disk, real `scanTbd`, real JSONL.</span>
+<span class="add">+- No end-to-end CLI test added — `runCycle` and `cli.ts` are out of scope; their behavior is unchanged because the returned array exclusion of dups means they observe &quot;no new work&quot; exactly as if the duplicate file had never been dropped.</span>
+<span class="add">+</span>
+<span class="add">+## Risk Assessment</span>
+<span class="add">+- **Risk**: rename succeeds but second `tbd/X.md` overwrites first in `queued/` losing body content.</span>
+<span class="add">+  **Mitigation**: out of scope for this cycle (BRIEF says &quot;move first to queued/&quot;). Document via the intra-scan test using distinct filenames. Filing a follow-up issue if the body-loss case matters in production is a future concern.</span>
+<span class="add">+- **Risk**: Returned-array policy change (now excludes dups) silently regresses callers that expected to &quot;see&quot; the re-staged file.</span>
+<span class="add">+  **Mitigation**: only one caller (`src/cli.ts:48`); its semantics are &quot;schedule a cycle per entry&quot; — exclusion is the correct behavior. Documented in this plan.</span>
+<span class="add">+- **Risk**: Pre-existing `tbd.jsonl` is huge (slow read).</span>
+<span class="add">+  **Mitigation**: file grows linearly with cycles run; current usage is dozens of rows. `readFile` + line split is fine. Reconsider streaming only if it exceeds tens of MB.</span>
+<span class="add">+- **Risk**: Coverage regression because new branches in `readKnownIds` aren&#39;t exercised.</span>
+<span class="add">+  **Mitigation**: malformed-line test explicitly covers the catch arm; cold-start test covers ENOENT; happy paths cover the success arm. Verify via `npm run test:coverage` before commit.</span>
+<span class="add">+- **Risk**: `JSON.parse` of a partially-written line during a crash mid-append leaves the Set short by one id.</span>
+<span class="add">+  **Mitigation**: acceptable — worst case is one duplicate row on the next scan; SPEC&#39;s &quot;no migration&quot; stance covers this.</span>
+<span class="add">+```</span>
+<span class="fileheader">diff --git a/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/RESEARCH.md b/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/RESEARCH.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..8f9d027</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/RESEARCH.md</span>
+<span class="hunk">@@ -0,0 +1,47 @@</span>
+<span class="add">+Now write RESEARCH to stdout.</span>
+<span class="add">+</span>
+<span class="add">+# Research: Cycle 0010</span>
+<span class="add">+</span>
+<span class="add">+## Cycle Context</span>
+<span class="add">+SPEC asks for dedup-by-id when `scanTbd` appends to `.cycle/tbd.jsonl`. Today `src/engine/scan.ts` unconditionally appends one JSONL row per scanned `tbd/*.md` file; re-queueing the same id writes a duplicate row. Fix is local to `scanTbd`: read existing `tbd.jsonl`, build a Set of known ids, skip appendFile when id already present. File rename `tbd/ → queued/` still happens. Malformed pre-existing lines must be tolerated.</span>
+<span class="add">+</span>
+<span class="add">+## Current Codebase State</span>
+<span class="add">+</span>
+<span class="add">+### Relevant Components</span>
+<span class="add">+- `scanTbd` function — moves `docs/cycle/issues/tbd/*.md` to `queued/`, parses frontmatter, appends one JSONL row per file to `.cycle/tbd.jsonl`, returns `TbdEntry[]` — `src/engine/scan.ts:17-49`</span>
+<span class="add">+- `parseFrontmatter` helper — throws on missing frontmatter; tolerant `key: value` parse — `src/engine/scan.ts:6-15`</span>
+<span class="add">+- `TbdEntry` type — `{ id, source, title, path, added_at }` — `src/engine/scan.ts:4`</span>
+<span class="add">+- Single call site — `src/cli.ts:48` inside `outer: while (true)` drain loop; after `runCycle` halt-on-failure, `tbd/` and `queued/` plus `tbd.jsonl` stay as-is for next invocation (`src/cli.ts:39-69`)</span>
+<span class="add">+</span>
+<span class="add">+### Existing Patterns to Follow</span>
+<span class="add">+- File I/O uses `node:fs/promises` named imports (`readdir`, `rename`, `readFile`, `appendFile`, `mkdir`) — `src/engine/scan.ts:1`</span>
+<span class="add">+- JSONL = one `JSON.stringify(obj) + &quot;\n&quot;` per row, append-only — `src/engine/scan.ts:45`</span>
+<span class="add">+- Frontmatter parser already tolerates non-matching lines silently (just no key set); follow same &quot;tolerate, skip&quot; stance for malformed JSONL lines</span>
+<span class="add">+- Tests use `mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;))` + `try/finally` with `rm({recursive, force})` for cleanup — `tests/engine/scan.test.ts:9,27-28`</span>
+<span class="add">+- Tests assert via `readFile` of `.cycle/tbd.jsonl` and `readdir` of dirs — `tests/engine/scan.test.ts:21-26`</span>
+<span class="add">+</span>
+<span class="add">+### Dependencies &amp; Integration Points</span>
+<span class="add">+- Caller `src/cli.ts:48` consumes returned `TbdEntry[]` and immediately iterates to `runCycle`. SPEC allows two policies for returned array on dedup: (a) include skipped entries, (b) exclude. Caller currently feeds every returned entry into a cycle run — including a duplicate would re-run a cycle on an id already processed; excluding would silently drop a re-queued issue. PLAN must decide.</span>
+<span class="add">+- `.cycle/tbd.jsonl` lives at `&lt;repoRoot&gt;/.cycle/tbd.jsonl` — directory ensured via `mkdir(cycleDir, { recursive: true })` at scan start (`src/engine/scan.ts:20-22`)</span>
+<span class="add">+- No other reader of `tbd.jsonl` in `src/` — grep shows only the writer in `scan.ts` and a comment reference in `cli.ts:41`</span>
+<span class="add">+</span>
+<span class="add">+### Test Infrastructure</span>
+<span class="add">+- Framework: Node native `node:test` + `node:assert` strict — `tests/engine/scan.test.ts:1-2`</span>
+<span class="add">+- Layout: `tests/engine/&lt;name&gt;.test.ts` mirrors `src/engine/&lt;name&gt;.ts`</span>
+<span class="add">+- Fixtures: per-test `mkdtemp` tmpdirs, no mocks of `fs`</span>
+<span class="add">+- Run via `npm test` (Node `--experimental-strip-types`, spec reporter) — `CLAUDE.md` Commands table</span>
+<span class="add">+- Coverage gate: `npm run test:coverage`, must not regress line ≥ 95% / branch ≥ 75% / func ≥ 90% — `CLAUDE.md` Coverage policy</span>
+<span class="add">+- Current coverage of `scan.ts`: one happy-path test only (`tests/engine/scan.test.ts:8-30`) — no dedup, no malformed-line, no pre-existing jsonl tests</span>
+<span class="add">+</span>
+<span class="add">+## Code References</span>
+<span class="add">+- `src/engine/scan.ts:17` — `scanTbd` entry; first lines compute `tbd`, `queued`, `cycleDir`</span>
+<span class="add">+- `src/engine/scan.ts:24-29` — `readdir(tbd)` filter + early `[]` return on missing dir</span>
+<span class="add">+- `src/engine/scan.ts:31-47` — per-file loop: read body → parseFrontmatter → rename → build entry → appendFile → push</span>
+<span class="add">+- `src/engine/scan.ts:45` — the unconditional `appendFile` (target of fix)</span>
+<span class="add">+- `src/cli.ts:47-69` — drain loop and halt-on-failure semantics (relevant to &quot;what does caller do with returned dups?&quot;)</span>
+<span class="add">+- `tests/engine/scan.test.ts:8-30` — sole existing scanTbd test; pattern to mirror</span>
+<span class="add">+</span>
+<span class="add">+## Open Questions</span>
+<span class="add">+- **Return-array semantics on dup id**: SPEC §Requirements explicitly defers this to PLAN — &quot;Skipped entries still included … or — alternative — exclude them; pick whichever matches existing call-site expectations and document the choice in PLAN.&quot; Caller at `src/cli.ts:51` treats every returned entry as a cycle to run; PLAN must choose include-vs-exclude with that consequence in mind.</span>
+<span class="add">+- **Pre-existing jsonl with duplicates already on disk**: SPEC §Out of Scope says no migration. Confirm read path must not de-dup the *existing* file content (only gate new appends).</span>
+<span class="add">+- **`tbd.jsonl` read failure modes**: file absent (cold start) vs present-but-unreadable (permission). SPEC §Acceptance Criteria covers cold start + malformed lines; permission error behavior is unspecified.</span>
+<span class="fileheader">diff --git a/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/REVIEW.md b/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/REVIEW.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..f8f1ab6</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/REVIEW.md</span>
+<span class="hunk">@@ -0,0 +1,49 @@</span>
+<span class="add">+Gates green. 82/82 tests pass. Coverage 98.34/81.58/92.31 — above baseline. Typecheck has 2 pre-existing errors in untouched file. Verdict: PASS, no MUST-FIX.</span>
+<span class="add">+</span>
+<span class="add">+```markdown</span>
+<span class="add">+# Review: Cycle 0010</span>
+<span class="add">+</span>
+<span class="add">+## Overall Verdict</span>
+<span class="add">+PASS — no fixes needed.</span>
+<span class="add">+</span>
+<span class="add">+## Code Quality Review</span>
+<span class="add">+</span>
+<span class="add">+### Summary</span>
+<span class="add">+Small, surgical change to `scanTbd`. Adds `readKnownIds` helper + dedup gate around `appendFile` + `ingested.push`. Mirrors the &quot;tolerate, skip&quot; posture of the existing `parseFrontmatter`. Returned-array policy (exclude duplicates) matches PLAN decision and is correct given the single caller at `src/cli.ts:48` runs one cycle per returned entry.</span>
+<span class="add">+</span>
+<span class="add">+### Findings</span>
+<span class="add">+1. **Doc accuracy (minor)**: BUILD.md attributes uncovered lines `24-25` to the pre-existing readdir-fail return; the actual mapping is `src/engine/scan.ts:24` (`throw e;` non-ENOENT propagate in new `readKnownIds`) — a newly-introduced uncovered branch, not pre-existing. `50-51` mapping (readdir-fail catch+return) is correct. Branch coverage still well above the 75% gate, so not a fix item — just record-keeping.</span>
+<span class="add">+2. **Pre-existing typecheck noise (out of scope)**: `tests/cli/multi-loop.test.ts:34,85` — `Property &#39;findLast&#39; does not exist on type &#39;any[]&#39;`. File untouched by this cycle (`git diff HEAD --` empty for that path). Not introduced here.</span>
+<span class="add">+</span>
+<span class="add">+### Spec Compliance Checklist</span>
+<span class="add">+- [x] `scanTbd` reads existing `.cycle/tbd.jsonl` into a `Set&lt;string&gt;` before iterating `tbd/` files — `src/engine/scan.ts:53`</span>
+<span class="add">+- [x] Skip `appendFile` when id already known; rename `tbd/ → queued/` still happens — `src/engine/scan.ts:60,68-72`</span>
+<span class="add">+- [x] Returned `TbdEntry[]` excludes duplicates (PLAN-chosen policy) — `src/engine/scan.ts:71`</span>
+<span class="add">+- [x] Malformed JSONL lines tolerated (blank / non-JSON / missing `id`) — `src/engine/scan.ts:26-34`</span>
+<span class="add">+- [x] No change to `TbdEntry` shape or `scanTbd` signature</span>
+<span class="add">+- [x] Re-queue same id twice → exactly one row (covered by two tests: prior-jsonl + two-scan)</span>
+<span class="add">+- [x] Cold-start preserved (ENOENT → empty Set)</span>
+<span class="add">+- [x] `npm test` green (82/82)</span>
+<span class="add">+- [x] `npm run test:coverage` non-regressing: line 98.34% / branch 81.58% / func 92.31% (≥95 / ≥75 / ≥90)</span>
+<span class="add">+- [x] No CLAUDE.md / BRIEF.md / README.md changes required per SPEC §Documentation Updates</span>
+<span class="add">+</span>
+<span class="add">+## Adversarial Test Review</span>
+<span class="add">+</span>
+<span class="add">+### Summary</span>
+<span class="add">+Adequate. Four new scenario tests, no mocks, real tmpdir fs. Test helpers (`mkBody`, `countMatching`) are appropriately scoped and avoid weak assertions like `assert.match` on raw JSONL.</span>
+<span class="add">+</span>
+<span class="add">+### Findings</span>
+<span class="add">+1. **Missing branch test (low)**: Non-ENOENT `readFile` failure in `readKnownIds` (`src/engine/scan.ts:22-25`) is not exercised — `throw e;` path uncovered. Could be tested by chmod-ing `tbd.jsonl` to 000 on the tmpdir, or by injecting a directory at that path so `readFile` returns `EISDIR`. Coverage still passes; flag only.</span>
+<span class="add">+2. **Weak assertion in intra-scan test (minor)**: `tests/engine/scan.test.ts:98-117` asserts `readdir(tbd) === []` and `countMatching === 1` but does not assert `readdir(queued)` contains both `X-a.md` and `X-b.md`. Strengthening this would lock in the &quot;rename always happens, even for the skipped append&quot; invariant explicitly.</span>
+<span class="add">+3. **No assertion that returned `path` points at the *first*-seen file in intra-scan dup**: subtle semantics — second file also moves but the queued-entry’s `path` field reflects the first. Not in SPEC, no defect, but worth noting for any future caller that trusts `entry.path`.</span>
+<span class="add">+4. **`countMatching` helper safe**: tolerant JSON.parse mirrors production code, no risk of false negatives.</span>
+<span class="add">+5. **Test independence**: every test uses its own `mkdtemp` + `try/finally` rm. Good.</span>
+<span class="add">+</span>
+<span class="add">+### Test Coverage</span>
+<span class="add">+- Command run: `npm run test:coverage`</span>
+<span class="add">+- Line / branch / function (overall): **98.34% / 81.58% / 92.31%** — all above baseline</span>
+<span class="add">+- Per-file `src/engine/scan.ts`: **94.67% / 85.71% / 100.00%**; uncovered lines `24-25` (new: non-ENOENT `throw e` branch in `readKnownIds`) + `50-51` (pre-existing readdir-fail return)</span>
+<span class="add">+- Regressions vs base (per-file): none</span>
+<span class="add">+- New code without tests: only the non-ENOENT propagate branch in `readKnownIds` (lines 23-24). All other new branches exercised: ENOENT (cold-start), valid line, malformed JSON.parse, missing-id JSON, blank line, dup-id append-skip, intra-scan add-to-Set.</span>
+<span class="add">+- Scenarios missing tests: non-ENOENT `readFile` failure of `tbd.jsonl` (e.g., EISDIR / EACCES). Not blocking — branch threshold met and SPEC §Acceptance Criteria does not require it.</span>
+<span class="add">+```</span>
+<span class="fileheader">diff --git a/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/SPEC.md b/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/SPEC.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..998314d</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/0010-feature-scan-ts-dedup-tbd-jsonl-by-issue-id-brie/SPEC.md</span>
+<span class="hunk">@@ -0,0 +1,55 @@</span>
+<span class="add">+# SPEC — Cycle 0010: scan.ts dedup tbd.jsonl by issue id</span>
+<span class="add">+</span>
+<span class="add">+## Objective</span>
+<span class="add">+Prevent duplicate entries in `.cycle/tbd.jsonl` when an issue file is re-queued. BRIEF&#39;s contract says the live queue dedups by id, but `src/engine/scan.ts` unconditionally appends, so re-running the engine on a re-staged issue (or any path that puts an existing id back into `tbd/`) corrupts the queue with duplicate rows. Fix is small and local to `scanTbd`.</span>
+<span class="add">+</span>
+<span class="add">+## Source Issue</span>
+<span class="add">+`txt-20260513-014816-scan-ts-dedup-tbd-jsonl-by-issue-id-brie` — &quot;scan.ts: dedup tbd.jsonl by issue id&quot;</span>
+<span class="add">+</span>
+<span class="add">+## Scope</span>
+<span class="add">+</span>
+<span class="add">+### In Scope</span>
+<span class="add">+- Read existing `.cycle/tbd.jsonl` at the start of `scanTbd`, build a Set of known ids.</span>
+<span class="add">+- Skip the `appendFile` for any entry whose `id` is already present (the `tbd/ → queued/` rename still happens — the file already moved is still a no-op rename if it was already moved; on a fresh re-stage the file moves but no duplicate jsonl row is written).</span>
+<span class="add">+- Test covering: re-queue a `tbd/` file twice (drop file → scan → drop same id again → scan) and assert exactly one row in `tbd.jsonl` for that id.</span>
+<span class="add">+</span>
+<span class="add">+### Out of Scope</span>
+<span class="add">+- Reordering / priority logic in `tbd.jsonl` (RFC-001 priority queue work).</span>
+<span class="add">+- Drain-on-completion mutation of `tbd.jsonl` (separate concern, lives in run-cycle).</span>
+<span class="add">+- Migrating any historical duplicate rows (no migration; new behavior applies going forward).</span>
+<span class="add">+- Touching `triage.attempts` / `status` schema fields — this cycle only protects the append path.</span>
+<span class="add">+</span>
+<span class="add">+## Requirements</span>
+<span class="add">+- `scanTbd` reads existing `.cycle/tbd.jsonl` (if present) and parses each line&#39;s `id` into a Set before iterating `tbd/` files.</span>
+<span class="add">+- For each ingested file, append to `tbd.jsonl` **only if** the id is not in the Set; otherwise skip the append but still perform the `tbd/ → queued/` rename (BRIEF: &quot;move first to queued/, then append to tbd.jsonl (dedup by id)&quot;).</span>
+<span class="add">+- Skipped entries are still included in the returned `TbdEntry[]` so callers see what was ingested this scan (or — alternative — exclude them; pick whichever matches existing call-site expectations and document the choice in PLAN).</span>
+<span class="add">+- Malformed lines in existing `tbd.jsonl` (blank, non-JSON, missing `id`) must not crash the scan — tolerate and skip them.</span>
+<span class="add">+- No change to public type `TbdEntry` or function signature.</span>
+<span class="add">+</span>
+<span class="add">+## Acceptance Criteria</span>
+<span class="add">+- [ ] Re-queueing the same issue id twice (drop file in `tbd/`, scan, drop file in `tbd/` again, scan) results in exactly one matching row in `.cycle/tbd.jsonl`.</span>
+<span class="add">+- [ ] Scanning with no pre-existing `tbd.jsonl` works (cold start) — current cold-start behavior preserved.</span>
+<span class="add">+- [ ] Scanning with a malformed `tbd.jsonl` line does not throw; valid ids still parsed.</span>
+<span class="add">+- [ ] Existing `scanTbd` tests still pass.</span>
+<span class="add">+- [ ] `npm test` green; coverage non-regressing (line ≥ 95%, branch ≥ 75%, func ≥ 90%).</span>
+<span class="add">+- [ ] `npm run typecheck` clean.</span>
+<span class="add">+- [ ] No new lint warnings.</span>
+<span class="add">+</span>
+<span class="add">+## Testing Strategy</span>
+<span class="add">+- Node&#39;s native test runner (already used in `tests/`).</span>
+<span class="add">+- New unit test in `tests/engine/scan.test.ts` (or wherever existing `scanTbd` tests live):</span>
+<span class="add">+  - **Happy path no dup:** scan with empty `tbd.jsonl` → row appended.</span>
+<span class="add">+  - **Dup id skip:** seed `tbd.jsonl` with id `X`, drop a `tbd/X.md`, scan → file moves to `queued/`, `tbd.jsonl` still has exactly one row for `X`.</span>
+<span class="add">+  - **Two-scan dup:** drop `tbd/X.md`, scan, drop a second copy with same id into `tbd/`, scan → `tbd.jsonl` has exactly one row for `X`.</span>
+<span class="add">+  - **Malformed line tolerated:** seed `tbd.jsonl` with a junk line + a valid line, scan a new id → does not throw, new id row appended.</span>
+<span class="add">+- Use `tmpdir()` fixtures (consistent with existing engine tests).</span>
+<span class="add">+</span>
+<span class="add">+## Documentation Updates</span>
+<span class="add">+- **CLAUDE.md**: no change (subprocess/runtime sections unaffected).</span>
+<span class="add">+- **BRIEF.md**: no change — the contract already says &quot;dedup by id&quot;; we&#39;re aligning code to the spec.</span>
+<span class="add">+- **README.md**: no change.</span>
+<span class="add">+- Note the dedup behavior with a one-line comment at the top of `scanTbd` only if it isn&#39;t self-evident from the code (default: no comment).</span>
+<span class="add">+</span>
+<span class="add">+## Dependencies</span>
+<span class="add">+- None new. Uses existing `node:fs/promises` imports.</span>
+<span class="add">+- Runs under Node ≥ 22.6 (already required).</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-014816-scan-ts-dedup-tbd-jsonl-by-issue-id-brie.md b/docs/cycle/issues/queued/txt-20260513-014816-scan-ts-dedup-tbd-jsonl-by-issue-id-brie.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-014816-scan-ts-dedup-tbd-jsonl-by-issue-id-brie.md</span>
+<span class="fileheader">rename to docs/cycle/issues/queued/txt-20260513-014816-scan-ts-dedup-tbd-jsonl-by-issue-id-brie.md</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/queued/txt-20260513-020016-engine-pull-origin-master-or-cycle-base.md b/docs/cycle/issues/queued/txt-20260513-020016-engine-pull-origin-master-or-cycle-base.md</span>
+<span class="fileheader">new file mode 100644</span>
+<span class="fileheader">index 0000000..0ee2784</span>
+<span class="meta">--- /dev/null</span>
+<span class="meta">+++ b/docs/cycle/issues/queued/txt-20260513-020016-engine-pull-origin-master-or-cycle-base.md</span>
+<span class="hunk">@@ -0,0 +1,9 @@</span>
+<span class="add">+---</span>
+<span class="add">+id: txt-20260513-020016-engine-pull-origin-master-or-cycle-base</span>
+<span class="add">+source: text</span>
+<span class="add">+title: &quot;engine: pull origin/master (or CYCLE_BASE) between cycles after checkout-back, before creating the next cycle&#39;s branch. Cycle 0008 added checkout-back to base but cycle 0009 still branched from a stale master (the previous cycle&#39;s branch tip got merged remotely but local master wasn&#39;t refreshed), causing PR #11 to be CONFLICTING and requiring manual cherry-pick + new PR (#12) to land. Fix in src/engine/run-cycle.ts: after the checkout-back, run &#39;git fetch origin &lt;CYCLE_BASE&gt; &amp;&amp; git merge --ff-only FETCH_HEAD&#39; (or equivalent) before allocating the next cycle&#39;s branch. Test: simulate two sequential cycles touching the same file; assert second cycle&#39;s branch starts from updated master tip, not the first cycle&#39;s branch.&quot;</span>
+<span class="add">+added_at: 2026-05-13T02:00:16.805Z</span>
+<span class="add">+triage_attempts: 0</span>
+<span class="add">+---</span>
+<span class="add">+</span>
+<span class="add">+engine: pull origin/master (or CYCLE_BASE) between cycles after checkout-back, before creating the next cycle&#39;s branch. Cycle 0008 added checkout-back to base but cycle 0009 still branched from a stale master (the previous cycle&#39;s branch tip got merged remotely but local master wasn&#39;t refreshed), causing PR #11 to be CONFLICTING and requiring manual cherry-pick + new PR (#12) to land. Fix in src/engine/run-cycle.ts: after the checkout-back, run &#39;git fetch origin &lt;CYCLE_BASE&gt; &amp;&amp; git merge --ff-only FETCH_HEAD&#39; (or equivalent) before allocating the next cycle&#39;s branch. Test: simulate two sequential cycles touching the same file; assert second cycle&#39;s branch starts from updated master tip, not the first cycle&#39;s branch.</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-034328-bb-1-rename-docs-cycle-issues-tbd-raw-an.md b/docs/cycle/issues/queued/txt-20260513-034328-bb-1-rename-docs-cycle-issues-tbd-raw-an.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-034328-bb-1-rename-docs-cycle-issues-tbd-raw-an.md</span>
+<span class="fileheader">rename to docs/cycle/issues/queued/txt-20260513-034328-bb-1-rename-docs-cycle-issues-tbd-raw-an.md</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-034336-bb-2-consolidate-workflow-engine-triage.md b/docs/cycle/issues/queued/txt-20260513-034336-bb-2-consolidate-workflow-engine-triage.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-034336-bb-2-consolidate-workflow-engine-triage.md</span>
+<span class="fileheader">rename to docs/cycle/issues/queued/txt-20260513-034336-bb-2-consolidate-workflow-engine-triage.md</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-034347-bb-3-new-tbd-jsonl-row-schema-and-drain.md b/docs/cycle/issues/queued/txt-20260513-034347-bb-3-new-tbd-jsonl-row-schema-and-drain.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-034347-bb-3-new-tbd-jsonl-row-schema-and-drain.md</span>
+<span class="fileheader">rename to docs/cycle/issues/queued/txt-20260513-034347-bb-3-new-tbd-jsonl-row-schema-and-drain.md</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-034359-bb-4-build-the-triage-subroutine-new-src.md b/docs/cycle/issues/queued/txt-20260513-034359-bb-4-build-the-triage-subroutine-new-src.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-034359-bb-4-build-the-triage-subroutine-new-src.md</span>
+<span class="fileheader">rename to docs/cycle/issues/queued/txt-20260513-034359-bb-4-build-the-triage-subroutine-new-src.md</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-034416-bb-5-resume-logic-from-log-jsonl-tail-at.md b/docs/cycle/issues/queued/txt-20260513-034416-bb-5-resume-logic-from-log-jsonl-tail-at.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-034416-bb-5-resume-logic-from-log-jsonl-tail-at.md</span>
+<span class="fileheader">rename to docs/cycle/issues/queued/txt-20260513-034416-bb-5-resume-logic-from-log-jsonl-tail-at.md</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-034426-bb-6-propagateblocked-engine-wide-halt-p.md b/docs/cycle/issues/queued/txt-20260513-034426-bb-6-propagateblocked-engine-wide-halt-p.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-034426-bb-6-propagateblocked-engine-wide-halt-p.md</span>
+<span class="fileheader">rename to docs/cycle/issues/queued/txt-20260513-034426-bb-6-propagateblocked-engine-wide-halt-p.md</span>
+<span class="fileheader">diff --git a/docs/cycle/issues/tbd/txt-20260513-034434-bb-7-reflection-step-in-feature-workflow.md b/docs/cycle/issues/queued/txt-20260513-034434-bb-7-reflection-step-in-feature-workflow.md</span>
+<span class="fileheader">similarity index 100%</span>
+<span class="fileheader">rename from docs/cycle/issues/tbd/txt-20260513-034434-bb-7-reflection-step-in-feature-workflow.md</span>
+<span class="fileheader">rename to docs/cycle/issues/queued/txt-20260513-034434-bb-7-reflection-step-in-feature-workflow.md</span>
+<span class="fileheader">diff --git a/src/engine/scan.ts b/src/engine/scan.ts</span>
+<span class="fileheader">index 8fa2511..f710c3a 100644</span>
+<span class="meta">--- a/src/engine/scan.ts</span>
+<span class="meta">+++ b/src/engine/scan.ts</span>
+<span class="hunk">@@ -14,10 +14,32 @@ function parseFrontmatter(body: string): Record&lt;string, string&gt; {</span>
+<span class="ctx">   return out;</span>
+<span class="ctx"> }</span>
+<span class="ctx"> </span>
+<span class="add">+async function readKnownIds(jsonlPath: string): Promise&lt;Set&lt;string&gt;&gt; {</span>
+<span class="add">+  const ids = new Set&lt;string&gt;();</span>
+<span class="add">+  let raw: string;</span>
+<span class="add">+  try {</span>
+<span class="add">+    raw = await readFile(jsonlPath, &quot;utf8&quot;);</span>
+<span class="add">+  } catch (e: unknown) {</span>
+<span class="add">+    if ((e as NodeJS.ErrnoException).code === &quot;ENOENT&quot;) return ids;</span>
+<span class="add">+    throw e;</span>
+<span class="add">+  }</span>
+<span class="add">+  for (const line of raw.split(&quot;\n&quot;)) {</span>
+<span class="add">+    if (!line.trim()) continue;</span>
+<span class="add">+    try {</span>
+<span class="add">+      const obj = JSON.parse(line);</span>
+<span class="add">+      if (obj &amp;&amp; typeof obj.id === &quot;string&quot;) ids.add(obj.id);</span>
+<span class="add">+    } catch {</span>
+<span class="add">+      // tolerate malformed line</span>
+<span class="add">+    }</span>
+<span class="add">+  }</span>
+<span class="add">+  return ids;</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="ctx"> export async function scanTbd(repoRoot: string): Promise&lt;TbdEntry[]&gt; {</span>
+<span class="ctx">   const tbd = join(repoRoot, &quot;docs/cycle/issues/tbd&quot;);</span>
+<span class="ctx">   const queued = join(repoRoot, &quot;docs/cycle/issues/queued&quot;);</span>
+<span class="ctx">   const cycleDir = join(repoRoot, &quot;.cycle&quot;);</span>
+<span class="add">+  const jsonlPath = join(cycleDir, &quot;tbd.jsonl&quot;);</span>
+<span class="ctx">   await mkdir(queued, { recursive: true });</span>
+<span class="ctx">   await mkdir(cycleDir, { recursive: true });</span>
+<span class="ctx"> </span>
+<span class="hunk">@@ -28,6 +50,7 @@ export async function scanTbd(repoRoot: string): Promise&lt;TbdEntry[]&gt; {</span>
+<span class="ctx">     return [];</span>
+<span class="ctx">   }</span>
+<span class="ctx"> </span>
+<span class="add">+  const knownIds = await readKnownIds(jsonlPath);</span>
+<span class="ctx">   const ingested: TbdEntry[] = [];</span>
+<span class="ctx">   for (const f of files) {</span>
+<span class="ctx">     const src = join(tbd, f);</span>
+<span class="hunk">@@ -42,8 +65,11 @@ export async function scanTbd(repoRoot: string): Promise&lt;TbdEntry[]&gt; {</span>
+<span class="ctx">       path: dst,</span>
+<span class="ctx">       added_at: fm.added_at,</span>
+<span class="ctx">     };</span>
+<span class="del">-    await appendFile(join(cycleDir, &quot;tbd.jsonl&quot;), JSON.stringify(entry) + &quot;\n&quot;, &quot;utf8&quot;);</span>
+<span class="del">-    ingested.push(entry);</span>
+<span class="add">+    if (!knownIds.has(entry.id)) {</span>
+<span class="add">+      await appendFile(jsonlPath, JSON.stringify(entry) + &quot;\n&quot;, &quot;utf8&quot;);</span>
+<span class="add">+      knownIds.add(entry.id);</span>
+<span class="add">+      ingested.push(entry);</span>
+<span class="add">+    }</span>
+<span class="ctx">   }</span>
+<span class="ctx">   return ingested;</span>
+<span class="ctx"> }</span>
+<span class="fileheader">diff --git a/tests/engine/scan.test.ts b/tests/engine/scan.test.ts</span>
+<span class="fileheader">index 6c787cd..3f95dc6 100644</span>
+<span class="meta">--- a/tests/engine/scan.test.ts</span>
+<span class="meta">+++ b/tests/engine/scan.test.ts</span>
+<span class="hunk">@@ -5,6 +5,23 @@ import { tmpdir } from &quot;node:os&quot;;</span>
+<span class="ctx"> import { join } from &quot;node:path&quot;;</span>
+<span class="ctx"> import { scanTbd } from &quot;../../src/engine/scan.ts&quot;;</span>
+<span class="ctx"> </span>
+<span class="add">+function mkBody(id: string): string {</span>
+<span class="add">+  return `---\nid: ${id}\nsource: text\ntitle: &quot;t&quot;\nadded_at: 2026-05-12T10:30:00Z\n---\n\nb\n`;</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="add">+function countMatching(jsonl: string, id: string): number {</span>
+<span class="add">+  return jsonl</span>
+<span class="add">+    .split(&quot;\n&quot;)</span>
+<span class="add">+    .filter(l =&gt; l.trim())</span>
+<span class="add">+    .filter(l =&gt; {</span>
+<span class="add">+      try {</span>
+<span class="add">+        return JSON.parse(l).id === id;</span>
+<span class="add">+      } catch {</span>
+<span class="add">+        return false;</span>
+<span class="add">+      }</span>
+<span class="add">+    }).length;</span>
+<span class="add">+}</span>
+<span class="add">+</span>
+<span class="ctx"> test(&quot;moves tbd file to queued and appends tbd.jsonl line&quot;, async () =&gt; {</span>
+<span class="ctx">   const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
+<span class="ctx">   try {</span>
+<span class="hunk">@@ -28,3 +45,105 @@ test(&quot;moves tbd file to queued and appends tbd.jsonl line&quot;, async () =&gt; {</span>
+<span class="ctx">     await rm(root, { recursive: true, force: true });</span>
+<span class="ctx">   }</span>
+<span class="ctx"> });</span>
+<span class="add">+</span>
+<span class="add">+test(&quot;skips appendFile when id already in tbd.jsonl&quot;, async () =&gt; {</span>
+<span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
+<span class="add">+  try {</span>
+<span class="add">+    const tbd = join(root, &quot;docs/cycle/issues/tbd&quot;);</span>
+<span class="add">+    const queued = join(root, &quot;docs/cycle/issues/queued&quot;);</span>
+<span class="add">+    const cycleDir = join(root, &quot;.cycle&quot;);</span>
+<span class="add">+    await mkdir(tbd, { recursive: true });</span>
+<span class="add">+    await mkdir(queued, { recursive: true });</span>
+<span class="add">+    await mkdir(cycleDir, { recursive: true });</span>
+<span class="add">+    await writeFile(</span>
+<span class="add">+      join(cycleDir, &quot;tbd.jsonl&quot;),</span>
+<span class="add">+      JSON.stringify({ id: &quot;X&quot;, source: &quot;text&quot;, title: &quot;old&quot;, path: &quot;/old&quot;, added_at: &quot;2026-05-12T09:00:00Z&quot; }) + &quot;\n&quot;,</span>
+<span class="add">+      &quot;utf8&quot;</span>
+<span class="add">+    );</span>
+<span class="add">+    await writeFile(join(tbd, &quot;X.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="add">+</span>
+<span class="add">+    const moved = await scanTbd(root);</span>
+<span class="add">+    assert.deepEqual(moved, []);</span>
+<span class="add">+    assert.deepEqual(await readdir(queued), [&quot;X.md&quot;]);</span>
+<span class="add">+    assert.deepEqual(await readdir(tbd), []);</span>
+<span class="add">+    const jsonl = await readFile(join(cycleDir, &quot;tbd.jsonl&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    assert.equal(countMatching(jsonl, &quot;X&quot;), 1);</span>
+<span class="add">+  } finally {</span>
+<span class="add">+    await rm(root, { recursive: true, force: true });</span>
+<span class="add">+  }</span>
+<span class="add">+});</span>
+<span class="add">+</span>
+<span class="add">+test(&quot;two-scan dup collapses to one row&quot;, async () =&gt; {</span>
+<span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
+<span class="add">+  try {</span>
+<span class="add">+    const tbd = join(root, &quot;docs/cycle/issues/tbd&quot;);</span>
+<span class="add">+    const cycleDir = join(root, &quot;.cycle&quot;);</span>
+<span class="add">+    await mkdir(tbd, { recursive: true });</span>
+<span class="add">+</span>
+<span class="add">+    await writeFile(join(tbd, &quot;X.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    const first = await scanTbd(root);</span>
+<span class="add">+    assert.deepEqual(first.map(m =&gt; m.id), [&quot;X&quot;]);</span>
+<span class="add">+</span>
+<span class="add">+    await writeFile(join(tbd, &quot;X.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    const second = await scanTbd(root);</span>
+<span class="add">+    assert.deepEqual(second, []);</span>
+<span class="add">+</span>
+<span class="add">+    const jsonl = await readFile(join(cycleDir, &quot;tbd.jsonl&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    assert.equal(countMatching(jsonl, &quot;X&quot;), 1);</span>
+<span class="add">+  } finally {</span>
+<span class="add">+    await rm(root, { recursive: true, force: true });</span>
+<span class="add">+  }</span>
+<span class="add">+});</span>
+<span class="add">+</span>
+<span class="add">+test(&quot;intra-scan dup collapses to one row&quot;, async () =&gt; {</span>
+<span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
+<span class="add">+  try {</span>
+<span class="add">+    const tbd = join(root, &quot;docs/cycle/issues/tbd&quot;);</span>
+<span class="add">+    const cycleDir = join(root, &quot;.cycle&quot;);</span>
+<span class="add">+    await mkdir(tbd, { recursive: true });</span>
+<span class="add">+</span>
+<span class="add">+    await writeFile(join(tbd, &quot;X-a.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    await writeFile(join(tbd, &quot;X-b.md&quot;), mkBody(&quot;X&quot;), &quot;utf8&quot;);</span>
+<span class="add">+</span>
+<span class="add">+    const moved = await scanTbd(root);</span>
+<span class="add">+    assert.equal(moved.length, 1);</span>
+<span class="add">+    assert.equal(moved[0].id, &quot;X&quot;);</span>
+<span class="add">+    assert.deepEqual(await readdir(tbd), []);</span>
+<span class="add">+    const jsonl = await readFile(join(cycleDir, &quot;tbd.jsonl&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    assert.equal(countMatching(jsonl, &quot;X&quot;), 1);</span>
+<span class="add">+  } finally {</span>
+<span class="add">+    await rm(root, { recursive: true, force: true });</span>
+<span class="add">+  }</span>
+<span class="add">+});</span>
+<span class="add">+</span>
+<span class="add">+test(&quot;tolerates malformed lines in existing tbd.jsonl&quot;, async () =&gt; {</span>
+<span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
+<span class="add">+  try {</span>
+<span class="add">+    const tbd = join(root, &quot;docs/cycle/issues/tbd&quot;);</span>
+<span class="add">+    const cycleDir = join(root, &quot;.cycle&quot;);</span>
+<span class="add">+    await mkdir(tbd, { recursive: true });</span>
+<span class="add">+    await mkdir(cycleDir, { recursive: true });</span>
+<span class="add">+    const seed =</span>
+<span class="add">+      &quot;not json\n&quot; +</span>
+<span class="add">+      JSON.stringify({ id: &quot;OLD&quot; }) + &quot;\n&quot; +</span>
+<span class="add">+      &quot;\n&quot; +</span>
+<span class="add">+      JSON.stringify({ no_id: true }) + &quot;\n&quot;;</span>
+<span class="add">+    await writeFile(join(cycleDir, &quot;tbd.jsonl&quot;), seed, &quot;utf8&quot;);</span>
+<span class="add">+</span>
+<span class="add">+    await writeFile(join(tbd, &quot;NEW.md&quot;), mkBody(&quot;NEW&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    const moved = await scanTbd(root);</span>
+<span class="add">+    assert.deepEqual(moved.map(m =&gt; m.id), [&quot;NEW&quot;]);</span>
+<span class="add">+</span>
+<span class="add">+    let jsonl = await readFile(join(cycleDir, &quot;tbd.jsonl&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    assert.equal(countMatching(jsonl, &quot;NEW&quot;), 1);</span>
+<span class="add">+    assert.equal(countMatching(jsonl, &quot;OLD&quot;), 1);</span>
+<span class="add">+</span>
+<span class="add">+    await writeFile(join(tbd, &quot;NEW.md&quot;), mkBody(&quot;NEW&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    const second = await scanTbd(root);</span>
+<span class="add">+    assert.deepEqual(second, []);</span>
+<span class="add">+    jsonl = await readFile(join(cycleDir, &quot;tbd.jsonl&quot;), &quot;utf8&quot;);</span>
+<span class="add">+    assert.equal(countMatching(jsonl, &quot;NEW&quot;), 1);</span>
+<span class="add">+  } finally {</span>
+<span class="add">+    await rm(root, { recursive: true, force: true });</span>
+<span class="add">+  }</span>
+<span class="add">+});</span>
+<span class="ctx">&nbsp;</span></pre>
+</section>
+
+<nav class="pager">
+  <a href="cycle-0009.html">← Cycle 0009</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0012.html">Cycle 0012 →</a>
+</nav>
+
+<footer>Generated from <code>619d82c</code></footer>
+</body>
+</html>

@@ -1,0 +1,1 @@
+Updated docs/ARCHITECTURE.md JSONL event schema section with a failed-bash `step.end` variant noting the new optional head-capped `stderr` field (2000-char head-cap, slice to MAX-1 + `…`) and the agent-path/success-omission rule, matching the CLAUDE.md Architecture quick reference bullet added in the diff.
