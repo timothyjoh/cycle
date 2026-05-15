@@ -325,10 +325,9 @@ Rate limits are orthogonal to attempt counting:
   mutated as the engine consumes work.
 
 **Issues (`docs/cycle/issues/`).** Five folders — `tbd/`, `queued/`,
-`triaged/`, `blocked/`, `failed/` — plus a `TEMPLATE.md`.
-(superseded — see RFC-001 § 12 BB-1)
-See Issue
-Ingestion and Cycle Attempts & Failure Handling.
+`triaged/`, `blocked/`, `failed/` — plus a `TEMPLATE.md`
+(superseded — see RFC-001 § 12 BB-1). See Issue Ingestion and Cycle
+Attempts & Failure Handling.
 
 **Per-cycle artifacts (`docs/cycle/<cycle-id>-<workflow>-<slug>/`).**
 E.g., `docs/cycle/0042-feature-safari-login/`, containing SPEC.md,
@@ -475,8 +474,8 @@ fancy visualization are left to the caller. See Claude Code Skill.
   `scripts/*.sh`, `CLAUDE.md`
 - `.claude/skills/cycle.md` — by default (opt out via `--no-skill`)
 - `docs/cycle/issues/` — `TEMPLATE.md` plus empty `tbd/`, `queued/`,
-  `triaged/`, `blocked/`, `failed/` directories
-  (superseded — see RFC-001 § 12 BB-1)
+  `triaged/`, `blocked/`, `failed/` directories (superseded — see
+  RFC-001 § 12 BB-1)
 
 `log.jsonl` and `tbd.jsonl` are created at first run under `.cycle/`
 and committed by default (users can `.gitignore` for local-only
@@ -555,15 +554,14 @@ events on stdout; `log.jsonl` + `tbd.jsonl` populated. Skill shipped.
 `bug` and `research` workflows implemented. Triage classifies between
 all three. `review` + `fix` fully wired in `feature`.
 
+> **Note:** (superseded — see RFC-001 § 12 BB-1)
+
 **Phase 3 — Batch ingestion.**
 `--issue <id>` (tracker fetch), `--issues-file`, `--issues-stdin`.
-External agents dropping files into `tbd/`.
-(superseded — see RFC-001 § 12 BB-1)
-Multi-cycle triage
+External agents dropping files into `tbd/`. Multi-cycle triage
 (decomposing a single issue into multiple cycles). Queue iteration
 across many issues. `depends_on:` sequencing. Pre-emptive `tbd/`
 rescans.
-(superseded — see RFC-001 § 12 BB-1)
 
 **Phase 4 — Failure resilience. ⛳ MVP line.**
 3-attempt abandon-and-restart with branch reuse, pre-step `head_sha`
