@@ -209,6 +209,75 @@ test("terminal failure with malformed frontmatter: file still moves, warning log
     assert.ok(warning, "queue.drain_warning event expected");
     assert.equal(warning.issue_id, id);
     assert.match(warning.reason, /mutateFrontmatter failed/);
+
+    const failedBody = await readFile(
+      join(root, "docs/cycle/issues/failed", `${id}.md`),
+      "utf8",
+    );
+    assert.match(failedBody, /^failed_at:/m);
+    assert.match(failedBody, /^failed_step: boom$/m);
+    assert.match(failedBody, /^failed_attempts: 1$/m);
+    assert.match(failedBody, /^last_cycle_id: /m);
+    assert.match(failedBody, /^drain_error: .*no frontmatter/m);
+    assert.match(failedBody, /\n---\nbody only\n$/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("terminal failure with parseable fm but tmp-write blocked: file moves with stamps + original keys preserved", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-qdrain-"));
+  try {
+    const dist = await ensureDist();
+    await bootstrapRepo(root, boomYml(1), { "boom.sh": "#!/bin/bash\nexit 42\n" });
+
+    const id = "wedged";
+    const todoPath = join(root, "docs/cycle/issues/todo", `${id}.md`);
+    await writeFile(
+      todoPath,
+      "---\ntitle: wedged\nkeep_me: original-value\n---\nreal body\n",
+      "utf8",
+    );
+    // Trap: pre-create the .tmp sibling as a directory so mutateFrontmatter's
+    // internal writeFile fails with EISDIR. Our fallback then takes over.
+    await mkdir(`${todoPath}.tmp`, { recursive: true });
+    await writeFile(
+      join(root, ".cycle/tbd.jsonl"),
+      JSON.stringify({
+        id,
+        title: "wedged",
+        status: "pending",
+        attempt: 0,
+        depends_on: [],
+        triaged_at: "2026-05-13T00:00:00Z",
+      }) + "\n",
+      "utf8",
+    );
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 1, "run should exit 1 on halt");
+
+    const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
+    assert.equal(failedFiles.length, 1);
+    assert.equal(failedFiles[0], `${id}.md`);
+
+    const failedBody = await readFile(
+      join(root, "docs/cycle/issues/failed", `${id}.md`),
+      "utf8",
+    );
+    assert.match(failedBody, /^keep_me: original-value$/m);
+    assert.match(failedBody, /^failed_at:/m);
+    assert.match(failedBody, /^failed_step: boom$/m);
+    assert.match(failedBody, /^failed_attempts: 1$/m);
+    assert.match(failedBody, /^last_cycle_id: /m);
+    assert.match(failedBody, /^drain_error: /m);
+    assert.match(failedBody, /\n---\nreal body\n$/);
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const events = log.trim().split("\n").map((l) => JSON.parse(l));
+    const warning = events.find((e) => e.event === "queue.drain_warning");
+    assert.ok(warning, "queue.drain_warning event expected");
+    assert.match(warning.reason, /mutateFrontmatter failed/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

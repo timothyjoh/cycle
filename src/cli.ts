@@ -1,4 +1,4 @@
-import { readFile, readdir, rename, mkdir } from "node:fs/promises";
+import { readFile, readdir, rename, writeFile, unlink, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { getVersion } from "./version.ts";
 import { parseArgs } from "./cli/parse-args.ts";
@@ -17,7 +17,8 @@ import {
 } from "./engine/queue.ts";
 import { loadConfig } from "./engine/workflow.ts";
 import type { CycleConfig } from "./engine/workflow.ts";
-import { parseFrontmatter, mutateFrontmatter } from "./engine/frontmatter.ts";
+import { parseFrontmatter, mutateFrontmatter, serializeFrontmatter } from "./engine/frontmatter.ts";
+import type { Frontmatter } from "./engine/frontmatter.ts";
 import { propagateBlocked } from "./engine/blocked.ts";
 import { readLogTail } from "./engine/log-tail.ts";
 import type { InFlightCycle } from "./engine/log-tail.ts";
@@ -139,17 +140,51 @@ async function terminalDrain(
   } catch (e) {
     mutateErr = e as Error;
   }
-  try {
-    await rename(todoPath, join(failedDir, `${issueId}.md`));
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-  }
+  const failedPath = join(failedDir, `${issueId}.md`);
   if (mutateErr) {
+    let originalBody = "";
+    try {
+      originalBody = await readFile(todoPath, "utf8");
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    }
+    let baseFm: Frontmatter = {};
+    let bodyAfter = originalBody;
+    try {
+      const parsed = parseFrontmatter(originalBody);
+      baseFm = { ...parsed.fm };
+      bodyAfter = parsed.bodyAfter;
+    } catch {
+      // body had no frontmatter; emit stamps only, keep raw bytes as the body
+    }
+    const fm: Frontmatter = {
+      ...baseFm,
+      failed_at: new Date().toISOString(),
+      ...(failingStep ? { failed_step: failingStep } : {}),
+      failed_attempts: failedAttempts,
+      last_cycle_id: cycleId,
+      drain_error: mutateErr.message,
+    };
+    const out = serializeFrontmatter(fm, bodyAfter);
+    const tmpPath = `${failedPath}.tmp`;
+    await writeFile(tmpPath, out, "utf8");
+    await rename(tmpPath, failedPath);
+    try {
+      await unlink(todoPath);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    }
     await log.emit("queue.drain_warning", {
       cycle_id: cycleId,
       issue_id: issueId,
       reason: `mutateFrontmatter failed: ${mutateErr.message}`,
     });
+  } else {
+    try {
+      await rename(todoPath, failedPath);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    }
   }
   await drainFailedTerminal(cwd, issueId);
   await propagateBlocked(cwd, issueId, log);
