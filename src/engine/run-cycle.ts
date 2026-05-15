@@ -24,6 +24,10 @@ const RESET_ELIGIBLE_STEPS = new Set(["build", "fix"]);
 
 export const SPEC_MIN_BYTES = 200;
 
+const MAX_STEP_END_STDERR = 2000;
+const truncateStepEndStderr = (s: string): string =>
+  s.length > MAX_STEP_END_STDERR ? s.slice(0, MAX_STEP_END_STDERR - 1) + "…" : s;
+
 export function formatSpecGuardError(path: string, bytes: number, threshold: number): string {
   return `spec post-condition failed: ${path} is ${bytes} bytes (< ${threshold})`;
 }
@@ -166,7 +170,15 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           await ingestReflection(repoRoot, cycleId, slug, r.stdout, log);
         }
       }
-      await log.emit("step.end", { cycle_id: cycleId, step: step.name, status: r.status, exit_code: r.exitCode });
+      await log.emit("step.end", {
+        cycle_id: cycleId,
+        step: step.name,
+        status: r.status,
+        exit_code: r.exitCode,
+        ...(step.agent === "bash" && r.status === "failed"
+          ? { stderr: truncateStepEndStderr(r.stderr) }
+          : {}),
+      });
       if (r.status === "failed") {
         if (step.name === "reflection") {
           await log.emit("reflection.skipped", { cycle_id: cycleId, reason: "exec_failed", exit_code: r.exitCode });
