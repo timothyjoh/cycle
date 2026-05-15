@@ -313,7 +313,9 @@ Rate limits are orthogonal to attempt counting:
   mutated as the engine consumes work.
 
 **Issues (`docs/cycle/issues/`).** Five folders — `tbd/`, `queued/`,
-`triaged/`, `blocked/`, `failed/` — plus a `TEMPLATE.md`. See Issue
+`triaged/`, `blocked/`, `failed/` — plus a `TEMPLATE.md`.
+(superseded — see RFC-001 § 12 BB-1)
+See Issue
 Ingestion and Cycle Attempts & Failure Handling.
 
 **Per-cycle artifacts (`docs/cycle/<cycle-id>-<workflow>-<slug>/`).**
@@ -460,6 +462,7 @@ fancy visualization are left to the caller. See Claude Code Skill.
 - `.claude/skills/cycle.md` — by default (opt out via `--no-skill`)
 - `docs/cycle/issues/` — `TEMPLATE.md` plus empty `tbd/`, `queued/`,
   `triaged/`, `blocked/`, `failed/` directories
+  (superseded — see RFC-001 § 12 BB-1)
 
 `log.jsonl` and `tbd.jsonl` are created at first run under `.cycle/`
 and committed by default (users can `.gitignore` for local-only
@@ -506,7 +509,8 @@ Code Skill.
 **Issue fetch (Open Q #11).**
 `--issue <id>` delegates the actual tracker fetch to
 `.cycle/scripts/fetch-issue.sh`, which writes a markdown file into
-`tbd/`. Default scripts ship for the common trackers (dispatch on id
+`tbd/` (superseded — see RFC-001 § 12 BB-1).
+Default scripts ship for the common trackers (dispatch on id
 prefix). Engine has no built-in tracker SDKs and no bundled
 credentials — credentials live in env vars the script reads. See
 Issue Ingestion.
@@ -529,7 +533,8 @@ workflows, prompts, scripts, skill). `./.cycle/bin/cycle.js run
 "text"` runs a single freeform task end-to-end. One workflow
 implemented (`feature` — spec → plan → build → verify → commit →
 pr); `review` / `fix` can be stubs. Task flows through
-`tbd/ → queued/ → triaged/`. Branch, commit, PR, auto-merge. JSONL
+`tbd/ → queued/ → triaged/` (superseded — see RFC-001 § 12 BB-1).
+Branch, commit, PR, auto-merge. JSONL
 events on stdout; `log.jsonl` + `tbd.jsonl` populated. Skill shipped.
 
 **Phase 2 — Full default workflow library.**
@@ -538,10 +543,13 @@ all three. `review` + `fix` fully wired in `feature`.
 
 **Phase 3 — Batch ingestion.**
 `--issue <id>` (tracker fetch), `--issues-file`, `--issues-stdin`.
-External agents dropping files into `tbd/`. Multi-cycle triage
+External agents dropping files into `tbd/`.
+(superseded — see RFC-001 § 12 BB-1)
+Multi-cycle triage
 (decomposing a single issue into multiple cycles). Queue iteration
 across many issues. `depends_on:` sequencing. Pre-emptive `tbd/`
 rescans.
+(superseded — see RFC-001 § 12 BB-1)
 
 **Phase 4 — Failure resilience. ⛳ MVP line.**
 3-attempt abandon-and-restart with fresh branches and wiped
