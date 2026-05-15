@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0054 · Cover dryRunTriage failure paths: runAgent throws + missing prompt template</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0054</h1>
+  <div class="subtitle">Cover dryRunTriage failure paths: runAgent throws + missing prompt template</div>
+  <div class="meta-row">
+    <code>03eedde</code> · Timothy Johnson · 2026-05-14 15:42:28 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0053.html">← Cycle 0053</a>
+  <span class="center">54 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0055.html">Cycle 0055 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><p>Cycle 0054. Issue clear. Write SPEC.</p>
+<pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0054: Cover dryRunTriage failure paths (runAgent throws + missing prompt template)
+
+## Objective
+Pin the two `dryRunTriage` failure paths in `src/engine/triage.ts` that today are reached only by shared coverage through `runTriage`: (1) `runAgent` throwing mid-attempt, and (2) the prompt template file being absent on disk. Both are the canonical failure modes for an operator iterating on the triage prompt after `engine.paused {reason: &quot;all_triage_failed&quot;}`. We add two `dryRunTriage`-entry-point tests that pin observable behavior, make a tiny localized change in `triage.ts` for case B so its shape is intentional rather than incidental, and leave a one-line code comment marking that intent.
+
+## Source Issue
+`refl-0023-dry-run-untested-paths-runagent-throws-a` — &quot;Cover dryRunTriage failure paths: runAgent throws + missing prompt template&quot;
+
+## Scope
+
+### In Scope
+- New test file additions in `tests/engine/triage-dry-run.test.ts` covering Case A (`runAgent` throws) and Case B (prompt template missing), each entering through `dryRunTriage` with no `runTriage` path used.
+- Minimal `triage.ts` change to wrap the dry-run prompt-template `readFile` in a localized `try/catch` that re-throws a clear `Error` of the form `prompt template missing: &lt;resolved-path&gt;: &lt;cause&gt;`, plus a one-line comment marking the chosen Case B shape (top-level throw) as intentional per CLAUDE.md `triage --dry-run` contract.
+
+### Out of Scope
+- Any change to `runTriage` behavior for these same two failure modes (non-goal in source issue).
+- Per-raw retry policy changes (non-goal).
+- New public exported error classes (non-goal — we use a plain `Error` with stable message prefix; the test pins on `last_error` / `error.message`, not on a class).
+- CLI-layer changes in `src/cli.ts` (top-level throw already maps to non-zero exit through the existing CLI error handler; no new mapping required).
+
+## Requirements
+- `dryRunTriage`&#39;s `runAgent`-throws path returns a `DryRunReport` row with `status: &quot;failed&quot;`, `attempts: 3` (matches `MAX_ATTEMPTS` constant in `triage.ts`, same shape as `runTriage`), and `last_error` matching `/^agent failed: /` and containing the inner exception message substring.
+- `dryRunTriage`&#39;s missing-prompt-template path throws synchronously before any agent is invoked, with the resolved absolute path in `error.message` (prefix `prompt template missing: `).
+- Neither failure mode writes anything under `docs/cycle/issues/` (no new files in `todo/`, no moves out of `raw/`), nor appends to `.cycle/tbd.jsonl`, nor writes to `.cycle/log.jsonl`. (`dryRunTriage` already does not take a `Logger` argument, but the test asserts the file is absent / unchanged to lock the dry-run contract.)
+- Existing `triage-dry-run.test.ts` happy-path / shared-internal cases continue to pass unchanged.
+- No change to `runTriage` shape or behavior; whole-suite green.
+
+## Acceptance Criteria
+- [ ] New Case A test (`runAgent` throws) fails on master and passes after the change. Assertions: exactly one row in the report; `raw_id` matches the seeded raw; `status === &quot;failed&quot;`; `attempts === 3`; `last_error` matches `/^agent failed: /` AND includes the substring `boom: claude spawn failed`.
+- [ ] New Case A test asserts that after `dryRunTriage` resolves: `docs/cycle/issues/raw/` still contains the seeded raw file (no move); `docs/cycle/issues/todo/` is absent or empty; `.cycle/tbd.jsonl` is absent or unchanged (compare bytes if seeded empty); `.cycle/log.jsonl` is absent.
+- [ ] New Case B test fails on master (if the unwrapped ENOENT message is the assertion) or after the wrap (asserts the new prefix) — whichever phrasing we settle, the test fails on master before the wrap is in place. Assertions: `await assert.rejects(dryRunTriage(...), (e) =&gt; /^prompt template missing: /.test(e.message) &amp;&amp; e.message.includes(resolvedPromptPath))`.
+- [ ] New Case B test asserts no filesystem mutations under `docs/cycle/issues/` and no writes to `.cycle/tbd.jsonl` or `.cycle/log.jsonl`.
+- [ ] Coverage report shows the two previously-uncovered lines in `src/engine/triage.ts` — the `runAgent` `catch` block (currently `triage.ts:115-119`) and the prompt-template read site (currently `triage.ts:263-266`) — are now exercised by tests that enter through `dryRunTriage` (verifiable by temporarily commenting out `runTriage` tests; not part of the cycle).
+- [ ] One-line comment placed adjacent to the wrapped `readFile` in `dryRunTriage` stating the Case B shape (top-level throw with `prompt template missing: &lt;path&gt;`) is intentional per the dry-run contract.
+- [ ] `npm test` clean (full suite).
+- [ ] `npm run typecheck` clean.
+- [ ] `npm run test:coverage` clean — per-file floor `src/engine/triage.ts ≥ 95%` holds; aggregate floors (line ≥ 95%, branch ≥ 75%, func ≥ 90%) do not regress.
+
+## Testing Strategy
+- **Framework**: Node&#39;s built-in `node:test` + `node:assert/strict`, matching every other file under `tests/engine/` and the existing `tests/engine/triage-dry-run.test.ts` setup.
+- **Test harness**: tmp-repo pattern — `mkdtemp` a directory, scaffold `docs/cycle/issues/raw/`, `.cycle/`, write a representative raw file with valid frontmatter (`id`, `title`, `workflow: feature`, `depends_on: []`, `triaged_at: …`, `source: reflection`), copy the production prompt template `src/defaults/prompts/triage.md` to `.cycle/&lt;cfg.triage.prompt&gt;` for Case A only; omit the file entirely for Case B.
+- **Dependency injection**: pass `{ runAgent }` to `dryRunTriage` so neither test ever spawns a real subprocess. Case A&#39;s `runAgent` is `async () =&gt; { throw new Error(&quot;boom: claude spawn failed&quot;); }`. Case B does not need a stub — the throw fires before `runAgent` is reached, but pass a sentinel `runAgent` that throws `&quot;should never be called&quot;` so a regression that bypasses the template check would fail loudly.
+- **CycleConfig fixture**: minimal object satisfying `CycleConfig` shape — only the fields touched by `dryRunTriage` (`triage.prompt`, `triage.agent`, plus whatever `processRawWithRetry` / `validateOutput` peek at). Reuse the existing fixture helper in the test file if present.
+- **Negative assertions on the dry-run contract**: after the call resolves (Case A) or rejects (Case B), `readdir` `docs/cycle/issues/raw/` and confirm the seeded `.md` is still present; `stat` `docs/cycle/issues/todo/&lt;id&gt;.md` and assert `ENOENT`; `stat` `.cycle/log.jsonl` and assert `ENOENT`; for `.cycle/tbd.jsonl`, either assert `ENOENT` or, if seeded empty, byte-equal compare to the seeded contents.
+- **No new E2E** — these are unit-level scenarios on a single function with a clear seam; the existing dry-run integration test in `tests/cli/` continues to cover the CLI plumbing.
+
+## Documentation Updates
+- **CLAUDE.md**: extend the existing `cycle triage --dry-run` row in the Commands table with one clause noting that &quot;missing prompt template throws synchronously before any agent invocation; an agent that crashes mid-call surfaces as `status: failed, last_error: &#39;agent failed: …&#39;` in the report after the configured retry budget is exhausted.&quot; This makes both observable shapes part of the documented contract, not implementation details.
+- **README.md**: no user-facing surface change; skip.
+- **In-code comment** (already counted as acceptance criteria): one line next to the `readFile` wrap in `dryRunTriage` marking the chosen shape.
+
+Documentation is part of &quot;done&quot; — code without updated docs is incomplete.
+
+## Dependencies
+- Existing test scaffolding in `tests/engine/triage-dry-run.test.ts` (tmp-repo helpers, fixture builders).
+- Production prompt template at `src/defaults/prompts/triage.md` (copied into the tmp `.cycle/` for Case A; absent for Case B).
+- `CycleConfig` / `TriageConfig` types from `src/engine/workflow.ts`.
+- No external services, no env vars, no Node version change.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/engine/triage.ts                |  16 ++++--
+ tests/engine/triage-dry-run.test.ts | 111 ++++++++++++++++++++++++++++++++++++
+ 2 files changed, 123 insertions(+), 4 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/engine/triage.ts b/src/engine/triage.ts</span><span class="fileheader">index ad0d193..1032d0d 100644</span><span class="meta">--- a/src/engine/triage.ts</span><span class="meta">+++ b/src/engine/triage.ts</span><span class="hunk">@@ -260,10 +260,18 @@ export async function dryRunTriage(</span><span class="ctx">   const raws = await loadRaws(rawDir);</span><span class="ctx">   if (raws.length === 0) return [];</span><span class="ctx"> </span><span class="del">-  const promptTemplate = await readFile(</span><span class="del">-    join(repoRoot, &quot;.cycle&quot;, cfg.triage.prompt),</span><span class="del">-    &quot;utf8&quot;,</span><span class="del">-  );</span><span class="add">+  // dryRunTriage contract: a missing prompt template throws synchronously</span><span class="add">+  // (before any agent is invoked) so operators iterating on the prompt</span><span class="add">+  // after engine.paused see a clear &quot;prompt template missing&quot; surface.</span><span class="add">+  const promptPath = join(repoRoot, &quot;.cycle&quot;, cfg.triage.prompt);</span><span class="add">+  let promptTemplate: string;</span><span class="add">+  try {</span><span class="add">+    promptTemplate = await readFile(promptPath, &quot;utf8&quot;);</span><span class="add">+  } catch (e) {</span><span class="add">+    throw new Error(</span><span class="add">+      `prompt template missing: ${promptPath}: ${(e as Error).message}`,</span><span class="add">+    );</span><span class="add">+  }</span><span class="ctx"> </span><span class="ctx">   const reports: DryRunReport[] = [];</span><span class="ctx">   for (const raw of raws) {</span><span class="fileheader">diff --git a/tests/engine/triage-dry-run.test.ts b/tests/engine/triage-dry-run.test.ts</span><span class="fileheader">index ef4975d..8480ebb 100644</span><span class="meta">--- a/tests/engine/triage-dry-run.test.ts</span><span class="meta">+++ b/tests/engine/triage-dry-run.test.ts</span><span class="hunk">@@ -408,3 +408,114 @@ test(&quot;dryRun unknown triage agent reports per-raw failure with UnknownAgentError</span><span class="ctx">     await rm(root, { recursive: true, force: true });</span><span class="ctx">   }</span><span class="ctx"> });</span><span class="add">+</span><span class="add">+test(&quot;dryRun Case B: missing prompt template → throws &#39;prompt template missing: &lt;path&gt;: ...&#39;&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-triage-nopromp-&quot;));</span><span class="add">+  try {</span><span class="add">+    await mkdir(join(root, &quot;.cycle&quot;), { recursive: true });</span><span class="add">+    await mkdir(join(root, &quot;docs/cycle/issues/raw&quot;), { recursive: true });</span><span class="add">+    await mkdir(join(root, &quot;docs/cycle/issues/todo&quot;), { recursive: true });</span><span class="add">+    await writeFile(</span><span class="add">+      join(root, &quot;docs/cycle/issues/raw/solo.md&quot;),</span><span class="add">+      rawBody(&quot;solo&quot;, &quot;solo&quot;),</span><span class="add">+      &quot;utf8&quot;,</span><span class="add">+    );</span><span class="add">+</span><span class="add">+    const before = {</span><span class="add">+      raw: await dirHash(join(root, &quot;docs/cycle/issues/raw&quot;)),</span><span class="add">+      todo: await dirHash(join(root, &quot;docs/cycle/issues/todo&quot;)),</span><span class="add">+      tbd: await fileBytes(join(root, &quot;.cycle/tbd.jsonl&quot;)),</span><span class="add">+      log: await fileBytes(join(root, &quot;.cycle/log.jsonl&quot;)),</span><span class="add">+    };</span><span class="add">+</span><span class="add">+    const cfg = makeConfig();</span><span class="add">+    const resolvedPromptPath = join(root, &quot;.cycle&quot;, cfg.triage.prompt);</span><span class="add">+    const deps: TriageDeps = {</span><span class="add">+      runAgent: async (): Promise&lt;TriageAgentResult&gt; =&gt; {</span><span class="add">+        throw new Error(</span><span class="add">+          &quot;runAgent must not be called when prompt template is missing&quot;,</span><span class="add">+        );</span><span class="add">+      },</span><span class="add">+    };</span><span class="add">+</span><span class="add">+    await assert.rejects(</span><span class="add">+      dryRunTriage(root, cfg, deps),</span><span class="add">+      (e: Error) =&gt;</span><span class="add">+        /^prompt template missing: /.test(e.message) &amp;&amp;</span><span class="add">+        e.message.includes(resolvedPromptPath),</span><span class="add">+    );</span><span class="add">+</span><span class="add">+    const after = {</span><span class="add">+      raw: await dirHash(join(root, &quot;docs/cycle/issues/raw&quot;)),</span><span class="add">+      todo: await dirHash(join(root, &quot;docs/cycle/issues/todo&quot;)),</span><span class="add">+      tbd: await fileBytes(join(root, &quot;.cycle/tbd.jsonl&quot;)),</span><span class="add">+      log: await fileBytes(join(root, &quot;.cycle/log.jsonl&quot;)),</span><span class="add">+    };</span><span class="add">+    assert.deepEqual(after.raw, before.raw, &quot;raw/ contents changed&quot;);</span><span class="add">+    assert.deepEqual(after.todo, before.todo, &quot;todo/ contents changed&quot;);</span><span class="add">+    assert.equal(after.tbd, before.tbd, &quot;tbd.jsonl appeared&quot;);</span><span class="add">+    assert.equal(after.log, before.log, &quot;log.jsonl appeared&quot;);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;dryRun Case A: runAgent throws → status failed, attempts 3, last_error matches /^agent failed: /&quot;, async () =&gt; {</span><span class="add">+  const root = await setupRepo();</span><span class="add">+  try {</span><span class="add">+    await writeFile(</span><span class="add">+      join(root, &quot;docs/cycle/issues/raw/solo.md&quot;),</span><span class="add">+      rawBody(&quot;solo&quot;, &quot;solo&quot;),</span><span class="add">+      &quot;utf8&quot;,</span><span class="add">+    );</span><span class="add">+</span><span class="add">+    const before = {</span><span class="add">+      raw: await dirHash(join(root, &quot;docs/cycle/issues/raw&quot;)),</span><span class="add">+      todo: await dirHash(join(root, &quot;docs/cycle/issues/todo&quot;)),</span><span class="add">+      done: await dirHash(join(root, &quot;docs/cycle/issues/done&quot;)),</span><span class="add">+      failed: await dirHash(join(root, &quot;docs/cycle/issues/failed&quot;)),</span><span class="add">+      tbd: await fileBytes(join(root, &quot;.cycle/tbd.jsonl&quot;)),</span><span class="add">+      log: await fileBytes(join(root, &quot;.cycle/log.jsonl&quot;)),</span><span class="add">+    };</span><span class="add">+</span><span class="add">+    let calls = 0;</span><span class="add">+    const deps: TriageDeps = {</span><span class="add">+      runAgent: async (): Promise&lt;TriageAgentResult&gt; =&gt; {</span><span class="add">+        calls++;</span><span class="add">+        throw new Error(&quot;boom: claude spawn failed&quot;);</span><span class="add">+      },</span><span class="add">+    };</span><span class="add">+</span><span class="add">+    const reports = await dryRunTriage(root, makeConfig(), deps);</span><span class="add">+</span><span class="add">+    assert.equal(reports.length, 1);</span><span class="add">+    const r = reports[0]!;</span><span class="add">+    assert.equal(r.raw_id, &quot;solo&quot;);</span><span class="add">+    assert.equal(r.status, &quot;failed&quot;);</span><span class="add">+    assert.equal(r.attempts, 3);</span><span class="add">+    assert.ok(r.last_error, &quot;last_error present&quot;);</span><span class="add">+    assert.match(r.last_error!, /^agent failed: /);</span><span class="add">+    assert.ok(</span><span class="add">+      r.last_error!.includes(&quot;boom: claude spawn failed&quot;),</span><span class="add">+      `last_error includes inner: ${r.last_error}`,</span><span class="add">+    );</span><span class="add">+    assert.equal(calls, 3, &quot;runAgent invoked exactly MAX_ATTEMPTS times&quot;);</span><span class="add">+</span><span class="add">+    const after = {</span><span class="add">+      raw: await dirHash(join(root, &quot;docs/cycle/issues/raw&quot;)),</span><span class="add">+      todo: await dirHash(join(root, &quot;docs/cycle/issues/todo&quot;)),</span><span class="add">+      done: await dirHash(join(root, &quot;docs/cycle/issues/done&quot;)),</span><span class="add">+      failed: await dirHash(join(root, &quot;docs/cycle/issues/failed&quot;)),</span><span class="add">+      tbd: await fileBytes(join(root, &quot;.cycle/tbd.jsonl&quot;)),</span><span class="add">+      log: await fileBytes(join(root, &quot;.cycle/log.jsonl&quot;)),</span><span class="add">+    };</span><span class="add">+    assert.deepEqual(after.raw, before.raw, &quot;raw/ contents changed&quot;);</span><span class="add">+    assert.deepEqual(after.todo, before.todo, &quot;todo/ contents changed&quot;);</span><span class="add">+    assert.deepEqual(after.done, before.done, &quot;done/ contents changed&quot;);</span><span class="add">+    assert.deepEqual(after.failed, before.failed, &quot;failed/ contents changed&quot;);</span><span class="add">+    assert.equal(after.tbd, before.tbd, &quot;tbd.jsonl appeared&quot;);</span><span class="add">+    assert.equal(after.log, before.log, &quot;log.jsonl appeared&quot;);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>Verify done. 381/381 pass. Coverage <code>triage.ts</code> 99.72% (≥95% floor). No fs mutations escape. Implementation small, focused, matches SPEC + PLAN. One minor stylistic note: the intent comment is 3 lines (PLAN-driven) versus SPEC&#39;s &quot;one-line&quot; wording — not a blocker.</p>
+<p>No MUST-FIX needed. Emit REVIEW.md to stdout:</p>
+<h3>Review: Cycle 0054</h3>
+<h4>Overall Verdict</h4>
+<p>PASS — no fixes needed.</p>
+<h4>Code Quality Review</h4>
+<h5>Summary</h5>
+<p>Tight, surgical implementation. Two new tests at the <code>dryRunTriage</code> entry point lock the previously runTriage-only-covered failure paths (Case A <code>runAgent</code> throws; Case B prompt template absent). A single localized <code>try/catch</code> wrap in <code>src/engine/triage.ts</code> re-throws the prompt-template read failure with a stable <code>prompt template missing: &lt;resolved-path&gt;: &lt;cause&gt;</code> prefix. CLAUDE.md row extended to document both observable shapes. Typecheck clean. 381/381 tests pass. Coverage gate <code>src/engine/triage.ts ≥ 95%</code> holds at 99.72%; aggregate floors (line 99.06%, branch 92.86%, func 96.32%) all above master baselines.</p>
+<h5>Findings</h5>
+<ol>
+<li><strong>Style (minor, non-blocking)</strong>: Intent comment is three lines rather than the &quot;one-line comment&quot; SPEC requirement — <code>src/engine/triage.ts:263-265</code>. The PLAN explicitly chose the three-line shape (PLAN.md Task 1), and the prose accurately captures the dry-run contract, so the intent is preserved. Flagging only for SPEC literal-wording drift.</li>
+<li><strong>Error breadth (minor, non-blocking)</strong>: The Case B wrap catches every <code>readFile</code> rejection (EACCES, EIO, EBUSY, etc.), not just ENOENT, and labels them all <code>prompt template missing</code> — <code>src/engine/triage.ts:268-274</code>. Tolerable: the resolved path is preserved in the message and the inner <code>e.message</code> is appended, so a permission error surfaces as <code>prompt template missing: &lt;path&gt;: EACCES: permission denied</code>, which is still legible. Narrowing to ENOENT would be a future refinement, not a present defect.</li>
+</ol>
+<h5>Spec Compliance Checklist</h5>
+<ul>
+<li>[x] Case A test exists, enters through <code>dryRunTriage</code>, pins <code>status: &quot;failed&quot;</code>, <code>attempts: 3</code>, <code>last_error</code> matches <code>/^agent failed: /</code> and includes <code>boom: claude spawn failed</code> (<code>tests/engine/triage-dry-run.test.ts:464-521</code>).</li>
+<li>[x] Case A asserts exactly <code>MAX_ATTEMPTS</code> (3) <code>runAgent</code> invocations (<code>tests/engine/triage-dry-run.test.ts:495</code>).</li>
+<li>[x] Case A asserts no filesystem mutations under <code>docs/cycle/issues/{raw,todo,done,failed}/</code> and no <code>.cycle/tbd.jsonl</code> / <code>.cycle/log.jsonl</code> creation (<code>tests/engine/triage-dry-run.test.ts:505-520</code>).</li>
+<li>[x] Case B test exists, uses <code>assert.rejects</code> predicate matching <code>/^prompt template missing: /</code> AND <code>e.message.includes(resolvedPromptPath)</code> (<code>tests/engine/triage-dry-run.test.ts:441-446</code>).</li>
+<li>[x] Case B asserts no filesystem mutations (<code>tests/engine/triage-dry-run.test.ts:448-462</code>).</li>
+<li>[x] <code>dryRunTriage</code> wraps prompt-template <code>readFile</code> in try/catch and re-throws <code>prompt template missing: &lt;resolved-path&gt;: &lt;cause&gt;</code> (<code>src/engine/triage.ts:266-274</code>).</li>
+<li>[x] Intent comment placed adjacent to the wrap stating the Case B shape is intentional (<code>src/engine/triage.ts:263-265</code>).</li>
+<li>[x] CLAUDE.md <code>cycle triage --dry-run</code> row extended with both observable shapes (<code>CLAUDE.md:28</code>).</li>
+<li>[x] Existing dry-run tests untouched and still passing.</li>
+<li>[x] No <code>runTriage</code> shape or behavior change, no new exported error class, no CLI wiring change.</li>
+<li>[x] No README.md edits (correctly skipped per SPEC).</li>
+<li>[x] <code>npm run typecheck</code> clean.</li>
+<li>[x] <code>npm test</code> clean (381/381 pass).</li>
+<li>[x] <code>npm run test:coverage</code> clean — per-file floor holds (99.72%), aggregate baselines hold.</li>
+</ul>
+<h4>Adversarial Test Review</h4>
+<h5>Summary</h5>
+<p>Strong. Both new tests use dependency injection (the existing <code>TriageDeps</code> seam), not module mocks. Assertions are specific (<code>status === &quot;failed&quot;</code>, regex + substring on <code>last_error</code>, exact call count, byte-identity directory hashes). Case B uses a sentinel <code>runAgent</code> stub that would loudly fail if a regression bypassed the template check before reaching the agent. Filesystem-invariance suite mirrors the canonical pattern at <code>triage-dry-run.test.ts:232-303</code>.</p>
+<h5>Findings</h5>
+<ol>
+<li><strong>Sentinel guardrail strength (positive)</strong>: Case B&#39;s <code>runAgent</code> stub throws a guardrail error rather than returning a benign result — a regression that reordered the prompt read after <code>runAgent</code> invocation would crash with <code>&quot;runAgent must not be called when prompt template is missing&quot;</code> rather than spuriously passing (<code>tests/engine/triage-dry-run.test.ts:435-439</code>). Good adversarial posture.</li>
+<li><strong><code>null === null</code> invariance comparison (positive)</strong>: <code>assert.equal(after.tbd, before.tbd)</code> and <code>after.log === before.log</code> rely on <code>fileBytes()</code> returning <code>null</code> on ENOENT (<code>tests/engine/triage-dry-run.test.ts:114-121</code>). If either file appeared mid-test, the side becomes a <code>Buffer</code> and the assertion fires. Correct shape for the dry-run no-mutation contract; flagged by SPEC §Risk Assessment and the implementation honors it.</li>
+<li><strong>Case A <code>attempts: 0</code> clone exercised (positive)</strong>: Case A confirms the dry-run runs the full 3-attempt budget regardless of on-disk <code>triage_attempts</code> (the <code>{ ...raw, attempts: 0 }</code> clone at <code>triage.ts:281-282</code>). <code>calls === 3</code> asserts this empirically.</li>
+<li><strong>No mocking abuse</strong>: Neither test mocks <code>fs</code>, <code>readFile</code>, or any module — only the <code>runAgent</code> seam is stubbed. Everything else is real <code>mkdtemp</code>, real <code>readFile</code>, real <code>mkdir</code>, real <code>rm</code>.</li>
+<li><strong>Test independence</strong>: Each test mints its own <code>mkdtemp</code> root and tears down in <code>finally</code>. Case B does not call <code>setupRepo()</code> (which would create the prompt file), so the inline scaffold is the only place this variant exists — intentional, documented in PLAN §Task 1.</li>
+</ol>
+<h5>Test Coverage</h5>
+<ul>
+<li>Command run: <code>npm run test:coverage</code></li>
+<li>Line / branch / function (aggregate): 99.06% / 92.86% / 96.32% — all above master baselines (95% / 75% / 90%).</li>
+<li>Per-file <code>src/engine/triage.ts</code>: line 99.72%, branch 97.80%, func 97.50%. Per-file floor (line ≥ 95%) holds. Uncovered lines: <code>triage.ts:610-611</code> (the default <code>runAgentViaDispatch</code> body that tests bypass via the <code>TriageDeps</code> seam) — pre-existing and out of scope.</li>
+<li>Regressions vs base (per-file): none.</li>
+<li>New code without tests: none. The new try/catch in <code>triage.ts:266-274</code> is exercised by Case B; the existing <code>runAgent</code>-throws catch at <code>triage.ts:113-119</code> was already covered through <code>runTriage</code> tests and is now additionally covered through <code>dryRunTriage</code> via Case A.</li>
+<li>Specific scenarios missing tests: none required by SPEC. Out-of-scope-but-noted: the wrap&#39;s behavior on non-ENOENT <code>readFile</code> failures (EACCES, EIO) is not pinned — finding #2 above — but SPEC does not require it.</li>
+</ul></div></section>
+
+<nav class="pager">
+  <a href="cycle-0053.html">← Cycle 0053</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0055.html">Cycle 0055 →</a>
+</nav>
+
+<footer>Generated from <code>03eedde</code></footer>
+</body>
+</html>

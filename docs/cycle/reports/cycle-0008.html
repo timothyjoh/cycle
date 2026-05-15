@@ -4,30 +4,63 @@
 <meta charset="utf-8" />
 <title>Cycle 0008 · engine: after cycle.end (ok or failed), checkout back to base branch (CYCLE_BASE) so working tree returns to a known state. Currently HEAD remains on the cycle/feature/&lt;slug&gt; branch locally, forcing manual &#39;git checkout master&#39; between runs. Add to run-cycle.ts post-cycle cleanup, with test for both ok + failed terminal states. (#10)</title>
 <style>
-  body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: #1f2328; background: #fff; }
-  header { border-bottom: 1px solid #d0d7de; padding-bottom: 1rem; margin-bottom: 1.5rem; }
-  h1 { font-size: 1.4rem; margin: 0 0 .3rem; }
-  .subtitle { color: #57606a; font-size: .9rem; }
-  .meta-row { margin-top: .4rem; color: #57606a; font-size: .85rem; }
-  .meta-row code { background: #f6f8fa; padding: .1rem .35rem; border-radius: 3px; }
-  nav.pager { display: flex; justify-content: space-between; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid #d0d7de; border-bottom: 1px solid #d0d7de; }
-  nav.pager a { color: #0969da; text-decoration: none; padding: .35rem .6rem; border-radius: 4px; }
-  nav.pager a:hover { background: #f6f8fa; }
-  nav.pager .disabled { color: #8c959f; pointer-events: none; }
-  nav.pager .center { color: #57606a; font-size: .85rem; align-self: center; }
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
   section { margin-bottom: 1.5rem; }
-  section h2 { font-size: 1rem; margin: 0 0 .5rem; color: #57606a; text-transform: uppercase; letter-spacing: .05em; }
-  pre.commit-msg { background: #f6f8fa; padding: 1rem; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
-  pre.stat { background: #f6f8fa; padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; }
-  pre.diff { background: #fff; padding: 0; border: 1px solid #d0d7de; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.5; overflow-x: auto; white-space: pre; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
   pre.diff span { display: block; padding: 0 1rem; }
-  pre.diff .add { background: #dafbe1; color: #1a7f37; }
-  pre.diff .del { background: #ffebe9; color: #cf222e; }
-  pre.diff .hunk { background: #ddf4ff; color: #0969da; }
-  pre.diff .fileheader { background: #f6f8fa; color: #57606a; font-weight: 600; padding-top: .3rem; padding-bottom: .3rem; }
-  pre.diff .meta { color: #57606a; }
-  pre.diff .ctx { color: #1f2328; }
-  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #d0d7de; color: #8c959f; font-size: .8rem; text-align: center; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
 </style>
 </head>
 <body>
@@ -41,768 +74,75 @@
 
 <nav class="pager">
   <a href="cycle-0007.html">← Cycle 0007</a>
-  <span class="center">8 of 10</span>
+  <span class="center">8 of 49 · <a href="index.html">index</a></span>
   <a href="cycle-0009.html">Cycle 0009 →</a>
 </nav>
 
 <section>
-  <h2>Commit message</h2>
-  <pre class="commit-msg">cycle 0008: engine: after cycle.end (ok or failed), checkout back to base branch (CYCLE_BASE) so working tree returns to a known state. Currently HEAD remains on the cycle/feature/&lt;slug&gt; branch locally, forcing manual &#39;git checkout master&#39; between runs. Add to run-cycle.ts post-cycle cleanup, with test for both ok + failed terminal states. (#10)</pre>
+  <h2>SPEC.md</h2>
+  <div class="md"></div>
 </section>
 
 <section>
-  <h2>Files changed</h2>
-  <pre class="stat">.../BUILD.md                                       |   1 +
- .../FIX.md                                         |   3 +
- .../MUST-FIX.md                                    |  97 +++++++++++
- .../PLAN.md                                        | 178 +++++++++++++++++++++
- .../RESEARCH.md                                    |  65 ++++++++
- .../REVIEW.md                                      |  48 ++++++
- .../SPEC.md                                        |   1 +
- src/engine/branch.ts                               |   4 +
- src/engine/run-cycle.ts                            |  59 ++++---
- tests/engine/branch.test.ts                        |  37 ++++-
- tests/engine/run-cycle.test.ts                     | 136 +++++++++++++++-
- 11 files changed, 608 insertions(+), 21 deletions(-)</pre>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/engine/branch.ts           |   4 ++
+ src/engine/run-cycle.ts        |  59 ++++++++++++------
+ tests/engine/branch.test.ts    |  37 ++++++++++-
+ tests/engine/run-cycle.test.ts | 136 ++++++++++++++++++++++++++++++++++++++++-
+ 4 files changed, 215 insertions(+), 21 deletions(-)</pre>
 </section>
 
 <section>
   <h2>Diff</h2>
-  <pre class="diff"><span class="fileheader">diff --git a/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/BUILD.md b/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/BUILD.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..07e0cfd</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/BUILD.md</span>
-<span class="hunk">@@ -0,0 +1 @@</span>
-<span class="add">+Modified `src/engine/branch.ts` (+4 lines: `checkoutBase` export) and `src/engine/run-cycle.ts` (+24 lines: `currentBranch` helper, `try/finally` wrap, `cycle.checkout` emission). Added 2 tests to `tests/engine/branch.test.ts` (+34 lines: `checkoutBase` success + failure cases) and 2 tests to `tests/engine/run-cycle.test.ts` (+82 lines: ok and failed cycle HEAD-returns-to-base coverage). PLAN.md tasks 1–4 all complete. Ran `npm test` (`node --test --experimental-strip-types --test-reporter=spec`); result 58 pass / 0 fail. `npm run typecheck` shows 2 pre-existing unrelated errors in `tests/cli/multi-loop.test.ts` (`findLast` lib target — present on master pre-change). One deviation from PLAN: tests pass `CYCLE_BASE: &quot;main&quot;` explicitly in the `env` arg because the parent process running the suite has `CYCLE_BASE=master` exported (cycle engine sets this for child steps), which would otherwise leak into `runCycle`&#39;s `process.env.CYCLE_BASE ?? &quot;main&quot;` fallback and break HEAD assertions. No follow-up work deferred; dirty-tree failure-path coverage explicitly out-of-scope per PLAN risk section.</span>
-<span class="fileheader">diff --git a/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/FIX.md b/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/FIX.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..0f509ef</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/FIX.md</span>
-<span class="hunk">@@ -0,0 +1,3 @@</span>
-<span class="add">+All 4 tasks fixed. Test suite: 59 pass / 0 fail.</span>
-<span class="add">+</span>
-<span class="add">+**Summary:** Task 1 (ordering assertion via line-index comparison) and Task 3 (head_before in regex) applied to both checkout tests. Task 2 added new test for `status=&quot;failed&quot;` checkout branch using `CYCLE_BASE: &quot;no-such-base&quot;`. Task 4 added `CYCLE_BASE: &quot;main&quot;` to env of pre-existing happy-path test for hermeticity. Final `npm test`: 59 pass, 0 fail. No tasks deferred.</span>
-<span class="fileheader">diff --git a/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/MUST-FIX.md b/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/MUST-FIX.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..9501095</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/MUST-FIX.md</span>
-<span class="hunk">@@ -0,0 +1,97 @@</span>
-<span class="add">+# Must-Fix Items: Cycle 0008</span>
-<span class="add">+</span>
-<span class="add">+## Summary</span>
-<span class="add">+0 critical issues, 4 minor test-quality issues. Implementation is sound; gaps are in adversarial test coverage of behaviors that PLAN claimed to verify but tests do not actually verify.</span>
-<span class="add">+</span>
-<span class="add">+## Tasks</span>
-<span class="add">+</span>
-<span class="add">+- [x] ### Task 1: Assert `cycle.end` precedes `cycle.checkout` ordering</span>
-<span class="add">+  **Status:** ✅ Fixed</span>
-<span class="add">+  **What was done:** Both checkout tests now split log into lines, find indices of `cycle.end` and `cycle.checkout` events, and assert `endIdx &lt; checkoutIdx`. Existing `assert.match` calls preserved for payload-content verification.</span>
-<span class="add">+  **Priority:** Minor</span>
-<span class="add">+  **Files:** `tests/engine/run-cycle.test.ts`</span>
-<span class="add">+  **Problem:** PLAN.md risk section line 175 claims &quot;Tests assert this ordering via the regex sequence in the log.&quot; Current tests at `tests/engine/run-cycle.test.ts:91-92` and `:136-137` only call `assert.match(log, /cycle.end.../)` then `assert.match(log, /cycle.checkout.../)`. Both `assert.match` calls operate on the full buffer independently — they prove existence, not ordering. If emissions were swapped, the tests would still pass.</span>
-<span class="add">+  **Fix:** In both `checks out base branch after successful cycle` and `checks out base branch after failed cycle` tests, after reading `log`, split into lines and assert ordering. Replace the two `assert.match` ordering pairs with:</span>
-<span class="add">+  ```ts</span>
-<span class="add">+  const lines = log.trim().split(&quot;\n&quot;);</span>
-<span class="add">+  const endIdx = lines.findIndex(l =&gt; l.includes(&#39;&quot;event&quot;:&quot;cycle.end&quot;&#39;));</span>
-<span class="add">+  const checkoutIdx = lines.findIndex(l =&gt; l.includes(&#39;&quot;event&quot;:&quot;cycle.checkout&quot;&#39;));</span>
-<span class="add">+  assert.ok(endIdx !== -1 &amp;&amp; checkoutIdx !== -1, &quot;both events emitted&quot;);</span>
-<span class="add">+  assert.ok(endIdx &lt; checkoutIdx, `cycle.end (line ${endIdx}) must precede cycle.checkout (line ${checkoutIdx})`);</span>
-<span class="add">+  ```</span>
-<span class="add">+  Keep the existing `assert.match` calls for the event payload content (status, base, failing_step) since those still verify structure.</span>
-<span class="add">+  **Verify:** Run `npm test`. Tests pass. Swap the order of the two `log.emit` calls in `src/engine/run-cycle.ts:66` and `:72` locally and confirm the test fails with the ordering assertion.</span>
-<span class="add">+</span>
-<span class="add">+- [x] ### Task 2: Add test for `cycle.checkout status=&quot;failed&quot;` branch</span>
-<span class="add">+  **Status:** ✅ Fixed</span>
-<span class="add">+  **What was done:** Added `logs cycle.checkout status=failed when base branch does not exist` test using `CYCLE_BASE: &quot;no-such-base&quot;`. Asserts HEAD stays on cycle branch, log emits `status:&quot;failed&quot;,&quot;base&quot;:&quot;no-such-base&quot;`, and `reason` field includes git error text.</span>
-<span class="add">+  **Priority:** Minor</span>
-<span class="add">+  **Files:** `tests/engine/run-cycle.test.ts`</span>
-<span class="add">+  **Problem:** `src/engine/run-cycle.ts:73-75` has a `catch` branch that emits `cycle.checkout` with `status: &quot;failed&quot;` and `reason` when the checkout itself fails. No test exercises this branch. PLAN explicitly puts dirty-tree out of scope, but the missing-base case is trivially testable and is the second supported failure mode in the implementation.</span>
-<span class="add">+  **Fix:** Add a third test in `tests/engine/run-cycle.test.ts`:</span>
-<span class="add">+  ```ts</span>
-<span class="add">+  test(&quot;logs cycle.checkout status=failed when base branch does not exist&quot;, async () =&gt; {</span>
-<span class="add">+    const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
-<span class="add">+    const bin = await mkdtemp(join(tmpdir(), &quot;cycle-bin-&quot;));</span>
-<span class="add">+    try {</span>
-<span class="add">+      git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span>
-<span class="add">+      git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span>
-<span class="add">+      git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span>
-<span class="add">+      git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span>
-<span class="add">+</span>
-<span class="add">+      await mkdir(join(root, &quot;.cycle/workflows&quot;), { recursive: true });</span>
-<span class="add">+      await mkdir(join(root, &quot;.cycle/prompts&quot;), { recursive: true });</span>
-<span class="add">+      await writeFile(join(root, &quot;.cycle/workflows/feature.yaml&quot;),</span>
-<span class="add">+        `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n`, &quot;utf8&quot;);</span>
-<span class="add">+      await writeFile(join(root, &quot;.cycle/prompts/spec.md&quot;), &quot;spec body&quot;, &quot;utf8&quot;);</span>
-<span class="add">+</span>
-<span class="add">+      const fake = join(bin, &quot;claude&quot;);</span>
-<span class="add">+      await writeFile(fake, &quot;#!/bin/bash\necho FAKED\n&quot;, &quot;utf8&quot;);</span>
-<span class="add">+      await chmod(fake, 0o755);</span>
-<span class="add">+</span>
-<span class="add">+      const r = await runCycle(root, {</span>
-<span class="add">+        issueId: &quot;TEST-1&quot;,</span>
-<span class="add">+        title: &quot;spec the thing&quot;,</span>
-<span class="add">+        workflow: &quot;feature&quot;,</span>
-<span class="add">+        env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;no-such-base&quot; },</span>
-<span class="add">+      });</span>
-<span class="add">+      assert.equal(r.status, &quot;ok&quot;);</span>
-<span class="add">+</span>
-<span class="add">+      // HEAD stays on cycle branch because checkout failed</span>
-<span class="add">+      const head = git(root, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;]).trim();</span>
-<span class="add">+      assert.equal(head, &quot;cycle/feature/spec-the-thing&quot;);</span>
-<span class="add">+</span>
-<span class="add">+      const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span>
-<span class="add">+      assert.match(log, /&quot;event&quot;:&quot;cycle.checkout&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;failed&quot;,&quot;base&quot;:&quot;no-such-base&quot;/);</span>
-<span class="add">+      assert.match(log, /&quot;reason&quot;:&quot;git checkout no-such-base failed:/);</span>
-<span class="add">+    } finally {</span>
-<span class="add">+      await rm(root, { recursive: true, force: true });</span>
-<span class="add">+      await rm(bin, { recursive: true, force: true });</span>
-<span class="add">+    }</span>
-<span class="add">+  });</span>
-<span class="add">+  ```</span>
-<span class="add">+  **Verify:** `npm test` passes with 59 tests. Temporarily remove the `try/catch` around `checkoutBase` in `src/engine/run-cycle.ts:70-75` and confirm the new test fails (runCycle should still return ok, but the failed-status checkout event is no longer emitted).</span>
-<span class="add">+</span>
-<span class="add">+- [x] ### Task 3: Assert `head_before` field in `cycle.checkout` events</span>
-<span class="add">+  **Status:** ✅ Fixed</span>
-<span class="add">+  **What was done:** Both ok-path tests now match the full payload including `&quot;head_before&quot;:&quot;cycle\/feature\/spec-the-thing&quot;`. A regression where `currentBranch` returns `null` would fail the regex.</span>
-<span class="add">+  **Priority:** Minor</span>
-<span class="add">+  **Files:** `tests/engine/run-cycle.test.ts`</span>
-<span class="add">+  **Problem:** `src/engine/run-cycle.ts:72` and `:74` emit `head_before: headBefore`, a diagnostic field used for forensics per PLAN.md line 16. No test asserts the value. A regression where `currentBranch` always returns `null` (e.g., spawn error or wrong argv) would slip through.</span>
-<span class="add">+  **Fix:** In both the &quot;successful cycle&quot; test (line 92) and the &quot;failed cycle&quot; test (line 137), strengthen the cycle.checkout regex to also match `head_before`:</span>
-<span class="add">+  ```ts</span>
-<span class="add">+  assert.match(log, /&quot;event&quot;:&quot;cycle.checkout&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;ok&quot;,&quot;base&quot;:&quot;main&quot;,&quot;head_before&quot;:&quot;cycle\/feature\/spec-the-thing&quot;/);</span>
-<span class="add">+  ```</span>
-<span class="add">+  **Verify:** `npm test` passes. Temporarily change `currentBranch` in `src/engine/run-cycle.ts:12` to `return Promise.resolve(null);` and confirm both tests fail with a regex-mismatch message naming `head_before`.</span>
-<span class="add">+</span>
-<span class="add">+- [x] ### Task 4: Make existing happy-path test hermetic against parent `CYCLE_BASE`</span>
-<span class="add">+  **Status:** ✅ Fixed</span>
-<span class="add">+  **What was done:** Added `CYCLE_BASE: &quot;main&quot;` to the env of `runs a 2-step workflow end-to-end` at line 43. Test now hermetic; checkout emits `status:&quot;ok&quot;,&quot;base&quot;:&quot;main&quot;` regardless of parent env.</span>
-<span class="add">+  **Priority:** Minor</span>
-<span class="add">+  **Files:** `tests/engine/run-cycle.test.ts`</span>
-<span class="add">+  **Problem:** The pre-existing test `runs a 2-step workflow end-to-end` (line 15) does not pass `CYCLE_BASE` in `opts.env`. When this suite runs under the cycle engine itself, `process.env.CYCLE_BASE=master` leaks into `runCycle` (via the `process.env.CYCLE_BASE ?? &quot;main&quot;` fallback at `src/engine/run-cycle.ts:41`), and the temp repo (init -b main) lacks `master`, so `cycle.checkout` emits `status:&quot;failed&quot;` with `reason:&quot;git checkout master failed: ...&quot;` in test stdout. The assertion-set still passes because nothing asserts on the checkout event, but the test is no longer hermetic and pollutes test output with a misleading failure line. BUILD.md flagged this as a PLAN deviation in the new tests but did not fix the original test.</span>
-<span class="add">+  **Fix:** Add `CYCLE_BASE: &quot;main&quot;` to the `env` of the existing happy-path test at `tests/engine/run-cycle.test.ts:43`:</span>
-<span class="add">+  ```ts</span>
-<span class="add">+  env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span>
-<span class="add">+  ```</span>
-<span class="add">+  **Verify:** Run `CYCLE_BASE=master npm test 2&gt;&amp;1 | grep &quot;cycle.checkout&quot;`. The only `cycle.checkout` lines emitted should be `status:&quot;ok&quot;,&quot;base&quot;:&quot;main&quot;` — no `base:&quot;master&quot;` and no `status:&quot;failed&quot;` from the happy-path test.</span>
-<span class="fileheader">diff --git a/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/PLAN.md b/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/PLAN.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..38c9daa</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/PLAN.md</span>
-<span class="hunk">@@ -0,0 +1,178 @@</span>
-<span class="add">+```markdown</span>
-<span class="add">+# Implementation Plan: Cycle 0008</span>
-<span class="add">+</span>
-<span class="add">+## Overview</span>
-<span class="add">+Add post-cycle base-branch checkout to the engine so HEAD returns to `CYCLE_BASE` (default `main`) after every `cycle.end`, regardless of terminal status (`ok` or `failed`). Eliminates the manual `git checkout master` between cycle runs.</span>
-<span class="add">+</span>
-<span class="add">+## Current State (from Research)</span>
-<span class="add">+- `runCycle` (`src/engine/run-cycle.ts:18`) emits `cycle.end` from two sites: a failure-path early return inside the step loop (`:49`) and a success-path emission after the loop (`:54`). Both leave HEAD on `cycle/&lt;workflow&gt;/&lt;slug&gt;`.</span>
-<span class="add">+- `createCycleBranch` (`src/engine/branch.ts:17`) is the only git mutation in the engine and uses a private `git()` promise helper (`branch.ts:5`) that spawns `git` with `shell: false` and rejects on non-zero exit.</span>
-<span class="add">+- `CYCLE_BASE` is resolved once into `cycleEnv` (`run-cycle.ts:30`) from `process.env.CYCLE_BASE ?? &quot;main&quot;`.</span>
-<span class="add">+- Tests use `node:test`, real temp git repos initialised with `git init -b main`, and a fake `claude` script on `PATH` (`tests/engine/run-cycle.test.ts:15-57`). HEAD is inspected via `git rev-parse --abbrev-ref HEAD` (pattern at `tests/engine/branch.test.ts:26`). No existing test exercises the failed-step path.</span>
-<span class="add">+</span>
-<span class="add">+## Desired End State</span>
-<span class="add">+- After every successful `runCycle` invocation, HEAD on `repoRoot` is back on `CYCLE_BASE`.</span>
-<span class="add">+- After every failed `runCycle` invocation (any step returns `status: &quot;failed&quot;`), HEAD is back on `CYCLE_BASE` — provided the working tree is clean enough for `git checkout` to succeed.</span>
-<span class="add">+- A new `cycle.checkout` JSONL event is appended to `.cycle/log.jsonl` after `cycle.end`, recording `{ status: &quot;ok&quot; | &quot;failed&quot;, base, head_before, reason? }`.</span>
-<span class="add">+- If the checkout fails (dirty tree, missing base), the cleanup is swallowed: `runCycle`&#39;s return value (`{ cycleId, status, failingStep? }`) is unchanged, and the failure reason lives in the `cycle.checkout` event for forensics.</span>
-<span class="add">+- Verified by extended `tests/engine/run-cycle.test.ts` cases asserting `git rev-parse --abbrev-ref HEAD` after ok and failed terminal states.</span>
-<span class="add">+</span>
-<span class="add">+## What We&#39;re NOT Doing</span>
-<span class="add">+- Not changing the `runCycle` return contract (`{ cycleId, status, failingStep? }`).</span>
-<span class="add">+- Not changing the `cycle.end` event payload or ordering.</span>
-<span class="add">+- Not stashing, resetting, or otherwise mutating the working tree to force a checkout — if a failing step leaves a dirty tree that blocks checkout, we log it and return.</span>
-<span class="add">+- Not deleting the cycle branch (`cycle/&lt;workflow&gt;/&lt;slug&gt;`) — it must remain locally for inspection. Only HEAD moves.</span>
-<span class="add">+- Not adding a &quot;checkout strategy&quot; config knob — single behavior (`git checkout &lt;CYCLE_BASE&gt;`).</span>
-<span class="add">+- Not modifying `pr.sh`, `commit.sh`, or any default script.</span>
-<span class="add">+- Not introducing a third-party git library (`simple-git` etc.) — keep the existing `spawn`-based pattern.</span>
-<span class="add">+</span>
-<span class="add">+## Implementation Approach</span>
-<span class="add">+Two cohesive pieces:</span>
-<span class="add">+</span>
-<span class="add">+1. **A new `checkoutBase(repoRoot, base)` export in `src/engine/branch.ts`** that reuses the existing private `git()` helper. Returning the prior HEAD (best-effort) lets the engine log richer forensics. Failure surfaces as a thrown `Error` so the caller decides whether to swallow.</span>
-<span class="add">+</span>
-<span class="add">+2. **A `try/finally` wrap in `runCycle`** around the step loop. The `finally` block:</span>
-<span class="add">+   - Reads `HEAD` (best-effort).</span>
-<span class="add">+   - Calls `checkoutBase(repoRoot, cycleEnv.CYCLE_BASE)`.</span>
-<span class="add">+   - Emits `cycle.checkout` with `status` ok/failed plus diagnostic fields.</span>
-<span class="add">+   - Never re-throws; swallows errors so the cycle&#39;s terminal status is what callers see.</span>
-<span class="add">+</span>
-<span class="add">+   Both `cycle.end` emissions stay where they are; the `finally` runs after either path because the failure-path `return` still triggers `finally`.</span>
-<span class="add">+</span>
-<span class="add">+Tests are extended in-place in `tests/engine/run-cycle.test.ts` (not a new file) to keep engine coverage co-located, matching existing conventions.</span>
-<span class="add">+</span>
-<span class="add">+---</span>
-<span class="add">+</span>
-<span class="add">+## Task 1: Add `checkoutBase` helper to `branch.ts`</span>
-<span class="add">+</span>
-<span class="add">+### Overview</span>
-<span class="add">+Introduce a peer to `createCycleBranch` that moves HEAD back to a given base branch. Keeps all engine git mutations in one module.</span>
-<span class="add">+</span>
-<span class="add">+### Changes Required</span>
-<span class="add">+**File**: `src/engine/branch.ts`</span>
-<span class="add">+**Changes**:</span>
-<span class="add">+- Add a new exported function `checkoutBase(repoRoot, base)` that runs `git checkout &lt;base&gt;` using the existing private `git()` helper. Re-throws on failure (no swallowing at this layer).</span>
-<span class="add">+- Optionally export a small `currentHead(repoRoot)` helper that runs `git rev-parse --abbrev-ref HEAD` and returns the trimmed stdout. Used by the engine to record `head_before`. If keeping the module surface tight, inline this in `run-cycle.ts` instead — pick inline to avoid widening the module API.</span>
-<span class="add">+</span>
-<span class="add">+Sketch:</span>
-<span class="add">+```ts</span>
-<span class="add">+export async function checkoutBase(repoRoot: string, base: string): Promise&lt;void&gt; {</span>
-<span class="add">+  await git(repoRoot, [&quot;checkout&quot;, base]);</span>
-<span class="add">+}</span>
-<span class="add">+```</span>
-<span class="add">+</span>
-<span class="add">+### Success Criteria</span>
-<span class="add">+- [ ] `npx tsc --noEmit` clean.</span>
-<span class="add">+- [ ] New unit test in `tests/engine/branch.test.ts`: create a temp repo on `main`, call `createCycleBranch` to leave HEAD on the cycle branch, call `checkoutBase(root, &quot;main&quot;)`, assert `git rev-parse --abbrev-ref HEAD === &quot;main&quot;`.</span>
-<span class="add">+- [ ] New unit test for the failure path: call `checkoutBase(root, &quot;no-such-branch&quot;)` and assert the promise rejects with an `Error` whose message contains `git checkout no-such-branch failed`.</span>
-<span class="add">+</span>
-<span class="add">+---</span>
-<span class="add">+</span>
-<span class="add">+## Task 2: Wire post-cycle checkout into `runCycle`</span>
-<span class="add">+</span>
-<span class="add">+### Overview</span>
-<span class="add">+Wrap the step loop in `try/finally` so the base-branch checkout runs after both terminal paths. Emit a new `cycle.checkout` JSONL event with structured fields. Swallow checkout errors — log them, do not change `runCycle`&#39;s return value.</span>
-<span class="add">+</span>
-<span class="add">+### Changes Required</span>
-<span class="add">+**File**: `src/engine/run-cycle.ts`</span>
-<span class="add">+**Changes**:</span>
-<span class="add">+1. Import `checkoutBase` from `./branch.ts`.</span>
-<span class="add">+2. Add a local helper to read the current branch name (best-effort, returns `null` on failure) — keep it inline rather than exporting from `branch.ts`:</span>
-<span class="add">+   ```ts</span>
-<span class="add">+   import { spawn } from &quot;node:child_process&quot;;</span>
-<span class="add">+   function currentBranch(repoRoot: string): Promise&lt;string | null&gt; {</span>
-<span class="add">+     return new Promise((resolve) =&gt; {</span>
-<span class="add">+       const child = spawn(&quot;git&quot;, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;], { cwd: repoRoot, shell: false });</span>
-<span class="add">+       let stdout = &quot;&quot;;</span>
-<span class="add">+       child.stdout.on(&quot;data&quot;, (d) =&gt; { stdout += d.toString(); });</span>
-<span class="add">+       child.on(&quot;close&quot;, (code) =&gt; resolve(code === 0 ? stdout.trim() : null));</span>
-<span class="add">+       child.on(&quot;error&quot;, () =&gt; resolve(null));</span>
-<span class="add">+     });</span>
-<span class="add">+   }</span>
-<span class="add">+   ```</span>
-<span class="add">+3. Wrap the `for (const step of wf.steps)` loop and the success-path `cycle.end` emission in a single `try { ... } finally { ... }`. The failure path still uses early `return`; `finally` runs on both `return` paths.</span>
-<span class="add">+4. In `finally`:</span>
-<span class="add">+   - `const headBefore = await currentBranch(repoRoot);`</span>
-<span class="add">+   - `try { await checkoutBase(repoRoot, cycleEnv.CYCLE_BASE); await log.emit(&quot;cycle.checkout&quot;, { cycle_id: cycleId, status: &quot;ok&quot;, base: cycleEnv.CYCLE_BASE, head_before: headBefore }); }`</span>
-<span class="add">+   - `catch (err) { await log.emit(&quot;cycle.checkout&quot;, { cycle_id: cycleId, status: &quot;failed&quot;, base: cycleEnv.CYCLE_BASE, head_before: headBefore, reason: (err as Error).message }); }`</span>
-<span class="add">+5. Do NOT change `cycle.end` emission order or payloads. Do NOT change the `runCycle` return shape.</span>
-<span class="add">+</span>
-<span class="add">+### Success Criteria</span>
-<span class="add">+- [ ] `npx tsc --noEmit` clean.</span>
-<span class="add">+- [ ] Existing `runs a 2-step workflow end-to-end` test still passes unchanged.</span>
-<span class="add">+- [ ] `.cycle/log.jsonl` contains a `cycle.checkout` event after every `cycle.end` (ok or failed).</span>
-<span class="add">+- [ ] HEAD on `repoRoot` is `CYCLE_BASE` after `runCycle` returns from the ok path.</span>
-<span class="add">+</span>
-<span class="add">+---</span>
-<span class="add">+</span>
-<span class="add">+## Task 3: Test — successful cycle returns HEAD to base</span>
-<span class="add">+</span>
-<span class="add">+### Overview</span>
-<span class="add">+Extend the existing happy-path test in `tests/engine/run-cycle.test.ts` (or add a sibling test) to assert HEAD is back on `main` after a successful cycle and that `cycle.checkout` was emitted with `status: &quot;ok&quot;`.</span>
-<span class="add">+</span>
-<span class="add">+### Changes Required</span>
-<span class="add">+**File**: `tests/engine/run-cycle.test.ts`</span>
-<span class="add">+**Changes**: Add a new `test(&quot;checks out base branch after successful cycle&quot;, ...)` that mirrors the existing setup, then after `runCycle` returns asserts:</span>
-<span class="add">+```ts</span>
-<span class="add">+const head = git(root, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;]).trim();</span>
-<span class="add">+assert.equal(head, &quot;main&quot;);</span>
-<span class="add">+const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span>
-<span class="add">+assert.match(log, /&quot;event&quot;:&quot;cycle.checkout&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;ok&quot;,&quot;base&quot;:&quot;main&quot;/);</span>
-<span class="add">+```</span>
-<span class="add">+</span>
-<span class="add">+### Success Criteria</span>
-<span class="add">+- [ ] New test passes.</span>
-<span class="add">+- [ ] Assertion on HEAD is `&quot;main&quot;` (not `cycle/feature/&lt;slug&gt;`).</span>
-<span class="add">+- [ ] `cycle.checkout` event appears after `cycle.end` in `log.jsonl`.</span>
-<span class="add">+</span>
-<span class="add">+---</span>
-<span class="add">+</span>
-<span class="add">+## Task 4: Test — failed cycle still returns HEAD to base</span>
-<span class="add">+</span>
-<span class="add">+### Overview</span>
-<span class="add">+Add a new test that forces a step failure (bash step exiting non-zero) and asserts HEAD is back on `main` plus a `cycle.checkout` event with `status: &quot;ok&quot;` (checkout itself succeeds even though the cycle failed).</span>
-<span class="add">+</span>
-<span class="add">+### Changes Required</span>
-<span class="add">+**File**: `tests/engine/run-cycle.test.ts`</span>
-<span class="add">+**Changes**: Add `test(&quot;checks out base branch after failed cycle&quot;, ...)`. Setup: a workflow whose second step is a bash script that runs `exit 1`. The first step is a benign claudecode step so the failure happens mid-cycle. After:</span>
-<span class="add">+```ts</span>
-<span class="add">+const r = await runCycle(root, { ... });</span>
-<span class="add">+assert.equal(r.status, &quot;failed&quot;);</span>
-<span class="add">+assert.equal(r.failingStep, &quot;boom&quot;);</span>
-<span class="add">+const head = git(root, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;]).trim();</span>
-<span class="add">+assert.equal(head, &quot;main&quot;);</span>
-<span class="add">+const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span>
-<span class="add">+assert.match(log, /&quot;event&quot;:&quot;cycle.end&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;failed&quot;,&quot;failing_step&quot;:&quot;boom&quot;/);</span>
-<span class="add">+assert.match(log, /&quot;event&quot;:&quot;cycle.checkout&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;ok&quot;/);</span>
-<span class="add">+```</span>
-<span class="add">+Note: the failing bash step must NOT modify tracked files (so the working tree stays clean and `git checkout main` succeeds). Have it `echo`/`exit 1` only.</span>
-<span class="add">+</span>
-<span class="add">+### Success Criteria</span>
-<span class="add">+- [ ] New test passes.</span>
-<span class="add">+- [ ] `runCycle` returns `{ status: &quot;failed&quot;, failingStep: &quot;boom&quot; }`.</span>
-<span class="add">+- [ ] HEAD is `&quot;main&quot;` after the failed cycle.</span>
-<span class="add">+- [ ] `cycle.end` (status failed) precedes `cycle.checkout` (status ok) in the log.</span>
-<span class="add">+</span>
-<span class="add">+---</span>
-<span class="add">+</span>
-<span class="add">+## Testing Strategy</span>
-<span class="add">+</span>
-<span class="add">+### Unit Tests</span>
-<span class="add">+- `tests/engine/branch.test.ts`: add two cases — `checkoutBase` returns HEAD to a given branch; `checkoutBase` rejects on missing branch with a meaningful message. Use the existing temp-repo fixture pattern.</span>
-<span class="add">+- `tests/engine/run-cycle.test.ts`: add the two cases above (Task 3, Task 4). Co-located with the existing happy-path test — same fixture setup pattern (`mkdtemp`, `git init -b main`, fake `claude` on PATH).</span>
-<span class="add">+- Anti-mock: real `git` binary, real filesystem, real spawn — no mocking of git. The existing test file already does this; the new tests reuse the same pattern.</span>
-<span class="add">+</span>
-<span class="add">+### Integration / E2E Tests</span>
-<span class="add">+- The two new `runCycle` tests in Task 3 and Task 4 ARE the e2e coverage: full cycle invocation through the public engine entrypoint with real git state assertions.</span>
-<span class="add">+</span>
-<span class="add">+### Mocking</span>
-<span class="add">+- `claude` is stubbed via a fake shell script on `PATH` (existing pattern at `tests/engine/run-cycle.test.ts:35-37`). Reused unchanged.</span>
-<span class="add">+- No git mocking. No new mocks introduced.</span>
-<span class="add">+</span>
-<span class="add">+## Risk Assessment</span>
-<span class="add">+- **Dirty working tree blocks checkout on failure path**: a failing step may leave uncommitted changes that cause `git checkout main` to fail. Mitigation: `checkoutBase` failure is caught in `runCycle`&#39;s `finally`, logged as `cycle.checkout status=failed reason=&lt;git stderr&gt;`, and does NOT mutate the cycle&#39;s terminal status. Test in Task 4 deliberately uses a step that does not modify tracked files; a future test (out of scope) could cover the dirty-tree case.</span>
-<span class="add">+- **Base branch does not exist**: `CYCLE_BASE` defaults to `&quot;main&quot;` but a repo may use a different default. Same mitigation as above — `cycle.checkout` event records the failure reason. The cycle still returns its true terminal status.</span>
-<span class="add">+- **Ordering of `cycle.end` and `cycle.checkout`**: emitting `cycle.checkout` AFTER `cycle.end` is intentional — `cycle.end` is the terminal cycle event for downstream consumers (scanner, queue). Cleanup is a separate, post-terminal action. Tests assert this ordering via the regex sequence in the log.</span>
-<span class="add">+- **Test interference with the existing happy-path test**: the existing test does not assert post-run HEAD, so it remains compatible. New tests use their own temp dirs.</span>
-<span class="add">+- **No precedent for non-step engine events**: introducing `cycle.checkout` is a new event class. Downstream JSONL consumers (notably `src/engine/scan.ts`) need to ignore unknown events — verified via Research; only `cycle.start` / `cycle.end` / `issue.ingested` are consumed today, so an extra event is non-breaking.</span>
-<span class="add">+```</span>
-<span class="fileheader">diff --git a/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/RESEARCH.md b/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/RESEARCH.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..7758f37</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/RESEARCH.md</span>
-<span class="hunk">@@ -0,0 +1,65 @@</span>
-<span class="add">+```markdown</span>
-<span class="add">+# Research: Cycle 0008</span>
-<span class="add">+</span>
-<span class="add">+## Cycle Context</span>
-<span class="add">+SPEC.md for cycle 0008 is empty (1 byte; the spec step exited ok with empty stdout). The cycle directive comes from the issue body: after every `cycle.end` event (terminal status `ok` OR `failed`), the engine should checkout the repo back to the base branch (`CYCLE_BASE`, default `main`) so the working tree returns to a known state. Currently HEAD remains on `cycle/&lt;workflow&gt;/&lt;slug&gt;` locally, forcing a manual `git checkout master` between runs. The change lives in `src/engine/run-cycle.ts` post-cycle cleanup and must have test coverage for both ok and failed terminal states.</span>
-<span class="add">+</span>
-<span class="add">+## Current Codebase State</span>
-<span class="add">+</span>
-<span class="add">+### Relevant Components</span>
-<span class="add">+- Engine orchestrator (drives a cycle end-to-end, emits `cycle.start` / `step.start` / `step.end` / `cycle.end`) — `src/engine/run-cycle.ts:18`</span>
-<span class="add">+- Branch creation (currently the only git mutation in the engine; checks out `cycle/&lt;workflow&gt;/&lt;slug&gt;` via `git checkout -b`) — `src/engine/branch.ts:17`</span>
-<span class="add">+- Inline git helper used by `createCycleBranch` (spawns `git` with `cwd: repoRoot`, `shell: false`, rejects on non-zero) — `src/engine/branch.ts:5`</span>
-<span class="add">+- Step executors (bash and claudecode; both return `{ status, exitCode, stdout, stderr }`) — `src/engine/exec-bash.ts:12`, `src/engine/exec-claudecode.ts`</span>
-<span class="add">+- Logger (appends to `.cycle/log.jsonl` and echoes via injectable sink) — `src/engine/log.ts:8`</span>
-<span class="add">+- Workflow loader (reads `.cycle/workflows/&lt;name&gt;.yaml`) — `src/engine/workflow.ts:18`</span>
-<span class="add">+- `CYCLE_BASE` env: defaulted to `&quot;main&quot;` inside `runCycle` env construction — `src/engine/run-cycle.ts:30`</span>
-<span class="add">+- Consumers of `CYCLE_BASE` outside the engine: `src/defaults/scripts/pr.sh:8`, `src/defaults/scripts/pr.sh:13`</span>
-<span class="add">+</span>
-<span class="add">+### Existing Patterns to Follow</span>
-<span class="add">+- **Two terminal `cycle.end` emit sites in `run-cycle.ts`**: one on step failure (`run-cycle.ts:49`) and one on full success (`run-cycle.ts:54`). Any post-cycle cleanup must run after BOTH paths. The failure path currently uses early `return` from inside the `for` loop, so a `try/finally` or a wrapping helper is the natural structural fit.</span>
-<span class="add">+- **Git invocation**: spawned directly (`spawn(&quot;git&quot;, args, { cwd: repoRoot, shell: false })`), with stderr captured and surfaced in error messages. Promise wrapper at `src/engine/branch.ts:5`. No use of `simple-git` or similar — keep the pattern.</span>
-<span class="add">+- **Env resolution**: `CYCLE_BASE` is read from `process.env.CYCLE_BASE ?? &quot;main&quot;` at `run-cycle.ts:30` and stored on `cycleEnv`. The cleanup should use the SAME value (i.e. `cycleEnv.CYCLE_BASE`, not re-read process.env), so it matches what every step saw.</span>
-<span class="add">+- **Step result shape**: `{ status: &quot;ok&quot; | &quot;failed&quot;, exitCode, stdout, stderr }` (`exec-bash.ts:5`). The orchestrator only inspects `r.status`, never throws on step failure — it logs `cycle.end` and returns a structured `{ cycleId, status, failingStep? }`.</span>
-<span class="add">+- **Logging**: every state transition gets a JSONL event via `log.emit(event, fields)`. A new &quot;post-cycle checkout&quot; action could either (a) be silent or (b) emit its own event — no current precedent for non-step engine events besides `cycle.start` / `cycle.end`.</span>
-<span class="add">+</span>
-<span class="add">+### Dependencies &amp; Integration Points</span>
-<span class="add">+- `runCycle` is the public engine entrypoint imported by tests and (presumably) the CLI driver. Its return shape `{ cycleId, status, failingStep? }` is part of the contract — `src/engine/run-cycle.ts:50` / `:55`.</span>
-<span class="add">+- `createCycleBranch` is the only function today that mutates git state. A checkout-back-to-base step would be a peer operation; placing it in `branch.ts` (e.g. exported `checkoutBase(repoRoot, base)`) would mirror the existing module layout.</span>
-<span class="add">+- `CYCLE_BASE` is consumed by the default `pr.sh` script for `gh pr create --base` — `src/defaults/scripts/pr.sh:13`. The engine&#39;s choice of base must remain consistent with what the PR step uses (already shared via `cycleEnv`).</span>
-<span class="add">+- Branch name format used to create the cycle branch: `cycle/${workflow}/${slug}` (`branch.ts:18`). The cleanup does not need to know the branch name — only the base — because `git checkout &lt;base&gt;` is sufficient.</span>
-<span class="add">+</span>
-<span class="add">+### Test Infrastructure</span>
-<span class="add">+- Test framework: `node:test` with `node:assert` strict mode.</span>
-<span class="add">+- Test layout: mirror of `src/`, so engine tests live in `tests/engine/`. Files: `branch.test.ts`, `run-cycle.test.ts`, `exec-bash.test.ts`, `exec-claudecode.test.ts`, `child-env.test.ts`, `cycle-id.test.ts`, `log.test.ts`, `scan.test.ts`, `workflow.test.ts`.</span>
-<span class="add">+- Test conventions:</span>
-<span class="add">+  - Each test creates a real temp repo with `mkdtemp(tmpdir() + &quot;cycle-test-&quot;)`, runs `git init -b main`, sets `user.email` / `user.name`, commits an empty initial commit. See `tests/engine/run-cycle.test.ts:16-22` and `tests/engine/branch.test.ts:17-21`.</span>
-<span class="add">+  - A real `git` binary is invoked via `spawnSync(&quot;git&quot;, ...)` — no mocking of git.</span>
-<span class="add">+  - `claude` is stubbed by writing a fake shell script into a temp bin dir and prepending it to `PATH` via `env: { PATH: ... }` passed to `runCycle` — `tests/engine/run-cycle.test.ts:35-37` / `:43`.</span>
-<span class="add">+  - HEAD verification uses `git rev-parse --abbrev-ref HEAD` — `tests/engine/branch.test.ts:26`.</span>
-<span class="add">+  - Cleanup in `finally` with `rm(root, { recursive: true, force: true })`.</span>
-<span class="add">+- Current coverage of the change area:</span>
-<span class="add">+  - `tests/engine/run-cycle.test.ts:15` covers a happy-path two-step workflow but does NOT assert post-cycle HEAD state.</span>
-<span class="add">+  - `tests/engine/branch.test.ts:15` asserts that HEAD is on the cycle branch after `createCycleBranch`.</span>
-<span class="add">+  - There is no test today exercising a failed-step path through `runCycle` (no fixture that forces a non-zero exit from a step and asserts the `failed` return + `cycle.end` failed event).</span>
-<span class="add">+</span>
-<span class="add">+## Code References</span>
-<span class="add">+- `src/engine/run-cycle.ts:18` — `runCycle` orchestrator entrypoint.</span>
-<span class="add">+- `src/engine/run-cycle.ts:30` — `CYCLE_BASE` env construction with `&quot;main&quot;` default.</span>
-<span class="add">+- `src/engine/run-cycle.ts:34-52` — step loop, early-return failure branch with `cycle.end status=failed`.</span>
-<span class="add">+- `src/engine/run-cycle.ts:49` — failure-path `cycle.end` emission and return.</span>
-<span class="add">+- `src/engine/run-cycle.ts:54-55` — success-path `cycle.end` emission and return.</span>
-<span class="add">+- `src/engine/branch.ts:5` — internal `git()` promise helper (spawn + reject pattern to reuse for checkout-back).</span>
-<span class="add">+- `src/engine/branch.ts:18-19` — branch name format `cycle/&lt;workflow&gt;/&lt;slug&gt;` and the `git checkout -b` that puts HEAD on the cycle branch.</span>
-<span class="add">+- `src/engine/log.ts:8-18` — `createLogger` factory and `emit` semantics.</span>
-<span class="add">+- `tests/engine/run-cycle.test.ts:15-57` — existing happy-path engine test (template for new ok / failed coverage).</span>
-<span class="add">+- `tests/engine/branch.test.ts:26` — `git rev-parse --abbrev-ref HEAD` assertion pattern.</span>
-<span class="add">+- `src/defaults/scripts/pr.sh:8` / `:13` — downstream consumer of `CYCLE_BASE`.</span>
-<span class="add">+</span>
-<span class="add">+## Open Questions</span>
-<span class="add">+- Should the post-cycle checkout emit its own log event (e.g. `cycle.checkout`) or be silent? No current precedent for engine-level non-step events besides `cycle.start` / `cycle.end`. The plan step should decide.</span>
-<span class="add">+- If `git checkout ${CYCLE_BASE}` fails (e.g. dirty working tree, uncommitted changes left by a failing step), what is the desired behavior? Options: (a) swallow + log a warning event, (b) include the failure in the returned `{ status }`, (c) throw. The SPEC.md is empty, so the planner must pick. Note that the success path normally runs through `commit.sh` and `pr.sh`, leaving a clean tree; the failed path is the realistic dirty-tree case.</span>
-<span class="add">+- Should the cleanup also handle the &quot;HEAD is already on base&quot; or &quot;base branch does not exist&quot; edge cases (e.g. the `runCycle` test uses `-b main` so `main` exists, but real repos may have differently-named defaults)?</span>
-<span class="add">+- Where exactly should the helper live — inline in `run-cycle.ts`, or as a new export from `branch.ts` (mirroring `createCycleBranch`)? Either is consistent with the current style.</span>
-<span class="add">+- Should the existing `run-cycle.ts` happy-path test be extended to assert HEAD == base, or should a new dedicated test file be added? The SPEC asks for &quot;test for both ok + failed terminal states&quot; — implies at minimum two test cases, likely co-located in `tests/engine/run-cycle.test.ts`.</span>
-<span class="add">+```</span>
-<span class="fileheader">diff --git a/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/REVIEW.md b/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/REVIEW.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..5bae3ae</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/REVIEW.md</span>
-<span class="hunk">@@ -0,0 +1,48 @@</span>
-<span class="add">+```markdown</span>
-<span class="add">+# Review: Cycle 0008</span>
-<span class="add">+</span>
-<span class="add">+## Overall Verdict</span>
-<span class="add">+NEEDS-FIX — see MUST-FIX.md (4 minor test-quality issues; implementation itself is sound)</span>
-<span class="add">+</span>
-<span class="add">+## Code Quality Review</span>
-<span class="add">+</span>
-<span class="add">+### Summary</span>
-<span class="add">+Implementation cleanly delivers the issue intent: HEAD returns to `CYCLE_BASE` after both `ok` and `failed` terminal states, with diagnostic `cycle.checkout` JSONL events. Reuses the existing `git()` spawn helper, mirrors `createCycleBranch` module layout, swallows checkout failures so the `runCycle` return contract is preserved. 58/58 tests pass; typecheck shows only 2 pre-existing unrelated errors in `tests/cli/multi-loop.test.ts`.</span>
-<span class="add">+</span>
-<span class="add">+### Findings</span>
-<span class="add">+1. **Spec/Plan compliance**: All 4 PLAN tasks delivered. `checkoutBase` added to `src/engine/branch.ts:25-27`; `try/finally` wraps the step loop at `src/engine/run-cycle.ts:45-76`; new `cycle.checkout` event emitted in both branches at `:72` and `:74`; `runCycle` return shape unchanged.</span>
-<span class="add">+2. **Env-leak coupling (minor)**: `cycleEnv.CYCLE_BASE` is built from `process.env.CYCLE_BASE ?? &quot;main&quot;` then merged with `opts.env` (precedence correct). The pre-existing happy-path test doesn&#39;t override `CYCLE_BASE`, so when the suite runs under the cycle engine (which sets `CYCLE_BASE=master`), the temp repo&#39;s `main`-only branch list produces a swallowed-but-visible `cycle.checkout status=failed` line in test stdout — `tests/engine/run-cycle.test.ts:43`. Documented in BUILD.md as a PLAN deviation but not corrected at the source.</span>
-<span class="add">+3. **Empty SPEC.md (out of scope for fix)**: `docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/SPEC.md` is 1 byte. The spec step exited ok with empty stdout; RESEARCH and PLAN correctly fell back to the issue body. Artifact traceability suffers but the build is fine.</span>
-<span class="add">+4. **Unrelated working-tree change (out of scope)**: `.claude/skills/caveman/SKILL.md` is deleted in the working tree but is unrelated to cycle 0008. Will be picked up by the commit step if not stashed.</span>
-<span class="add">+5. **Architecture fit**: Good. No new dependencies, no `simple-git` introduction. The new `currentBranch` helper is appropriately inlined in `run-cycle.ts:12-20` rather than widening the `branch.ts` surface, matching the PLAN guidance. `cycle.checkout` is a new event class but the only JSONL consumer (`src/cli.ts` ingesting `issue.ingested`) does not parse `cycle.*` events, so non-breaking.</span>
-<span class="add">+</span>
-<span class="add">+### Spec Compliance Checklist</span>
-<span class="add">+- [x] HEAD returns to `CYCLE_BASE` after `runCycle` ok path — verified by `tests/engine/run-cycle.test.ts:87-88`</span>
-<span class="add">+- [x] HEAD returns to `CYCLE_BASE` after `runCycle` failed path — verified by `tests/engine/run-cycle.test.ts:132-133`</span>
-<span class="add">+- [x] `cycle.checkout` JSONL event emitted after `cycle.end` — `src/engine/run-cycle.ts:72,74`</span>
-<span class="add">+- [x] Checkout failure swallowed; `runCycle` return contract unchanged — `:73-75` catch + log</span>
-<span class="add">+- [x] Test coverage for both `ok` and `failed` terminal states — `tests/engine/run-cycle.test.ts:59-97` and `:99-142`</span>
-<span class="add">+- [x] `cycle.end` event payload unchanged — emissions at `:61` and `:66` untouched in structure</span>
-<span class="add">+- [x] No `commit.sh` / `pr.sh` modifications — confirmed by `git diff master..HEAD --stat`</span>
-<span class="add">+</span>
-<span class="add">+## Adversarial Test Review</span>
-<span class="add">+</span>
-<span class="add">+### Summary</span>
-<span class="add">+Adequate. Tests use real git, real filesystem, real spawn — no mocking. Cover both ok and failed terminal paths with concrete `git rev-parse --abbrev-ref HEAD` assertions. However, three implementation behaviors that PLAN claims are verified are NOT actually verified by the assertions: event ordering, the `cycle.checkout status=failed` branch, and the `head_before` diagnostic field.</span>
-<span class="add">+</span>
-<span class="add">+### Findings</span>
-<span class="add">+1. **Ordering assertion is false security**: `tests/engine/run-cycle.test.ts:91-92` and `:136-137` use two independent `assert.match(log, ...)` calls. They prove both events exist; they do NOT prove `cycle.end` precedes `cycle.checkout`. PLAN.md:175 explicitly claims this is verified — it isn&#39;t. Swap the two `log.emit` calls in `run-cycle.ts:66`/`:72` and both tests still pass.</span>
-<span class="add">+2. **`cycle.checkout status=&quot;failed&quot;` branch has no test coverage**: `src/engine/run-cycle.ts:73-75` catch + log branch is dead-tested. Trivially exercisable with `CYCLE_BASE: &quot;no-such-base&quot;` — PLAN explicitly ruled dirty-tree out-of-scope, but missing-base is not dirty-tree and the impl supports it.</span>
-<span class="add">+3. **`head_before` diagnostic field unasserted**: `src/engine/run-cycle.ts:72,74` emit `head_before: headBefore`, but no assertion verifies the value. A `currentBranch` regression returning `null` for all callers would not be caught.</span>
-<span class="add">+4. **`checkoutBase` failure-path test doesn&#39;t verify HEAD is unchanged**: `tests/engine/branch.test.ts:51-66` asserts only the rejection. Adequate coverage for the helper&#39;s contract; a post-rejection `assert.equal(git(root, [&quot;rev-parse&quot;,&quot;--abbrev-ref&quot;,&quot;HEAD&quot;]).trim(), &quot;main&quot;)` would strengthen it but is low priority.</span>
-<span class="add">+5. **No mock abuse**: All git operations hit the real binary. `claude` is stubbed via on-disk fake script + `PATH` injection — established pattern. ✓</span>
-<span class="add">+6. **Boundary coverage**: Happy path ✓, mid-cycle bash exit 1 ✓, missing base branch (helper-level) ✓, missing base branch (engine-level integration) ✗.</span>
-<span class="add">+7. **Test independence**: Each test creates its own `mkdtemp` repo and `mkdtemp` bin dir, cleans up in `finally`. No shared state. ✓</span>
-<span class="add">+8. **Existing happy-path test was not extended**: PLAN Task 3 said &quot;Extend the existing happy-path test... (or add a sibling test)&quot; — builder added a sibling, fine, but did not tighten the existing test against env leakage (see Code Quality finding #2).</span>
-<span class="add">+</span>
-<span class="add">+### Test Coverage</span>
-<span class="add">+- 58 tests pass (up from 54 before this cycle; +4 new = 2 in `branch.test.ts`, 2 in `run-cycle.test.ts`).</span>
-<span class="add">+- Missing scenarios: ordering verification, failed-checkout branch via `runCycle`, `head_before` field assertion, hermetic CYCLE_BASE in the pre-existing happy-path test.</span>
-<span class="add">+```</span>
-<span class="add">+</span>
-<span class="add">+Wrote `MUST-FIX.md` to `docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/` with 4 minor test-quality tasks (ordering, failed-checkout branch, `head_before` assertion, hermetic env in pre-existing test). Implementation itself is sound and PLAN-compliant.</span>
-<span class="fileheader">diff --git a/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/SPEC.md b/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/SPEC.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..8b13789</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/SPEC.md</span>
-<span class="hunk">@@ -0,0 +1 @@</span>
-<span class="add">+</span>
-<span class="fileheader">diff --git a/src/engine/branch.ts b/src/engine/branch.ts</span>
-<span class="fileheader">index 649c524..4b9eaba 100644</span>
-<span class="meta">--- a/src/engine/branch.ts</span>
-<span class="meta">+++ b/src/engine/branch.ts</span>
-<span class="hunk">@@ -21,3 +21,7 @@ export async function createCycleBranch(repoRoot: string, opts: { cycleId: strin</span>
-<span class="ctx">   await mkdir(artifactDir, { recursive: true });</span>
-<span class="ctx">   return { branch, artifactDir };</span>
-<span class="ctx"> }</span>
-<span class="add">+</span>
-<span class="add">+export async function checkoutBase(repoRoot: string, base: string): Promise&lt;void&gt; {</span>
-<span class="add">+  await git(repoRoot, [&quot;checkout&quot;, base]);</span>
-<span class="add">+}</span>
-<span class="fileheader">diff --git a/src/engine/run-cycle.ts b/src/engine/run-cycle.ts</span>
-<span class="fileheader">index 785c554..3e0b18c 100644</span>
-<span class="meta">--- a/src/engine/run-cycle.ts</span>
-<span class="meta">+++ b/src/engine/run-cycle.ts</span>
-<span class="hunk">@@ -3,11 +3,22 @@ import { loadWorkflow } from &quot;./workflow.ts&quot;;</span>
-<span class="ctx"> import { createLogger } from &quot;./log.ts&quot;;</span>
-<span class="ctx"> import { execBashStep } from &quot;./exec-bash.ts&quot;;</span>
-<span class="ctx"> import { execClaudecodeStep } from &quot;./exec-claudecode.ts&quot;;</span>
-<span class="del">-import { createCycleBranch } from &quot;./branch.ts&quot;;</span>
-<span class="add">+import { createCycleBranch, checkoutBase } from &quot;./branch.ts&quot;;</span>
-<span class="ctx"> import { slugify } from &quot;../issue/id.ts&quot;;</span>
-<span class="add">+import { spawn } from &quot;node:child_process&quot;;</span>
-<span class="ctx"> import { writeFile } from &quot;node:fs/promises&quot;;</span>
-<span class="ctx"> import { join } from &quot;node:path&quot;;</span>
-<span class="ctx"> </span>
-<span class="add">+function currentBranch(repoRoot: string): Promise&lt;string | null&gt; {</span>
-<span class="add">+  return new Promise((resolve) =&gt; {</span>
-<span class="add">+    const child = spawn(&quot;git&quot;, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;], { cwd: repoRoot, shell: false });</span>
-<span class="add">+    let stdout = &quot;&quot;;</span>
-<span class="add">+    child.stdout.on(&quot;data&quot;, (d) =&gt; { stdout += d.toString(); });</span>
-<span class="add">+    child.on(&quot;close&quot;, (code) =&gt; resolve(code === 0 ? stdout.trim() : null));</span>
-<span class="add">+    child.on(&quot;error&quot;, () =&gt; resolve(null));</span>
-<span class="add">+  });</span>
-<span class="add">+}</span>
-<span class="add">+</span>
-<span class="ctx"> export type RunCycleOpts = {</span>
-<span class="ctx">   issueId: string;</span>
-<span class="ctx">   title: string;</span>
-<span class="hunk">@@ -31,26 +42,36 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {</span>
-<span class="ctx">     ...(opts.env ?? {}),</span>
-<span class="ctx">   };</span>
-<span class="ctx"> </span>
-<span class="del">-  for (const step of wf.steps) {</span>
-<span class="del">-    await log.emit(&quot;step.start&quot;, { cycle_id: cycleId, step: step.name, agent: step.agent });</span>
-<span class="del">-    let r;</span>
-<span class="del">-    if (step.agent === &quot;bash&quot;) {</span>
-<span class="del">-      r = await execBashStep(repoRoot, step.command!, cycleEnv);</span>
-<span class="del">-    } else if (step.agent === &quot;claudecode&quot;) {</span>
-<span class="del">-      r = await execClaudecodeStep(repoRoot, step.prompt!, cycleEnv);</span>
-<span class="del">-      if (r.status === &quot;ok&quot; &amp;&amp; step.name) {</span>
-<span class="del">-        await writeFile(join(artifactDir, `${step.name.toUpperCase()}.md`), r.stdout, &quot;utf8&quot;);</span>
-<span class="add">+  try {</span>
-<span class="add">+    for (const step of wf.steps) {</span>
-<span class="add">+      await log.emit(&quot;step.start&quot;, { cycle_id: cycleId, step: step.name, agent: step.agent });</span>
-<span class="add">+      let r;</span>
-<span class="add">+      if (step.agent === &quot;bash&quot;) {</span>
-<span class="add">+        r = await execBashStep(repoRoot, step.command!, cycleEnv);</span>
-<span class="add">+      } else if (step.agent === &quot;claudecode&quot;) {</span>
-<span class="add">+        r = await execClaudecodeStep(repoRoot, step.prompt!, cycleEnv);</span>
-<span class="add">+        if (r.status === &quot;ok&quot; &amp;&amp; step.name) {</span>
-<span class="add">+          await writeFile(join(artifactDir, `${step.name.toUpperCase()}.md`), r.stdout, &quot;utf8&quot;);</span>
-<span class="add">+        }</span>
-<span class="add">+      } else {</span>
-<span class="add">+        throw new Error(`unknown agent: ${(step as { agent: string }).agent}`);</span>
-<span class="add">+      }</span>
-<span class="add">+      await log.emit(&quot;step.end&quot;, { cycle_id: cycleId, step: step.name, status: r.status, exit_code: r.exitCode });</span>
-<span class="add">+      if (r.status === &quot;failed&quot;) {</span>
-<span class="add">+        await log.emit(&quot;cycle.end&quot;, { cycle_id: cycleId, status: &quot;failed&quot;, failing_step: step.name });</span>
-<span class="add">+        return { cycleId, status: &quot;failed&quot; as const, failingStep: step.name };</span>
-<span class="ctx">       }</span>
-<span class="del">-    } else {</span>
-<span class="del">-      throw new Error(`unknown agent: ${(step as { agent: string }).agent}`);</span>
-<span class="ctx">     }</span>
-<span class="del">-    await log.emit(&quot;step.end&quot;, { cycle_id: cycleId, step: step.name, status: r.status, exit_code: r.exitCode });</span>
-<span class="del">-    if (r.status === &quot;failed&quot;) {</span>
-<span class="del">-      await log.emit(&quot;cycle.end&quot;, { cycle_id: cycleId, status: &quot;failed&quot;, failing_step: step.name });</span>
-<span class="del">-      return { cycleId, status: &quot;failed&quot; as const, failingStep: step.name };</span>
-<span class="add">+</span>
-<span class="add">+    await log.emit(&quot;cycle.end&quot;, { cycle_id: cycleId, status: &quot;ok&quot; });</span>
-<span class="add">+    return { cycleId, status: &quot;ok&quot; as const };</span>
-<span class="add">+  } finally {</span>
-<span class="add">+    const headBefore = await currentBranch(repoRoot);</span>
-<span class="add">+    try {</span>
-<span class="add">+      await checkoutBase(repoRoot, cycleEnv.CYCLE_BASE);</span>
-<span class="add">+      await log.emit(&quot;cycle.checkout&quot;, { cycle_id: cycleId, status: &quot;ok&quot;, base: cycleEnv.CYCLE_BASE, head_before: headBefore });</span>
-<span class="add">+    } catch (err) {</span>
-<span class="add">+      await log.emit(&quot;cycle.checkout&quot;, { cycle_id: cycleId, status: &quot;failed&quot;, base: cycleEnv.CYCLE_BASE, head_before: headBefore, reason: (err as Error).message });</span>
-<span class="ctx">     }</span>
-<span class="ctx">   }</span>
-<span class="del">-</span>
-<span class="del">-  await log.emit(&quot;cycle.end&quot;, { cycle_id: cycleId, status: &quot;ok&quot; });</span>
-<span class="del">-  return { cycleId, status: &quot;ok&quot; as const };</span>
-<span class="ctx"> }</span>
-<span class="fileheader">diff --git a/tests/engine/branch.test.ts b/tests/engine/branch.test.ts</span>
-<span class="fileheader">index e7e3418..b7aa3c7 100644</span>
-<span class="meta">--- a/tests/engine/branch.test.ts</span>
-<span class="meta">+++ b/tests/engine/branch.test.ts</span>
-<span class="hunk">@@ -4,7 +4,7 @@ import { mkdtemp, rm } from &quot;node:fs/promises&quot;;</span>
-<span class="ctx"> import { tmpdir } from &quot;node:os&quot;;</span>
-<span class="ctx"> import { join } from &quot;node:path&quot;;</span>
-<span class="ctx"> import { spawnSync } from &quot;node:child_process&quot;;</span>
-<span class="del">-import { createCycleBranch } from &quot;../../src/engine/branch.ts&quot;;</span>
-<span class="add">+import { createCycleBranch, checkoutBase } from &quot;../../src/engine/branch.ts&quot;;</span>
-<span class="ctx"> </span>
-<span class="ctx"> function git(cwd: string, args: string[]) {</span>
-<span class="ctx">   const r = spawnSync(&quot;git&quot;, args, { cwd, encoding: &quot;utf8&quot; });</span>
-<span class="hunk">@@ -29,3 +29,38 @@ test(&quot;creates branch cycle/feature/&lt;slug&gt; and artifact dir&quot;, async () =&gt; {</span>
-<span class="ctx">     await rm(root, { recursive: true, force: true });</span>
-<span class="ctx">   }</span>
-<span class="ctx"> });</span>
-<span class="add">+</span>
-<span class="add">+test(&quot;checkoutBase returns HEAD to the given base branch&quot;, async () =&gt; {</span>
-<span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
-<span class="add">+  try {</span>
-<span class="add">+    git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span>
-<span class="add">+    git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span>
-<span class="add">+    git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span>
-<span class="add">+    git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span>
-<span class="add">+</span>
-<span class="add">+    await createCycleBranch(root, { cycleId: &quot;0001&quot;, workflow: &quot;feature&quot;, slug: &quot;thing&quot; });</span>
-<span class="add">+    assert.equal(git(root, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;]).trim(), &quot;cycle/feature/thing&quot;);</span>
-<span class="add">+</span>
-<span class="add">+    await checkoutBase(root, &quot;main&quot;);</span>
-<span class="add">+    assert.equal(git(root, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;]).trim(), &quot;main&quot;);</span>
-<span class="add">+  } finally {</span>
-<span class="add">+    await rm(root, { recursive: true, force: true });</span>
-<span class="add">+  }</span>
-<span class="add">+});</span>
-<span class="add">+</span>
-<span class="add">+test(&quot;checkoutBase rejects when base branch does not exist&quot;, async () =&gt; {</span>
-<span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
-<span class="add">+  try {</span>
-<span class="add">+    git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span>
-<span class="add">+    git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span>
-<span class="add">+    git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span>
-<span class="add">+    git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span>
-<span class="add">+</span>
-<span class="add">+    await assert.rejects(</span>
-<span class="add">+      () =&gt; checkoutBase(root, &quot;no-such-branch&quot;),</span>
-<span class="add">+      (err: Error) =&gt; /git checkout no-such-branch failed/.test(err.message),</span>
-<span class="add">+    );</span>
-<span class="add">+  } finally {</span>
-<span class="add">+    await rm(root, { recursive: true, force: true });</span>
-<span class="add">+  }</span>
-<span class="add">+});</span>
-<span class="fileheader">diff --git a/tests/engine/run-cycle.test.ts b/tests/engine/run-cycle.test.ts</span>
-<span class="fileheader">index 7697ddc..01a6d86 100644</span>
-<span class="meta">--- a/tests/engine/run-cycle.test.ts</span>
-<span class="meta">+++ b/tests/engine/run-cycle.test.ts</span>
-<span class="hunk">@@ -40,7 +40,7 @@ test(&quot;runs a 2-step workflow end-to-end and writes log + artifacts&quot;, async () =&gt;</span>
-<span class="ctx">       issueId: &quot;TEST-1&quot;,</span>
-<span class="ctx">       title: &quot;spec the thing&quot;,</span>
-<span class="ctx">       workflow: &quot;feature&quot;,</span>
-<span class="del">-      env: { PATH: `${bin}:${process.env.PATH}` },</span>
-<span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span>
-<span class="ctx">     });</span>
-<span class="ctx">     assert.equal(r.cycleId, &quot;0001&quot;);</span>
-<span class="ctx">     assert.equal(r.status, &quot;ok&quot;);</span>
-<span class="hunk">@@ -55,3 +55,137 @@ test(&quot;runs a 2-step workflow end-to-end and writes log + artifacts&quot;, async () =&gt;</span>
-<span class="ctx">     await rm(bin, { recursive: true, force: true });</span>
-<span class="ctx">   }</span>
-<span class="ctx"> });</span>
-<span class="add">+</span>
-<span class="add">+test(&quot;checks out base branch after successful cycle&quot;, async () =&gt; {</span>
-<span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
-<span class="add">+  const bin = await mkdtemp(join(tmpdir(), &quot;cycle-bin-&quot;));</span>
-<span class="add">+  try {</span>
-<span class="add">+    git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span>
-<span class="add">+    git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span>
-<span class="add">+    git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span>
-<span class="add">+    git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span>
-<span class="add">+</span>
-<span class="add">+    await mkdir(join(root, &quot;.cycle/workflows&quot;), { recursive: true });</span>
-<span class="add">+    await mkdir(join(root, &quot;.cycle/prompts&quot;), { recursive: true });</span>
-<span class="add">+</span>
-<span class="add">+    await writeFile(join(root, &quot;.cycle/workflows/feature.yaml&quot;),</span>
-<span class="add">+      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n`, &quot;utf8&quot;);</span>
-<span class="add">+    await writeFile(join(root, &quot;.cycle/prompts/spec.md&quot;), &quot;spec body&quot;, &quot;utf8&quot;);</span>
-<span class="add">+</span>
-<span class="add">+    const fake = join(bin, &quot;claude&quot;);</span>
-<span class="add">+    await writeFile(fake, &quot;#!/bin/bash\necho FAKED\n&quot;, &quot;utf8&quot;);</span>
-<span class="add">+    await chmod(fake, 0o755);</span>
-<span class="add">+</span>
-<span class="add">+    const r = await runCycle(root, {</span>
-<span class="add">+      issueId: &quot;TEST-1&quot;,</span>
-<span class="add">+      title: &quot;spec the thing&quot;,</span>
-<span class="add">+      workflow: &quot;feature&quot;,</span>
-<span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span>
-<span class="add">+    });</span>
-<span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span>
-<span class="add">+</span>
-<span class="add">+    const head = git(root, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;]).trim();</span>
-<span class="add">+    assert.equal(head, &quot;main&quot;);</span>
-<span class="add">+</span>
-<span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span>
-<span class="add">+    const lines = log.trim().split(&quot;\n&quot;);</span>
-<span class="add">+    const endIdx = lines.findIndex(l =&gt; l.includes(&#39;&quot;event&quot;:&quot;cycle.end&quot;&#39;));</span>
-<span class="add">+    const checkoutIdx = lines.findIndex(l =&gt; l.includes(&#39;&quot;event&quot;:&quot;cycle.checkout&quot;&#39;));</span>
-<span class="add">+    assert.ok(endIdx !== -1 &amp;&amp; checkoutIdx !== -1, &quot;both events emitted&quot;);</span>
-<span class="add">+    assert.ok(endIdx &lt; checkoutIdx, `cycle.end (line ${endIdx}) must precede cycle.checkout (line ${checkoutIdx})`);</span>
-<span class="add">+    assert.match(log, /&quot;event&quot;:&quot;cycle.end&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;ok&quot;/);</span>
-<span class="add">+    assert.match(log, /&quot;event&quot;:&quot;cycle.checkout&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;ok&quot;,&quot;base&quot;:&quot;main&quot;,&quot;head_before&quot;:&quot;cycle\/feature\/spec-the-thing&quot;/);</span>
-<span class="add">+  } finally {</span>
-<span class="add">+    await rm(root, { recursive: true, force: true });</span>
-<span class="add">+    await rm(bin, { recursive: true, force: true });</span>
-<span class="add">+  }</span>
-<span class="add">+});</span>
-<span class="add">+</span>
-<span class="add">+test(&quot;checks out base branch after failed cycle&quot;, async () =&gt; {</span>
-<span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
-<span class="add">+  const bin = await mkdtemp(join(tmpdir(), &quot;cycle-bin-&quot;));</span>
-<span class="add">+  try {</span>
-<span class="add">+    git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span>
-<span class="add">+    git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span>
-<span class="add">+    git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span>
-<span class="add">+    git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span>
-<span class="add">+</span>
-<span class="add">+    await mkdir(join(root, &quot;.cycle/workflows&quot;), { recursive: true });</span>
-<span class="add">+    await mkdir(join(root, &quot;.cycle/prompts&quot;), { recursive: true });</span>
-<span class="add">+    await mkdir(join(root, &quot;.cycle/scripts&quot;), { recursive: true });</span>
-<span class="add">+</span>
-<span class="add">+    await writeFile(join(root, &quot;.cycle/workflows/feature.yaml&quot;),</span>
-<span class="add">+      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n  - name: boom\n    agent: bash\n    command: scripts/boom.sh\n`, &quot;utf8&quot;);</span>
-<span class="add">+    await writeFile(join(root, &quot;.cycle/prompts/spec.md&quot;), &quot;spec body&quot;, &quot;utf8&quot;);</span>
-<span class="add">+    const boom = join(root, &quot;.cycle/scripts/boom.sh&quot;);</span>
-<span class="add">+    await writeFile(boom, &quot;#!/bin/bash\necho boom\nexit 1\n&quot;, &quot;utf8&quot;);</span>
-<span class="add">+    await chmod(boom, 0o755);</span>
-<span class="add">+</span>
-<span class="add">+    const fake = join(bin, &quot;claude&quot;);</span>
-<span class="add">+    await writeFile(fake, &quot;#!/bin/bash\necho FAKED\n&quot;, &quot;utf8&quot;);</span>
-<span class="add">+    await chmod(fake, 0o755);</span>
-<span class="add">+</span>
-<span class="add">+    const r = await runCycle(root, {</span>
-<span class="add">+      issueId: &quot;TEST-1&quot;,</span>
-<span class="add">+      title: &quot;spec the thing&quot;,</span>
-<span class="add">+      workflow: &quot;feature&quot;,</span>
-<span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span>
-<span class="add">+    });</span>
-<span class="add">+    assert.equal(r.status, &quot;failed&quot;);</span>
-<span class="add">+    assert.equal(r.failingStep, &quot;boom&quot;);</span>
-<span class="add">+</span>
-<span class="add">+    const head = git(root, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;]).trim();</span>
-<span class="add">+    assert.equal(head, &quot;main&quot;);</span>
-<span class="add">+</span>
-<span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span>
-<span class="add">+    const lines = log.trim().split(&quot;\n&quot;);</span>
-<span class="add">+    const endIdx = lines.findIndex(l =&gt; l.includes(&#39;&quot;event&quot;:&quot;cycle.end&quot;&#39;));</span>
-<span class="add">+    const checkoutIdx = lines.findIndex(l =&gt; l.includes(&#39;&quot;event&quot;:&quot;cycle.checkout&quot;&#39;));</span>
-<span class="add">+    assert.ok(endIdx !== -1 &amp;&amp; checkoutIdx !== -1, &quot;both events emitted&quot;);</span>
-<span class="add">+    assert.ok(endIdx &lt; checkoutIdx, `cycle.end (line ${endIdx}) must precede cycle.checkout (line ${checkoutIdx})`);</span>
-<span class="add">+    assert.match(log, /&quot;event&quot;:&quot;cycle.end&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;failed&quot;,&quot;failing_step&quot;:&quot;boom&quot;/);</span>
-<span class="add">+    assert.match(log, /&quot;event&quot;:&quot;cycle.checkout&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;ok&quot;,&quot;base&quot;:&quot;main&quot;,&quot;head_before&quot;:&quot;cycle\/feature\/spec-the-thing&quot;/);</span>
-<span class="add">+  } finally {</span>
-<span class="add">+    await rm(root, { recursive: true, force: true });</span>
-<span class="add">+    await rm(bin, { recursive: true, force: true });</span>
-<span class="add">+  }</span>
-<span class="add">+});</span>
-<span class="add">+</span>
-<span class="add">+test(&quot;logs cycle.checkout status=failed when base branch does not exist&quot;, async () =&gt; {</span>
-<span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span>
-<span class="add">+  const bin = await mkdtemp(join(tmpdir(), &quot;cycle-bin-&quot;));</span>
-<span class="add">+  try {</span>
-<span class="add">+    git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span>
-<span class="add">+    git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span>
-<span class="add">+    git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span>
-<span class="add">+    git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span>
-<span class="add">+</span>
-<span class="add">+    await mkdir(join(root, &quot;.cycle/workflows&quot;), { recursive: true });</span>
-<span class="add">+    await mkdir(join(root, &quot;.cycle/prompts&quot;), { recursive: true });</span>
-<span class="add">+    await writeFile(join(root, &quot;.cycle/workflows/feature.yaml&quot;),</span>
-<span class="add">+      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n`, &quot;utf8&quot;);</span>
-<span class="add">+    await writeFile(join(root, &quot;.cycle/prompts/spec.md&quot;), &quot;spec body&quot;, &quot;utf8&quot;);</span>
-<span class="add">+</span>
-<span class="add">+    const fake = join(bin, &quot;claude&quot;);</span>
-<span class="add">+    await writeFile(fake, &quot;#!/bin/bash\necho FAKED\n&quot;, &quot;utf8&quot;);</span>
-<span class="add">+    await chmod(fake, 0o755);</span>
-<span class="add">+</span>
-<span class="add">+    const r = await runCycle(root, {</span>
-<span class="add">+      issueId: &quot;TEST-1&quot;,</span>
-<span class="add">+      title: &quot;spec the thing&quot;,</span>
-<span class="add">+      workflow: &quot;feature&quot;,</span>
-<span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;no-such-base&quot; },</span>
-<span class="add">+    });</span>
-<span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span>
-<span class="add">+</span>
-<span class="add">+    const head = git(root, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;]).trim();</span>
-<span class="add">+    assert.equal(head, &quot;cycle/feature/spec-the-thing&quot;);</span>
-<span class="add">+</span>
-<span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span>
-<span class="add">+    assert.match(log, /&quot;event&quot;:&quot;cycle.checkout&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;failed&quot;,&quot;base&quot;:&quot;no-such-base&quot;/);</span>
-<span class="add">+    assert.match(log, /&quot;reason&quot;:&quot;git checkout no-such-base failed:/);</span>
-<span class="add">+  } finally {</span>
-<span class="add">+    await rm(root, { recursive: true, force: true });</span>
-<span class="add">+    await rm(bin, { recursive: true, force: true });</span>
-<span class="add">+  }</span>
-<span class="add">+});</span>
-<span class="ctx">&nbsp;</span></pre>
+  <pre class="diff"><span class="fileheader">diff --git a/src/engine/branch.ts b/src/engine/branch.ts</span><span class="fileheader">index 649c524..4b9eaba 100644</span><span class="meta">--- a/src/engine/branch.ts</span><span class="meta">+++ b/src/engine/branch.ts</span><span class="hunk">@@ -21,3 +21,7 @@ export async function createCycleBranch(repoRoot: string, opts: { cycleId: strin</span><span class="ctx">   await mkdir(artifactDir, { recursive: true });</span><span class="ctx">   return { branch, artifactDir };</span><span class="ctx"> }</span><span class="add">+</span><span class="add">+export async function checkoutBase(repoRoot: string, base: string): Promise&lt;void&gt; {</span><span class="add">+  await git(repoRoot, [&quot;checkout&quot;, base]);</span><span class="add">+}</span><span class="fileheader">diff --git a/src/engine/run-cycle.ts b/src/engine/run-cycle.ts</span><span class="fileheader">index 785c554..3e0b18c 100644</span><span class="meta">--- a/src/engine/run-cycle.ts</span><span class="meta">+++ b/src/engine/run-cycle.ts</span><span class="hunk">@@ -3,11 +3,22 @@ import { loadWorkflow } from &quot;./workflow.ts&quot;;</span><span class="ctx"> import { createLogger } from &quot;./log.ts&quot;;</span><span class="ctx"> import { execBashStep } from &quot;./exec-bash.ts&quot;;</span><span class="ctx"> import { execClaudecodeStep } from &quot;./exec-claudecode.ts&quot;;</span><span class="del">-import { createCycleBranch } from &quot;./branch.ts&quot;;</span><span class="add">+import { createCycleBranch, checkoutBase } from &quot;./branch.ts&quot;;</span><span class="ctx"> import { slugify } from &quot;../issue/id.ts&quot;;</span><span class="add">+import { spawn } from &quot;node:child_process&quot;;</span><span class="ctx"> import { writeFile } from &quot;node:fs/promises&quot;;</span><span class="ctx"> import { join } from &quot;node:path&quot;;</span><span class="ctx"> </span><span class="add">+function currentBranch(repoRoot: string): Promise&lt;string | null&gt; {</span><span class="add">+  return new Promise((resolve) =&gt; {</span><span class="add">+    const child = spawn(&quot;git&quot;, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;], { cwd: repoRoot, shell: false });</span><span class="add">+    let stdout = &quot;&quot;;</span><span class="add">+    child.stdout.on(&quot;data&quot;, (d) =&gt; { stdout += d.toString(); });</span><span class="add">+    child.on(&quot;close&quot;, (code) =&gt; resolve(code === 0 ? stdout.trim() : null));</span><span class="add">+    child.on(&quot;error&quot;, () =&gt; resolve(null));</span><span class="add">+  });</span><span class="add">+}</span><span class="add">+</span><span class="ctx"> export type RunCycleOpts = {</span><span class="ctx">   issueId: string;</span><span class="ctx">   title: string;</span><span class="hunk">@@ -31,26 +42,36 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {</span><span class="ctx">     ...(opts.env ?? {}),</span><span class="ctx">   };</span><span class="ctx"> </span><span class="del">-  for (const step of wf.steps) {</span><span class="del">-    await log.emit(&quot;step.start&quot;, { cycle_id: cycleId, step: step.name, agent: step.agent });</span><span class="del">-    let r;</span><span class="del">-    if (step.agent === &quot;bash&quot;) {</span><span class="del">-      r = await execBashStep(repoRoot, step.command!, cycleEnv);</span><span class="del">-    } else if (step.agent === &quot;claudecode&quot;) {</span><span class="del">-      r = await execClaudecodeStep(repoRoot, step.prompt!, cycleEnv);</span><span class="del">-      if (r.status === &quot;ok&quot; &amp;&amp; step.name) {</span><span class="del">-        await writeFile(join(artifactDir, `${step.name.toUpperCase()}.md`), r.stdout, &quot;utf8&quot;);</span><span class="add">+  try {</span><span class="add">+    for (const step of wf.steps) {</span><span class="add">+      await log.emit(&quot;step.start&quot;, { cycle_id: cycleId, step: step.name, agent: step.agent });</span><span class="add">+      let r;</span><span class="add">+      if (step.agent === &quot;bash&quot;) {</span><span class="add">+        r = await execBashStep(repoRoot, step.command!, cycleEnv);</span><span class="add">+      } else if (step.agent === &quot;claudecode&quot;) {</span><span class="add">+        r = await execClaudecodeStep(repoRoot, step.prompt!, cycleEnv);</span><span class="add">+        if (r.status === &quot;ok&quot; &amp;&amp; step.name) {</span><span class="add">+          await writeFile(join(artifactDir, `${step.name.toUpperCase()}.md`), r.stdout, &quot;utf8&quot;);</span><span class="add">+        }</span><span class="add">+      } else {</span><span class="add">+        throw new Error(`unknown agent: ${(step as { agent: string }).agent}`);</span><span class="add">+      }</span><span class="add">+      await log.emit(&quot;step.end&quot;, { cycle_id: cycleId, step: step.name, status: r.status, exit_code: r.exitCode });</span><span class="add">+      if (r.status === &quot;failed&quot;) {</span><span class="add">+        await log.emit(&quot;cycle.end&quot;, { cycle_id: cycleId, status: &quot;failed&quot;, failing_step: step.name });</span><span class="add">+        return { cycleId, status: &quot;failed&quot; as const, failingStep: step.name };</span><span class="ctx">       }</span><span class="del">-    } else {</span><span class="del">-      throw new Error(`unknown agent: ${(step as { agent: string }).agent}`);</span><span class="ctx">     }</span><span class="del">-    await log.emit(&quot;step.end&quot;, { cycle_id: cycleId, step: step.name, status: r.status, exit_code: r.exitCode });</span><span class="del">-    if (r.status === &quot;failed&quot;) {</span><span class="del">-      await log.emit(&quot;cycle.end&quot;, { cycle_id: cycleId, status: &quot;failed&quot;, failing_step: step.name });</span><span class="del">-      return { cycleId, status: &quot;failed&quot; as const, failingStep: step.name };</span><span class="add">+</span><span class="add">+    await log.emit(&quot;cycle.end&quot;, { cycle_id: cycleId, status: &quot;ok&quot; });</span><span class="add">+    return { cycleId, status: &quot;ok&quot; as const };</span><span class="add">+  } finally {</span><span class="add">+    const headBefore = await currentBranch(repoRoot);</span><span class="add">+    try {</span><span class="add">+      await checkoutBase(repoRoot, cycleEnv.CYCLE_BASE);</span><span class="add">+      await log.emit(&quot;cycle.checkout&quot;, { cycle_id: cycleId, status: &quot;ok&quot;, base: cycleEnv.CYCLE_BASE, head_before: headBefore });</span><span class="add">+    } catch (err) {</span><span class="add">+      await log.emit(&quot;cycle.checkout&quot;, { cycle_id: cycleId, status: &quot;failed&quot;, base: cycleEnv.CYCLE_BASE, head_before: headBefore, reason: (err as Error).message });</span><span class="ctx">     }</span><span class="ctx">   }</span><span class="del">-</span><span class="del">-  await log.emit(&quot;cycle.end&quot;, { cycle_id: cycleId, status: &quot;ok&quot; });</span><span class="del">-  return { cycleId, status: &quot;ok&quot; as const };</span><span class="ctx"> }</span><span class="fileheader">diff --git a/tests/engine/branch.test.ts b/tests/engine/branch.test.ts</span><span class="fileheader">index e7e3418..b7aa3c7 100644</span><span class="meta">--- a/tests/engine/branch.test.ts</span><span class="meta">+++ b/tests/engine/branch.test.ts</span><span class="hunk">@@ -4,7 +4,7 @@ import { mkdtemp, rm } from &quot;node:fs/promises&quot;;</span><span class="ctx"> import { tmpdir } from &quot;node:os&quot;;</span><span class="ctx"> import { join } from &quot;node:path&quot;;</span><span class="ctx"> import { spawnSync } from &quot;node:child_process&quot;;</span><span class="del">-import { createCycleBranch } from &quot;../../src/engine/branch.ts&quot;;</span><span class="add">+import { createCycleBranch, checkoutBase } from &quot;../../src/engine/branch.ts&quot;;</span><span class="ctx"> </span><span class="ctx"> function git(cwd: string, args: string[]) {</span><span class="ctx">   const r = spawnSync(&quot;git&quot;, args, { cwd, encoding: &quot;utf8&quot; });</span><span class="hunk">@@ -29,3 +29,38 @@ test(&quot;creates branch cycle/feature/&lt;slug&gt; and artifact dir&quot;, async () =&gt; {</span><span class="ctx">     await rm(root, { recursive: true, force: true });</span><span class="ctx">   }</span><span class="ctx"> });</span><span class="add">+</span><span class="add">+test(&quot;checkoutBase returns HEAD to the given base branch&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span><span class="add">+  try {</span><span class="add">+    git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span><span class="add">+    git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span><span class="add">+    git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span><span class="add">+    git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span><span class="add">+</span><span class="add">+    await createCycleBranch(root, { cycleId: &quot;0001&quot;, workflow: &quot;feature&quot;, slug: &quot;thing&quot; });</span><span class="add">+    assert.equal(git(root, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;]).trim(), &quot;cycle/feature/thing&quot;);</span><span class="add">+</span><span class="add">+    await checkoutBase(root, &quot;main&quot;);</span><span class="add">+    assert.equal(git(root, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;]).trim(), &quot;main&quot;);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;checkoutBase rejects when base branch does not exist&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span><span class="add">+  try {</span><span class="add">+    git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span><span class="add">+    git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span><span class="add">+    git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span><span class="add">+    git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span><span class="add">+</span><span class="add">+    await assert.rejects(</span><span class="add">+      () =&gt; checkoutBase(root, &quot;no-such-branch&quot;),</span><span class="add">+      (err: Error) =&gt; /git checkout no-such-branch failed/.test(err.message),</span><span class="add">+    );</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="fileheader">diff --git a/tests/engine/run-cycle.test.ts b/tests/engine/run-cycle.test.ts</span><span class="fileheader">index 7697ddc..01a6d86 100644</span><span class="meta">--- a/tests/engine/run-cycle.test.ts</span><span class="meta">+++ b/tests/engine/run-cycle.test.ts</span><span class="hunk">@@ -40,7 +40,7 @@ test(&quot;runs a 2-step workflow end-to-end and writes log + artifacts&quot;, async () =&gt;</span><span class="ctx">       issueId: &quot;TEST-1&quot;,</span><span class="ctx">       title: &quot;spec the thing&quot;,</span><span class="ctx">       workflow: &quot;feature&quot;,</span><span class="del">-      env: { PATH: `${bin}:${process.env.PATH}` },</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span><span class="ctx">     });</span><span class="ctx">     assert.equal(r.cycleId, &quot;0001&quot;);</span><span class="ctx">     assert.equal(r.status, &quot;ok&quot;);</span><span class="hunk">@@ -55,3 +55,137 @@ test(&quot;runs a 2-step workflow end-to-end and writes log + artifacts&quot;, async () =&gt;</span><span class="ctx">     await rm(bin, { recursive: true, force: true });</span><span class="ctx">   }</span><span class="ctx"> });</span><span class="add">+</span><span class="add">+test(&quot;checks out base branch after successful cycle&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span><span class="add">+  const bin = await mkdtemp(join(tmpdir(), &quot;cycle-bin-&quot;));</span><span class="add">+  try {</span><span class="add">+    git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span><span class="add">+    git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span><span class="add">+    git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span><span class="add">+    git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span><span class="add">+</span><span class="add">+    await mkdir(join(root, &quot;.cycle/workflows&quot;), { recursive: true });</span><span class="add">+    await mkdir(join(root, &quot;.cycle/prompts&quot;), { recursive: true });</span><span class="add">+</span><span class="add">+    await writeFile(join(root, &quot;.cycle/workflows/feature.yaml&quot;),</span><span class="add">+      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n`, &quot;utf8&quot;);</span><span class="add">+    await writeFile(join(root, &quot;.cycle/prompts/spec.md&quot;), &quot;spec body&quot;, &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+    const fake = join(bin, &quot;claude&quot;);</span><span class="add">+    await writeFile(fake, &quot;#!/bin/bash\necho FAKED\n&quot;, &quot;utf8&quot;);</span><span class="add">+    await chmod(fake, 0o755);</span><span class="add">+</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      issueId: &quot;TEST-1&quot;,</span><span class="add">+      title: &quot;spec the thing&quot;,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span><span class="add">+</span><span class="add">+    const head = git(root, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;]).trim();</span><span class="add">+    assert.equal(head, &quot;main&quot;);</span><span class="add">+</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    const lines = log.trim().split(&quot;\n&quot;);</span><span class="add">+    const endIdx = lines.findIndex(l =&gt; l.includes(&#39;&quot;event&quot;:&quot;cycle.end&quot;&#39;));</span><span class="add">+    const checkoutIdx = lines.findIndex(l =&gt; l.includes(&#39;&quot;event&quot;:&quot;cycle.checkout&quot;&#39;));</span><span class="add">+    assert.ok(endIdx !== -1 &amp;&amp; checkoutIdx !== -1, &quot;both events emitted&quot;);</span><span class="add">+    assert.ok(endIdx &lt; checkoutIdx, `cycle.end (line ${endIdx}) must precede cycle.checkout (line ${checkoutIdx})`);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;cycle.end&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;ok&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;cycle.checkout&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;ok&quot;,&quot;base&quot;:&quot;main&quot;,&quot;head_before&quot;:&quot;cycle\/feature\/spec-the-thing&quot;/);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+    await rm(bin, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;checks out base branch after failed cycle&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span><span class="add">+  const bin = await mkdtemp(join(tmpdir(), &quot;cycle-bin-&quot;));</span><span class="add">+  try {</span><span class="add">+    git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span><span class="add">+    git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span><span class="add">+    git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span><span class="add">+    git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span><span class="add">+</span><span class="add">+    await mkdir(join(root, &quot;.cycle/workflows&quot;), { recursive: true });</span><span class="add">+    await mkdir(join(root, &quot;.cycle/prompts&quot;), { recursive: true });</span><span class="add">+    await mkdir(join(root, &quot;.cycle/scripts&quot;), { recursive: true });</span><span class="add">+</span><span class="add">+    await writeFile(join(root, &quot;.cycle/workflows/feature.yaml&quot;),</span><span class="add">+      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n  - name: boom\n    agent: bash\n    command: scripts/boom.sh\n`, &quot;utf8&quot;);</span><span class="add">+    await writeFile(join(root, &quot;.cycle/prompts/spec.md&quot;), &quot;spec body&quot;, &quot;utf8&quot;);</span><span class="add">+    const boom = join(root, &quot;.cycle/scripts/boom.sh&quot;);</span><span class="add">+    await writeFile(boom, &quot;#!/bin/bash\necho boom\nexit 1\n&quot;, &quot;utf8&quot;);</span><span class="add">+    await chmod(boom, 0o755);</span><span class="add">+</span><span class="add">+    const fake = join(bin, &quot;claude&quot;);</span><span class="add">+    await writeFile(fake, &quot;#!/bin/bash\necho FAKED\n&quot;, &quot;utf8&quot;);</span><span class="add">+    await chmod(fake, 0o755);</span><span class="add">+</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      issueId: &quot;TEST-1&quot;,</span><span class="add">+      title: &quot;spec the thing&quot;,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;failed&quot;);</span><span class="add">+    assert.equal(r.failingStep, &quot;boom&quot;);</span><span class="add">+</span><span class="add">+    const head = git(root, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;]).trim();</span><span class="add">+    assert.equal(head, &quot;main&quot;);</span><span class="add">+</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    const lines = log.trim().split(&quot;\n&quot;);</span><span class="add">+    const endIdx = lines.findIndex(l =&gt; l.includes(&#39;&quot;event&quot;:&quot;cycle.end&quot;&#39;));</span><span class="add">+    const checkoutIdx = lines.findIndex(l =&gt; l.includes(&#39;&quot;event&quot;:&quot;cycle.checkout&quot;&#39;));</span><span class="add">+    assert.ok(endIdx !== -1 &amp;&amp; checkoutIdx !== -1, &quot;both events emitted&quot;);</span><span class="add">+    assert.ok(endIdx &lt; checkoutIdx, `cycle.end (line ${endIdx}) must precede cycle.checkout (line ${checkoutIdx})`);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;cycle.end&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;failed&quot;,&quot;failing_step&quot;:&quot;boom&quot;/);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;cycle.checkout&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;ok&quot;,&quot;base&quot;:&quot;main&quot;,&quot;head_before&quot;:&quot;cycle\/feature\/spec-the-thing&quot;/);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+    await rm(bin, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;logs cycle.checkout status=failed when base branch does not exist&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span><span class="add">+  const bin = await mkdtemp(join(tmpdir(), &quot;cycle-bin-&quot;));</span><span class="add">+  try {</span><span class="add">+    git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span><span class="add">+    git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span><span class="add">+    git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span><span class="add">+    git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span><span class="add">+</span><span class="add">+    await mkdir(join(root, &quot;.cycle/workflows&quot;), { recursive: true });</span><span class="add">+    await mkdir(join(root, &quot;.cycle/prompts&quot;), { recursive: true });</span><span class="add">+    await writeFile(join(root, &quot;.cycle/workflows/feature.yaml&quot;),</span><span class="add">+      `name: feature\nsteps:\n  - name: spec\n    agent: claudecode\n    prompt: prompts/spec.md\n`, &quot;utf8&quot;);</span><span class="add">+    await writeFile(join(root, &quot;.cycle/prompts/spec.md&quot;), &quot;spec body&quot;, &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+    const fake = join(bin, &quot;claude&quot;);</span><span class="add">+    await writeFile(fake, &quot;#!/bin/bash\necho FAKED\n&quot;, &quot;utf8&quot;);</span><span class="add">+    await chmod(fake, 0o755);</span><span class="add">+</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      issueId: &quot;TEST-1&quot;,</span><span class="add">+      title: &quot;spec the thing&quot;,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;no-such-base&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span><span class="add">+</span><span class="add">+    const head = git(root, [&quot;rev-parse&quot;, &quot;--abbrev-ref&quot;, &quot;HEAD&quot;]).trim();</span><span class="add">+    assert.equal(head, &quot;cycle/feature/spec-the-thing&quot;);</span><span class="add">+</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    assert.match(log, /&quot;event&quot;:&quot;cycle.checkout&quot;,&quot;cycle_id&quot;:&quot;0001&quot;,&quot;status&quot;:&quot;failed&quot;,&quot;base&quot;:&quot;no-such-base&quot;/);</span><span class="add">+    assert.match(log, /&quot;reason&quot;:&quot;git checkout no-such-base failed:/);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+    await rm(bin, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span></pre>
 </section>
+
+<section><h2>REVIEW.md</h2><div class="md"><pre class="md-code" data-lang="markdown"><code># Review: Cycle 0008
+
+## Overall Verdict
+NEEDS-FIX — see MUST-FIX.md (4 minor test-quality issues; implementation itself is sound)
+
+## Code Quality Review
+
+### Summary
+Implementation cleanly delivers the issue intent: HEAD returns to `CYCLE_BASE` after both `ok` and `failed` terminal states, with diagnostic `cycle.checkout` JSONL events. Reuses the existing `git()` spawn helper, mirrors `createCycleBranch` module layout, swallows checkout failures so the `runCycle` return contract is preserved. 58/58 tests pass; typecheck shows only 2 pre-existing unrelated errors in `tests/cli/multi-loop.test.ts`.
+
+### Findings
+1. **Spec/Plan compliance**: All 4 PLAN tasks delivered. `checkoutBase` added to `src/engine/branch.ts:25-27`; `try/finally` wraps the step loop at `src/engine/run-cycle.ts:45-76`; new `cycle.checkout` event emitted in both branches at `:72` and `:74`; `runCycle` return shape unchanged.
+2. **Env-leak coupling (minor)**: `cycleEnv.CYCLE_BASE` is built from `process.env.CYCLE_BASE ?? &quot;main&quot;` then merged with `opts.env` (precedence correct). The pre-existing happy-path test doesn&#39;t override `CYCLE_BASE`, so when the suite runs under the cycle engine (which sets `CYCLE_BASE=master`), the temp repo&#39;s `main`-only branch list produces a swallowed-but-visible `cycle.checkout status=failed` line in test stdout — `tests/engine/run-cycle.test.ts:43`. Documented in BUILD.md as a PLAN deviation but not corrected at the source.
+3. **Empty SPEC.md (out of scope for fix)**: `docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/SPEC.md` is 1 byte. The spec step exited ok with empty stdout; RESEARCH and PLAN correctly fell back to the issue body. Artifact traceability suffers but the build is fine.
+4. **Unrelated working-tree change (out of scope)**: `.claude/skills/caveman/SKILL.md` is deleted in the working tree but is unrelated to cycle 0008. Will be picked up by the commit step if not stashed.
+5. **Architecture fit**: Good. No new dependencies, no `simple-git` introduction. The new `currentBranch` helper is appropriately inlined in `run-cycle.ts:12-20` rather than widening the `branch.ts` surface, matching the PLAN guidance. `cycle.checkout` is a new event class but the only JSONL consumer (`src/cli.ts` ingesting `issue.ingested`) does not parse `cycle.*` events, so non-breaking.
+
+### Spec Compliance Checklist
+- [x] HEAD returns to `CYCLE_BASE` after `runCycle` ok path — verified by `tests/engine/run-cycle.test.ts:87-88`
+- [x] HEAD returns to `CYCLE_BASE` after `runCycle` failed path — verified by `tests/engine/run-cycle.test.ts:132-133`
+- [x] `cycle.checkout` JSONL event emitted after `cycle.end` — `src/engine/run-cycle.ts:72,74`
+- [x] Checkout failure swallowed; `runCycle` return contract unchanged — `:73-75` catch + log
+- [x] Test coverage for both `ok` and `failed` terminal states — `tests/engine/run-cycle.test.ts:59-97` and `:99-142`
+- [x] `cycle.end` event payload unchanged — emissions at `:61` and `:66` untouched in structure
+- [x] No `commit.sh` / `pr.sh` modifications — confirmed by `git diff master..HEAD --stat`
+
+## Adversarial Test Review
+
+### Summary
+Adequate. Tests use real git, real filesystem, real spawn — no mocking. Cover both ok and failed terminal paths with concrete `git rev-parse --abbrev-ref HEAD` assertions. However, three implementation behaviors that PLAN claims are verified are NOT actually verified by the assertions: event ordering, the `cycle.checkout status=failed` branch, and the `head_before` diagnostic field.
+
+### Findings
+1. **Ordering assertion is false security**: `tests/engine/run-cycle.test.ts:91-92` and `:136-137` use two independent `assert.match(log, ...)` calls. They prove both events exist; they do NOT prove `cycle.end` precedes `cycle.checkout`. PLAN.md:175 explicitly claims this is verified — it isn&#39;t. Swap the two `log.emit` calls in `run-cycle.ts:66`/`:72` and both tests still pass.
+2. **`cycle.checkout status=&quot;failed&quot;` branch has no test coverage**: `src/engine/run-cycle.ts:73-75` catch + log branch is dead-tested. Trivially exercisable with `CYCLE_BASE: &quot;no-such-base&quot;` — PLAN explicitly ruled dirty-tree out-of-scope, but missing-base is not dirty-tree and the impl supports it.
+3. **`head_before` diagnostic field unasserted**: `src/engine/run-cycle.ts:72,74` emit `head_before: headBefore`, but no assertion verifies the value. A `currentBranch` regression returning `null` for all callers would not be caught.
+4. **`checkoutBase` failure-path test doesn&#39;t verify HEAD is unchanged**: `tests/engine/branch.test.ts:51-66` asserts only the rejection. Adequate coverage for the helper&#39;s contract; a post-rejection `assert.equal(git(root, [&quot;rev-parse&quot;,&quot;--abbrev-ref&quot;,&quot;HEAD&quot;]).trim(), &quot;main&quot;)` would strengthen it but is low priority.
+5. **No mock abuse**: All git operations hit the real binary. `claude` is stubbed via on-disk fake script + `PATH` injection — established pattern. ✓
+6. **Boundary coverage**: Happy path ✓, mid-cycle bash exit 1 ✓, missing base branch (helper-level) ✓, missing base branch (engine-level integration) ✗.
+7. **Test independence**: Each test creates its own `mkdtemp` repo and `mkdtemp` bin dir, cleans up in `finally`. No shared state. ✓
+8. **Existing happy-path test was not extended**: PLAN Task 3 said &quot;Extend the existing happy-path test... (or add a sibling test)&quot; — builder added a sibling, fine, but did not tighten the existing test against env leakage (see Code Quality finding #2).
+
+### Test Coverage
+- 58 tests pass (up from 54 before this cycle; +4 new = 2 in `branch.test.ts`, 2 in `run-cycle.test.ts`).
+- Missing scenarios: ordering verification, failed-checkout branch via `runCycle`, `head_before` field assertion, hermetic CYCLE_BASE in the pre-existing happy-path test.</code></pre>
+<p>Wrote <code>MUST-FIX.md</code> to <code>docs/cycle/0008-feature-engine-after-cycle-end-ok-or-failed-chec/</code> with 4 minor test-quality tasks (ordering, failed-checkout branch, <code>head_before</code> assertion, hermetic env in pre-existing test). Implementation itself is sound and PLAN-compliant.</p></div></section>
 
 <nav class="pager">
   <a href="cycle-0007.html">← Cycle 0007</a>

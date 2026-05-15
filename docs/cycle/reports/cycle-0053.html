@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0053 · Strip prompt self-narration and stray fences from workflow step artifacts</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0053</h1>
+  <div class="subtitle">Strip prompt self-narration and stray fences from workflow step artifacts</div>
+  <div class="meta-row">
+    <code>db6fcb3</code> · Timothy Johnson · 2026-05-14 15:18:34 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0052.html">← Cycle 0052</a>
+  <span class="center">53 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0054.html">Cycle 0054 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0053: Strip Prompt Self-Narration and Stray Fences from Workflow Step Artifacts
+
+## Objective
+
+Workflow step artifacts (`docs/cycle/&lt;id&gt;/&lt;step&gt;.md`) currently leak prompt-internal narration like `Now sync defaults…` and stray top-level ``` fences out of agent stdout into committed files. Downstream prompts (triage, reflection, future agents) read these artifacts as context and risk modelling the leading `Now …` line as an instruction aimed at them. This cycle defends in the engine — once, at the stdout-write seam — by sanitizing captured stdout before it lands on disk, so every current leak and every future regression is caught in one place without touching individual prompt templates.
+
+## Source Issue
+
+`refl-0023-build-and-fix-md-artifacts-leak-agent-se` — &quot;Strip prompt self-narration and stray fences from workflow step artifacts&quot;
+
+## Scope
+
+### In Scope
+
+- Add `sanitizeArtifactStdout(stdout: string): string` helper at `src/engine/sanitize-artifact.ts` implementing the four-step pipeline: trim leading whitespace → drop leading narration lines matching `^(Now|Next|Here is|Output)\b.*$` (one or more, blank lines between OK) → unwrap a single top-level ``` fence if it covers the entire remaining payload → trim trailing whitespace + ensure exactly one trailing newline.
+- Wire `sanitizeArtifactStdout` into the engine seam in `src/engine/run-cycle.ts` (or the upstream `exec-claudecode` capture layer, whichever owns the stdout→`&lt;step&gt;.md` write) so every `docs/cycle/&lt;id&gt;/&lt;step&gt;.md` artifact is sanitized before being written. `log.jsonl` payloads MUST remain untouched.
+- Unit tests at `tests/engine/sanitize-artifact.test.ts` covering: BUILD-shaped leading `Now …` strip; REVIEW-shaped strip + fence-unwrap (golden from a recent real cycle); clean FIX-shaped idempotence (`f(f(x)) === f(x)`); inner fence preservation (fence inside a larger document is NOT unwrapped); mid-document `Now ` line preservation; non-narration leading capitalised words (`Note:`, `Notice:`) preserved. Plus one integration assertion in an existing `runCycle` test that a committed `&lt;step&gt;.md` whose captured stdout begins with `Now …` no longer starts with that line.
+
+### Out of Scope
+
+- Editing `src/defaults/prompts/{build,fix,review}.md` to tighten output discipline at the source. The engine-side filter is the durable defense and must land first; prompt tightening is a separate future cycle.
+- Retroactively rewriting committed `BUILD.md` / `REVIEW.md` files from prior cycles. Forward-looking only.
+- Generalised prompt-output linting beyond the two narration-prefix and outer-fence patterns named in the issue.
+- Sanitising stdout for non-artifact-producing steps (`commit`, `verify`, `pr`, `cycle.checkout`, etc.) — those are already either bash scripts or do not write `&lt;step&gt;.md`.
+
+## Requirements
+
+- `sanitizeArtifactStdout` is a pure function: `(stdout: string) =&gt; string`, no I/O, no dependencies on `node:fs` / `node:path`, deterministic, importable in isolation.
+- The narration regex matches `^(Now|Next|Here is|Output)\b.*$` case-sensitively at the start of a line. Word boundary required so `Notification` / `Outputs` / `Nowadays` do NOT match.
+- Multi-line leading narration is stripped: consecutive matching lines (with optional blank lines between) at the very top of the payload are all dropped before fence-unwrap considers what remains.
+- Top-level fence unwrap is conservative: the pattern `^```(\w+)?\n[\s\S]*\n```\s*$` must cover the entire remaining payload (after narration strip + leading-whitespace trim). If any non-whitespace content sits outside the fence at the top level, the payload is left intact. Only one unwrap pass; nested fences inside the unwrapped body are untouched.
+- Output is `\n`-terminated exactly once. Idempotent: `f(f(x)) === f(x)` for any input.
+- Empty / whitespace-only input returns `&quot;&quot;` (no trailing newline added to an empty payload — avoids spurious newline-only artifacts).
+- Engine wiring: sanitization happens at the single point where captured stdout becomes the `&lt;step&gt;.md` write payload. `appendLog` / `log.jsonl` events MUST receive unsanitized stdout (or no stdout at all, matching current behavior). Verifiable by an integration test that asserts the artifact differs from the log payload in a controlled scenario.
+- No new runtime dependencies. Pure TypeScript / standard library.
+
+## Acceptance Criteria
+
+- [ ] `src/engine/sanitize-artifact.ts` exists, exports `sanitizeArtifactStdout(stdout: string): string`.
+- [ ] `tests/engine/sanitize-artifact.test.ts` covers all six unit-test scenarios listed under In Scope and passes.
+- [ ] One existing `runCycle`-level integration test asserts a committed `&lt;step&gt;.md` whose stdout begins with `Now …` does NOT start with that line on disk.
+- [ ] `log.jsonl` payloads for the same scenario are unchanged (asserted via the integration test OR via a unit-level wiring test, whichever the build chooses).
+- [ ] `npm run typecheck` clean — no warnings, no errors.
+- [ ] `npm test` passes 100%.
+- [ ] `npm run test:coverage` shows no regression vs master baseline (line ≥ 95%, branch ≥ 75%, function ≥ 90%); per-file coverage on the new helper at parity-or-above the global floor.
+- [ ] `scripts/coverage-gate.mjs` (per-file `triage.ts ≥ 95%`) still passes — no incidental regression in unrelated files.
+
+## Testing Strategy
+
+- Framework: Node&#39;s native `node:test` (matches existing `tests/**/*.test.ts` convention; runs under `--experimental-strip-types`).
+- Unit tests in `tests/engine/sanitize-artifact.test.ts` exercise the pure function directly with focused string inputs (no mocks needed). Use real captured stdout from a recent cycle&#39;s REVIEW.md as the golden for the strip-plus-unwrap case.
+- Edge cases:
+  - Happy path: `Now sync defaults…\n\n# BUILD\n…` → leading line gone.
+  - Compound: leading narration line + body wrapped in ``` fence → both stripped.
+  - Idempotence: feeding a clean payload back through returns identical bytes.
+  - Negative — inner fence: a payload with prose before and after a fenced code block has the fence preserved (only outer fences spanning the whole payload are unwrapped).
+  - Negative — non-narration prefix: leading `Note: …` / `Notice: …` / `Nowadays …` lines preserved verbatim.
+  - Negative — mid-document `Now ` line: appears 10 lines into the body, must survive.
+  - Empty / whitespace-only input → `&quot;&quot;`.
+- Integration: extend an existing `tests/engine/run-cycle*.test.ts` (or equivalent) — fixture an agent stdout starting with `Now …`, run through the artifact-write path, assert the on-disk `&lt;step&gt;.md` doesn&#39;t begin with `Now `. No new E2E required; this is an internal pipeline change with no user-visible UI.
+- No Playwright / browser tests — change is CLI/engine only.
+
+## Documentation Updates
+
+- **CLAUDE.md**: add a one-line bullet under `## Architecture quick reference` noting that captured agent stdout is sanitized (`sanitizeArtifactStdout`) before being written to `docs/cycle/&lt;id&gt;/&lt;step&gt;.md`; `log.jsonl` payloads are untouched. Cross-reference the helper path.
+- **README.md**: no surface-visible change for consumers; skip unless the change manifests in user-observable artifact shape on a fresh dogfood run (in which case mention briefly in the &quot;What `cycle` writes&quot; section if one exists).
+- The `documentation` workflow step (added in cycle 0052) will sweep any drift after `pr`/`commit-trunk` lands, but the explicit CLAUDE.md update is part of &quot;done&quot; for this cycle.
+
+## Dependencies
+
+- Existing engine plumbing in `src/engine/run-cycle.ts` and the `exec-*.ts` capture layer — the seam where captured stdout becomes the `&lt;step&gt;.md` write must already be a single chokepoint; if it isn&#39;t, the build step&#39;s first task is to identify (or create) the single chokepoint.
+- Node ≥ 22.6 with `--experimental-strip-types` (already required by the repo).
+- No external services, no env vars, no new dependencies.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/engine/run-cycle.ts                      |  3 +-
+ src/engine/sanitize-artifact.ts              | 18 +++++++
+ tests/engine/run-cycle.documentation.test.ts |  2 +-
+ tests/engine/run-cycle.sanitize.test.ts      | 80 ++++++++++++++++++++++++++++
+ tests/engine/sanitize-artifact.test.ts       | 64 ++++++++++++++++++++++
+ 5 files changed, 165 insertions(+), 2 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/engine/run-cycle.ts b/src/engine/run-cycle.ts</span><span class="fileheader">index c5ccf94..b333dab 100644</span><span class="meta">--- a/src/engine/run-cycle.ts</span><span class="meta">+++ b/src/engine/run-cycle.ts</span><span class="hunk">@@ -15,6 +15,7 @@ import {</span><span class="ctx">   shaExists,</span><span class="ctx"> } from &quot;./branch.ts&quot;;</span><span class="ctx"> import { ingestReflection } from &quot;./reflection.ts&quot;;</span><span class="add">+import { sanitizeArtifactStdout } from &quot;./sanitize-artifact.ts&quot;;</span><span class="ctx"> import { slugify } from &quot;../issue/id.ts&quot;;</span><span class="ctx"> import { writeFile, readFile } from &quot;node:fs/promises&quot;;</span><span class="ctx"> import { join } from &quot;node:path&quot;;</span><span class="hunk">@@ -143,7 +144,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {</span><span class="ctx">           }</span><span class="ctx">         }</span><span class="ctx">         if (r.status === &quot;ok&quot; &amp;&amp; step.name) {</span><span class="del">-          await writeFile(join(artifactDir, `${step.name.toUpperCase()}.md`), r.stdout, &quot;utf8&quot;);</span><span class="add">+          await writeFile(join(artifactDir, `${step.name.toUpperCase()}.md`), sanitizeArtifactStdout(r.stdout), &quot;utf8&quot;);</span><span class="ctx">         }</span><span class="ctx">         if (r.status === &quot;ok&quot; &amp;&amp; step.name === &quot;reflection&quot;) {</span><span class="ctx">           await ingestReflection(repoRoot, cycleId, slug, r.stdout, log);</span><span class="fileheader">diff --git a/src/engine/sanitize-artifact.ts b/src/engine/sanitize-artifact.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..59efe68</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/src/engine/sanitize-artifact.ts</span><span class="hunk">@@ -0,0 +1,18 @@</span><span class="add">+const NARRATION_LINE = /^(Now|Next|Here is|Output)\b[^\n]*(?:\n|$)/;</span><span class="add">+const BLANK_LINE = /^[^\S\n]*\n/;</span><span class="add">+const OUTER_FENCE = /^```(?:\w+)?\n([\s\S]*)\n```\s*$/;</span><span class="add">+</span><span class="add">+export function sanitizeArtifactStdout(stdout: string): string {</span><span class="add">+  let s = stdout.replace(/^\s+/, &quot;&quot;);</span><span class="add">+</span><span class="add">+  while (NARRATION_LINE.test(s)) {</span><span class="add">+    s = s.replace(NARRATION_LINE, &quot;&quot;);</span><span class="add">+    while (BLANK_LINE.test(s)) s = s.replace(BLANK_LINE, &quot;&quot;);</span><span class="add">+  }</span><span class="add">+</span><span class="add">+  const fence = s.match(OUTER_FENCE);</span><span class="add">+  if (fence) s = fence[1];</span><span class="add">+</span><span class="add">+  s = s.replace(/\s+$/, &quot;&quot;);</span><span class="add">+  return s === &quot;&quot; ? &quot;&quot; : s + &quot;\n&quot;;</span><span class="add">+}</span><span class="fileheader">diff --git a/tests/engine/run-cycle.documentation.test.ts b/tests/engine/run-cycle.documentation.test.ts</span><span class="fileheader">index 5b47254..b8315c4 100644</span><span class="meta">--- a/tests/engine/run-cycle.documentation.test.ts</span><span class="meta">+++ b/tests/engine/run-cycle.documentation.test.ts</span><span class="hunk">@@ -70,7 +70,7 @@ test(&quot;runCycle: documentation step success writes DOCUMENTATION.md verbatim&quot;, as</span><span class="ctx">     const artifactDir = join(root, &quot;docs/cycle&quot;, `${r.cycleId}-feature-doc-happy`);</span><span class="ctx">     const docFile = join(artifactDir, &quot;DOCUMENTATION.md&quot;);</span><span class="ctx">     assert.ok(await fileExists(docFile), `expected ${docFile}`);</span><span class="del">-    assert.equal(await readFile(docFile, &quot;utf8&quot;), summary);</span><span class="add">+    assert.equal(await readFile(docFile, &quot;utf8&quot;), summary + &quot;\n&quot;);</span><span class="ctx"> </span><span class="ctx">     const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="ctx">     assert.doesNotMatch(log, /&quot;event&quot;:&quot;documentation.skipped&quot;/);</span><span class="fileheader">diff --git a/tests/engine/run-cycle.sanitize.test.ts b/tests/engine/run-cycle.sanitize.test.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..5e26877</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/tests/engine/run-cycle.sanitize.test.ts</span><span class="hunk">@@ -0,0 +1,80 @@</span><span class="add">+import { test } from &quot;node:test&quot;;</span><span class="add">+import { strict as assert } from &quot;node:assert&quot;;</span><span class="add">+import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from &quot;node:fs/promises&quot;;</span><span class="add">+import { tmpdir } from &quot;node:os&quot;;</span><span class="add">+import { join } from &quot;node:path&quot;;</span><span class="add">+import { spawnSync } from &quot;node:child_process&quot;;</span><span class="add">+import { runCycle } from &quot;../../src/engine/run-cycle.ts&quot;;</span><span class="add">+</span><span class="add">+function git(cwd: string, args: string[]) {</span><span class="add">+  const r = spawnSync(&quot;git&quot;, args, { cwd, encoding: &quot;utf8&quot; });</span><span class="add">+  if (r.status !== 0) throw new Error(`git ${args.join(&quot; &quot;)}: ${r.stderr}`);</span><span class="add">+  return r.stdout;</span><span class="add">+}</span><span class="add">+</span><span class="add">+function workflowYml(stepsBody: string): string {</span><span class="add">+  return `engine:</span><span class="add">+  max_consecutive_failures: 2</span><span class="add">+  base_branch: main</span><span class="add">+triage:</span><span class="add">+  agent: claudecode</span><span class="add">+  prompt: prompts/triage.md</span><span class="add">+  max_turns: 10</span><span class="add">+workflows:</span><span class="add">+  - name: feature</span><span class="add">+    max_cycle_attempts: 3</span><span class="add">+    steps:</span><span class="add">+${stepsBody}`;</span><span class="add">+}</span><span class="add">+</span><span class="add">+test(&quot;runCycle: agent stdout starting with &#39;Now …&#39; is sanitized in BUILD.md; log.jsonl unaffected&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-sanitize-rc-&quot;));</span><span class="add">+  const bin = await mkdtemp(join(tmpdir(), &quot;cycle-sanitize-bin-&quot;));</span><span class="add">+  try {</span><span class="add">+    git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span><span class="add">+    git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span><span class="add">+    git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span><span class="add">+    git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span><span class="add">+</span><span class="add">+    await mkdir(join(root, &quot;.cycle/prompts&quot;), { recursive: true });</span><span class="add">+    await writeFile(</span><span class="add">+      join(root, &quot;.cycle/workflows.yml&quot;),</span><span class="add">+      workflowYml(`      - name: build</span><span class="add">+        agent: claudecode</span><span class="add">+        prompt: prompts/build.md</span><span class="add">+`),</span><span class="add">+      &quot;utf8&quot;,</span><span class="add">+    );</span><span class="add">+    await writeFile(join(root, &quot;.cycle/prompts/build.md&quot;), &quot;noop&quot;, &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+    const narration = &quot;Now sync defaults to .cycle/.&quot;;</span><span class="add">+    const body = &quot;# BUILD\nReal body.&quot;;</span><span class="add">+    const fake = join(bin, &quot;claude&quot;);</span><span class="add">+    await writeFile(</span><span class="add">+      fake,</span><span class="add">+      `#!/bin/bash\nprintf &#39;%s\\n\\n%s\\n&#39; &#39;${narration}&#39; &#39;${body}&#39;\n`,</span><span class="add">+      &quot;utf8&quot;,</span><span class="add">+    );</span><span class="add">+    await chmod(fake, 0o755);</span><span class="add">+</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      issueId: &quot;SAN-1&quot;,</span><span class="add">+      title: &quot;sanitize witness&quot;,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span><span class="add">+</span><span class="add">+    const artifactDir = join(root, &quot;docs/cycle&quot;, `${r.cycleId}-feature-sanitize-witness`);</span><span class="add">+    const buildMd = await readFile(join(artifactDir, &quot;BUILD.md&quot;), &quot;utf8&quot;);</span><span class="add">+    assert.equal(buildMd, &quot;# BUILD\nReal body.\n&quot;, &quot;BUILD.md must be stripped + newline-normalized&quot;);</span><span class="add">+    assert.ok(!buildMd.startsWith(&quot;Now &quot;), &quot;BUILD.md must not start with &#39;Now &#39;&quot;);</span><span class="add">+</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    assert.doesNotMatch(log, /Now sync defaults/);</span><span class="add">+    assert.doesNotMatch(log, /Real body/);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+    await rm(bin, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="fileheader">diff --git a/tests/engine/sanitize-artifact.test.ts b/tests/engine/sanitize-artifact.test.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..db042cd</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/tests/engine/sanitize-artifact.test.ts</span><span class="hunk">@@ -0,0 +1,64 @@</span><span class="add">+import { test } from &quot;node:test&quot;;</span><span class="add">+import { strict as assert } from &quot;node:assert&quot;;</span><span class="add">+import { sanitizeArtifactStdout } from &quot;../../src/engine/sanitize-artifact.ts&quot;;</span><span class="add">+</span><span class="add">+test(&quot;sanitize: strips canonical leading &#39;Now …&#39; BUILD line&quot;, () =&gt; {</span><span class="add">+  const input = &quot;Now sync defaults to .cycle/.\n\n# BUILD\nbody.\n&quot;;</span><span class="add">+  assert.equal(sanitizeArtifactStdout(input), &quot;# BUILD\nbody.\n&quot;);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;sanitize: strips compound leading narration + outer fence&quot;, () =&gt; {</span><span class="add">+  const input = &quot;Now write review.\n\n```markdown\n# Review\nbody.\n```\n&quot;;</span><span class="add">+  assert.equal(sanitizeArtifactStdout(input), &quot;# Review\nbody.\n&quot;);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;sanitize: idempotent on clean payload&quot;, () =&gt; {</span><span class="add">+  const clean = &quot;# FIX\nbody.\n&quot;;</span><span class="add">+  const once = sanitizeArtifactStdout(clean);</span><span class="add">+  assert.equal(once, clean);</span><span class="add">+  assert.equal(sanitizeArtifactStdout(once), once);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;sanitize: inner fence preserved (only outer-spanning fence is unwrapped)&quot;, () =&gt; {</span><span class="add">+  const input = &quot;# Doc\n\nIntro.\n\n```ts\ncode();\n```\n\nOutro.\n&quot;;</span><span class="add">+  assert.equal(sanitizeArtifactStdout(input), input);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;sanitize: mid-document &#39;Now &#39; line preserved&quot;, () =&gt; {</span><span class="add">+  const body =</span><span class="add">+    &quot;# Header\n&quot; +</span><span class="add">+    &quot;line two.\n&quot; +</span><span class="add">+    &quot;line three.\n&quot; +</span><span class="add">+    &quot;line four.\n&quot; +</span><span class="add">+    &quot;Now we tear down.\n&quot; +</span><span class="add">+    &quot;line six.\n&quot; +</span><span class="add">+    &quot;line seven.\n&quot; +</span><span class="add">+    &quot;line eight.\n&quot; +</span><span class="add">+    &quot;line nine.\n&quot; +</span><span class="add">+    &quot;line ten.\n&quot;;</span><span class="add">+  const out = sanitizeArtifactStdout(body);</span><span class="add">+  assert.ok(out.includes(&quot;Now we tear down.&quot;));</span><span class="add">+  assert.equal(out, body);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;sanitize: non-narration prefixes preserved (word-boundary discipline)&quot;, () =&gt; {</span><span class="add">+  for (const line of [</span><span class="add">+    &quot;Note: read CLAUDE.md.\n&quot;,</span><span class="add">+    &quot;Notice: pay attention.\n&quot;,</span><span class="add">+    &quot;Nowadays we ship.\n&quot;,</span><span class="add">+    &quot;Notification fired.\n&quot;,</span><span class="add">+    &quot;Outputs were captured.\n&quot;,</span><span class="add">+  ]) {</span><span class="add">+    assert.equal(sanitizeArtifactStdout(line), line, `should preserve ${line.trim()}`);</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;sanitize: strips multi-line leading narration separated by blank lines&quot;, () =&gt; {</span><span class="add">+  const input = &quot;Now A.\n\nNext B.\n\nHere is C.\n\nOutput D.\n\n# Body\n&quot;;</span><span class="add">+  assert.equal(sanitizeArtifactStdout(input), &quot;# Body\n&quot;);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;sanitize: empty and whitespace-only inputs return &#39;&#39;&quot;, () =&gt; {</span><span class="add">+  assert.equal(sanitizeArtifactStdout(&quot;&quot;), &quot;&quot;);</span><span class="add">+  assert.equal(sanitizeArtifactStdout(&quot;   \n\n\t\n&quot;), &quot;&quot;);</span><span class="add">+});</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>Typecheck clean. 379/379 pass. Coverage 99.05/92.84/96.32. <code>sanitize-artifact.ts</code> 100/100/100. <code>triage.ts</code> gate 99.72% ok. No regressions.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0053
+
+## Overall Verdict
+PASS — no fixes required.
+
+## Code Quality Review
+
+### Summary
+Clean, surgical implementation. The pure helper at `src/engine/sanitize-artifact.ts` (18 lines) lands at the single artifact-write seam in `src/engine/run-cycle.ts:147`, leaving `ingestReflection`&#39;s raw-stdout contract intact and the `log.jsonl` shape unchanged (already structurally stdout-free). CLAUDE.md gains the one-line architecture bullet exactly where PLAN promised. Typecheck clean, 379/379 tests pass, coverage 99.05% line / 92.84% branch / 96.32% function — no regressions and the new file hits 100% across all three axes.
+
+### Findings
+1. **Style / readability**: The pipeline reads top-to-bottom in the order SPEC §Requirements describes (leading trim → narration strip → outer-fence unwrap → trailing trim + single `\n`). No comments needed. — `src/engine/sanitize-artifact.ts:1-18`.
+2. **Word-boundary discipline correct**: `^(Now|Next|Here is|Output)\b` correctly preserves `Notification`, `Outputs`, `Nowadays`, `Note:`, `Notice:` (verified by test 6 + manual trace: `\b` between `t` and `s` in `Outputs` is between two word characters, no boundary, no match). — `src/engine/sanitize-artifact.ts:1`.
+3. **Fence-unwrap conservative**: `OUTER_FENCE = /^```(?:\w+)?\n([\s\S]*)\n```\s*$/` with no `m` flag anchors against the entire remaining payload. Test 4 confirms inner fences with prose around them are preserved verbatim. — `src/engine/sanitize-artifact.ts:3, 13-14`.
+4. **Idempotence is structural**: the final `replace(/\s+$/, &quot;&quot;)` + conditional `+ &quot;\n&quot;` step makes any output a fixed point of the next pass. — `src/engine/sanitize-artifact.ts:16-17`.
+5. **Wiring is single-call-site, single-line**: `r.stdout` → `sanitizeArtifactStdout(r.stdout)` in the `writeFile` call; line 149&#39;s `ingestReflection(... r.stdout, log)` deliberately untouched. Matches PLAN Task 2 exactly. — `src/engine/run-cycle.ts:147, 149`.
+6. **Out-of-scope leak shape acknowledged**: the canonical 0049 REVIEW.md leak (`Verified. Now write review to stdout.`) starts with `Verified.` and is intentionally NOT stripped by `^(Now|...)\b`. RESEARCH §Open Q2 + PLAN&#39;s resolution picked the `Now sync defaults…` canonical golden; SPEC §Out of Scope does not mandate same-line-mid-narration handling. Forward-looking deferral, not a defect.
+
+### Spec Compliance Checklist
+- [x] `src/engine/sanitize-artifact.ts` exists and exports `sanitizeArtifactStdout(stdout: string): string`.
+- [x] `tests/engine/sanitize-artifact.test.ts` covers all six SPEC §In Scope unit scenarios — plus two extras (multi-line leading narration; empty + whitespace-only).
+- [x] `runCycle`-level integration test asserts a leading `Now …` artifact gets stripped on disk — `tests/engine/run-cycle.sanitize.test.ts`.
+- [x] `log.jsonl` payloads are unchanged (asserted via the integration test&#39;s negative `doesNotMatch` on both the narration prefix and the body).
+- [x] `npm run typecheck` clean.
+- [x] `npm test` passes 379/379.
+- [x] `npm run test:coverage` shows no regression vs baseline (99.05% / 92.84% / 96.32% ≥ 95 / 75 / 90).
+- [x] `scripts/coverage-gate.mjs` still green: `src/engine/triage.ts` at 99.72% ≥ 95%.
+- [x] CLAUDE.md `## Architecture quick reference` gains the documented bullet pointing at `sanitize-artifact.ts`.
+- [x] No new dependencies, no `package.json` edit.
+
+## Adversarial Test Review
+
+### Summary
+Strong. Pure-function unit tests are byte-exact `assert.equal` (no `toBeTruthy`-style weak assertions, no mocks), the integration test exercises the real `runCycle` seam with a fake-shell-on-`PATH` agent and asserts on both directions of the wiring witness (artifact contents and `log.jsonl` absence).
+
+### Findings
+1. **Idempotence is asserted on a clean payload only** — `tests/engine/sanitize-artifact.test.ts:15-20` runs `f(f(x)) === f(x)` against `&quot;# FIX\nbody.\n&quot;`. SPEC §Requirements demands &quot;Idempotent: `f(f(x)) === f(x)` for any input.&quot; A second `assert.equal(sanitizeArtifactStdout(once), once)` on the compound case (test 2&#39;s `&quot;Now write review.\n\n\`\`\`markdown\n# Review\nbody.\n\`\`\`\n&quot;` round-tripped through itself) would tighten this. Non-blocking; the helper&#39;s final trim+`\n` step makes this structurally trivial, but explicit assertion is cheap.
+2. **No test for narration-line-only payload** — e.g. `&quot;Now done.\n&quot;` → expected `&quot;&quot;`. PLAN §Implementation Approach line 106 explicitly notes this case (&quot;a payload that is *only* `\&quot;Now done.\&quot;` gets fully consumed by step 2, then step 4 returns `\&quot;\&quot;`&quot;), and the regex&#39;s `(?:\n|$)` alternative was designed for it, but no test pins the contract. Non-blocking; covered transitively by test 8&#39;s whitespace-only case once narration strip runs first, but a direct case is clearer.
+3. **No test for narration-then-fence-only payload** — e.g. `&quot;Now build.\n\n\`\`\`\nbody\n\`\`\`\n&quot;` covers both pipeline stages and the language-tag-optional `(?:\w+)?` arm. Test 2 covers `\`\`\`markdown` (with tag); the zero-tag variant is implied but unexercised. Non-blocking.
+4. **Integration test depends on branch-creation path** — `tests/engine/run-cycle.sanitize.test.ts:30-80` uses `base_branch: main` and lets the engine run `createCycleBranch` rather than `no_branch: true`. The PLAN §Task 4 spec offered both shapes. Branch creation is well-covered elsewhere, but a `no_branch: true` variant would be marginally faster + isolate the assertion from branch-creation flake. Non-blocking; current shape parallels `run-cycle.documentation.test.ts` and matches a real workflow.
+5. **Negative log assertion is structurally trivial** — `assert.doesNotMatch(log, /Now sync defaults/)` and `/Real body/` will pass as long as `appendLog` continues to not carry stdout. The test is correctly framed as a wiring witness (per PLAN), not a behavioral check — but a comment in the test pointing out that the assertion is a regression guard against a hypothetical future logger-passes-stdout change would help the next reader. Style nit, not a defect.
+6. **No mock abuse**: zero mocks in the unit test file (pure function); the integration test stubs the agent via a real fake shell on `PATH` (the established cycle convention), not a JS mock. Faithful end-to-end.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: **99.05% / 92.84% / 96.32%** (baseline floor: 95 / 75 / 90).
+- Per-file (new): `src/engine/sanitize-artifact.ts` — **100% / 100% / 100%**.
+- Per-file gate: `src/engine/triage.ts` — **99.72% ≥ 95%** (`scripts/coverage-gate.mjs` posttest hook green).
+- Regressions vs base (per-file): **none** observed (`run-cycle.ts` still 100/95.52/100; `reflection.ts` 100/98.63/100; all other files unchanged).
+- New code without tests: **none** — every branch of `sanitizeArtifactStdout` (leading trim, narration `while`, blank-line inner `while`, fence match, trailing-trim, empty-vs-nonempty branch) is exercised.
+- Specific scenarios missing tests (non-blocking; see Findings 1-3 above): explicit idempotence on the compound input; narration-only payload returning `&quot;&quot;`; narration-then-zero-language-tag-fence compound.</code></pre>
+<p>PASS verdict. No MUST-FIX.md created — three minor test-coverage suggestions logged in REVIEW.md but none block correctness or SPEC compliance.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0052.html">← Cycle 0052</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0054.html">Cycle 0054 →</a>
+</nav>
+
+<footer>Generated from <code>db6fcb3</code></footer>
+</body>
+</html>

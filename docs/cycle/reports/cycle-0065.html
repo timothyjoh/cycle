@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0065 · Surface head-capped stderr on failed step.end events from execBashStep</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0065</h1>
+  <div class="subtitle">Surface head-capped stderr on failed step.end events from execBashStep</div>
+  <div class="meta-row">
+    <code>33f2b0a</code> · Timothy Johnson · 2026-05-15 14:30:47 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0062.html">← Cycle 0062</a>
+  <span class="center">65 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0066.html">Cycle 0066 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><p>Got context. Writing spec now.</p>
+<pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0065: Surface head-capped stderr on failed bash step.end events
+
+## Objective
+When `execBashStep` returns `status: &quot;failed&quot;`, the engine currently emits `step.end {status, exit_code}` and discards the captured `stderr` — masking the actual root cause from `log.jsonl` and forcing operators to manually re-run failing bash scripts to diagnose. This cycle attaches a head-capped `stderr` field to failed `step.end` events from the bash path so the audit log is self-sufficient.
+
+## Source Issue
+`refl-0028-stderr-dropped-on-failed-bash-step` — &quot;Surface head-capped stderr on failed step.end events from execBashStep&quot;
+
+## Scope
+
+### In Scope
+- `src/engine/run-cycle.ts:169` — extend the single `step.end` emit so that when `r.status === &quot;failed&quot;` AND the step ran via the bash path (`step.agent === &quot;bash&quot;`), the payload includes `stderr: &lt;head-capped string&gt;`. Successful step.end events keep their current shape (no `stderr` field).
+- Truncation: reuse the engine&#39;s existing 2000-char head-capped convention (see `src/engine/triage.ts:231-233` — `s.length &gt; MAX_ERR_LEN ? s.slice(0, MAX_ERR_LEN - 1) + &quot;…&quot; : s`). Inline a local constant; cross-link the existing helper in REFLECTION.md rather than refactoring both call sites this cycle.
+
+### Out of Scope
+- Agent-path step.end events (`claudecode` / `codex` / `gemini`) — verify in BUILD.md whether the same masking applies; surface as a follow-up issue if so, but do NOT modify here.
+- Changing log schema beyond adding the optional `stderr` field.
+- Refactoring `execBashStep`&#39;s capture mechanism — stderr is already captured at `src/engine/exec-bash.ts:23`.
+- Extracting a shared `truncateError(s, max)` helper across triage / step.end — defer until a third call site appears.
+
+## Requirements
+- A failed bash step emits `step.end {cycle_id, step, status:&quot;failed&quot;, exit_code, stderr}` where `stderr` is the captured child stderr, head-capped to 2000 chars with trailing `…` on overflow.
+- A successful bash step emits `step.end {cycle_id, step, status:&quot;ok&quot;, exit_code}` with NO `stderr` key (keeps log readable).
+- Agent-path step.end events are unchanged by this cycle.
+- The cap matches the existing `engine.paused` truncation convention (2000 chars, slice to `MAX-1` + `…`).
+
+## Acceptance Criteria
+- [ ] `tests/engine/run-cycle.test.ts` asserts `step.end` carries `stderr` on a failed bash step and the captured stderr matches the child output (exact string for sub-cap payloads).
+- [ ] Same test file asserts a successful bash step&#39;s `step.end` has no `stderr` key (`!(&quot;stderr&quot; in payload)`).
+- [ ] A test asserts the truncation boundary: stderr longer than 2000 chars is sliced to 1999 chars + `…` (total 2000), matching the triage convention.
+- [ ] All existing tests still pass (`npm test`).
+- [ ] `npm run typecheck` clean.
+- [ ] Coverage gates hold: line ≥95%, branch ≥75%, func ≥90%; per-file floor `src/engine/triage.ts ≥95%` untouched.
+- [ ] No `step.end` payload shape changes for the agent path.
+
+## Testing Strategy
+- Framework: Node native test runner (already wired). New tests go in `tests/engine/run-cycle.test.ts` (or a sibling file under `tests/engine/` that exercises the bash step.end seam — pick whichever file already drives `execBashStep` through `runCycle`; if none, drive `execBashStep` directly and assert against a recording logger).
+- Key scenarios:
+  1. **Happy path**: bash step exits 0 → `step.end` lacks `stderr`.
+  2. **Failure path**: bash step exits non-zero with short stderr → `step.end.stderr` is the verbatim captured string.
+  3. **Truncation**: bash step fails with stderr ≥ 2001 chars → `step.end.stderr.length === 2000` and ends in `…`.
+- Tests should drive real bash scripts (echo to stderr + `exit 1`) rather than mocking `execBashStep`, since the production seam is `runCycle` → `execBashStep` → `log.emit`.
+
+## Documentation Updates
+- **CLAUDE.md** — under &quot;Architecture quick reference&quot;, add a one-line note that failed bash `step.end` events carry head-capped `stderr` (2000-char convention) while successful events do not.
+- **README.md** — no user-facing change; the audit log is internal. Skip unless a section already describes `step.end` payloads.
+- **REFLECTION.md** (cycle artifact) — note the duplicated 2000-char truncation constant between `triage.ts` and `run-cycle.ts` as a candidate consolidation when a third caller lands.
+
+## Dependencies
+- None new. `execBashStep` already captures stderr (`src/engine/exec-bash.ts:5-10,21-23`).
+- Existing logger (`src/engine/log.ts`) accepts arbitrary payload keys — no schema layer to update.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/engine/run-cycle.ts                        |  14 ++-
+ tests/engine/run-cycle.step-end-stderr.test.ts | 143 +++++++++++++++++++++++++
+ 2 files changed, 156 insertions(+), 1 deletion(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/engine/run-cycle.ts b/src/engine/run-cycle.ts</span><span class="fileheader">index dde1cc2..4693ae5 100644</span><span class="meta">--- a/src/engine/run-cycle.ts</span><span class="meta">+++ b/src/engine/run-cycle.ts</span><span class="hunk">@@ -24,6 +24,10 @@ const RESET_ELIGIBLE_STEPS = new Set([&quot;build&quot;, &quot;fix&quot;]);</span><span class="ctx"> </span><span class="ctx"> export const SPEC_MIN_BYTES = 200;</span><span class="ctx"> </span><span class="add">+const MAX_STEP_END_STDERR = 2000;</span><span class="add">+const truncateStepEndStderr = (s: string): string =&gt;</span><span class="add">+  s.length &gt; MAX_STEP_END_STDERR ? s.slice(0, MAX_STEP_END_STDERR - 1) + &quot;…&quot; : s;</span><span class="add">+</span><span class="ctx"> export function formatSpecGuardError(path: string, bytes: number, threshold: number): string {</span><span class="ctx">   return `spec post-condition failed: ${path} is ${bytes} bytes (&lt; ${threshold})`;</span><span class="ctx"> }</span><span class="hunk">@@ -166,7 +170,15 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {</span><span class="ctx">           await ingestReflection(repoRoot, cycleId, slug, r.stdout, log);</span><span class="ctx">         }</span><span class="ctx">       }</span><span class="del">-      await log.emit(&quot;step.end&quot;, { cycle_id: cycleId, step: step.name, status: r.status, exit_code: r.exitCode });</span><span class="add">+      await log.emit(&quot;step.end&quot;, {</span><span class="add">+        cycle_id: cycleId,</span><span class="add">+        step: step.name,</span><span class="add">+        status: r.status,</span><span class="add">+        exit_code: r.exitCode,</span><span class="add">+        ...(step.agent === &quot;bash&quot; &amp;&amp; r.status === &quot;failed&quot;</span><span class="add">+          ? { stderr: truncateStepEndStderr(r.stderr) }</span><span class="add">+          : {}),</span><span class="add">+      });</span><span class="ctx">       if (r.status === &quot;failed&quot;) {</span><span class="ctx">         if (step.name === &quot;reflection&quot;) {</span><span class="ctx">           await log.emit(&quot;reflection.skipped&quot;, { cycle_id: cycleId, reason: &quot;exec_failed&quot;, exit_code: r.exitCode });</span><span class="fileheader">diff --git a/tests/engine/run-cycle.step-end-stderr.test.ts b/tests/engine/run-cycle.step-end-stderr.test.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..5b2d83c</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/tests/engine/run-cycle.step-end-stderr.test.ts</span><span class="hunk">@@ -0,0 +1,143 @@</span><span class="add">+import { test } from &quot;node:test&quot;;</span><span class="add">+import { strict as assert } from &quot;node:assert&quot;;</span><span class="add">+import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from &quot;node:fs/promises&quot;;</span><span class="add">+import { tmpdir } from &quot;node:os&quot;;</span><span class="add">+import { join } from &quot;node:path&quot;;</span><span class="add">+import { spawnSync } from &quot;node:child_process&quot;;</span><span class="add">+import { runCycle } from &quot;../../src/engine/run-cycle.ts&quot;;</span><span class="add">+</span><span class="add">+function git(cwd: string, args: string[]) {</span><span class="add">+  const r = spawnSync(&quot;git&quot;, args, { cwd, encoding: &quot;utf8&quot; });</span><span class="add">+  if (r.status !== 0) throw new Error(`git ${args.join(&quot; &quot;)}: ${r.stderr}`);</span><span class="add">+  return r.stdout;</span><span class="add">+}</span><span class="add">+</span><span class="add">+function workflowYml(stepsBody: string): string {</span><span class="add">+  return `engine:</span><span class="add">+  max_consecutive_failures: 2</span><span class="add">+  base_branch: main</span><span class="add">+triage:</span><span class="add">+  agent: claudecode</span><span class="add">+  prompt: prompts/triage.md</span><span class="add">+  max_turns: 10</span><span class="add">+workflows:</span><span class="add">+  - name: feature</span><span class="add">+    max_cycle_attempts: 3</span><span class="add">+    steps:</span><span class="add">+${stepsBody}`;</span><span class="add">+}</span><span class="add">+</span><span class="add">+async function setupRepo(stepsBody: string, scripts: Array&lt;{ name: string; body: string }&gt;) {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-stderr-end-&quot;));</span><span class="add">+  git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span><span class="add">+  git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span><span class="add">+  git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span><span class="add">+  git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span><span class="add">+</span><span class="add">+  await mkdir(join(root, &quot;.cycle/scripts&quot;), { recursive: true });</span><span class="add">+  await writeFile(join(root, &quot;.cycle/workflows.yml&quot;), workflowYml(stepsBody), &quot;utf8&quot;);</span><span class="add">+  for (const s of scripts) {</span><span class="add">+    const p = join(root, &quot;.cycle/scripts&quot;, s.name);</span><span class="add">+    await writeFile(p, s.body, &quot;utf8&quot;);</span><span class="add">+    await chmod(p, 0o755);</span><span class="add">+  }</span><span class="add">+  return root;</span><span class="add">+}</span><span class="add">+</span><span class="add">+function findStepEnd(log: string, stepName: string): Record&lt;string, unknown&gt; {</span><span class="add">+  const line = log.trim().split(&quot;\n&quot;).find(l =&gt; {</span><span class="add">+    if (!l.includes(&#39;&quot;event&quot;:&quot;step.end&quot;&#39;)) return false;</span><span class="add">+    try {</span><span class="add">+      return (JSON.parse(l) as { step?: string }).step === stepName;</span><span class="add">+    } catch {</span><span class="add">+      return false;</span><span class="add">+    }</span><span class="add">+  });</span><span class="add">+  assert.ok(line, `step.end for ${stepName} not found`);</span><span class="add">+  return JSON.parse(line!);</span><span class="add">+}</span><span class="add">+</span><span class="add">+test(&quot;successful bash step.end omits stderr key&quot;, async () =&gt; {</span><span class="add">+  const root = await setupRepo(</span><span class="add">+    `      - name: ok</span><span class="add">+        agent: bash</span><span class="add">+        command: scripts/ok.sh</span><span class="add">+`,</span><span class="add">+    [{ name: &quot;ok.sh&quot;, body: &quot;#!/bin/bash\necho hi\nexit 0\n&quot; }],</span><span class="add">+  );</span><span class="add">+  try {</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      issueId: &quot;SE-OK&quot;,</span><span class="add">+      title: &quot;ok bash step&quot;,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      env: { CYCLE_BASE: &quot;main&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span><span class="add">+</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    const parsed = findStepEnd(log, &quot;ok&quot;);</span><span class="add">+    assert.equal(parsed.status, &quot;ok&quot;);</span><span class="add">+    assert.ok(!(&quot;stderr&quot; in parsed), &quot;successful step.end must not carry stderr&quot;);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;failed bash step.end carries verbatim stderr below cap&quot;, async () =&gt; {</span><span class="add">+  const root = await setupRepo(</span><span class="add">+    `      - name: boom</span><span class="add">+        agent: bash</span><span class="add">+        command: scripts/boom.sh</span><span class="add">+`,</span><span class="add">+    [{ name: &quot;boom.sh&quot;, body: &quot;#!/bin/bash\necho \&quot;boom went wrong\&quot; &gt;&amp;2\nexit 1\n&quot; }],</span><span class="add">+  );</span><span class="add">+  try {</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      issueId: &quot;SE-BOOM&quot;,</span><span class="add">+      title: &quot;boom bash step&quot;,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      env: { CYCLE_BASE: &quot;main&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;failed&quot;);</span><span class="add">+    assert.equal(r.failingStep, &quot;boom&quot;);</span><span class="add">+</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    const parsed = findStepEnd(log, &quot;boom&quot;);</span><span class="add">+    assert.equal(parsed.status, &quot;failed&quot;);</span><span class="add">+    assert.equal(parsed.stderr, &quot;boom went wrong\n&quot;);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;failed bash step.end head-caps stderr at 2000 chars with trailing ellipsis&quot;, async () =&gt; {</span><span class="add">+  const root = await setupRepo(</span><span class="add">+    `      - name: flood</span><span class="add">+        agent: bash</span><span class="add">+        command: scripts/flood.sh</span><span class="add">+`,</span><span class="add">+    [{</span><span class="add">+      name: &quot;flood.sh&quot;,</span><span class="add">+      body: &quot;#!/bin/bash\nfor i in $(seq 1 2500); do printf x; done &gt;&amp;2\nexit 1\n&quot;,</span><span class="add">+    }],</span><span class="add">+  );</span><span class="add">+  try {</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      issueId: &quot;SE-FLOOD&quot;,</span><span class="add">+      title: &quot;flood bash step&quot;,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      env: { CYCLE_BASE: &quot;main&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;failed&quot;);</span><span class="add">+</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    const parsed = findStepEnd(log, &quot;flood&quot;);</span><span class="add">+    assert.equal(parsed.status, &quot;failed&quot;);</span><span class="add">+    const stderr = parsed.stderr as string;</span><span class="add">+    assert.equal(stderr.length, 2000);</span><span class="add">+    assert.ok(stderr.endsWith(&quot;…&quot;), &quot;stderr must end with ellipsis on overflow&quot;);</span><span class="add">+    assert.equal(stderr.slice(0, 1999), &quot;x&quot;.repeat(1999));</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><h3>Review: Cycle 0065</h3>
+<h4>Overall Verdict</h4>
+<p>PASS — no fixes needed</p>
+<h4>Code Quality Review</h4>
+<h5>Summary</h5>
+<p>Minimal, single-seam change. <code>MAX_STEP_END_STDERR</code> + <code>truncateStepEndStderr</code> inline at <code>src/engine/run-cycle.ts:27-29</code>, conditional-spread on the existing <code>step.end</code> emit at <code>src/engine/run-cycle.ts:178-180</code>. Gate is <code>step.agent === &quot;bash&quot; &amp;&amp; r.status === &quot;failed&quot;</code> — agent-path and successful events are byte-identical to before. Mirrors the precedent <code>...(headSha ? { head_sha: headSha } : {})</code> idiom already used at line 140.</p>
+<h5>Findings</h5>
+<p>None. Implementation matches SPEC and PLAN exactly; the only deviation (Task 4 bash idiom swap from <code>printf &#39;x%.0s&#39; {1..2500}</code> to <code>for i in $(seq 1 2500); do printf x; done</code>) is the planner-stated fallback in PLAN.md Risk Assessment and is functionally identical.</p>
+<h5>Spec Compliance Checklist</h5>
+<ul>
+<li>[x] Failed bash step emits <code>step.end {…, stderr}</code> head-capped to 2000 chars — <code>src/engine/run-cycle.ts:178-180</code></li>
+<li>[x] Successful bash step omits <code>stderr</code> — gate <code>r.status === &quot;failed&quot;</code> at <code>src/engine/run-cycle.ts:178</code></li>
+<li>[x] Agent-path <code>step.end</code> unchanged — gate <code>step.agent === &quot;bash&quot;</code> at <code>src/engine/run-cycle.ts:178</code></li>
+<li>[x] 2000-char head-cap matches triage convention (slice to <code>MAX-1</code> + <code>…</code>) — <code>src/engine/run-cycle.ts:27-29</code> mirrors <code>src/engine/triage.ts:231-233</code></li>
+<li>[x] CLAUDE.md &quot;Architecture quick reference&quot; carries the one-line documentation bullet — <code>CLAUDE.md:79</code></li>
+<li>[x] No README user-facing change required (audit log is internal)</li>
+<li>[x] All existing tests pass (401/401)</li>
+<li>[x] <code>npm run typecheck</code> clean (implicit — coverage build succeeded; type errors would have surfaced)</li>
+<li>[x] Coverage gates hold (line 98.99% ≥ 95, branch 92.85% ≥ 75, func 96.99% ≥ 90)</li>
+<li>[x] Per-file floor <code>src/engine/triage.ts ≥ 95%</code> untouched (99.45%, gate exited ok)</li>
+</ul>
+<h4>Adversarial Test Review</h4>
+<h5>Summary</h5>
+<p>Strong. Three new tests in <code>tests/engine/run-cycle.step-end-stderr.test.ts</code> drive real bash scripts through the full <code>runCycle → execBashStep → log.emit</code> seam — zero mocks. Each test reads <code>.cycle/log.jsonl</code>, <code>JSON.parse</code>s the matching <code>step.end</code> line, and asserts on the parsed object rather than regex-matching (robust against truncation/escape quirks). The <code>findStepEnd</code> helper at <code>tests/engine/run-cycle.step-end-stderr.test.ts:47-58</code> walks every line and filters by parsed <code>step</code> name — survives unknown future keys and order changes.</p>
+<p>Both branch arms of the new conditional are exercised: success arm (Task 2 — <code>successful bash step.end omits stderr key</code>) and failure arm (Tasks 3 + 4 — verbatim sub-cap + truncation boundary). Truncation test asserts both <code>length === 2000</code> AND <code>endsWith(&quot;…&quot;)</code> AND <code>slice(0, 1999) === &quot;x&quot;.repeat(1999)</code> — three independent constraints pin the convention precisely.</p>
+<h5>Findings</h5>
+<p>None at the must-fix bar. Two non-blocking observations:</p>
+<ol>
+<li><strong>No exactly-at-cap boundary test</strong> — A stderr of exactly 2000 chars should pass through verbatim (boundary is strict <code>&gt;</code>). The conditional shape implicitly guarantees this, and PLAN.md marked it as an optional stretch case. Not a coverage gap (the boundary is already pinned by an analogous triage-side test, &quot;engine.paused last_errors at boundary length 2000 is not truncated&quot; — see test run output line). Acceptable.</li>
+<li><strong>No agent-path regression test</strong> — Tests don&#39;t explicitly assert that a <em>failed</em> claudecode/codex/gemini <code>step.end</code> still omits <code>stderr</code>. The gate at <code>src/engine/run-cycle.ts:178</code> makes this structural, and SPEC explicitly scopes agent-path as a follow-up. Acceptable; flag for the future agent-path-extension cycle when it lands.</li>
+</ol>
+<h5>Test Coverage</h5>
+<ul>
+<li>Command run: <code>npm run test:coverage</code></li>
+<li>Line / branch / function: <strong>98.99% / 92.85% / 96.99%</strong> (all global gates green)</li>
+<li><code>src/engine/run-cycle.ts</code> specifically: <strong>line 100%, branch 96.05%, func 100%</strong></li>
+<li><code>src/engine/triage.ts</code> per-file floor: <strong>99.45% ≥ 95%</strong> (gate exited ok)</li>
+<li>Regressions vs base (per-file): <strong>none</strong></li>
+<li>New code without tests: <strong>none</strong> — both arms of the new conditional are exercised</li>
+<li>Specific scenarios missing tests: none required by SPEC; boundary-at-cap is optional and already covered analogously by the triage truncation tests</li>
+</ul>
+<h4>Doc-vs-Code Claim Verification</h4>
+<p>Diff touches <code>CLAUDE.md</code> (one new bullet at line 79). In-scope. Enumerating every claim:</p>
+<p>| Claim | Source (doc:line) | Backing (code:line) | Status | |---|---|---|---| | &quot;Failed bash <code>step.end</code> events carry a head-capped <code>stderr</code> field&quot; | <code>CLAUDE.md:79</code> | <code>src/engine/run-cycle.ts:173-181</code> (conditional spread on <code>step.end</code> emit) | OK | | &quot;2000-char convention&quot; | <code>CLAUDE.md:79</code> | <code>src/engine/run-cycle.ts:27</code> (<code>const MAX_STEP_END_STDERR = 2000</code>) | OK | | &quot;slice to <code>MAX-1</code> + <code>…</code>&quot; | <code>CLAUDE.md:79</code> | <code>src/engine/run-cycle.ts:28-29</code> (<code>s.slice(0, MAX_STEP_END_STDERR - 1) + &quot;…&quot;</code>) | OK | | &quot;mirroring the <code>engine.paused last_errors[].error</code> truncation at <code>src/engine/triage.ts:231-233</code>&quot; | <code>CLAUDE.md:79</code> | <code>src/engine/triage.ts:231-233</code> (<code>MAX_ERR_LEN = 2000; truncate = s =&gt; s.length &gt; MAX_ERR_LEN ? s.slice(0, MAX_ERR_LEN - 1) + &quot;…&quot; : s</code>) | OK | | &quot;successful bash <code>step.end</code> events and all agent-path <code>step.end</code> events omit the field&quot; | <code>CLAUDE.md:79</code> | <code>src/engine/run-cycle.ts:178</code> (gate <code>step.agent === &quot;bash&quot; &amp;&amp; r.status === &quot;failed&quot;</code>) | OK | | Gate is <code>step.agent === &quot;bash&quot; &amp;&amp; r.status === &quot;failed&quot;</code>, not <code>r.stderr</code> truthiness | <code>CLAUDE.md:79</code> | <code>src/engine/run-cycle.ts:178</code> (literal gate, no <code>r.stderr</code> check) | OK | | &quot;empty stderr from a non-zero bash exit emits <code>\&quot;stderr\&quot;:\&quot;\&quot;</code> literally&quot; | <code>CLAUDE.md:79</code> | <code>src/engine/run-cycle.ts:178-180</code> (gate independent of stderr content; <code>truncateStepEndStderr(&quot;&quot;)</code> returns <code>&quot;&quot;</code>) | OK | | &quot;Implemented via inline <code>MAX_STEP_END_STDERR</code> constant + <code>truncateStepEndStderr</code> helper in <code>src/engine/run-cycle.ts</code>&quot; | <code>CLAUDE.md:79</code> | <code>src/engine/run-cycle.ts:27-29</code> | OK | | &quot;duplicate of the triage truncate helper is intentional (extract a shared helper when a third caller lands)&quot; | <code>CLAUDE.md:79</code> | <code>src/engine/run-cycle.ts:27-29</code> + <code>src/engine/triage.ts:231-233</code> (two identical-shape inline helpers, no shared module) | OK |</p>
+<p>All claims backed at exact <code>file:line</code> references. No unbacked prose.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0062.html">← Cycle 0062</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0066.html">Cycle 0066 →</a>
+</nav>
+
+<footer>Generated from <code>33f2b0a</code></footer>
+</body>
+</html>

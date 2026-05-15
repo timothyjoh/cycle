@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0030 · Engine: exec-codex.ts provider module (#38)</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0030</h1>
+  <div class="subtitle">Engine: exec-codex.ts provider module (#38)</div>
+  <div class="meta-row">
+    <code>410a7d0</code> · Timothy Johnson · 2026-05-13 18:03:52 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0029.html">← Cycle 0029</a>
+  <span class="center">30 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0031.html">Cycle 0031 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><h3>SPEC — Cycle 0030: Engine exec-codex.ts provider module</h3>
+<h4>Objective</h4>
+<p>Add a <code>codex</code> exec-module so <code>workflows.yml</code> steps can declare <code>agent: codex</code> and run through the OpenAI Codex CLI end-to-end. This is the second provider against the dispatch seam landed in cycle 0029 — it proves the registry handles more than one provider and unblocks the downstream <code>multi-agent-abstraction-exec-gemini</code> and <code>refl-0029-execmodule-promptpath-contract-leaks-on</code> cycles that need a non-claudecode caller in tree.</p>
+<h4>Source Issue</h4>
+<p><code>multi-agent-abstraction-exec-codex</code> — &quot;Engine: exec-codex.ts provider module&quot;</p>
+<h4>Scope</h4>
+<h5>In Scope</h5>
+<ul>
+<li>New <code>src/engine/exec-codex.ts</code> implementing <code>ExecModule</code> from <code>src/engine/exec.ts:4-10</code>, returning <code>StepResult</code> from <code>src/engine/exec-bash.ts:5-10</code>.</li>
+<li>Register <code>codex</code> in the <code>REGISTRY</code> map in <code>src/engine/exec.ts:20-22</code> so <code>resolveAgent(&quot;codex&quot;)</code> returns the new module.</li>
+<li>Mocked-subprocess unit tests covering happy path, non-zero exit, and <code>spawn</code> ENOENT — mirroring <code>tests/engine/exec-claudecode.test.ts</code>.</li>
+</ul>
+<h5>Out of Scope</h5>
+<ul>
+<li>Touching <code>exec-claudecode.ts</code> or its tests.</li>
+<li>Changing the <code>ExecModule</code> interface (<code>promptPath</code> → <code>prompt: string</code> is tracked in <code>refl-0029-execmodule-promptpath-contract-leaks-on</code>, which <code>depends_on</code> this cycle).</li>
+<li>Adding a <code>codex</code> step to any default workflow in <code>src/defaults/workflows.yml</code>.</li>
+<li>Real <code>codex</code> CLI invocation in tests — subprocesses are mocked via a shell stub on PATH, same pattern as the claudecode test.</li>
+<li>Gemini provider, prompt-handoff redesign, structured tool-call request bodies.</li>
+</ul>
+<h4>Requirements</h4>
+<ul>
+<li><code>exec-codex.ts</code> exports <code>codexExec: ExecModule</code>.</li>
+<li><code>runStep({ repoRoot, promptPath, env })</code>:</li>
+</ul>
+<p>  - Reads the prompt body from <code>${repoRoot}/.cycle/${promptPath}</code> via <code>readFile(..., &quot;utf8&quot;)</code> — matches the prevailing contract until the reflection refactor lands.   - Spawns <code>codex</code> via <code>node:child_process.spawn</code> with array args, <code>shell: false</code>, <code>cwd: repoRoot</code>, env built through <code>buildChildEnv(env ?? {})</code> from <code>src/engine/child-env.ts</code>.   - Writes the prompt body to the child&#39;s stdin and closes stdin (per the source issue: &quot;Pass the prompt on stdin&quot;).   - Captures stdout and stderr as utf8-decoded strings.   - Resolves <code>{ status: code === 0 ? &quot;ok&quot; : &quot;failed&quot;, exitCode: code ?? -1, stdout, stderr }</code>.   - On a <code>child.on(&quot;error&quot;, ...)</code> event (ENOENT etc.), resolves <code>{ status: &quot;failed&quot;, exitCode: -1, stdout: &quot;&quot;, stderr: err.message }</code> — never rejects.</p>
+<ul>
+<li><code>REGISTRY</code> in <code>src/engine/exec.ts</code> includes <code>codex: codexExec</code> alongside <code>claudecode</code>.</li>
+<li>No use of <code>exec</code> / <code>execSync</code> / <code>shell: true</code> anywhere in the new module (project subprocess discipline, <code>CLAUDE.md</code> § Subprocess discipline).</li>
+</ul>
+<h4>Acceptance Criteria</h4>
+<ul>
+<li>[ ] <code>src/engine/exec-codex.ts</code> exists and exports <code>codexExec: ExecModule</code>.</li>
+<li>[ ] <code>resolveAgent(&quot;codex&quot;)</code> returns the module; <code>UnknownAgentError.message</code> (when thrown for some other name) now lists <code>codex</code> in the sorted known-agents list.</li>
+<li>[ ] New unit tests in <code>tests/engine/exec-codex.test.ts</code> cover:</li>
+</ul>
+<p>  - Happy path: a fake <code>codex</code> shell stub on PATH echoes its stdin; the module returns <code>status: &quot;ok&quot;</code> and stdout contains the prompt body verbatim. Asserts stdin delivery, not just argv.   - Non-zero exit path: stub exits 1; module returns <code>status: &quot;failed&quot;</code>, <code>exitCode: 1</code>, and stderr is captured.   - Spawn ENOENT: PATH set to a directory with no <code>codex</code> binary; module returns <code>status: &quot;failed&quot;</code>, <code>exitCode: -1</code>, non-empty <code>stderr</code>.</p>
+<ul>
+<li>[ ] <code>tests/engine/exec.test.ts</code> either asserts <code>codex</code> is registered or a new analogous test does — the dispatch table claim &quot;Dispatch table includes <code>codex</code>&quot; is covered by automated test, not just inspection.</li>
+<li>[ ] <code>npm test</code> passes; <code>npm run typecheck</code> passes with no warnings.</li>
+<li>[ ] Coverage thresholds hold against the baseline in <code>CLAUDE.md</code> § Coverage policy: line ≥ 95%, branch ≥ 75%, function ≥ 90%. <code>src/engine/exec-codex.ts</code> has its own coverage from the new tests; no per-file regression in <code>src/engine/exec.ts</code> from the registry edit.</li>
+<li>[ ] No edits to <code>src/engine/exec-claudecode.ts</code>, its test, or <code>src/defaults/workflows.yml</code>.</li>
+</ul>
+<h4>Testing Strategy</h4>
+<ul>
+<li>Node&#39;s built-in test runner (<code>node:test</code>) with <code>strict</code> assert, matching the project&#39;s existing pattern.</li>
+<li>Shell-stub mocking: <code>mkdtemp</code> a bin dir, write a <code>#!/bin/bash</code> script named <code>codex</code>, <code>chmod 0o755</code>, then pass <code>PATH: ${bin}:${process.env.PATH}</code> via the <code>env</code> arg. Same idiom as <code>tests/engine/exec-claudecode.test.ts:8-27</code>.</li>
+<li>Stdin assertion: the happy-path stub reads stdin (<code>cat</code>) and echoes it back so the test can assert the prompt body round-tripped through stdin, not through argv.</li>
+<li>ENOENT path: pass <code>PATH: &quot;/nonexistent&quot;</code> and assert the <code>child.on(&quot;error&quot;, ...)</code> branch resolves rather than rejects — same shape as <code>tests/engine/exec-claudecode.test.ts:29-47</code>.</li>
+<li>No real <code>codex</code> binary invoked anywhere; tests run hermetically on a machine without it installed.</li>
+</ul>
+<h4>Documentation Updates</h4>
+<ul>
+<li><strong><code>CLAUDE.md</code></strong>: § Architecture quick reference already names the dispatch table and <code>resolveAgent</code>; append <code>codex</code> next to <code>claudecode</code> in the per-step <code>agent:</code> mention. One-line edit.</li>
+<li><strong><code>README.md</code></strong>: no user-facing CLI surface change (no new flag, no new workflow). No README edit required this cycle; documenting that operators can now write <code>agent: codex</code> in a custom <code>workflows.yml</code> is a doc cycle of its own and is out of scope.</li>
+<li><strong><code>docs/ARCHITECTURE.md</code></strong>: no edit — the module-level diagram doesn&#39;t enumerate providers.</li>
+</ul>
+<p>Documentation is part of &quot;done&quot;; for this cycle that means the single line in <code>CLAUDE.md</code> and nothing else.</p>
+<h4>Dependencies</h4>
+<ul>
+<li><code>multi-agent-abstraction-exec-interface</code> (cycle 0029) is already merged — the <code>ExecModule</code> interface, <code>REGISTRY</code>, <code>resolveAgent</code>, and <code>UnknownAgentError</code> exist in <code>src/engine/exec.ts</code>.</li>
+<li><code>src/engine/child-env.ts</code> <code>buildChildEnv</code> is the env builder for the curated PATH inheritance.</li>
+<li><code>src/engine/exec-bash.ts</code> <code>StepResult</code> type is the return shape.</li>
+<li>Node ≥ 22.6 for native <code>--experimental-strip-types</code> TS execution (per <code>CLAUDE.md</code> § Runtime).</li>
+<li>No new npm dependency. No env var contract. No real <code>codex</code> CLI on the test host.</li>
+</ul></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/engine/exec-codex.ts        | 47 ++++++++++++++++++++++++
+ src/engine/exec.ts              |  2 ++
+ tests/engine/exec-codex.test.ts | 79 +++++++++++++++++++++++++++++++++++++++++
+ tests/engine/exec.test.ts       |  6 ++++
+ 4 files changed, 134 insertions(+)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/engine/exec-codex.ts b/src/engine/exec-codex.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..0f714d2</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/src/engine/exec-codex.ts</span><span class="hunk">@@ -0,0 +1,47 @@</span><span class="add">+import { spawn } from &quot;node:child_process&quot;;</span><span class="add">+import { readFile } from &quot;node:fs/promises&quot;;</span><span class="add">+import { join } from &quot;node:path&quot;;</span><span class="add">+import { buildChildEnv } from &quot;./child-env.ts&quot;;</span><span class="add">+import type { ExecModule } from &quot;./exec.ts&quot;;</span><span class="add">+import type { StepResult } from &quot;./exec-bash.ts&quot;;</span><span class="add">+</span><span class="add">+export const codexExec: ExecModule = {</span><span class="add">+  async runStep({ repoRoot, promptPath, env }) {</span><span class="add">+    const abs = join(repoRoot, &quot;.cycle&quot;, promptPath);</span><span class="add">+    const prompt = await readFile(abs, &quot;utf8&quot;);</span><span class="add">+    return new Promise&lt;StepResult&gt;((resolve) =&gt; {</span><span class="add">+      const child = spawn(&quot;codex&quot;, [], {</span><span class="add">+        cwd: repoRoot,</span><span class="add">+        env: buildChildEnv(env ?? {}),</span><span class="add">+        shell: false,</span><span class="add">+      });</span><span class="add">+      let stdout = &quot;&quot;;</span><span class="add">+      let stderr = &quot;&quot;;</span><span class="add">+      child.stdout.on(&quot;data&quot;, (d) =&gt; { stdout += d.toString(); });</span><span class="add">+      child.stderr.on(&quot;data&quot;, (d) =&gt; { stderr += d.toString(); });</span><span class="add">+      child.on(&quot;close&quot;, (code) =&gt; {</span><span class="add">+        resolve({</span><span class="add">+          status: code === 0 ? &quot;ok&quot; : &quot;failed&quot;,</span><span class="add">+          exitCode: code ?? -1,</span><span class="add">+          stdout,</span><span class="add">+          stderr,</span><span class="add">+        });</span><span class="add">+      });</span><span class="add">+      child.on(&quot;error&quot;, (err) =&gt; {</span><span class="add">+        resolve({</span><span class="add">+          status: &quot;failed&quot;,</span><span class="add">+          exitCode: -1,</span><span class="add">+          stdout: &quot;&quot;,</span><span class="add">+          stderr: (err as Error).message,</span><span class="add">+        });</span><span class="add">+      });</span><span class="add">+      child.stdin.on(&quot;error&quot;, () =&gt; {});</span><span class="add">+      try {</span><span class="add">+        child.stdin.write(prompt);</span><span class="add">+        child.stdin.end();</span><span class="add">+      } catch {</span><span class="add">+        // child.on(&quot;error&quot;, …) owns the resolve when stdin closes before write</span><span class="add">+      }</span><span class="add">+    });</span><span class="add">+  },</span><span class="add">+};</span><span class="fileheader">diff --git a/src/engine/exec.ts b/src/engine/exec.ts</span><span class="fileheader">index 20194c5..f16a8c2 100644</span><span class="meta">--- a/src/engine/exec.ts</span><span class="meta">+++ b/src/engine/exec.ts</span><span class="hunk">@@ -1,5 +1,6 @@</span><span class="ctx"> import type { StepResult } from &quot;./exec-bash.ts&quot;;</span><span class="ctx"> import { claudecodeExec } from &quot;./exec-claudecode.ts&quot;;</span><span class="add">+import { codexExec } from &quot;./exec-codex.ts&quot;;</span><span class="ctx"> </span><span class="ctx"> export interface ExecModule {</span><span class="ctx">   runStep(args: {</span><span class="hunk">@@ -19,6 +20,7 @@ export class UnknownAgentError extends Error {</span><span class="ctx"> </span><span class="ctx"> const REGISTRY: Record&lt;string, ExecModule&gt; = {</span><span class="ctx">   claudecode: claudecodeExec,</span><span class="add">+  codex: codexExec,</span><span class="ctx"> };</span><span class="ctx"> </span><span class="ctx"> export function resolveAgent(name: string): ExecModule {</span><span class="fileheader">diff --git a/tests/engine/exec-codex.test.ts b/tests/engine/exec-codex.test.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..03ea168</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/tests/engine/exec-codex.test.ts</span><span class="hunk">@@ -0,0 +1,79 @@</span><span class="add">+import { test } from &quot;node:test&quot;;</span><span class="add">+import { strict as assert } from &quot;node:assert&quot;;</span><span class="add">+import { mkdtemp, mkdir, writeFile, rm, chmod } from &quot;node:fs/promises&quot;;</span><span class="add">+import { tmpdir } from &quot;node:os&quot;;</span><span class="add">+import { join } from &quot;node:path&quot;;</span><span class="add">+import { resolveAgent } from &quot;../../src/engine/exec.ts&quot;;</span><span class="add">+</span><span class="add">+test(&quot;codex: pipes prompt body to stdin, returns stdout&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span><span class="add">+  const bin = await mkdtemp(join(tmpdir(), &quot;cycle-bin-&quot;));</span><span class="add">+  try {</span><span class="add">+    const prompts = join(root, &quot;.cycle/prompts&quot;);</span><span class="add">+    await mkdir(prompts, { recursive: true });</span><span class="add">+    const body = &quot;PROMPT BODY codex-stdin-roundtrip&quot;;</span><span class="add">+    await writeFile(join(prompts, &quot;spec.md&quot;), body, &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+    const fake = join(bin, &quot;codex&quot;);</span><span class="add">+    await writeFile(fake, &quot;#!/bin/bash\ncat\n&quot;, &quot;utf8&quot;);</span><span class="add">+    await chmod(fake, 0o755);</span><span class="add">+</span><span class="add">+    const r = await resolveAgent(&quot;codex&quot;).runStep({</span><span class="add">+      repoRoot: root,</span><span class="add">+      promptPath: &quot;prompts/spec.md&quot;,</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}` },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span><span class="add">+    assert.equal(r.exitCode, 0);</span><span class="add">+    assert.match(r.stdout, /codex-stdin-roundtrip/);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+    await rm(bin, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;codex: non-zero exit surfaces status:failed and captures stderr&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span><span class="add">+  const bin = await mkdtemp(join(tmpdir(), &quot;cycle-bin-&quot;));</span><span class="add">+  try {</span><span class="add">+    const prompts = join(root, &quot;.cycle/prompts&quot;);</span><span class="add">+    await mkdir(prompts, { recursive: true });</span><span class="add">+    await writeFile(join(prompts, &quot;spec.md&quot;), &quot;body&quot;, &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+    const fake = join(bin, &quot;codex&quot;);</span><span class="add">+    await writeFile(fake, &quot;#!/bin/bash\necho boom &gt;&amp;2\nexit 1\n&quot;, &quot;utf8&quot;);</span><span class="add">+    await chmod(fake, 0o755);</span><span class="add">+</span><span class="add">+    const r = await resolveAgent(&quot;codex&quot;).runStep({</span><span class="add">+      repoRoot: root,</span><span class="add">+      promptPath: &quot;prompts/spec.md&quot;,</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}` },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;failed&quot;);</span><span class="add">+    assert.equal(r.exitCode, 1);</span><span class="add">+    assert.match(r.stderr, /boom/);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+    await rm(bin, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;codex: resolves StepResult{status:failed,exitCode:-1} when codex binary missing (spawn ENOENT)&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span><span class="add">+  try {</span><span class="add">+    const prompts = join(root, &quot;.cycle/prompts&quot;);</span><span class="add">+    await mkdir(prompts, { recursive: true });</span><span class="add">+    await writeFile(join(prompts, &quot;spec.md&quot;), &quot;body&quot;, &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+    const r = await resolveAgent(&quot;codex&quot;).runStep({</span><span class="add">+      repoRoot: root,</span><span class="add">+      promptPath: &quot;prompts/spec.md&quot;,</span><span class="add">+      env: { PATH: &quot;/nonexistent&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;failed&quot;);</span><span class="add">+    assert.equal(r.exitCode, -1);</span><span class="add">+    assert.ok(r.stderr.length &gt; 0, &quot;stderr carries spawn error message&quot;);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="fileheader">diff --git a/tests/engine/exec.test.ts b/tests/engine/exec.test.ts</span><span class="fileheader">index e28a6da..98b6252 100644</span><span class="meta">--- a/tests/engine/exec.test.ts</span><span class="meta">+++ b/tests/engine/exec.test.ts</span><span class="hunk">@@ -7,6 +7,11 @@ test(&quot;resolveAgent returns the registered claudecode module&quot;, () =&gt; {</span><span class="ctx">   assert.equal(typeof mod.runStep, &quot;function&quot;);</span><span class="ctx"> });</span><span class="ctx"> </span><span class="add">+test(&quot;resolveAgent returns the registered codex module&quot;, () =&gt; {</span><span class="add">+  const mod = resolveAgent(&quot;codex&quot;);</span><span class="add">+  assert.equal(typeof mod.runStep, &quot;function&quot;);</span><span class="add">+});</span><span class="add">+</span><span class="ctx"> test(&quot;resolveAgent throws UnknownAgentError for an unregistered name&quot;, () =&gt; {</span><span class="ctx">   let caught: unknown;</span><span class="ctx">   try {</span><span class="hunk">@@ -18,4 +23,5 @@ test(&quot;resolveAgent throws UnknownAgentError for an unregistered name&quot;, () =&gt; {</span><span class="ctx">   const msg = (caught as Error).message;</span><span class="ctx">   assert.match(msg, /&quot;foo&quot;/);</span><span class="ctx">   assert.match(msg, /claudecode/);</span><span class="add">+  assert.match(msg, /codex/);</span><span class="ctx"> });</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><pre class="md-code" data-lang="markdown"><code># Review: Cycle 0030
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+Clean, mirrors `exec-claudecode.ts` line-for-line except argv-vs-stdin pivot. SPEC acceptance bullets 1–7 all met. Tests green, typecheck clean, coverage above baseline on every metric.
+
+### Findings
+1. **Architecture/Pattern fit**: `src/engine/exec-codex.ts:1-47` follows the `exec-claudecode.ts` template exactly (readFile prompt body → spawn array args, `shell:false` → wire stdout/stderr/close/error → never reject). Stdin pipe + EPIPE guard pair (`child.stdin.on(&quot;error&quot;, () =&gt; {})` + try/catch around write/end) addresses RESEARCH open-question 2 as planned — `src/engine/exec-codex.ts:38-44`.
+2. **Registry edit**: `src/engine/exec.ts:21-24` literal-key addition. `resolveAgent` lookup and `UnknownAgentError` sorted-list message both adapt without branch changes; per-file coverage on `exec.ts` stays 100/100/100.
+3. **Subprocess discipline**: array args, `shell: false`, `buildChildEnv(env ?? {})` — matches `CLAUDE.md` § Subprocess discipline. No `exec` / `execSync` introduced.
+4. **Doc edit**: `CLAUDE.md` § Architecture quick reference now enumerates `exec-codex` in the engine-source list and `Registered agents: claudecode, codex` on the `resolveAgent` paragraph. Single-line as SPEC required.
+5. **Sanity grep**: `git diff --stat src/defaults/ src/engine/exec-claudecode.ts tests/engine/exec-claudecode.test.ts` returns empty — SPEC bullet 7 honored.
+6. **Latent inconsistency (informational, out-of-scope per SPEC/PLAN)**: `src/engine/workflow.ts:7` keeps `agent: &quot;claudecode&quot; | &quot;bash&quot;` narrow union. Runtime dispatcher accepts any string via `resolveAgent`, and `loadConfig` force-casts the parsed YAML, so users can write `agent: codex` and it works at runtime. PLAN.md explicitly defers widening to a separate decision. Not a fix; flagged for future cycle awareness.
+
+### Spec Compliance Checklist
+- [x] `src/engine/exec-codex.ts` exists and exports `codexExec: ExecModule` (`src/engine/exec-codex.ts:8`).
+- [x] `resolveAgent(&quot;codex&quot;)` returns the module; `UnknownAgentError.message` lists `codex` in sorted list — covered by `tests/engine/exec.test.ts:10-13,15-27`.
+- [x] Unit tests cover happy path (stdin round-trip), non-zero exit, ENOENT — `tests/engine/exec-codex.test.ts:8-33,35-59,61-79`.
+- [x] `tests/engine/exec.test.ts` asserts `codex` is registered (`tests/engine/exec.test.ts:10-13`).
+- [x] `npm test` passes (296/296). `npm run typecheck` clean.
+- [x] Coverage holds vs baseline: line 98.51 / branch 90.73 / function 95.80 — all above 95 / 75 / 90. `src/engine/exec.ts` stays 100/100/100 (no per-file regression on registry edit).
+- [x] No edits to `src/engine/exec-claudecode.ts`, its test, or `src/defaults/workflows.yml`.
+- [x] `CLAUDE.md` updated per SPEC § Documentation Updates.
+
+## Adversarial Test Review
+
+### Summary
+Adequate. Real subprocess + real shell stub idiom (no `spawn` mocking) keeps tests honest about the stdin pipe contract. Failure-path coverage matches SPEC bullet 3. Two tightening opportunities flagged below — neither blocks; both are follow-up grade.
+
+### Findings
+1. **Stdin closure proven only indirectly** — `tests/engine/exec-codex.test.ts:18` stub is `#!/bin/bash\ncat\n`, which reads stdin to EOF. If `child.stdin.end()` were missing, `cat` would block forever and the test would hang instead of failing cleanly (Node&#39;s test runner has no default per-test timeout). The stdout-content assertion does prove the prompt body reached the child via stdin, but a regression that loses `stdin.end()` surfaces as a hang, not a clear failure. Tightening idea (follow-up only): use `head -c &lt;len&gt;` or assert `stdout.length === body.length` to fail-fast.
+2. **Stdin error-listener regression undetectable** — `src/engine/exec-codex.ts:38` `child.stdin.on(&quot;error&quot;, () =&gt; {})` no-op listener prevents an unhandled `&#39;error&#39;` event on the ENOENT path. If a future edit drops the listener, the ENOENT test (`tests/engine/exec-codex.test.ts:61-79`) may emit an unhandled-event warning yet still pass on assertions. Tightening idea (follow-up): wrap the ENOENT test in `process.on(&quot;uncaughtException&quot;)` / `process.on(&quot;warning&quot;)` assertions. Not in scope.
+3. **`try/catch` on `src/engine/exec-codex.ts:42-44` uncovered** — covered lines 43-44 are the empty catch guarding a synchronous `child.stdin.write` throw. In practice the sync throw is unreachable on the tested code paths (the `&#39;error&#39;` event is async), so the catch is dead-defensive. PLAN.md § Risk acknowledged this explicitly; per-file func % on `exec-codex.ts` drops to 85.71 because of it. Global coverage stays above baseline — accepted.
+4. **Empty prompt body not exercised** — PLAN.md noted as deferred. SPEC didn&#39;t require it. Not adding here is a deliberate scope decision; flag only.
+5. **Large prompt (&gt;64 KiB pipe buffer) not exercised** — same posture: deferred per PLAN.md § Risk. Real cycle prompts sit under the buffer; revisit if real-world usage approaches the limit.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: **98.51 / 90.73 / 95.80** (global; baseline 95 / 75 / 90 — all above).
+- Per-file new module `src/engine/exec-codex.ts`: 95.74 / 75.00 / 85.71 — line OK, branch at threshold, function below 90 because of the defensive `catch` (lines 43–44). Global function % offsets it; no global-baseline breach. CLAUDE.md coverage policy is stated globally, not per-file.
+- Regressions vs base (per-file): none. `src/engine/exec.ts` stays 100/100/100; every other file unchanged.
+- New code without tests: none. The only uncovered surface on the new module is the defensive synchronous-throw `catch`, which has no plausible trigger in the test environment.
+- Specific scenarios missing tests: stdin closure proven indirectly (hang-on-regression vs assertion-on-regression); stdin error-listener regression undetectable as noted above; empty/large prompt bodies deferred per PLAN.md. None block the cycle.
+
+Implementation matches SPEC and PLAN cleanly; no MUST-FIX.md emitted.</code></pre></div></section>
+
+<nav class="pager">
+  <a href="cycle-0029.html">← Cycle 0029</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0031.html">Cycle 0031 →</a>
+</nav>
+
+<footer>Generated from <code>410a7d0</code></footer>
+</body>
+</html>

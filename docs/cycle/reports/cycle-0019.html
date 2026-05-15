@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0019 · CLI: cycle drop writes to raw/ (not tbd/) (#29)</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0019</h1>
+  <div class="subtitle">CLI: cycle drop writes to raw/ (not tbd/) (#29)</div>
+  <div class="meta-row">
+    <code>392b4a0</code> · Timothy Johnson · 2026-05-13 14:28:20 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0018.html">← Cycle 0018</a>
+  <span class="center">19 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0020.html">Cycle 0020 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><h3>SPEC — Cycle 0019: CLI <code>cycle drop</code> Writes to <code>raw/</code> (Not <code>tbd/</code>)</h3>
+<h4>Objective</h4>
+<p>Bring the <code>cycle drop &quot;&lt;text&gt;&quot;</code> command into compliance with the post-RFC-001 issue lifecycle by ensuring the materialized file lands in <code>docs/cycle/issues/raw/</code> with the exact frontmatter shape that the triage subroutine expects on a raw drop — including the <code>priority</code> field that today&#39;s <code>materializeFreeformIssue</code> omits. This restores parity between external drops (human / agent / CLI) and what triage reads on the next pass.</p>
+<h4>Source Issue</h4>
+<p><code>cli-drop-writes-to-raw-fix-drop-target</code> — &quot;CLI: cycle drop writes to raw/ (not tbd/)&quot;</p>
+<h4>Scope</h4>
+<h5>In Scope</h5>
+<ul>
+<li>Update <code>src/issue/materialize.ts</code> (the sole writer the <code>drop</code> command invokes) so the emitted frontmatter is exactly: <code>id</code>, <code>source: text</code>, <code>title</code>, <code>added_at</code>, <code>triage_attempts: 0</code>, <code>priority: 3</code>. Field order matches the RFC-001 §&quot;Raw drop&quot; example.</li>
+<li>Update <code>tests/issue/materialize.test.ts</code> to assert the new <code>priority: 3</code> line is present and that all six fields are emitted in stable order.</li>
+<li>Sanity-grep <code>src/</code>, <code>tests/</code>, <code>README.md</code>, <code>CLAUDE.md</code> for any lingering folder-name <code>tbd/</code> reference (as opposed to the queue-file <code>tbd.jsonl</code>, which stays) introduced by the drop path. If <code>--help</code> text or any user-visible CLI doc surfaces the drop target, point it at <code>raw/</code>.</li>
+</ul>
+<h5>Out of Scope</h5>
+<ul>
+<li><code>cycle status</code> command (covered by sibling child issue <code>cli-drop-writes-to-raw-status-command</code>).</li>
+<li>Any changes to <code>src/engine/triage.ts</code> or to how triage <em>reads</em> raw frontmatter; we only adjust what gets <em>written</em>.</li>
+<li>Honoring <code>priority</code> during triage ordering (RFC-001 explicitly calls priority &quot;not honored automatically&quot;); we only emit the field as a default hint.</li>
+<li>A user-facing <code>--priority</code> flag on <code>cycle drop</code>; out of scope this cycle, defer to a follow-up.</li>
+<li>Cleanup of the historic <code>docs/plans/2026-05-12-cycle-mvp-dogfood.md</code> mentions of <code>tbd/</code> — those are frozen historical artifacts.</li>
+</ul>
+<h4>Requirements</h4>
+<ul>
+<li>After the change, <code>cycle drop &quot;foo&quot;</code> (no other flags) MUST produce a single file under <code>docs/cycle/issues/raw/</code> containing the six required frontmatter keys plus the original body text. The file MUST parse cleanly via <code>parseFrontmatter</code> from <code>src/engine/frontmatter.ts</code> (no manual reader divergence).</li>
+<li>The default <code>priority</code> value MUST be <code>3</code> (numeric, unquoted), matching the integer shape triage expects and matching the RFC-001 example&#39;s numeric form.</li>
+<li>Existing JSONL contract on stdout (<code>{event:&quot;issue.dropped&quot;, issue_id, path}</code>) MUST be unchanged — external agents already consume it.</li>
+<li>No code path in <code>src/</code> may reference <code>docs/cycle/issues/tbd/</code> as a write target (we confirm via grep — currently clean, must remain clean).</li>
+<li>Coverage MUST NOT regress against the master baseline: line ≥ 95 %, branch ≥ 75 %, function ≥ 90 %.</li>
+<li><code>npm run typecheck</code> MUST report zero warnings.</li>
+</ul>
+<h4>Acceptance Criteria</h4>
+<ul>
+<li>[ ] <code>cycle drop &quot;fix login bug&quot;</code> (invoked against a tmp repo via the bundled <code>dist/cycle.js</code>) creates exactly one file matching <code>docs/cycle/issues/raw/txt-&lt;UTC&gt;-fix-login-bug.md</code>, and its frontmatter contains all six keys in the documented order with <code>priority: 3</code>.</li>
+<li>[ ] No file is written to <code>docs/cycle/issues/tbd/</code> during the drop (folder is not created, not touched).</li>
+<li>[ ] <code>tests/issue/materialize.test.ts</code> asserts (a) path under <code>raw/</code>, (b) all six frontmatter keys present including <code>priority: 3</code>, (c) body trailing newline preserved.</li>
+<li>[ ] <code>grep -rn &quot;docs/cycle/issues/tbd&quot; src/ tests/</code> returns zero matches.</li>
+<li>[ ] <code>npm test</code> is green (all tests, including the existing <code>tests/cli/multi-loop.test.ts:123</code> &quot;drop materializes an issue to raw/&quot; check, which must continue to pass without modification beyond any frontmatter-related assertion updates if it makes such assertions).</li>
+<li>[ ] <code>npm run typecheck</code> is clean.</li>
+<li>[ ] <code>npm run test:coverage</code> shows line ≥ 95 %, branch ≥ 75 %, function ≥ 90 % and no per-file regression on <code>src/issue/materialize.ts</code> (expected: 100 % line / function after the unit test update).</li>
+<li>[ ] Reported coverage numbers appear in <code>BUILD.md</code> and <code>FIX.md</code> per the project coverage policy.</li>
+</ul>
+<h4>Testing Strategy</h4>
+<ul>
+<li><strong>Framework:</strong> Node&#39;s native <code>node:test</code> runner, no transpile (<code>--experimental-strip-types</code>), invoked via <code>npm test</code>.</li>
+<li><strong>Unit test (<code>tests/issue/materialize.test.ts</code>):</strong> extend the existing fixed-clock test to assert the new <code>priority: 3</code> line plus a stable field-order check (a single <code>assert.match</code> against the full frontmatter block, or six individual <code>assert.match</code> calls, whichever stays most readable). Continue to use <code>mkdtemp</code> + <code>rm</code> for isolation.</li>
+<li><strong>End-to-end coverage:</strong> the existing <code>tests/cli/multi-loop.test.ts:123</code> test already shells out to the built <code>dist/cycle.js</code> and checks the drop side-effect; verify it still passes after the materialize change. If that test introspects frontmatter, mirror the new <code>priority</code> assertion there too; otherwise leave it untouched to keep the regression surface lean.</li>
+<li><strong>Cross-cutting:</strong> no new E2E / Playwright tests required — this cycle has no UI surface.</li>
+<li><strong>Negative path:</strong> no test for &quot;priority override&quot; because no override flag exists yet (deferred). Avoid adding a stub <code>--priority</code> flag just to test it.</li>
+</ul>
+<h4>Documentation Updates</h4>
+<ul>
+<li><strong>CLAUDE.md / AGENTS.md:</strong> no change expected — the project doc does not currently spell out the <code>cycle drop</code> frontmatter contract, and adding it now would duplicate RFC-001 §&quot;Raw drop&quot;. If the build step finds that CLAUDE.md <em>does</em> mention the drop frontmatter (it does not at the time of this spec), update it; otherwise skip.</li>
+<li><strong>README.md:</strong> if README documents the <code>drop</code> subcommand (current README grep returns no matches), update the example to show the new six-field frontmatter; otherwise skip.</li>
+<li><strong><code>docs/RFC-001-issue-lifecycle.md</code>:</strong> no change — the RFC §&quot;Raw drop&quot; example already documents the target frontmatter shape; this cycle brings the implementation to that shape, not the other way around.</li>
+<li>Documentation parity is part of &quot;done&quot;: after the change, the file <code>materialize.ts</code> writes must structurally equal the RFC §&quot;Raw drop&quot; example.</li>
+</ul>
+<h4>Dependencies</h4>
+<ul>
+<li>BB-1 (folder rename <code>tbd/ → raw/</code>, cycle 0012) already merged on <code>master</code> — confirmed by <code>docs/cycle/issues/raw/</code> existing and <code>materialize.ts:7</code> already pointing at <code>raw/</code>.</li>
+<li>Triage subroutine (BB-4, cycle 0015) merged — its frontmatter expectations are the spec being aligned to.</li>
+<li>No external services, env vars, or new npm deps required.</li>
+<li>Build pipeline: <code>dist/cycle.js</code> must be rebuilt via <code>npm run build</code> (pretest covers this automatically) so the end-to-end drop test in <code>tests/cli/multi-loop.test.ts</code> exercises the updated materialize.</li>
+</ul></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">.cycle/tbd.jsonl.bootstrap-archive |  5 +++++
+ src/issue/materialize.ts           |  1 +
+ tests/issue/materialize.test.ts    | 27 ++++++++++++++++++++++-----
+ tsconfig.json                      |  3 ++-
+ 4 files changed, 30 insertions(+), 6 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/.cycle/tbd.jsonl.bootstrap-archive b/.cycle/tbd.jsonl.bootstrap-archive</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..6cc60a5</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/.cycle/tbd.jsonl.bootstrap-archive</span><span class="hunk">@@ -0,0 +1,5 @@</span><span class="add">+{&quot;id&quot;:&quot;txt-20260513-034347-bb-3-new-tbd-jsonl-row-schema-and-drain&quot;,&quot;source&quot;:&quot;text&quot;,&quot;title&quot;:&quot;BB-3: New tbd.jsonl row schema and drain semantics. Row fields: id, parent, title, status (pending|in_progress), attempt, depends_on, triaged_at, plus cycle_id when in_progress. Engine drains rows: on cycle.end ok, remove row and move file todo/ -&gt; done/. On cycle.end failed and attempt &lt; max, increment attempt and reset status to pending. On cycle.end failed and attempt &gt;= max_cycle_attempts, remove row and move file to failed/ with failed_at/failed_step/failed_attempts frontmatter; then run propagateBlocked. Engine reads workflow from popped file&#39;s frontmatter at cycle.start. Archive existing .cycle/tbd.jsonl to .cycle/tbd.jsonl.bootstrap-archive before adopting new schema. See docs/RFC-001-issue-lifecycle.md sections 6, 12 (BB-3).&quot;,&quot;path&quot;:&quot;/Users/timothyjohnson/wrk/cycle/docs/cycle/issues/todo/txt-20260513-034347-bb-3-new-tbd-jsonl-row-schema-and-drain.md&quot;,&quot;added_at&quot;:&quot;2026-05-13T03:43:47.684Z&quot;}</span><span class="add">+{&quot;id&quot;:&quot;txt-20260513-034359-bb-4-build-the-triage-subroutine-new-src&quot;,&quot;source&quot;:&quot;text&quot;,&quot;title&quot;:&quot;BB-4: Build the triage subroutine. New src/engine/triage.ts: spawn claudecode subprocess with the prompt from workflows.yml triage section, parse JSON to stdout, validate schema (children[], ordering[], decomposed_parents[]), apply atomically (write todo/&lt;id&gt;.md files, move raw-&gt;done/_raw, update tbd.jsonl). Per-raw retry up to 3 attempts; on each retry feed back the validator error as one-shot self-correction. If all raws fail in one pass, emit engine.paused and exit. New src/defaults/prompts/triage.md prompt template. Wire trigger points in run-cycle.ts: at engine.start when no in-progress cycle, and between cycles when raw/ is non-empty (per RFC section 10). See docs/RFC-001-issue-lifecycle.md sections 5, 10, 12 (BB-4).&quot;,&quot;path&quot;:&quot;/Users/timothyjohnson/wrk/cycle/docs/cycle/issues/todo/txt-20260513-034359-bb-4-build-the-triage-subroutine-new-src.md&quot;,&quot;added_at&quot;:&quot;2026-05-13T03:43:59.351Z&quot;}</span><span class="add">+{&quot;id&quot;:&quot;txt-20260513-034416-bb-5-resume-logic-from-log-jsonl-tail-at&quot;,&quot;source&quot;:&quot;text&quot;,&quot;title&quot;:&quot;BB-5: Resume logic from log.jsonl tail. At engine.start, read log.jsonl backwards to detect any in-flight cycle (cycle.start with no matching cycle.end, or step.start with no matching step.end). If found: resume that cycle from the last incomplete step (re-run the step). Pre-resume actions: refetch base branch (git fetch + ff merge), preserve branch and earlier artifacts. Each workflow step must be restart-tolerant: prompt steps overwrite their artifact; commit.sh is already idempotent; pr.sh detects existing PR by branch and resumes polling/fallback instead of re-creating. After resume completes, fall through into the normal triage -&gt; pop loop. See docs/RFC-001-issue-lifecycle.md sections 10, 11, 12 (BB-5). This also subsumes the existing tbd/ issue &#39;engine: pull origin/master between cycles&#39; (txt-20260513-020016).&quot;,&quot;path&quot;:&quot;/Users/timothyjohnson/wrk/cycle/docs/cycle/issues/todo/txt-20260513-034416-bb-5-resume-logic-from-log-jsonl-tail-at.md&quot;,&quot;added_at&quot;:&quot;2026-05-13T03:44:16.122Z&quot;}</span><span class="add">+{&quot;id&quot;:&quot;txt-20260513-034426-bb-6-propagateblocked-engine-wide-halt-p&quot;,&quot;source&quot;:&quot;text&quot;,&quot;title&quot;:&quot;BB-6: propagateBlocked + engine-wide halt policy. New engine function propagateBlocked(failedId): walks tbd.jsonl, for every row whose depends_on contains failedId, moves todo/&lt;id&gt;.md -&gt; blocked/&lt;id&gt;.md with blocked_by:[failedId] frontmatter, drops row from tbd.jsonl, emits issue.blocked event, recurses for transitive blocking. Pure deterministic logic, no LLM. Engine halt: maintain consecutive_failures counter; increment on cycle move to failed/, reset to 0 on cycle move to done/; when counter reaches engine.max_consecutive_failures (default 2), emit engine.halted with failed cycle ids and exit non-zero. See docs/RFC-001-issue-lifecycle.md sections 7, 8, 12 (BB-6).&quot;,&quot;path&quot;:&quot;/Users/timothyjohnson/wrk/cycle/docs/cycle/issues/todo/txt-20260513-034426-bb-6-propagateblocked-engine-wide-halt-p.md&quot;,&quot;added_at&quot;:&quot;2026-05-13T03:44:26.655Z&quot;}</span><span class="add">+{&quot;id&quot;:&quot;txt-20260513-034434-bb-7-reflection-step-in-feature-workflow&quot;,&quot;source&quot;:&quot;text&quot;,&quot;title&quot;:&quot;BB-7: Reflection step in feature workflow. Add reflection as the final step in the feature workflow in workflows.yml, agent: claudecode, prompt: prompts/reflection.md. New src/defaults/prompts/reflection.md: reads cycle artifacts (SPEC.md, RESEARCH.md, PLAN.md, BUILD.md, REVIEW.md, MUST-FIX.md, FIX.md) and git diff, surfaces sharp edges as a JSON list of {title, body, priority_hint}. Engine handles reflection output: for each sharp_edges[] entry, write a new raw/ file with source: reflection frontmatter and the body; these get triaged on the next pass. Empty array = no follow-ups. See docs/RFC-001-issue-lifecycle.md sections 9, 12 (BB-7).&quot;,&quot;path&quot;:&quot;/Users/timothyjohnson/wrk/cycle/docs/cycle/issues/todo/txt-20260513-034434-bb-7-reflection-step-in-feature-workflow.md&quot;,&quot;added_at&quot;:&quot;2026-05-13T03:44:34.839Z&quot;}</span><span class="fileheader">diff --git a/src/issue/materialize.ts b/src/issue/materialize.ts</span><span class="fileheader">index ecbf485..5354d0b 100644</span><span class="meta">--- a/src/issue/materialize.ts</span><span class="meta">+++ b/src/issue/materialize.ts</span><span class="hunk">@@ -14,6 +14,7 @@ export async function materializeFreeformIssue(text: string, repoRoot: string, n</span><span class="ctx">     `title: &quot;${text.replace(/&quot;/g, &#39;\\&quot;&#39;)}&quot;`,</span><span class="ctx">     `added_at: ${now.toISOString()}`,</span><span class="ctx">     &quot;triage_attempts: 0&quot;,</span><span class="add">+    &quot;priority: 3&quot;,</span><span class="ctx">     &quot;---&quot;,</span><span class="ctx">     &quot;&quot;,</span><span class="ctx">     text,</span><span class="fileheader">diff --git a/tests/issue/materialize.test.ts b/tests/issue/materialize.test.ts</span><span class="fileheader">index d033503..26e1594 100644</span><span class="meta">--- a/tests/issue/materialize.test.ts</span><span class="meta">+++ b/tests/issue/materialize.test.ts</span><span class="hunk">@@ -8,14 +8,31 @@ import { materializeFreeformIssue } from &quot;../../src/issue/materialize.ts&quot;;</span><span class="ctx"> test(&quot;writes a markdown file with frontmatter to raw/&quot;, async () =&gt; {</span><span class="ctx">   const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span><span class="ctx">   try {</span><span class="del">-    const { path, id } = await materializeFreeformIssue(&quot;fix login bug&quot;, root, new Date(&quot;2026-05-12T10:30:00Z&quot;));</span><span class="add">+    const { path, id } = await materializeFreeformIssue(</span><span class="add">+      &quot;fix login bug&quot;,</span><span class="add">+      root,</span><span class="add">+      new Date(&quot;2026-05-12T10:30:00Z&quot;),</span><span class="add">+    );</span><span class="ctx">     assert.ok(path.endsWith(&quot;/docs/cycle/issues/raw/txt-20260512-103000-fix-login-bug.md&quot;));</span><span class="ctx">     assert.equal(id, &quot;txt-20260512-103000-fix-login-bug&quot;);</span><span class="ctx">     const body = await readFile(path, &quot;utf8&quot;);</span><span class="del">-    assert.match(body, /^---\n/);</span><span class="del">-    assert.match(body, /id: txt-20260512-103000-fix-login-bug/);</span><span class="del">-    assert.match(body, /source: text/);</span><span class="del">-    assert.match(body, /title: &quot;fix login bug&quot;/);</span><span class="add">+</span><span class="add">+    // Lock the full six-field frontmatter block in documented order (RFC-001 §&quot;Raw drop&quot;).</span><span class="add">+    const expectedFrontmatter =</span><span class="add">+      &quot;---\n&quot; +</span><span class="add">+      &quot;id: txt-20260512-103000-fix-login-bug\n&quot; +</span><span class="add">+      &quot;source: text\n&quot; +</span><span class="add">+      &#39;title: &quot;fix login bug&quot;\n&#39; +</span><span class="add">+      &quot;added_at: 2026-05-12T10:30:00.000Z\n&quot; +</span><span class="add">+      &quot;triage_attempts: 0\n&quot; +</span><span class="add">+      &quot;priority: 3\n&quot; +</span><span class="add">+      &quot;---\n&quot;;</span><span class="add">+    assert.ok(</span><span class="add">+      body.startsWith(expectedFrontmatter),</span><span class="add">+      `frontmatter mismatch:\n${body}`,</span><span class="add">+    );</span><span class="add">+</span><span class="add">+    // Body preserved with trailing newline (no trimming).</span><span class="ctx">     assert.match(body, /\nfix login bug\n$/);</span><span class="ctx">   } finally {</span><span class="ctx">     await rm(root, { recursive: true, force: true });</span><span class="fileheader">diff --git a/tsconfig.json b/tsconfig.json</span><span class="fileheader">index 397bd23..c2ceb98 100644</span><span class="meta">--- a/tsconfig.json</span><span class="meta">+++ b/tsconfig.json</span><span class="hunk">@@ -1,6 +1,7 @@</span><span class="ctx"> {</span><span class="ctx">   &quot;compilerOptions&quot;: {</span><span class="del">-    &quot;target&quot;: &quot;ES2022&quot;,</span><span class="add">+    &quot;target&quot;: &quot;ES2023&quot;,</span><span class="add">+    &quot;lib&quot;: [&quot;ES2023&quot;],</span><span class="ctx">     &quot;module&quot;: &quot;ESNext&quot;,</span><span class="ctx">     &quot;moduleResolution&quot;: &quot;Bundler&quot;,</span><span class="ctx">     &quot;strict&quot;: true,</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>All checks pass. Verdict: PASS. Write REVIEW.md to stdout. No MUST-FIX needed.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0019
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+Single-line, spec-faithful change. `materializeFreeformIssue` now emits `priority: 3` as the sixth RFC-001-mandated frontmatter key in documented order. The unit test was strengthened (literal `startsWith` block-assertion replaces three weak per-field regexes), locking field order as a first-class invariant. Coverage, typecheck, grep, and e2e smoke all green.
+
+### Findings
+1. **Scope creep (acceptable, doc-noted):** `tsconfig.json` was bumped `target: ES2022 → ES2023` and `lib: [&quot;ES2023&quot;]` added — `src/issue/materialize.ts:N/A`, `tsconfig.json:3-4`. Not in PLAN.md scope, but required to clear pre-existing `findLast` typecheck errors at `tests/cli/multi-loop.test.ts:53,114` (see memory obs 470 / 538 / 585). Node ≥ 22.6 already supports ES2023 at runtime, so zero runtime impact. BUILD.md documents the deviation. No action needed.
+2. **Shared-writer fallout (intentional, doc-noted):** `src/cli.ts:62-64` (the `cycle run &quot;&lt;text&gt;&quot;` path) also goes through `materializeFreeformIssue` and therefore now emits `priority: 3`. RESEARCH.md §Dependencies and PLAN.md &quot;What We&#39;re NOT Doing&quot; both call this out as expected. Triage does not read `priority` (`grep &quot;priority&quot; src/engine/triage.ts` → no hits), so this is a forward-compatible no-op.
+3. **`parseFrontmatter` round-trip verified:** `src/engine/frontmatter.ts:17` parses `^-?\d+$` to JS `number`. `priority: 3` round-trips as `3 :: number`, structurally identical to `triage_attempts: 0`.
+4. **JSONL contract preserved:** `src/cli.ts:55` emits `{event:&quot;issue.dropped&quot;, issue_id, path}` unchanged. E2E smoke confirms.
+
+### Spec Compliance Checklist
+- [x] Frontmatter contains exactly six keys in RFC-001 order: `id`, `source: text`, `title`, `added_at`, `triage_attempts: 0`, `priority: 3` — verified via e2e smoke against `dist/cycle.js`.
+- [x] Default `priority` value is `3`, numeric, unquoted — verified.
+- [x] Stdout JSONL `{event:&quot;issue.dropped&quot;, issue_id, path}` unchanged — verified via e2e smoke.
+- [x] No code path in `src/` writes to `docs/cycle/issues/tbd/` — `grep -rn &quot;docs/cycle/issues/tbd&quot; src/ tests/` returns zero.
+- [x] Coverage ≥ baseline: line 96.61% ≥ 95%, branch 89.47% ≥ 75%, function 95.69% ≥ 90%. `src/issue/materialize.ts` 100% line / 100% branch / 100% function.
+- [x] `npm run typecheck` clean.
+- [x] No README / CLAUDE.md / RFC change required (SPEC §Documentation Updates — none of the conditional triggers fired).
+
+## Adversarial Test Review
+
+### Summary
+**Strong.** The test was upgraded from three loose regex matches to a single literal `startsWith` block assertion that pins the entire six-field frontmatter — catches add/remove/reorder/value-shape regressions in one assertion. No mocks. Real filesystem + injected clock. The e2e in `tests/cli/multi-loop.test.ts:123` independently exercises the bundled binary against a real tmp repo.
+
+### Findings
+1. **Strong assertion shape:** `tests/issue/materialize.test.ts:21-33` uses `body.startsWith(&lt;literal&gt;)` against the exact byte sequence. Stronger than the prior `assert.match(body, /id: txt-.../)` which would silently tolerate field reordering or missing fields. No regex tolerance; exact byte equality.
+2. **Trailing-newline assertion is orthogonal:** `tests/issue/materialize.test.ts:36` keeps the `/\nfix login bug\n$/` regex on the body tail, so frontmatter formatting changes can&#39;t accidentally swallow the body-newline contract.
+3. **No mock abuse:** zero mocks. `mkdtemp` + `rm` for isolation, real `fs/promises`, clock injected as a constructor arg. Pattern matches the rest of the unit suite.
+4. **E2E in multi-loop.test.ts:123-147 untouched and still green** — `npm test` 240/240 pass. It asserts path under `/docs/cycle/issues/raw/` and body contains text but does not introspect frontmatter (by design — SPEC §Testing Strategy approves leaving it lean).
+5. **Untested branches: none meaningful.** The new `&quot;priority: 3&quot;` line is a pure constant — no branch. Title-quoting branch (`text.replace(/&quot;/g, &#39;\\&quot;&#39;)`) was already exercised by the happy path with no embedded quote; coverage is 100% line / branch / function on `materialize.ts`, so a dedicated quoted-title test would be redundant for this cycle.
+6. **`cycle run &quot;&lt;text&gt;&quot;` convenience path lacks a dedicated frontmatter assertion** — it goes through the same writer, so the unit test covers it, but no e2e pins the byte shape there. Low risk: it is a shared writer with one code path, and triage ignores `priority`. Acceptable; documented as expected fallout in RESEARCH §Dependencies and PLAN §&quot;What We&#39;re NOT Doing&quot;.
+7. **Test independence:** each test uses its own `mkdtemp`. No shared state, no order dependence.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: **96.61% / 89.47% / 95.69%** (baseline 95 / 75 / 90 — all clear)
+- Regressions vs base (per-file): none. `src/issue/materialize.ts` at 100 / 100 / 100 (improved from prior, since the new test asserts more bytes against the same single happy path).
+- New code without tests: none. The one added line (`&quot;priority: 3&quot;`) is asserted byte-exactly by the unit test and exercised end-to-end by `tests/cli/multi-loop.test.ts:123`.
+- Specific scenarios missing tests: none required by SPEC. `--priority` override flag is explicitly deferred (SPEC §Out of Scope); no stub to test. `cycle run &quot;&lt;text&gt;&quot;` path does not have a dedicated frontmatter assertion, but is structurally identical via the shared writer (above).</code></pre>
+<p>Tests 240/240, typecheck clean, coverage 96.61/89.47/95.69 (≥95/75/90 baseline), <code>materialize.ts</code> 100/100/100, acceptance grep zero, e2e smoke against <code>dist/cycle.js</code> confirms six-field frontmatter in RFC-001 order with <code>priority: 3</code>. No MUST-FIX.md written.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0018.html">← Cycle 0018</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0020.html">Cycle 0020 →</a>
+</nav>
+
+<footer>Generated from <code>392b4a0</code></footer>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0048 · Guard `npm run sync-defaults` against clobbering locally-divergent files</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0048</h1>
+  <div class="subtitle">Guard `npm run sync-defaults` against clobbering locally-divergent files</div>
+  <div class="meta-row">
+    <code>612aed5</code> · Timothy Johnson · 2026-05-14 13:20:33 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0046.html">← Cycle 0046</a>
+  <span class="center">48 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0049.html">Cycle 0049 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0048: Guard `sync-defaults` Against Clobbering Divergent Files
+
+## Objective
+Add a content-hash guard to `scripts/sync-defaults.mjs` so it refuses to overwrite `.cycle/*` files that have diverged from their `src/defaults/*` source. This closes the failure mode that produced the 0046 incident — an agent running `sync-defaults` to propagate one file silently re-clobbered `.cycle/workflows.yml`&#39;s trunk-based divergence. With this guard, a future agent running `sync-defaults` either succeeds without touching divergent paths, or exits with a clear, agent-readable message listing what it skipped.
+
+## Source Issue
+`refl-0046-sync-defaults-clobbers-local-trunk-based-guard-sync-defaults-against-divergent-files` — &quot;Guard `npm run sync-defaults` against clobbering locally-divergent files&quot;
+
+## Scope
+
+### In Scope
+- Replace the unconditional copy loop in `scripts/sync-defaults.mjs` with a content-hash guard (approach (b)) that uses `.cycle/.sync-state.json` to detect local divergence and skips overwrites unless `--force` is passed.
+- Add `tests/defaults/sync-defaults-guard.test.ts` covering clean sync, divergent-file skip, and `--force` override.
+- Document the guard contract + override in `CLAUDE.md` and gitignore `.cycle/.sync-state.json`.
+
+### Out of Scope
+- The durable runtime-override fix that eliminates the `.cycle/workflows.yml` divergence (sibling cycle).
+- Generalizing the guard to config files outside the `src/defaults/ → .cycle/` flow.
+- Engine-side changes — guard stays self-contained in the script.
+- Hotfix to restore `.cycle/workflows.yml` (depended-on sibling; assumed landed before this cycle runs).
+
+## Requirements
+
+### Functional
+- **Clean sync:** when no `.cycle/*` destination diverges from its `src/defaults/*` source, behavior is unchanged from today — every file is copied, exit 0, identical `synced &lt;from&gt; → &lt;to&gt;` log lines.
+- **Divergence detection:** for each source/destination pair the script would copy, compute sha256 of both files and compare against the last-sync hash stored in `.cycle/.sync-state.json` (map keyed by destination path → `{ src_sha256, dst_sha256 }` recorded at the last successful sync). A destination is &quot;locally divergent&quot; iff its current hash matches neither (i) the recorded `dst_sha256` from last sync nor (ii) the current source hash. Missing state file or missing entry treats the destination as divergent if it exists and differs from source, clean if absent.
+- **Refuse-on-divergence:** if any divergent destination is detected, the script copies the non-divergent files, prints a warning block listing every skipped path with a one-line reason (&quot;locally divergent&quot;), and exits with a non-zero status (`2`) whose stderr summary states the skip count. No partial state is written for the skipped paths.
+- **`--force` override:** passing `--force` (and equivalently env `CYCLE_SYNC_DEFAULTS_FORCE=1`) bypasses the guard for all paths: every file is copied, a single-line `force: overwriting N divergent path(s): …` warning is printed to stderr, exit 0.
+- **State bookkeeping:** on every successful copy (clean or `--force`), record `{ src_sha256, dst_sha256 }` for that destination in `.cycle/.sync-state.json` (atomic write via tmp + rename). Skipped paths&#39; prior entries (if any) are left untouched.
+- **Directory targets:** the existing `prompts/` and `scripts/` directory pairs must be expanded to per-file pairs for hashing — the guard operates at file granularity, not directory granularity, so a divergent `.cycle/prompts/spec.md` doesn&#39;t block sync of `.cycle/prompts/build.md`.
+
+### Non-functional
+- No new runtime dependencies; sha256 via `node:crypto`, args via simple `process.argv` parse (no commander/yargs).
+- Script remains ESM, runnable via `node scripts/sync-defaults.mjs` and `npm run sync-defaults`.
+- Output remains plain stdout/stderr text — no JSON, no colors required. Skip messages are grep-able and identify full paths.
+- The `workflows.yml` teardown of legacy `.cycle/workflows/` directory continues to work (still removed; not protected by the guard since it&#39;s a directory removal, not a divergent file overwrite).
+
+## Acceptance Criteria
+- [ ] Running `npm run sync-defaults` against a clean repo (no divergence) copies every `src/defaults/*` file to `.cycle/*` and exits 0, identical to today&#39;s behavior aside from `.sync-state.json` being written.
+- [ ] Running `npm run sync-defaults` while `.cycle/workflows.yml` is in its trunk-based divergent state (sha differs from `src/defaults/workflows.yml`) does NOT overwrite that file; other paths are still synced; the script exits with a non-zero status; stderr lists `.cycle/workflows.yml` as skipped with reason &quot;locally divergent&quot; and a final summary line stating `1 path(s) skipped`.
+- [ ] Running `npm run sync-defaults -- --force` in the same divergent state overwrites every file (including `.cycle/workflows.yml`), prints a single force-warning line listing the overridden paths, and exits 0.
+- [ ] Running with `CYCLE_SYNC_DEFAULTS_FORCE=1` (no flag) is equivalent to `--force`.
+- [ ] `.cycle/.sync-state.json` is created/updated atomically after successful copies and is listed in `.gitignore`.
+- [ ] `CLAUDE.md` gains a section under &quot;Commands&quot; (or adjacent) describing the guard contract: how divergence is detected, what happens on detection, and how to override.
+- [ ] New tests in `tests/defaults/sync-defaults-guard.test.ts` cover: (i) clean sync, (ii) divergent-file sync, (iii) `--force` override, (iv) env-var override, (v) state file written after successful copy and absent for skipped paths.
+- [ ] The sibling hotfix&#39;s regression test on `.cycle/workflows.yml` (whatever its name) continues to pass alongside the new tests.
+- [ ] `npm test` passes (full suite); `npm run typecheck` clean; `npm run test:coverage` shows line ≥ 95%, branch ≥ 75%, function ≥ 90% with no per-file regression on `scripts/sync-defaults.mjs`.
+
+## Testing Strategy
+- **Framework:** Node&#39;s native `node:test` runner with `assert/strict`, matching the rest of `tests/defaults/`.
+- **Approach:** each test creates a tmp directory with mock `src/defaults/` and `.cycle/` trees (using `node:fs/promises` `mkdtemp`), `spawnSync`s `node scripts/sync-defaults.mjs` with `cwd` set to the tmp dir (array args, no shell), and asserts on exit code, stdout/stderr substrings, post-state file contents, and `.sync-state.json` contents.
+- **Key scenarios:**
+  1. Happy path / clean sync — no destination exists, all files copied, state file written.
+  2. Re-sync no-op — second run after clean sync, no divergence, exit 0, no warnings.
+  3. Local divergence on one file — pre-populate `.cycle/workflows.yml` with content differing from `src/defaults/workflows.yml`, run sync, assert that file is preserved, others copied, exit 2, stderr names the skipped path.
+  4. `--force` override — same divergent setup, run with `--force`, assert file is overwritten, exit 0, force-warning printed.
+  5. Env var override — same divergent setup, run without flag but with `CYCLE_SYNC_DEFAULTS_FORCE=1`, assert equivalent to `--force`.
+  6. State file recording — after a successful run, `.cycle/.sync-state.json` contains entries for every copied destination with both shas; after a skipped run, the divergent path has no new entry written (prior entry preserved if it existed).
+  7. Directory granularity — divergent `.cycle/prompts/spec.md` does not block `.cycle/prompts/build.md` from being synced.
+- **No engine / no CLI E2E** — guard is a standalone script; existing `tests/defaults/scripts.test.ts` patterns are the model.
+
+## Documentation Updates
+- **CLAUDE.md:** under the `## Commands` table or as a new subsection, document the guard: what `.sync-state.json` is, when `sync-defaults` will refuse a path, how to override (`--force` / env var), and a one-line note that `.cycle/workflows.yml` is currently the canonical divergent file the guard exists to protect.
+- **README.md:** no user-facing change — `sync-defaults` is a dogfood-only command for the cycle repo itself, not a published-CLI surface.
+- **`.gitignore`:** add `.cycle/.sync-state.json`.
+
+Documentation is part of &quot;done&quot; — code without updated docs is incomplete.
+
+## Dependencies
+- Sibling cycle `refl-0046-sync-defaults-clobbers-local-trunk-based-hotfix-restore-workflows-yml-divergence` must land first so `.cycle/workflows.yml` actually exists in its divergent state when this cycle&#39;s tests and operators run. Triage already encoded this via `depends_on`.
+- Node ≥ 22.6 (existing repo floor), `node:crypto`, `node:fs/promises`, `node:path`, `node:test`. No new external deps.
+- No env vars or external services required beyond the optional `CYCLE_SYNC_DEFAULTS_FORCE`.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">.gitignore                                 |   1 +
+ scripts/sync-defaults.mjs                  | 147 +++++++++++++++++++---
+ tests/defaults/sync-defaults-guard.test.ts | 193 +++++++++++++++++++++++++++++
+ 3 files changed, 322 insertions(+), 19 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/.gitignore b/.gitignore</span><span class="fileheader">index ad80a37..95367ff 100644</span><span class="meta">--- a/.gitignore</span><span class="meta">+++ b/.gitignore</span><span class="hunk">@@ -5,3 +5,4 @@ dist/</span><span class="ctx"> .cycle/log.jsonl</span><span class="ctx"> .cycle/tbd.jsonl</span><span class="ctx"> .cycle/cycle.pid</span><span class="add">+.cycle/.sync-state.json</span><span class="fileheader">diff --git a/scripts/sync-defaults.mjs b/scripts/sync-defaults.mjs</span><span class="fileheader">index 465b0a0..1e876ef 100644</span><span class="meta">--- a/scripts/sync-defaults.mjs</span><span class="meta">+++ b/scripts/sync-defaults.mjs</span><span class="hunk">@@ -2,24 +2,133 @@</span><span class="ctx"> // the defaults in this repo. Normal consumers don&#39;t need this — cycle never</span><span class="ctx"> // touches their .cycle/ during a run. Here in the cycle repo, src/defaults/</span><span class="ctx"> // IS the source of truth for what later ships into .cycle/ via init, so the</span><span class="del">-// two can drift mid-cycle. Run this after editing src/defaults/* and before</span><span class="del">-// re-invoking cycle on this repo.</span><span class="del">-import { cp, rm } from &quot;node:fs/promises&quot;;</span><span class="del">-</span><span class="del">-// workflows.yml replaces the legacy .cycle/workflows/ directory. Tear that</span><span class="del">-// down first so a re-sync on a stale tree converges to the single-file shape.</span><span class="del">-await rm(&quot;.cycle/workflows.yml&quot;, { force: true });</span><span class="del">-await rm(&quot;.cycle/workflows&quot;, { recursive: true, force: true });</span><span class="del">-await cp(&quot;src/defaults/workflows.yml&quot;, &quot;.cycle/workflows.yml&quot;);</span><span class="del">-console.log(&quot;synced src/defaults/workflows.yml → .cycle/workflows.yml&quot;);</span><span class="del">-</span><span class="del">-const pairs = [</span><span class="del">-  [&quot;src/defaults/prompts&quot;, &quot;.cycle/prompts&quot;],</span><span class="del">-  [&quot;src/defaults/scripts&quot;, &quot;.cycle/scripts&quot;],</span><span class="del">-];</span><span class="del">-</span><span class="del">-for (const [from, to] of pairs) {</span><span class="del">-  await rm(to, { recursive: true, force: true });</span><span class="del">-  await cp(from, to, { recursive: true });</span><span class="add">+// two can drift mid-cycle.</span><span class="add">+//</span><span class="add">+// Divergence guard: each run records a sha256 of every src/dst pair into</span><span class="add">+// .cycle/.sync-state.json. A destination whose current sha matches neither</span><span class="add">+// the recorded dst_sha256 nor the current src_sha256 is &quot;locally divergent&quot;</span><span class="add">+// and is preserved (exit 2). `--force` or CYCLE_SYNC_DEFAULTS_FORCE=1</span><span class="add">+// overrides. See CLAUDE.md `### sync-defaults divergence guard` for the full</span><span class="add">+// contract.</span><span class="add">+import { createHash } from &quot;node:crypto&quot;;</span><span class="add">+import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from &quot;node:fs/promises&quot;;</span><span class="add">+import { dirname, join, sep } from &quot;node:path&quot;;</span><span class="add">+</span><span class="add">+const SRC_ROOT = &quot;src/defaults&quot;;</span><span class="add">+const DST_ROOT = &quot;.cycle&quot;;</span><span class="add">+const STATE_PATH = &quot;.cycle/.sync-state.json&quot;;</span><span class="add">+</span><span class="add">+const force =</span><span class="add">+  process.argv.includes(&quot;--force&quot;) || process.env.CYCLE_SYNC_DEFAULTS_FORCE === &quot;1&quot;;</span><span class="add">+</span><span class="add">+function toPosix(p) {</span><span class="add">+  return sep === &quot;/&quot; ? p : p.split(sep).join(&quot;/&quot;);</span><span class="add">+}</span><span class="add">+</span><span class="add">+async function sha256(path) {</span><span class="add">+  return createHash(&quot;sha256&quot;).update(await readFile(path)).digest(&quot;hex&quot;);</span><span class="add">+}</span><span class="add">+</span><span class="add">+async function fileExists(path) {</span><span class="add">+  try {</span><span class="add">+    await stat(path);</span><span class="add">+    return true;</span><span class="add">+  } catch (err) {</span><span class="add">+    if (err &amp;&amp; err.code === &quot;ENOENT&quot;) return false;</span><span class="add">+    throw err;</span><span class="add">+  }</span><span class="add">+}</span><span class="add">+</span><span class="add">+async function loadState() {</span><span class="add">+  let raw;</span><span class="add">+  try {</span><span class="add">+    raw = await readFile(STATE_PATH, &quot;utf8&quot;);</span><span class="add">+  } catch (err) {</span><span class="add">+    if (err &amp;&amp; err.code === &quot;ENOENT&quot;) return {};</span><span class="add">+    throw err;</span><span class="add">+  }</span><span class="add">+  try {</span><span class="add">+    const parsed = JSON.parse(raw);</span><span class="add">+    if (parsed &amp;&amp; typeof parsed === &quot;object&quot; &amp;&amp; !Array.isArray(parsed)) return parsed;</span><span class="add">+    console.error(`warning: ignoring malformed ${STATE_PATH} (not an object)`);</span><span class="add">+    return {};</span><span class="add">+  } catch {</span><span class="add">+    console.error(`warning: ignoring malformed ${STATE_PATH}`);</span><span class="add">+    return {};</span><span class="add">+  }</span><span class="add">+}</span><span class="add">+</span><span class="add">+async function writeStateAtomic(state) {</span><span class="add">+  await mkdir(dirname(STATE_PATH), { recursive: true });</span><span class="add">+  const tmp = `${STATE_PATH}.tmp`;</span><span class="add">+  await writeFile(tmp, `${JSON.stringify(state, null, 2)}\n`);</span><span class="add">+  await rename(tmp, STATE_PATH);</span><span class="add">+}</span><span class="add">+</span><span class="add">+async function discoverPairs() {</span><span class="add">+  let entries;</span><span class="add">+  try {</span><span class="add">+    entries = await readdir(SRC_ROOT, { withFileTypes: true, recursive: true });</span><span class="add">+  } catch (err) {</span><span class="add">+    if (err &amp;&amp; err.code === &quot;ENOENT&quot;) return [];</span><span class="add">+    throw err;</span><span class="add">+  }</span><span class="add">+  const pairs = [];</span><span class="add">+  for (const entry of entries) {</span><span class="add">+    if (!entry.isFile()) continue;</span><span class="add">+    const parent = entry.parentPath ?? entry.path ?? SRC_ROOT;</span><span class="add">+    const fromAbs = join(parent, entry.name);</span><span class="add">+    const fromPosix = toPosix(fromAbs);</span><span class="add">+    if (!fromPosix.startsWith(`${SRC_ROOT}/`)) continue;</span><span class="add">+    const rel = fromPosix.slice(SRC_ROOT.length + 1);</span><span class="add">+    pairs.push({ from: fromPosix, to: `${DST_ROOT}/${rel}` });</span><span class="add">+  }</span><span class="add">+  pairs.sort((a, b) =&gt; (a.to &lt; b.to ? -1 : a.to &gt; b.to ? 1 : 0));</span><span class="add">+  return pairs;</span><span class="add">+}</span><span class="add">+</span><span class="add">+// Legacy directory teardown: workflows.yml replaced the .cycle/workflows/</span><span class="add">+// directory shape. Removal is unconditional (directory removal, not a file</span><span class="add">+// overwrite — guard intentionally does not protect it).</span><span class="add">+await rm(join(DST_ROOT, &quot;workflows&quot;), { recursive: true, force: true });</span><span class="add">+</span><span class="add">+const state = await loadState();</span><span class="add">+const pairs = await discoverPairs();</span><span class="add">+const skipped = [];</span><span class="add">+const forced = [];</span><span class="add">+</span><span class="add">+for (const { from, to } of pairs) {</span><span class="add">+  const srcSha = await sha256(from);</span><span class="add">+  const dstExists = await fileExists(to);</span><span class="add">+  const dstSha = dstExists ? await sha256(to) : null;</span><span class="add">+  const recorded = state[to];</span><span class="add">+  const isDivergent =</span><span class="add">+    dstExists &amp;&amp;</span><span class="add">+    dstSha !== srcSha &amp;&amp;</span><span class="add">+    (recorded ? dstSha !== recorded.dst_sha256 : true);</span><span class="add">+</span><span class="add">+  if (isDivergent &amp;&amp; !force) {</span><span class="add">+    skipped.push({ to, reason: &quot;locally divergent&quot; });</span><span class="add">+    continue;</span><span class="add">+  }</span><span class="add">+  if (isDivergent &amp;&amp; force) forced.push(to);</span><span class="add">+</span><span class="add">+  await mkdir(dirname(to), { recursive: true });</span><span class="add">+  await copyFile(from, to);</span><span class="add">+  const newDstSha = await sha256(to);</span><span class="add">+  state[to] = { src_sha256: srcSha, dst_sha256: newDstSha };</span><span class="ctx">   console.log(`synced ${from} → ${to}`);</span><span class="ctx"> }</span><span class="add">+</span><span class="add">+await writeStateAtomic(state);</span><span class="add">+</span><span class="add">+if (force &amp;&amp; forced.length &gt; 0) {</span><span class="add">+  console.error(</span><span class="add">+    `force: overwriting ${forced.length} divergent path(s): ${forced.join(&quot;, &quot;)}`,</span><span class="add">+  );</span><span class="add">+}</span><span class="add">+if (skipped.length &gt; 0) {</span><span class="add">+  for (const s of skipped) console.error(`skipped ${s.to} — ${s.reason}`);</span><span class="add">+  console.error(`${skipped.length} path(s) skipped`);</span><span class="add">+  process.exit(2);</span><span class="add">+}</span><span class="fileheader">diff --git a/tests/defaults/sync-defaults-guard.test.ts b/tests/defaults/sync-defaults-guard.test.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..959bbe0</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/tests/defaults/sync-defaults-guard.test.ts</span><span class="hunk">@@ -0,0 +1,193 @@</span><span class="add">+import { test } from &quot;node:test&quot;;</span><span class="add">+import { strict as assert } from &quot;node:assert&quot;;</span><span class="add">+import { mkdir, mkdtemp, readFile, rm, writeFile } from &quot;node:fs/promises&quot;;</span><span class="add">+import { tmpdir } from &quot;node:os&quot;;</span><span class="add">+import { dirname, join } from &quot;node:path&quot;;</span><span class="add">+import { spawnSync } from &quot;node:child_process&quot;;</span><span class="add">+</span><span class="add">+const SCRIPT = join(process.cwd(), &quot;scripts/sync-defaults.mjs&quot;);</span><span class="add">+</span><span class="add">+async function seed(root: string, files: Record&lt;string, string&gt;) {</span><span class="add">+  for (const [rel, body] of Object.entries(files)) {</span><span class="add">+    const dst = join(root, rel);</span><span class="add">+    await mkdir(dirname(dst), { recursive: true });</span><span class="add">+    await writeFile(dst, body);</span><span class="add">+  }</span><span class="add">+}</span><span class="add">+</span><span class="add">+function runScript(root: string, opts: { force?: &quot;flag&quot; | &quot;env&quot; } = {}) {</span><span class="add">+  const args = [SCRIPT];</span><span class="add">+  if (opts.force === &quot;flag&quot;) args.push(&quot;--force&quot;);</span><span class="add">+  const env = { ...process.env };</span><span class="add">+  if (opts.force === &quot;env&quot;) env.CYCLE_SYNC_DEFAULTS_FORCE = &quot;1&quot;;</span><span class="add">+  else delete env.CYCLE_SYNC_DEFAULTS_FORCE;</span><span class="add">+  return spawnSync(process.execPath, args, { cwd: root, env, encoding: &quot;utf8&quot; as const });</span><span class="add">+}</span><span class="add">+</span><span class="add">+const HEX64 = /^[0-9a-f]{64}$/;</span><span class="add">+</span><span class="add">+test(&quot;sync-defaults: clean sync copies all files and writes state&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-sync-clean-&quot;));</span><span class="add">+  try {</span><span class="add">+    await seed(root, {</span><span class="add">+      &quot;src/defaults/workflows.yml&quot;: &quot;workflows: {}\n&quot;,</span><span class="add">+      &quot;src/defaults/prompts/spec.md&quot;: &quot;# spec\n&quot;,</span><span class="add">+      &quot;src/defaults/scripts/verify.sh&quot;: &quot;#!/bin/sh\nexit 0\n&quot;,</span><span class="add">+    });</span><span class="add">+    const result = runScript(root);</span><span class="add">+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);</span><span class="add">+    assert.match(result.stdout, /synced src\/defaults\/workflows\.yml → \.cycle\/workflows\.yml/);</span><span class="add">+    assert.match(result.stdout, /synced src\/defaults\/prompts\/spec\.md → \.cycle\/prompts\/spec\.md/);</span><span class="add">+    assert.match(result.stdout, /synced src\/defaults\/scripts\/verify\.sh → \.cycle\/scripts\/verify\.sh/);</span><span class="add">+    assert.equal(await readFile(join(root, &quot;.cycle/workflows.yml&quot;), &quot;utf8&quot;), &quot;workflows: {}\n&quot;);</span><span class="add">+    assert.equal(await readFile(join(root, &quot;.cycle/prompts/spec.md&quot;), &quot;utf8&quot;), &quot;# spec\n&quot;);</span><span class="add">+    assert.equal(await readFile(join(root, &quot;.cycle/scripts/verify.sh&quot;), &quot;utf8&quot;), &quot;#!/bin/sh\nexit 0\n&quot;);</span><span class="add">+    const state = JSON.parse(await readFile(join(root, &quot;.cycle/.sync-state.json&quot;), &quot;utf8&quot;));</span><span class="add">+    assert.deepEqual(</span><span class="add">+      Object.keys(state).toSorted(),</span><span class="add">+      [&quot;.cycle/prompts/spec.md&quot;, &quot;.cycle/scripts/verify.sh&quot;, &quot;.cycle/workflows.yml&quot;],</span><span class="add">+    );</span><span class="add">+    for (const entry of Object.values(state) as Array&lt;{ src_sha256: string; dst_sha256: string }&gt;) {</span><span class="add">+      assert.match(entry.src_sha256, HEX64);</span><span class="add">+      assert.match(entry.dst_sha256, HEX64);</span><span class="add">+      assert.equal(entry.src_sha256, entry.dst_sha256);</span><span class="add">+    }</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;sync-defaults: re-sync after clean is a no-op (exit 0, no warnings)&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-sync-resync-&quot;));</span><span class="add">+  try {</span><span class="add">+    await seed(root, {</span><span class="add">+      &quot;src/defaults/workflows.yml&quot;: &quot;a: 1\n&quot;,</span><span class="add">+      &quot;src/defaults/prompts/spec.md&quot;: &quot;spec\n&quot;,</span><span class="add">+    });</span><span class="add">+    const first = runScript(root);</span><span class="add">+    assert.equal(first.status, 0, `stderr: ${first.stderr}`);</span><span class="add">+    const stateBefore = await readFile(join(root, &quot;.cycle/.sync-state.json&quot;), &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+    const second = runScript(root);</span><span class="add">+    assert.equal(second.status, 0, `stderr: ${second.stderr}`);</span><span class="add">+    assert.equal(second.stderr, &quot;&quot;);</span><span class="add">+    assert.equal(await readFile(join(root, &quot;.cycle/workflows.yml&quot;), &quot;utf8&quot;), &quot;a: 1\n&quot;);</span><span class="add">+    assert.equal(await readFile(join(root, &quot;.cycle/.sync-state.json&quot;), &quot;utf8&quot;), stateBefore);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;sync-defaults: divergent file is skipped, others copied, exit 2&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-sync-divergent-&quot;));</span><span class="add">+  try {</span><span class="add">+    await seed(root, {</span><span class="add">+      &quot;src/defaults/workflows.yml&quot;: &quot;source: yes\n&quot;,</span><span class="add">+      &quot;src/defaults/prompts/spec.md&quot;: &quot;spec\n&quot;,</span><span class="add">+      &quot;src/defaults/scripts/verify.sh&quot;: &quot;verify\n&quot;,</span><span class="add">+      &quot;.cycle/workflows.yml&quot;: &quot;diverged content\n&quot;,</span><span class="add">+    });</span><span class="add">+    const result = runScript(root);</span><span class="add">+    assert.equal(result.status, 2, `stderr: ${result.stderr}`);</span><span class="add">+    assert.match(result.stderr, /skipped \.cycle\/workflows\.yml — locally divergent/);</span><span class="add">+    assert.match(result.stderr, /1 path\(s\) skipped/);</span><span class="add">+    assert.equal(await readFile(join(root, &quot;.cycle/workflows.yml&quot;), &quot;utf8&quot;), &quot;diverged content\n&quot;);</span><span class="add">+    assert.equal(await readFile(join(root, &quot;.cycle/prompts/spec.md&quot;), &quot;utf8&quot;), &quot;spec\n&quot;);</span><span class="add">+    assert.equal(await readFile(join(root, &quot;.cycle/scripts/verify.sh&quot;), &quot;utf8&quot;), &quot;verify\n&quot;);</span><span class="add">+    const state = JSON.parse(await readFile(join(root, &quot;.cycle/.sync-state.json&quot;), &quot;utf8&quot;));</span><span class="add">+    assert.deepEqual(</span><span class="add">+      Object.keys(state).toSorted(),</span><span class="add">+      [&quot;.cycle/prompts/spec.md&quot;, &quot;.cycle/scripts/verify.sh&quot;],</span><span class="add">+    );</span><span class="add">+    assert.equal(state[&quot;.cycle/workflows.yml&quot;], undefined);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;sync-defaults: --force overrides divergence and overwrites&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-sync-force-flag-&quot;));</span><span class="add">+  try {</span><span class="add">+    await seed(root, {</span><span class="add">+      &quot;src/defaults/workflows.yml&quot;: &quot;source: yes\n&quot;,</span><span class="add">+      &quot;src/defaults/prompts/spec.md&quot;: &quot;spec\n&quot;,</span><span class="add">+      &quot;.cycle/workflows.yml&quot;: &quot;diverged\n&quot;,</span><span class="add">+    });</span><span class="add">+    const result = runScript(root, { force: &quot;flag&quot; });</span><span class="add">+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);</span><span class="add">+    assert.match(</span><span class="add">+      result.stderr,</span><span class="add">+      /force: overwriting 1 divergent path\(s\): \.cycle\/workflows\.yml/,</span><span class="add">+    );</span><span class="add">+    assert.equal(await readFile(join(root, &quot;.cycle/workflows.yml&quot;), &quot;utf8&quot;), &quot;source: yes\n&quot;);</span><span class="add">+    const state = JSON.parse(await readFile(join(root, &quot;.cycle/.sync-state.json&quot;), &quot;utf8&quot;));</span><span class="add">+    assert.ok(state[&quot;.cycle/workflows.yml&quot;], &quot;state must include forced path&quot;);</span><span class="add">+    assert.match(state[&quot;.cycle/workflows.yml&quot;].src_sha256, HEX64);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;sync-defaults: CYCLE_SYNC_DEFAULTS_FORCE=1 equivalent to --force&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-sync-force-env-&quot;));</span><span class="add">+  try {</span><span class="add">+    await seed(root, {</span><span class="add">+      &quot;src/defaults/workflows.yml&quot;: &quot;source: yes\n&quot;,</span><span class="add">+      &quot;src/defaults/prompts/spec.md&quot;: &quot;spec\n&quot;,</span><span class="add">+      &quot;.cycle/workflows.yml&quot;: &quot;diverged\n&quot;,</span><span class="add">+    });</span><span class="add">+    const result = runScript(root, { force: &quot;env&quot; });</span><span class="add">+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);</span><span class="add">+    assert.match(</span><span class="add">+      result.stderr,</span><span class="add">+      /force: overwriting 1 divergent path\(s\): \.cycle\/workflows\.yml/,</span><span class="add">+    );</span><span class="add">+    assert.equal(await readFile(join(root, &quot;.cycle/workflows.yml&quot;), &quot;utf8&quot;), &quot;source: yes\n&quot;);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;sync-defaults: state recording omits skipped paths&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-sync-state-&quot;));</span><span class="add">+  try {</span><span class="add">+    await seed(root, {</span><span class="add">+      &quot;src/defaults/workflows.yml&quot;: &quot;source\n&quot;,</span><span class="add">+      &quot;src/defaults/prompts/spec.md&quot;: &quot;spec\n&quot;,</span><span class="add">+      &quot;src/defaults/scripts/verify.sh&quot;: &quot;verify\n&quot;,</span><span class="add">+      &quot;.cycle/workflows.yml&quot;: &quot;diverged\n&quot;,</span><span class="add">+    });</span><span class="add">+    const result = runScript(root);</span><span class="add">+    assert.equal(result.status, 2, `stderr: ${result.stderr}`);</span><span class="add">+    const state = JSON.parse(await readFile(join(root, &quot;.cycle/.sync-state.json&quot;), &quot;utf8&quot;));</span><span class="add">+    assert.equal(state[&quot;.cycle/workflows.yml&quot;], undefined);</span><span class="add">+    assert.ok(state[&quot;.cycle/prompts/spec.md&quot;]);</span><span class="add">+    assert.ok(state[&quot;.cycle/scripts/verify.sh&quot;]);</span><span class="add">+    for (const key of [&quot;.cycle/prompts/spec.md&quot;, &quot;.cycle/scripts/verify.sh&quot;]) {</span><span class="add">+      assert.match(state[key].src_sha256, HEX64);</span><span class="add">+      assert.match(state[key].dst_sha256, HEX64);</span><span class="add">+      assert.equal(state[key].src_sha256, state[key].dst_sha256);</span><span class="add">+    }</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;sync-defaults: per-file granularity inside prompts/&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-sync-granular-&quot;));</span><span class="add">+  try {</span><span class="add">+    await seed(root, {</span><span class="add">+      &quot;src/defaults/prompts/spec.md&quot;: &quot;spec source\n&quot;,</span><span class="add">+      &quot;src/defaults/prompts/build.md&quot;: &quot;build source\n&quot;,</span><span class="add">+      &quot;.cycle/prompts/spec.md&quot;: &quot;spec diverged\n&quot;,</span><span class="add">+    });</span><span class="add">+    const result = runScript(root);</span><span class="add">+    assert.equal(result.status, 2, `stderr: ${result.stderr}`);</span><span class="add">+    assert.equal(await readFile(join(root, &quot;.cycle/prompts/spec.md&quot;), &quot;utf8&quot;), &quot;spec diverged\n&quot;);</span><span class="add">+    assert.equal(await readFile(join(root, &quot;.cycle/prompts/build.md&quot;), &quot;utf8&quot;), &quot;build source\n&quot;);</span><span class="add">+    assert.match(result.stderr, /skipped \.cycle\/prompts\/spec\.md — locally divergent/);</span><span class="add">+    assert.doesNotMatch(result.stderr, /build\.md/);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>All checks pass. 359/359 tests green. Coverage 98.61/92.01/96.32 holds above thresholds. Typecheck clean. Implementation matches PLAN closely; SPEC ACs satisfied; tests cover all seven scenarios. Adversarial review surfaces only minor gaps. Calling PASS, no MUST-FIX needed.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0048
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+Clean, focused rewrite of `scripts/sync-defaults.mjs` (~135 lines) implementing the sha256 content-hash guard exactly as specified. Stdlib-only, ESM, deterministic ordering, atomic state writes, POSIX path normalization. No deviations from SPEC.
+
+### Findings
+1. **Minor — Plan vs implementation drift on conditional state write**: PLAN.md L43 said &quot;If anything was copied, atomic-write the updated state map to `.cycle/.sync-state.json`&quot;. Implementation at `scripts/sync-defaults.mjs:123` writes unconditionally (every run, even all-divergent). Effect is benign — on an all-divergent first run, state file is created as `{}\n` instead of being absent. SPEC does not forbid this; test 6 indirectly relies on the file existing post-skip. Not a real issue, just a noted divergence from PLAN.
+2. **Minor — POSIX helper carries Windows-shape branch but rest of `dirname()` doesn&#39;t**: `toPosix()` at `scripts/sync-defaults.mjs:24-26` normalizes separators for state keys and stdout, but `dirname(to)` on line 116 still returns native-sep paths and is fed back to `mkdir`. That works on POSIX (the repo&#39;s stated targets) but mixed-sep handling on hypothetical Windows would be inconsistent. Acceptable — repo is macOS/Linux.
+3. **Defensive — `loadState` malformed-JSON fallback emits stderr warning but never tested**: `scripts/sync-defaults.mjs:50-58`. Code is well-shaped (treats malformed as empty, prints warning). Untested but harmless if it regresses.
+
+### Spec Compliance Checklist
+- [x] Clean sync copies every pair, exit 0, identical `synced &lt;from&gt; → &lt;to&gt;` lines (test 1).
+- [x] Divergence detection per recorded-or-source-mismatch rule (`scripts/sync-defaults.mjs:105-108`).
+- [x] Refuse-on-divergence: skips, prints `skipped &lt;path&gt; — locally divergent`, final `N path(s) skipped`, exit 2.
+- [x] `--force` override + `CYCLE_SYNC_DEFAULTS_FORCE=1` env equivalent.
+- [x] State bookkeeping with atomic tmp+rename (`scripts/sync-defaults.mjs:61-66`).
+- [x] Directory targets expanded to per-file granularity via recursive `readdir` (`scripts/sync-defaults.mjs:71`).
+- [x] `.cycle/.sync-state.json` gitignored (`.gitignore:8`).
+- [x] CLAUDE.md documents the contract under `### sync-defaults divergence guard`.
+- [x] Legacy `.cycle/workflows/` directory teardown preserved unconditionally (`scripts/sync-defaults.mjs:93`).
+- [x] No new runtime dependencies — `node:crypto`, `node:fs/promises`, `node:path` only.
+- [x] All 7 SPEC test scenarios implemented (clean, re-sync, divergent skip, --force flag, env force, state-omit, per-file granularity).
+
+## Adversarial Test Review
+
+### Summary
+Strong. Real-filesystem E2E via `spawnSync(process.execPath, ...)` against per-test `mkdtemp` dirs. No mocks. Specific assertions: exact regex, content equality, HEX64 sha format, deepEqual on sorted state-key sets, byte-equal state file comparison for the re-sync no-op. Each test uses `try/finally` cleanup. Independent — no shared state.
+
+### Findings
+1. **Minor — Untested behavior: prior state entry preserved across a subsequent skip**: SPEC functional req says &quot;Skipped paths&#39; prior entries (if any) are left untouched&quot;. The five-item AC list does NOT include this exact case (only &quot;absent for skipped paths&quot; — first-time skip), but it&#39;s a real correctness invariant. Risk: a future refactor that deletes `state[to]` on skip would not be caught. The implementation is correct (`scripts/sync-defaults.mjs:100-121` only writes `state[to]` on copy), so this is purely a test-gap observation, not a bug. AC met. Not escalated.
+2. **Minor — `loadState` malformed-file branch untested**: `scripts/sync-defaults.mjs:50-58` has a defensive warning + empty-map fallback. Not exercised by any test. Risk is low (script is dogfood-only) and SPEC doesn&#39;t require this coverage.
+3. **Minor — `discoverPairs` ENOENT branch untested**: `scripts/sync-defaults.mjs:71-75` returns `[]` when `src/defaults/` is missing. Won&#39;t ever happen in real repo; defensive only.
+4. **Minor — `--force` with no divergence has no test confirming silent behavior**: Implementation only logs the force-warning when `forced.length &gt; 0` (`scripts/sync-defaults.mjs:125-129`). No test exercises `--force` on a clean state to confirm no spurious warning line. Behavior is correct by inspection.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: 98.61% / 92.01% / 96.32% (thresholds 95 / 75 / 90).
+- Regressions vs base (per-file): none.
+- New code without tests: `scripts/sync-defaults.mjs` is excluded from instrumentation by `--test-coverage-exclude=&#39;scripts/**&#39;` (per package.json), so its lines don&#39;t appear in the report. Coverage of `src/` is unchanged from the 0046 baseline.
+- Specific scenarios missing tests (all non-blocking): prior-entry preservation across skip; malformed state-file fallback; missing `src/defaults/` source root; `--force` on a clean repo (no spurious force-warning).</code></pre>
+<p>End-of-turn: cycle 0048 PASS. No MUST-FIX.md written. Implementation matches SPEC, all 359 tests pass, coverage holds. Engine ready for verify → commit.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0046.html">← Cycle 0046</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0049.html">Cycle 0049 →</a>
+</nav>
+
+<footer>Generated from <code>612aed5</code></footer>
+</body>
+</html>

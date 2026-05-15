@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0056 · Split runCliTriage: pure with-deps unit entry point + thin prod wrapper with hardcoded deps</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0056</h1>
+  <div class="subtitle">Split runCliTriage: pure with-deps unit entry point + thin prod wrapper with hardcoded deps</div>
+  <div class="meta-row">
+    <code>e82018a</code> · Timothy Johnson · 2026-05-14 16:22:30 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0055.html">← Cycle 0055</a>
+  <span class="center">56 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0058.html">Cycle 0058 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0056: Split runCliTriage into prod wrapper + with-deps unit entry point
+
+## Objective
+Close the leaked test-mock surface on `runCliTriage` by splitting `src/cli/triage.ts` into a thin production wrapper (`runCliTriage(repoRoot, argv)`) that constructs and threads real dependencies, plus a pure injectable entry point (`runCliTriageWithDeps(repoRoot, argv, deps)`) that the unit suite drives. The production caller in `src/cli.ts` can no longer pass `deps` — compile-time, not by convention — eliminating the risk that a future edit accidentally wires mocks into prod.
+
+## Source Issue
+`refl-0023-runclitriage-deps-param-leaks-mock-surfa-split-deps-injection-from-prod-entry` — &quot;Split runCliTriage: pure with-deps unit entry point + thin prod wrapper with hardcoded deps&quot;
+
+## Scope
+
+### In Scope
+- Split `src/cli/triage.ts` into two named exports: a two-arg `runCliTriage` (prod wrapper, hardcoded real deps) and a three-arg `runCliTriageWithDeps` (full body, fully injectable). Existing import in `src/cli.ts` keeps working unchanged.
+- Migrate `tests/cli/triage-handler.test.ts` so deps-injecting cases call `runCliTriageWithDeps`; preserve at least one assertion that exercises the two-arg `runCliTriage` wrapper end-to-end (covering the deps-construction line) so per-file coverage on the wrapper does not regress.
+
+### Out of Scope
+- Reworking `TriageDeps` shape or what is injectable (the existing type is reused as-is).
+- Splitting `dryRunTriage` in `src/engine/triage.ts` — sibling raw `refl-0023-dry-run-untested-paths-runagent-throws-a` may follow the same pattern but is not bundled here.
+- Any change to `src/cli.ts` beyond keeping its existing single-line call site green.
+
+## Requirements
+- `runCliTriage(repoRoot: string, argv: string[])` is the only export the prod path uses; its TypeScript signature does not accept a `deps` parameter (no optional, no default).
+- `runCliTriageWithDeps(repoRoot: string, argv: string[], deps: TriageDeps)` carries the full body that today lives in `runCliTriage` (help short-circuit, `--dry-run` gate, `loadConfig` → `dryRunTriage` → JSON-stringify report).
+- `runCliTriage` constructs the real deps (currently `{}` — `dryRunTriage` itself defaults the injection points internally) and delegates: `return runCliTriageWithDeps(repoRoot, argv, {})`. No conditional logic on the wrapper.
+- `TriageDeps` remains exported from `src/engine/triage.ts` and re-importable by the test file.
+- Public return shape (`{ exitCode, stdout, stderr? }`) is byte-identical to today for both functions.
+- `npm run typecheck` is clean; `npm test` and `npm run test:coverage` are green; coverage floor (line ≥ 95% / branch ≥ 75% / function ≥ 90% global, `src/engine/triage.ts` ≥ 95% per-file) holds with no new per-file regressions for `src/cli/triage.ts` or `src/cli.ts`.
+
+## Acceptance Criteria
+- [ ] `src/cli/triage.ts` exports both `runCliTriage` (two-arg) and `runCliTriageWithDeps` (three-arg, `deps: TriageDeps` required — non-optional).
+- [ ] `grep -nE &quot;runCliTriage\(&quot; src/` shows zero call sites passing a third argument (i.e., the prod path cannot inject deps).
+- [ ] `src/cli.ts` continues to import `runCliTriage` and call it with `(process.cwd(), argv.slice(1))` — diff against master shows no change to this file.
+- [ ] `tests/cli/triage-handler.test.ts` imports `runCliTriageWithDeps` for every case that stubs `runAgent` / `loadConfig` / `readdir`; at least one case still invokes the two-arg `runCliTriage` wrapper to exercise the delegation line.
+- [ ] All existing assertions in `tests/cli/triage-handler.test.ts` pass with behavior identical to master (no `last_error` text drift, no `stdout` shape drift).
+- [ ] `npm test` and `npm run test:coverage` exit 0; `npm run check:coverage` exit 0; per-file coverage on `src/cli/triage.ts` and `src/cli.ts` is not worse than master baseline.
+- [ ] `npm run typecheck` exits 0.
+
+## Testing Strategy
+- Framework: Node&#39;s native test runner (`node --test`), spec reporter — same harness already used by `tests/cli/triage-handler.test.ts`.
+- Migrate existing dep-injection cases (lines 125, 146 in `tests/cli/triage-handler.test.ts`) to `runCliTriageWithDeps`. The deps-free cases (`--help`, `-h`, no-flag, `--dry-run` against empty `raw/`) stay on the two-arg `runCliTriage` and act as the wrapper-coverage smoke tests.
+- Cover the wrapper delegation: at least one assertion that calls `runCliTriage(root, [&quot;--dry-run&quot;])` on an empty `raw/` and confirms the JSON-array stdout + `exit 0` — this exercises the wrapper&#39;s `runCliTriageWithDeps(repoRoot, argv, {})` line.
+- No new test files; no changes to `tests/engine/triage*.test.ts`.
+- E2E: not applicable (no UI surface).
+
+## Documentation Updates
+- **CLAUDE.md / AGENTS.md**: No change — the split is internal to `src/cli/triage.ts`; the `cycle triage --dry-run` command surface and exit-code contract documented in the Commands table are unaffected.
+- **README.md**: No change.
+
+Documentation is part of &quot;done&quot; — code without updated docs is incomplete. Verified: this cycle&#39;s split does not touch any user-facing behavior or documented invariant, so no doc edits are warranted.
+
+## Dependencies
+- `TriageDeps` type already exported from `src/engine/triage.ts` (line 29). No new exports needed from the engine side.
+- `dryRunTriage` already accepts and threads `deps` (signature at `src/engine/triage.ts:159`). No engine change needed.
+- No external services or env vars.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/cli/triage.ts                | 11 +++++++++--
+ tests/cli/triage-handler.test.ts |  6 +++---
+ 2 files changed, 12 insertions(+), 5 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/cli/triage.ts b/src/cli/triage.ts</span><span class="fileheader">index 5485510..42f4d9e 100644</span><span class="meta">--- a/src/cli/triage.ts</span><span class="meta">+++ b/src/cli/triage.ts</span><span class="hunk">@@ -19,10 +19,10 @@ Exits 0 if every raw passed validation, 1 otherwise.</span><span class="ctx"> Note: cycle triage without --dry-run is not implemented; real triage</span><span class="ctx"> runs as part of \`cycle run\`.`;</span><span class="ctx"> </span><span class="del">-export async function runCliTriage(</span><span class="add">+export async function runCliTriageWithDeps(</span><span class="ctx">   repoRoot: string,</span><span class="ctx">   argv: string[],</span><span class="del">-  deps: TriageDeps = {},</span><span class="add">+  deps: TriageDeps,</span><span class="ctx"> ): Promise&lt;{ exitCode: number; stdout: string; stderr?: string }&gt; {</span><span class="ctx">   if (argv.includes(&quot;--help&quot;) || argv.includes(&quot;-h&quot;)) {</span><span class="ctx">     return { exitCode: 0, stdout: HELP + &quot;\n&quot; };</span><span class="hunk">@@ -38,3 +38,10 @@ export async function runCliTriage(</span><span class="ctx">     stdout: JSON.stringify(reports, null, 2) + &quot;\n&quot;,</span><span class="ctx">   };</span><span class="ctx"> }</span><span class="add">+</span><span class="add">+export async function runCliTriage(</span><span class="add">+  repoRoot: string,</span><span class="add">+  argv: string[],</span><span class="add">+): Promise&lt;{ exitCode: number; stdout: string; stderr?: string }&gt; {</span><span class="add">+  return runCliTriageWithDeps(repoRoot, argv, {});</span><span class="add">+}</span><span class="fileheader">diff --git a/tests/cli/triage-handler.test.ts b/tests/cli/triage-handler.test.ts</span><span class="fileheader">index e63a623..35dc3e4 100644</span><span class="meta">--- a/tests/cli/triage-handler.test.ts</span><span class="meta">+++ b/tests/cli/triage-handler.test.ts</span><span class="hunk">@@ -3,7 +3,7 @@ import assert from &quot;node:assert/strict&quot;;</span><span class="ctx"> import { mkdtemp, mkdir, writeFile, rm } from &quot;node:fs/promises&quot;;</span><span class="ctx"> import { tmpdir } from &quot;node:os&quot;;</span><span class="ctx"> import { join } from &quot;node:path&quot;;</span><span class="del">-import { runCliTriage } from &quot;../../src/cli/triage.ts&quot;;</span><span class="add">+import { runCliTriage, runCliTriageWithDeps } from &quot;../../src/cli/triage.ts&quot;;</span><span class="ctx"> </span><span class="ctx"> const workflowYml = `engine:</span><span class="ctx">   max_consecutive_failures: 2</span><span class="hunk">@@ -122,7 +122,7 @@ test(&quot;runCliTriage --dry-run ok report: exit 0, JSON has status:ok&quot;, async () =&gt;</span><span class="ctx">       rawBody(&quot;r1&quot;),</span><span class="ctx">       &quot;utf8&quot;,</span><span class="ctx">     );</span><span class="del">-    const result = await runCliTriage(root, [&quot;--dry-run&quot;], {</span><span class="add">+    const result = await runCliTriageWithDeps(root, [&quot;--dry-run&quot;], {</span><span class="ctx">       runAgent: async () =&gt; ({ exitCode: 0, stdout: decomposeJson(&quot;r1&quot;), stderr: &quot;&quot; }),</span><span class="ctx">     });</span><span class="ctx">     assert.equal(result.exitCode, 0);</span><span class="hunk">@@ -143,7 +143,7 @@ test(&quot;runCliTriage --dry-run failed report: exit 1&quot;, async () =&gt; {</span><span class="ctx">       rawBody(&quot;bad&quot;),</span><span class="ctx">       &quot;utf8&quot;,</span><span class="ctx">     );</span><span class="del">-    const result = await runCliTriage(root, [&quot;--dry-run&quot;], {</span><span class="add">+    const result = await runCliTriageWithDeps(root, [&quot;--dry-run&quot;], {</span><span class="ctx">       runAgent: async () =&gt; ({ exitCode: 0, stdout: &quot;not json&quot;, stderr: &quot;&quot; }),</span><span class="ctx">     });</span><span class="ctx">     assert.equal(result.exitCode, 1);</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>All checks green. Verdict: PASS. Writing REVIEW.md to stdout (engine captures it). No MUST-FIX.md.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0056
+
+## Overall Verdict
+PASS — no fixes needed
+
+## Code Quality Review
+
+### Summary
+Surgical, faithful split. `runCliTriage` body lifted verbatim into a new
+`runCliTriageWithDeps` with a non-optional `deps: TriageDeps`; the new
+two-arg `runCliTriage` is a one-line `return runCliTriageWithDeps(repoRoot, argv, {})`
+delegate with no conditional logic. `src/cli.ts` is byte-identical to
+master and the prod path can no longer pass a third argument because the
+wrapper signature physically rejects it. Implementation matches PLAN.md
+Tasks 1–3 exactly with zero deviations.
+
+### Findings
+1. **Signature compile-time guarantee**: Confirmed — `grep` of `src/`
+   shows only two `runCliTriage(` call sites (`src/cli/triage.ts:42`
+   wrapper definition + `src/cli.ts:59` prod call), both two-arg. Zero
+   third-arg invocations.
+2. **`deps` non-optional on with-deps export**: Confirmed — `deps: TriageDeps`
+   at `src/cli/triage.ts:25` has no `= {}` default. TypeScript rejects
+   omission.
+3. **Wrapper body is hardcoded delegation**: Confirmed — `src/cli/triage.ts:46`
+   is `return runCliTriageWithDeps(repoRoot, argv, {});`. No conditional,
+   no factory.
+4. **Return shape preserved byte-for-byte**: Identical
+   `Promise&lt;{ exitCode: number; stdout: string; stderr?: string }&gt;` on
+   both exports; body of `runCliTriageWithDeps` differs from prior
+   `runCliTriage` only in the removed `= {}` default.
+5. **`src/cli.ts` untouched**: `git diff master -- src/cli.ts` returns 0
+   bytes. No change to the dispatch line.
+6. **No new abstractions**: Per PLAN&#39;s &quot;What we&#39;re NOT doing&quot;, the
+   wrapper carries no factory / no real-deps construction / no
+   future-proofing. Clean YAGNI.
+7. **Pattern consistency**: Two same-file exports with the with-deps
+   variant being the body-bearing one matches existing conventions
+   throughout `src/engine/` (e.g. `dryRunTriage` itself accepts injected
+   `deps`).
+
+### Spec Compliance Checklist
+- [x] `src/cli/triage.ts` exports both `runCliTriage` (two-arg) and
+      `runCliTriageWithDeps` (three-arg, non-optional `deps`).
+- [x] `grep -nE &quot;runCliTriage\(&quot; src/` shows zero third-arg call sites.
+- [x] `src/cli.ts` byte-identical to master.
+- [x] `tests/cli/triage-handler.test.ts` imports both; deps-injecting
+      cases (lines 125, 146) use `runCliTriageWithDeps`; deps-free cases
+      still use the two-arg `runCliTriage` wrapper.
+- [x] All existing assertions pass unchanged (no `last_error` /
+      `stdout` shape drift).
+- [x] `npm test` / `npm run test:coverage` exit 0; `npm run check:coverage`
+      exit 0.
+- [x] `npm run typecheck` exits 0 with no warnings.
+- [x] Per-file coverage on `src/cli/triage.ts` not worse than master —
+      in fact improved to 100/100/100.
+- [x] Documentation updates: SPEC explicitly says no doc edits warranted
+      (internal split, no user-facing invariant). Confirmed.
+
+## Adversarial Test Review
+
+### Summary
+Strong. The existing 6-test suite is preserved exactly; only two call
+sites swap to the new with-deps export. Mocking is minimal and disciplined
+— only `runAgent` is stubbed via the intended `TriageDeps` seam. Real
+`mkdtemp` filesystem, real `loadConfig` parsing, real `dryRunTriage`
+plumbing. Assertions are specific (`assert.equal(parsed[0].status, &quot;ok&quot;)`,
+`assert.match(result.stdout, /Usage: cycle triage --dry-run/)`).
+
+### Findings
+1. **Mock discipline**: Only `runAgent` is stubbed; everything else
+   runs against real code. Setup is ~3 lines of mock per test versus
+   ~10 lines of real fixture — well under the 50% mock-abuse threshold.
+2. **Wrapper coverage is real, not theatrical**: Of the four deps-free
+   tests, the empty-`raw/` `--dry-run` case (lines 72–81) reaches the
+   wrapper&#39;s delegation line AND through `loadConfig` + `dryRunTriage`.
+   The `--help` / `-h` / no-flag cases exercise wrapper entry and the
+   early branches inside `runCliTriageWithDeps`. Together they fully
+   cover the wrapper (now 100% line / 100% branch / 100% function).
+3. **No happy-path-only bias**: Failure mode covered — `runCliTriage --dry-run failed report: exit 1`
+   (line 137) stubs `runAgent` to return non-JSON, asserts `exit 1` and
+   `status: &quot;failed&quot;`. The `no flag` case asserts `exit 2` and `stderr`
+   help. Both failure paths through the with-deps body covered.
+4. **Test independence**: Each test calls `repo()` to mkdtemp a fresh
+   root and `rm` in `finally`. No shared mutable state. No order
+   dependency.
+5. **Assertion quality**: Specific structural assertions
+   (`JSON.parse(result.stdout)` then `.length`, `.status`) rather than
+   `toBeTruthy`. Stderr is checked with `assert.ok(result.stderr)` then
+   pattern-matched.
+6. **No new test files; no removed tests**: Matches SPEC&#39;s &quot;no new
+   tests&quot; mandate. The contract surface is unchanged.
+
+### Test Coverage
+- Command run: `npm run test:coverage` (+ `posttest:coverage` =
+  `node scripts/coverage-gate.mjs`)
+- Tests: 381 pass / 0 fail / 0 skipped / 18.68s duration
+- Aggregate: line 99.06% / branch 92.87% / function 96.34% — unchanged
+  vs cycle 0055 baseline.
+- Per-file deltas vs master:
+  - `src/cli/triage.ts`: 100% / 100% / 100% (improved from prior; wrapper
+    now collapses to a single statement that every existing test reaches).
+  - `src/cli.ts`: not in per-file report before or after — no unit tests
+    reach it (the integration line `src/cli.ts:59` is exercised only via
+    the bundled `dist/cycle.js` entry point). Unchanged.
+  - `src/engine/triage.ts`: 99.72% / 97.80% / 97.50% — byte-identical to
+    cycle 0055 baseline.
+- Regressions vs base (per-file): none.
+- New code without tests: none. The wrapper&#39;s single delegation line is
+  covered by every deps-free test; the with-deps body is covered by the
+  two migrated deps-injecting tests plus the four wrapper-call tests
+  that flow into it.
+- Specific scenarios missing tests: none material. The compile-time
+  guarantee that `runCliTriage` cannot accept a third arg is a
+  TypeScript invariant, not a runtime path — verified via `grep` and
+  `tsc --noEmit`, both clean.
+
+### Minor Observations (NOT must-fix)
+- `src/cli/triage.ts`&#39;s two exports duplicate the return-type signature
+  (`Promise&lt;{ exitCode: number; stdout: string; stderr?: string }&gt;`).
+  Could `Awaited&lt;ReturnType&lt;typeof runCliTriageWithDeps&gt;&gt;` the wrapper —
+  but that adds indirection for a one-line file and isn&#39;t worth the
+  cognitive cost. Leave as is.
+- `TriageDeps.runAgent` remains field-optional (`{ runAgent?: ... }`).
+  PLAN&#39;s &quot;Resolved Open Question 1&quot; is explicit that field-level
+  optionality stays; only the parameter is non-optional. Out of scope to
+  tighten. Filed implicitly as future tightening if it ever causes a
+  silent-default bug.
+- SPEC.md / PLAN.md / BUILD.md outputs still carry stray outer
+  ```` ```markdown ```` fences (sanitizer escape) — tracked separately
+  as `refl-0055-sanitizer-narration-regex-too-narrow-sti`, not a 0056
+  defect.</code></pre>
+<p><code>★ Insight ─────────────────────────────────────</code></p>
+<ul>
+<li>Compile-time injection lockout via signature shape (no third param) &gt; convention/lint rule. Type checker enforces what a <code>grep</code> test can only audit.</li>
+<li>Wrapper&#39;s single-statement body means deps-free tests automatically cover delegation — no synthetic &quot;wrapper-only&quot; test needed. Coverage went UP, not down.</li>
+<li>Body lifted verbatim → behavior preserved by construction. Test suite is the contract; no new assertions needed.</li>
+</ul>
+<p><code>─────────────────────────────────────────────────</code></p>
+<p>Cycle 0056 passes review. No MUST-FIX.md written. Fix step skips.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0055.html">← Cycle 0055</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0058.html">Cycle 0058 →</a>
+</nav>
+
+<footer>Generated from <code>e82018a</code></footer>
+</body>
+</html>

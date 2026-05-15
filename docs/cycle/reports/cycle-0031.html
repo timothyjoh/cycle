@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0031 · Engine: exec-gemini.ts provider module (#39)</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0031</h1>
+  <div class="subtitle">Engine: exec-gemini.ts provider module (#39)</div>
+  <div class="meta-row">
+    <code>7deaa00</code> · Timothy Johnson · 2026-05-13 18:19:21 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0030.html">← Cycle 0030</a>
+  <span class="center">31 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0040.html">Cycle 0040 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0031: Engine: exec-gemini.ts provider module
+
+## Objective
+Add a `gemini` provider to the engine&#39;s exec-module registry so workflow steps can declare `agent: gemini` and dispatch to a real Gemini CLI subprocess. Mirrors the shape established by `exec-codex.ts` (stdin-piped prompt, captured stdout/stderr, exit-code-to-status mapping) so the multi-agent abstraction grows by one symmetric provider rather than by per-provider special cases.
+
+## Source Issue
+`multi-agent-abstraction-exec-gemini` — &quot;Engine: exec-gemini.ts provider module&quot;
+
+## Scope
+
+### In Scope
+- New `src/engine/exec-gemini.ts` exporting `geminiExec: ExecModule` that spawns the `gemini` binary with array args, pipes the prompt body to stdin, and resolves a `StepResult` on close.
+- Register `geminiExec` in the `REGISTRY` table in `src/engine/exec.ts` under the key `gemini` so `resolveAgent(&quot;gemini&quot;)` returns it and `UnknownAgentError` lists it among known agents.
+- Mocked-subprocess tests in `tests/engine/exec-gemini.test.ts` covering stdin happy path, non-zero exit / stderr capture, and ENOENT spawn failure; one-line registry-presence assertion added to `tests/engine/exec.test.ts`.
+
+### Out of Scope
+- Real Gemini API/CLI invocation — tests use a fake `gemini` shell script on `PATH`, identical to the codex test pattern.
+- Per-provider quirks (rate limiting, auth flag plumbing, model selection). Parity-with-codex only.
+- Changes to `exec-claudecode.ts` or `exec-codex.ts`.
+- Changes to `workflows.yml` to actually start using `agent: gemini` in shipped steps — that is downstream of this module&#39;s existence.
+- Widening `step.agent` type union (tracked separately as `refl-0030-step-agent-narrow-union-decays-as-regist-widen-step-agent-type`).
+- DRY-ing the three provider modules (tracked separately as `refl-0030-exec-provider-modules-converging-on-copy`).
+
+## Requirements
+- `geminiExec.runStep({ repoRoot, promptPath, env })` reads `&lt;repoRoot&gt;/.cycle/&lt;promptPath&gt;` as UTF-8 and writes the body to the child&#39;s stdin, then calls `stdin.end()`.
+- Subprocess is launched with `spawn(&quot;gemini&quot;, [], { cwd: repoRoot, env: buildChildEnv(env ?? {}), shell: false })`. No `exec`, no `shell: true`. PATH curated via `buildChildEnv` from `src/engine/child-env.ts`.
+- Resolves `{ status: &quot;ok&quot;, exitCode: 0, stdout, stderr }` on clean exit; `{ status: &quot;failed&quot;, exitCode: &lt;code&gt;, stdout, stderr }` on non-zero exit.
+- On spawn error (ENOENT etc.) resolves `{ status: &quot;failed&quot;, exitCode: -1, stdout: &quot;&quot;, stderr: &lt;error message&gt; }` — never rejects.
+- Stdin-error listener and try/catch around `stdin.write` mirror `exec-codex.ts` so the ENOENT race resolves through `child.on(&quot;error&quot;)` instead of throwing.
+- `REGISTRY` in `src/engine/exec.ts` gains a `gemini: geminiExec` entry; key ordering preserved alphabetically next to `codex`.
+
+## Acceptance Criteria
+- [ ] `src/engine/exec-gemini.ts` exists, exports `geminiExec: ExecModule`, and matches the codex module&#39;s structure.
+- [ ] `resolveAgent(&quot;gemini&quot;)` returns the module; `UnknownAgentError` message includes `gemini` in its known-agents list.
+- [ ] `tests/engine/exec-gemini.test.ts` covers: (a) stdin roundtrip via `cat` fake, (b) non-zero exit with stderr capture, (c) ENOENT spawn error returns `exitCode: -1` with non-empty stderr.
+- [ ] `tests/engine/exec.test.ts` asserts `resolveAgent(&quot;gemini&quot;).runStep` is a function and that `UnknownAgentError` for an unknown name lists `gemini`.
+- [ ] `npm test` passes — all existing tests still green, no regressions.
+- [ ] `npm run typecheck` passes with zero warnings.
+- [ ] `npm run test:coverage` shows line ≥ 95%, branch ≥ 75%, function ≥ 90% (master baseline holds).
+
+## Testing Strategy
+- Node native test runner (`node:test`), spec reporter, same pattern as `tests/engine/exec-codex.test.ts`.
+- Fake `gemini` binary written to a `mkdtemp` bin dir, made executable via `chmod 0o755`, injected through `env.PATH`. No real Gemini CLI required.
+- Three scenarios mandatory: happy path (`#!/bin/bash\ncat\n` echoes stdin to stdout), failure path (`#!/bin/bash\necho boom &gt;&amp;2\nexit 1\n`), missing-binary path (`PATH: &quot;/nonexistent&quot;`).
+- No E2E / Playwright — pure subprocess unit tests; no UI surface changed.
+
+## Documentation Updates
+- **CLAUDE.md**: extend the &quot;Registered agents&quot; sentence under the Architecture quick reference from `claudecode`, `codex` to `claudecode`, `codex`, `gemini`. One-line change.
+- **README.md**: no user-facing change — Gemini is not yet referenced in shipped workflows; consumers won&#39;t see it until a workflow step opts in.
+
+Documentation is part of &quot;done&quot; — code without updated docs is incomplete.
+
+## Dependencies
+- Depends on (already merged): `multi-agent-abstraction-exec-interface` (cycle 0029) — provides `ExecModule` contract and `REGISTRY` dispatch.
+- Sibling-pattern reference (already merged): `multi-agent-abstraction-exec-codex` (cycle 0030) — the template this cycle mirrors.
+- No env vars or external services required at build/test time; the real `gemini` CLI is never invoked by tests.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/engine/exec-gemini.ts        | 47 ++++++++++++++++++++++++
+ src/engine/exec.ts               |  2 +
+ tests/engine/exec-gemini.test.ts | 79 ++++++++++++++++++++++++++++++++++++++++
+ tests/engine/exec.test.ts        |  6 +++
+ 4 files changed, 134 insertions(+)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/engine/exec-gemini.ts b/src/engine/exec-gemini.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..060a96b</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/src/engine/exec-gemini.ts</span><span class="hunk">@@ -0,0 +1,47 @@</span><span class="add">+import { spawn } from &quot;node:child_process&quot;;</span><span class="add">+import { readFile } from &quot;node:fs/promises&quot;;</span><span class="add">+import { join } from &quot;node:path&quot;;</span><span class="add">+import { buildChildEnv } from &quot;./child-env.ts&quot;;</span><span class="add">+import type { ExecModule } from &quot;./exec.ts&quot;;</span><span class="add">+import type { StepResult } from &quot;./exec-bash.ts&quot;;</span><span class="add">+</span><span class="add">+export const geminiExec: ExecModule = {</span><span class="add">+  async runStep({ repoRoot, promptPath, env }) {</span><span class="add">+    const abs = join(repoRoot, &quot;.cycle&quot;, promptPath);</span><span class="add">+    const prompt = await readFile(abs, &quot;utf8&quot;);</span><span class="add">+    return new Promise&lt;StepResult&gt;((resolve) =&gt; {</span><span class="add">+      const child = spawn(&quot;gemini&quot;, [], {</span><span class="add">+        cwd: repoRoot,</span><span class="add">+        env: buildChildEnv(env ?? {}),</span><span class="add">+        shell: false,</span><span class="add">+      });</span><span class="add">+      let stdout = &quot;&quot;;</span><span class="add">+      let stderr = &quot;&quot;;</span><span class="add">+      child.stdout.on(&quot;data&quot;, (d) =&gt; { stdout += d.toString(); });</span><span class="add">+      child.stderr.on(&quot;data&quot;, (d) =&gt; { stderr += d.toString(); });</span><span class="add">+      child.on(&quot;close&quot;, (code) =&gt; {</span><span class="add">+        resolve({</span><span class="add">+          status: code === 0 ? &quot;ok&quot; : &quot;failed&quot;,</span><span class="add">+          exitCode: code ?? -1,</span><span class="add">+          stdout,</span><span class="add">+          stderr,</span><span class="add">+        });</span><span class="add">+      });</span><span class="add">+      child.on(&quot;error&quot;, (err) =&gt; {</span><span class="add">+        resolve({</span><span class="add">+          status: &quot;failed&quot;,</span><span class="add">+          exitCode: -1,</span><span class="add">+          stdout: &quot;&quot;,</span><span class="add">+          stderr: (err as Error).message,</span><span class="add">+        });</span><span class="add">+      });</span><span class="add">+      child.stdin.on(&quot;error&quot;, () =&gt; {});</span><span class="add">+      try {</span><span class="add">+        child.stdin.write(prompt);</span><span class="add">+        child.stdin.end();</span><span class="add">+      } catch {</span><span class="add">+        // child.on(&quot;error&quot;, …) owns the resolve when stdin closes before write</span><span class="add">+      }</span><span class="add">+    });</span><span class="add">+  },</span><span class="add">+};</span><span class="fileheader">diff --git a/src/engine/exec.ts b/src/engine/exec.ts</span><span class="fileheader">index f16a8c2..3086fe9 100644</span><span class="meta">--- a/src/engine/exec.ts</span><span class="meta">+++ b/src/engine/exec.ts</span><span class="hunk">@@ -1,6 +1,7 @@</span><span class="ctx"> import type { StepResult } from &quot;./exec-bash.ts&quot;;</span><span class="ctx"> import { claudecodeExec } from &quot;./exec-claudecode.ts&quot;;</span><span class="ctx"> import { codexExec } from &quot;./exec-codex.ts&quot;;</span><span class="add">+import { geminiExec } from &quot;./exec-gemini.ts&quot;;</span><span class="ctx"> </span><span class="ctx"> export interface ExecModule {</span><span class="ctx">   runStep(args: {</span><span class="hunk">@@ -21,6 +22,7 @@ export class UnknownAgentError extends Error {</span><span class="ctx"> const REGISTRY: Record&lt;string, ExecModule&gt; = {</span><span class="ctx">   claudecode: claudecodeExec,</span><span class="ctx">   codex: codexExec,</span><span class="add">+  gemini: geminiExec,</span><span class="ctx"> };</span><span class="ctx"> </span><span class="ctx"> export function resolveAgent(name: string): ExecModule {</span><span class="fileheader">diff --git a/tests/engine/exec-gemini.test.ts b/tests/engine/exec-gemini.test.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..df156bc</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/tests/engine/exec-gemini.test.ts</span><span class="hunk">@@ -0,0 +1,79 @@</span><span class="add">+import { test } from &quot;node:test&quot;;</span><span class="add">+import { strict as assert } from &quot;node:assert&quot;;</span><span class="add">+import { mkdtemp, mkdir, writeFile, rm, chmod } from &quot;node:fs/promises&quot;;</span><span class="add">+import { tmpdir } from &quot;node:os&quot;;</span><span class="add">+import { join } from &quot;node:path&quot;;</span><span class="add">+import { resolveAgent } from &quot;../../src/engine/exec.ts&quot;;</span><span class="add">+</span><span class="add">+test(&quot;gemini: pipes prompt body to stdin, returns stdout&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span><span class="add">+  const bin = await mkdtemp(join(tmpdir(), &quot;cycle-bin-&quot;));</span><span class="add">+  try {</span><span class="add">+    const prompts = join(root, &quot;.cycle/prompts&quot;);</span><span class="add">+    await mkdir(prompts, { recursive: true });</span><span class="add">+    const body = &quot;PROMPT BODY gemini-stdin-roundtrip&quot;;</span><span class="add">+    await writeFile(join(prompts, &quot;spec.md&quot;), body, &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+    const fake = join(bin, &quot;gemini&quot;);</span><span class="add">+    await writeFile(fake, &quot;#!/bin/bash\ncat\n&quot;, &quot;utf8&quot;);</span><span class="add">+    await chmod(fake, 0o755);</span><span class="add">+</span><span class="add">+    const r = await resolveAgent(&quot;gemini&quot;).runStep({</span><span class="add">+      repoRoot: root,</span><span class="add">+      promptPath: &quot;prompts/spec.md&quot;,</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}` },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span><span class="add">+    assert.equal(r.exitCode, 0);</span><span class="add">+    assert.match(r.stdout, /gemini-stdin-roundtrip/);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+    await rm(bin, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;gemini: non-zero exit surfaces status:failed and captures stderr&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span><span class="add">+  const bin = await mkdtemp(join(tmpdir(), &quot;cycle-bin-&quot;));</span><span class="add">+  try {</span><span class="add">+    const prompts = join(root, &quot;.cycle/prompts&quot;);</span><span class="add">+    await mkdir(prompts, { recursive: true });</span><span class="add">+    await writeFile(join(prompts, &quot;spec.md&quot;), &quot;body&quot;, &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+    const fake = join(bin, &quot;gemini&quot;);</span><span class="add">+    await writeFile(fake, &quot;#!/bin/bash\necho boom &gt;&amp;2\nexit 1\n&quot;, &quot;utf8&quot;);</span><span class="add">+    await chmod(fake, 0o755);</span><span class="add">+</span><span class="add">+    const r = await resolveAgent(&quot;gemini&quot;).runStep({</span><span class="add">+      repoRoot: root,</span><span class="add">+      promptPath: &quot;prompts/spec.md&quot;,</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}` },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;failed&quot;);</span><span class="add">+    assert.equal(r.exitCode, 1);</span><span class="add">+    assert.match(r.stderr, /boom/);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+    await rm(bin, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;gemini: resolves StepResult{status:failed,exitCode:-1} when gemini binary missing (spawn ENOENT)&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span><span class="add">+  try {</span><span class="add">+    const prompts = join(root, &quot;.cycle/prompts&quot;);</span><span class="add">+    await mkdir(prompts, { recursive: true });</span><span class="add">+    await writeFile(join(prompts, &quot;spec.md&quot;), &quot;body&quot;, &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+    const r = await resolveAgent(&quot;gemini&quot;).runStep({</span><span class="add">+      repoRoot: root,</span><span class="add">+      promptPath: &quot;prompts/spec.md&quot;,</span><span class="add">+      env: { PATH: &quot;/nonexistent&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;failed&quot;);</span><span class="add">+    assert.equal(r.exitCode, -1);</span><span class="add">+    assert.ok(r.stderr.length &gt; 0, &quot;stderr carries spawn error message&quot;);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="fileheader">diff --git a/tests/engine/exec.test.ts b/tests/engine/exec.test.ts</span><span class="fileheader">index 98b6252..10a05f1 100644</span><span class="meta">--- a/tests/engine/exec.test.ts</span><span class="meta">+++ b/tests/engine/exec.test.ts</span><span class="hunk">@@ -12,6 +12,11 @@ test(&quot;resolveAgent returns the registered codex module&quot;, () =&gt; {</span><span class="ctx">   assert.equal(typeof mod.runStep, &quot;function&quot;);</span><span class="ctx"> });</span><span class="ctx"> </span><span class="add">+test(&quot;resolveAgent returns the registered gemini module&quot;, () =&gt; {</span><span class="add">+  const mod = resolveAgent(&quot;gemini&quot;);</span><span class="add">+  assert.equal(typeof mod.runStep, &quot;function&quot;);</span><span class="add">+});</span><span class="add">+</span><span class="ctx"> test(&quot;resolveAgent throws UnknownAgentError for an unregistered name&quot;, () =&gt; {</span><span class="ctx">   let caught: unknown;</span><span class="ctx">   try {</span><span class="hunk">@@ -24,4 +29,5 @@ test(&quot;resolveAgent throws UnknownAgentError for an unregistered name&quot;, () =&gt; {</span><span class="ctx">   assert.match(msg, /&quot;foo&quot;/);</span><span class="ctx">   assert.match(msg, /claudecode/);</span><span class="ctx">   assert.match(msg, /codex/);</span><span class="add">+  assert.match(msg, /gemini/);</span><span class="ctx"> });</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>All verify checks green. Code is parity-perfect mirror of <code>exec-codex.ts</code> (2-line substantive diff). Tests mirror codex tests with same anti-mock discipline. Coverage above baseline. No fixes needed.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0031
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+Tight, minimal cycle. `exec-gemini.ts` is a structurally identical mirror of `exec-codex.ts` (only the exported symbol and binary string differ), and the registry wiring + CLAUDE.md doc line follow the plan exactly. SPEC, PLAN, BUILD, and the actual diff agree.
+
+### Findings
+1. **Parity adherence**: `diff src/engine/exec-codex.ts src/engine/exec-gemini.ts` shows exactly two substantive changes — `codexExec` → `geminiExec` (line 8) and `&quot;codex&quot;` → `&quot;gemini&quot;` (line 13). Matches the spec&#39;s &quot;parity-with-codex only&quot; constraint. — `src/engine/exec-gemini.ts:8`, `src/engine/exec-gemini.ts:13`
+2. **Registry slot ordering**: `gemini: geminiExec` slotted alphabetically after `codex: codexExec` as planned; `UnknownAgentError` sorts known keys so the message picks up `gemini` automatically. — `src/engine/exec.ts:4`, `src/engine/exec.ts:22-26`
+3. **Subprocess discipline upheld**: `spawn(&quot;gemini&quot;, [], { cwd, env: buildChildEnv(env ?? {}), shell: false })` — array args, no `shell: true`, curated PATH via `buildChildEnv`. Matches CLAUDE.md subprocess policy. — `src/engine/exec-gemini.ts:13-17`
+4. **Documented inherited gaps**: The empty `stdin.on(&quot;error&quot;, () =&gt; {})` listener + try/catch around `stdin.write` are carried over verbatim from `exec-codex.ts`. These remain uncovered branches by construction (lines 43-44). Explicitly accepted by SPEC scope-out and PLAN risk section; tracked under `refl-0030-exec-codex-defensive-stdin-catch-is-dead-code`. — `src/engine/exec-gemini.ts:38-44`
+5. **No stray shipped reference**: `grep -rn &#39;agent: gemini&#39; src/defaults` returns nothing; no workflow step accidentally activates the new key. Matches spec scope.
+6. **Doc update**: `CLAUDE.md:34` engine source list and &quot;Registered agents&quot; sentence both updated; README intentionally untouched per spec.
+
+### Spec Compliance Checklist
+- [x] `src/engine/exec-gemini.ts` exists, exports `geminiExec: ExecModule`, matches codex shape.
+- [x] `resolveAgent(&quot;gemini&quot;)` returns the module; `UnknownAgentError` message lists `gemini`.
+- [x] `tests/engine/exec-gemini.test.ts` covers stdin roundtrip, non-zero exit, ENOENT.
+- [x] `tests/engine/exec.test.ts` asserts `resolveAgent(&quot;gemini&quot;).runStep` is a function and that `UnknownAgentError` message includes `gemini`.
+- [x] `npm test` passes (300 tests, 0 failures).
+- [x] `npm run typecheck` clean (zero warnings).
+- [x] `npm run test:coverage` ≥ baseline (line 98.45 / branch 90.41 / func 95.33).
+- [x] CLAUDE.md updated; README intentionally not updated per spec.
+
+## Adversarial Test Review
+
+### Summary
+Strong. Zero mocking libraries — real `spawn`, real shell scripts, real `mkdtemp` tmpdirs, `chmod 0o755` on fake binaries, teardown in `finally` blocks. Assertions check both `status` and a meaningful field (stdout substring / stderr regex / exitCode). Mirrors `tests/engine/exec-codex.test.ts` line-for-line aside from labels and the prompt-body marker string.
+
+### Findings
+1. **Real subprocess, not mocked**: All three scenarios spawn an actual `bash` child via a fake `gemini` script — catches integration issues that pure mocks would miss. — `tests/engine/exec-gemini.test.ts:17-19`, `tests/engine/exec-gemini.test.ts:43-45`
+2. **Failure paths covered**: Non-zero exit asserts `status === &quot;failed&quot;`, `exitCode === 1`, `stderr` matches `/boom/`; ENOENT asserts `exitCode === -1` and non-empty stderr. — `tests/engine/exec-gemini.test.ts:35-59`, `tests/engine/exec-gemini.test.ts:61-79`
+3. **`UnknownAgentError` assertion is regex-based** (`assert.match(msg, /gemini/)`), so it survives future provider additions reordering the sorted list. — `tests/engine/exec.test.ts:29-32`
+4. **Known adversarial gap (accepted)**: `stdin.end()` is not directly asserted — if removed, `cat` would hang and the happy-path test would time out. Documented gap from cycle 0030 (`refl-0030-stdin-end-regression-would-hang-tests-no`). Not a MUST-FIX here per spec scope-out.
+5. **Known adversarial gap (accepted)**: `step.agent` workflow type union is not widened to include `&quot;gemini&quot;` — runtime dispatch works through `Record&lt;string, ExecModule&gt;` but TypeScript won&#39;t catch a typo at the workflow YAML / type boundary. Tracked by `refl-0030-step-agent-narrow-union-decays-as-regist-widen-step-agent-type`, explicit out-of-scope.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: **98.45% / 90.41% / 95.33%** (baseline: ≥95% / ≥75% / ≥90%)
+- Regressions vs base (per-file): none. `exec-gemini.ts` lands at 95.74% line / 75.00% branch / 85.71% func — identical to `exec-codex.ts`, same two uncovered defensive lines (43-44).
+- New code without tests: none. Every line of `exec-gemini.ts` except the documented stdin-race guard is exercised by the three new tests.
+- Specific scenarios missing tests: only the two scope-out items above (sync `stdin.write` throw and `stdin.end()` removal regression), both already tracked as reflection follow-ups.</code></pre>
+<p>Verdict: <strong>PASS</strong>. No MUST-FIX.md written — implementation is a clean, scoped, parity mirror with green tests and coverage above baseline.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0030.html">← Cycle 0030</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0040.html">Cycle 0040 →</a>
+</nav>
+
+<footer>Generated from <code>7deaa00</code></footer>
+</body>
+</html>

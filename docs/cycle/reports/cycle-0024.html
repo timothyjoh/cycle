@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0024 · Document engine.paused recovery flow in README + CLAUDE.md (#34)</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0024</h1>
+  <div class="subtitle">Document engine.paused recovery flow in README + CLAUDE.md (#34)</div>
+  <div class="meta-row">
+    <code>1e1e563</code> · Timothy Johnson · 2026-05-13 16:01:08 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0023.html">← Cycle 0023</a>
+  <span class="center">24 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0025.html">Cycle 0025 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0024: Document engine.paused recovery flow
+
+## Objective
+Write the operator-facing recovery story for `engine.paused {reason: &quot;all_triage_failed&quot;}`. The enriched payload (cycle 0022) and `cycle triage --dry-run` (cycle 0023) shipped, but the lifecycle docs only describe how the engine pauses — not how a human gets it running again. This cycle closes the documentation gap by adding a recovery section to README, cross-linking it from RFC-001, and updating the CLAUDE.md triage quick-reference.
+
+## Source Issue
+`engine-paused-recovery-docs` — &quot;Document engine.paused recovery flow in README + CLAUDE.md&quot;
+
+## Scope
+
+### In Scope
+- New `## Recovering from engine.paused` section in `README.md` with concrete inspection + iterate-with-dry-run + re-fire commands, plus delete-vs-edit guidance for malformed raws.
+- Update `CLAUDE.md`&#39;s `Triage subroutine` line to name the enriched payload fields (`reason`, `raw_ids`, `last_errors`) and the `cycle triage --dry-run` handle.
+- Update `docs/RFC-001-issue-lifecycle.md` §5 to cross-link forward to the new README section.
+
+### Out of Scope
+- `cycle status` integration for paused state (deferred — belongs to a future cycle).
+- Any engine code change. Docs-only. If a non-empty diff is needed for workflow gating, a single-line CHANGELOG entry under a new `## Unreleased` heading in `CHANGELOG.md` is the fallback.
+- Re-ordering or rewriting unrelated README/CLAUDE.md/RFC sections.
+
+## Requirements
+- README section is self-contained: an operator who has never recovered an `engine.paused` before can follow it without reading CLAUDE.md or the RFC first.
+- Every command shown is copy-pasteable and uses the canonical `./.cycle/bin/cycle.js` (or `cycle`) invocation form already used elsewhere in README.
+- README explicitly states the safety guarantee — re-firing picks up cleanly because `raw/` and `tbd.jsonl` were never mutated by the failed pass.
+- CLAUDE.md update lists the three payload fields (`reason`, `raw_ids`, `last_errors`) and names `cycle triage --dry-run` as the iteration handle. It stays under the existing `Triage subroutine` bullet — no new top-level section.
+- RFC-001 §5 link points to the README section by anchor (`README.md#recovering-from-enginepaused`-style).
+- No prose contradictions with the existing `engine.paused` description elsewhere in the doc set (re-read `docs/RFC-001-issue-lifecycle.md` §5 and `CLAUDE.md`&#39;s `Triage subroutine` bullet before drafting).
+
+## Acceptance Criteria
+- [ ] `README.md` contains a `## Recovering from engine.paused` H2 with: payload description, inspection commands, `cycle triage --dry-run` iteration loop, delete-vs-edit guidance, and the safety guarantee statement.
+- [ ] `CLAUDE.md`&#39;s `Triage subroutine` bullet mentions `reason`, `raw_ids`, `last_errors`, and `cycle triage --dry-run`.
+- [ ] `docs/RFC-001-issue-lifecycle.md` §5 contains a forward link to the README recovery section.
+- [ ] If a code-touching diff is required to pass workflow gating, exactly one line is added under a new `## Unreleased` heading in `CHANGELOG.md`; otherwise no other file changes.
+- [ ] `npm test` passes (no behavior changed, but the build hook still runs).
+- [ ] `npm run typecheck` passes with no warnings.
+- [ ] Coverage thresholds preserved (line ≥ 95%, branch ≥ 75%, function ≥ 90%) — docs-only changes should not regress.
+
+## Testing Strategy
+- No new unit tests. Docs-only cycle; existing suite (`npm test`) must remain green so the engine itself still builds and runs.
+- Verification is editorial:
+  - Re-read README section end-to-end as if from a paused-engine alert; confirm every step is actionable from the doc alone.
+  - Grep for the three payload field names (`reason`, `raw_ids`, `last_errors`) in `README.md` and `CLAUDE.md` to confirm they appear.
+  - Render the RFC anchor link locally (or visually verify the slug matches the H2) to confirm the cross-link resolves.
+- No UI / E2E surface — skip Playwright.
+
+## Documentation Updates
+- **README.md**: new `## Recovering from engine.paused` section (primary deliverable).
+- **CLAUDE.md**: extend the existing `Triage subroutine` quick-reference bullet with the enriched-payload field names and the `--dry-run` command.
+- **docs/RFC-001-issue-lifecycle.md**: §5 cross-link to the README section.
+- **CHANGELOG.md**: single-line `## Unreleased` entry if and only if the workflow requires a non-doc diff to pass.
+
+Documentation is the deliverable here — code without updated docs would be incomplete, but in this cycle the docs *are* the code.
+
+## Dependencies
+- `engine-paused-recovery-event-payload` (cycle 0022) — landed. Payload fields `reason: &quot;all_triage_failed&quot;`, `raw_ids`, `last_errors` exist and are referenced verbatim in the new docs.
+- `engine-paused-recovery-dry-run` (cycle 0023) — landed. `cycle triage --dry-run` command is the iteration handle the recovery flow leans on.
+- No external services, no env vars, no new dependencies.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <div class="empty">No code changes (docs/markdown-only cycle).</div>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <div class="empty">No code diff.</div>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><pre class="md-code" data-lang="markdown"><code># Review: Cycle 0024
+
+## Overall Verdict
+NEEDS-FIX — see MUST-FIX.md
+
+## Code Quality Review
+
+### Summary
+Docs-only diff, mechanically clean: three additive edits across `CLAUDE.md`, `README.md`, and `docs/RFC-001-issue-lifecycle.md`. PLAN tasks 1, 2, 3, 4 all complete and matched line-for-line by the diff. Anchor slug `recovering-from-enginepaused` is consistent between the README H2, the CLAUDE.md cross-link, and the RFC-001 §5 cross-link. **However**, the README&#39;s recovery narrative contradicts the actual engine behavior in `src/engine/triage.ts` (see Adversarial Review and MUST-FIX Task 1) — the doc describes a flow that fails in practice the moment `engine.paused` fires.
+
+### Findings
+1. **Spec accuracy / Doc-vs-code drift (Critical)**: README claims `engine.paused` exits &quot;without mutating `raw/` or `tbd.jsonl`&quot; and tells operators to edit `raw/&lt;id&gt;.md`. The implementation moves every failed raw to `docs/cycle/issues/failed/&lt;id&gt;.md` via `moveToFailed` *before* emitting `engine.paused`, and stamps `triage_attempts` into each raw&#39;s frontmatter on every retry via `bumpAttempts`. By the time an operator sees the pause, `raw/` is empty and the files live in `failed/` — the documented recovery flow does not work. — `README.md:13`, `README.md:51–56`, `README.md:62–65`; root cause at `src/engine/triage.ts:204` (`bumpAttempts`) and `src/engine/triage.ts:225` (`moveToFailed`, called inside the per-raw failure branch before the `failed.length === raws.length` check at `src/engine/triage.ts:233`).
+2. **Misleading dry-run semantics for the recovery use case (Critical, same root cause as #1)**: README step 2 tells operators to loop on `cycle triage --dry-run` until exit `0`. `dryRunTriage` reads `docs/cycle/issues/raw` (`src/engine/triage.ts:267–269`); after a pause that directory is empty and dry-run exits `0` on `loadRaws` returning `[]`. The &quot;exit 0 means recovered&quot; signal is therefore false-positive in exactly the situation the doc is written for. — `README.md:41–49`.
+3. **Incomplete log.jsonl side-effect statement (Minor, folded into MUST-FIX Task 1)**: README &quot;Safety guarantee&quot; says the only side effect is the `engine.paused` line, but the pass also emits one `triage.raw.failed` per attempt per raw (`src/engine/triage.ts:205–209`) before the final pause. Honest, not load-bearing for recovery, but worth fixing in the same edit. — `README.md:64–65`.
+4. **CLAUDE.md edit is correct (No issue)**: the new sentence at the existing `Triage subroutine` bullet (`CLAUDE.md:40`) cleanly inserts between the `engine.paused` payload clause and the `cli.ts` clause, leaves the trailing `--dry-run skips triage` engine-flag sentence unmodified, and the cross-link slug matches. — `CLAUDE.md:40`.
+5. **RFC-001 cross-link is correct (No issue)**: one trailing sentence added to §5 closing paragraph, relative path `../README.md#recovering-from-enginepaused` is right (file lives in `docs/`), slug matches the README H2 character-for-character. §13 open-question bullet untouched per plan. — `docs/RFC-001-issue-lifecycle.md:225`.
+
+### Spec Compliance Checklist
+- [x] `README.md` contains a `## Recovering from engine.paused` H2 with payload description, inspection commands, `cycle triage --dry-run` iteration loop, delete-vs-edit guidance, safety guarantee — **structurally present, factually wrong** (see findings 1, 2, 3).
+- [x] `CLAUDE.md`&#39;s `Triage subroutine` bullet mentions `reason`, `raw_ids`, `last_errors`, and `cycle triage --dry-run`.
+- [x] `docs/RFC-001-issue-lifecycle.md` §5 contains forward link to README recovery section, correct slug.
+- [x] No CHANGELOG.md entry needed (three doc edits already produce a non-empty diff). Correctly omitted.
+- [x] `npm test` passes — 286/286.
+- [x] `npm run typecheck` passes — clean, no warnings.
+- [x] Coverage thresholds preserved — line 97.14%, branch 90.64%, function 96.21% (vs floor 95/75/90); no per-file regressions, no `src/` files touched.
+- [ ] **README section is self-contained and actionable from cold** — fails because following the doc literally on a paused engine produces &quot;file not found&quot; errors (raws are in `failed/`, not `raw/`). SPEC requirement: &quot;an operator who has never recovered an `engine.paused` before can follow it without reading CLAUDE.md or the RFC first.&quot;
+- [ ] **No prose contradictions with the existing `engine.paused` description elsewhere in the doc set** — README&#39;s &quot;no `raw/` mutation&quot; silently contradicts RFC-001 §5, which explicitly documents per-raw `Move raw/&lt;id&gt;.md → failed/&lt;id&gt;.md` (`docs/RFC-001-issue-lifecycle.md:215–220`).
+
+## Adversarial Test Review
+
+### Summary
+N/A by design — SPEC §Testing Strategy and PLAN §Testing Strategy both state explicitly that this is a docs-only cycle with no new tests and editorial verification only. Existing 286-test suite remains green, coverage unchanged. **Editorial verification was the test surface for this cycle, and it failed**: the doc was not cross-checked against `src/engine/triage.ts`&#39;s actual behavior, only against the SPEC author&#39;s mental model of it. The grep-for-payload-fields and slug-resolution checks listed in PLAN §Integration / E2E Tests all pass, but none of them would catch the recovery-flow-is-fiction problem — those checks are structural, not semantic.
+
+### Findings
+1. **Editorial verification gap (Process)**: PLAN&#39;s verification steps grep for the three field names and confirm the RFC slug resolves. Neither check exercises whether the documented recovery flow actually works against the engine&#39;s behavior. A more honest editorial check for this cycle would have been: &quot;after a simulated `engine.paused`, can an operator reach a clean re-fire by following only the README?&quot; That question, applied retroactively to the diff, returns no — see Findings 1–2 in the Code Quality section.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: 97.14% / 90.64% / 96.21%
+- Regressions vs base (per-file): none — no `src/` files were touched.
+- New code without tests: none — no new code.
+- Specific scenarios missing tests: N/A — docs-only cycle. The relevant missing *verification* is editorial, not unit-test-shaped (see Adversarial Findings above).</code></pre>
+<p>End-of-turn: MUST-FIX written to <code>docs/cycle/0024-feature-document-engine-paused-recovery-flow-in/MUST-FIX.md</code>. REVIEW above goes to the same dir as <code>REVIEW.md</code> via stdout capture. Verdict: NEEDS-FIX — README recovery flow contradicts <code>src/engine/triage.ts</code> (failed raws live in <code>failed/</code>, not <code>raw/</code>, by the time <code>engine.paused</code> fires).</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0023.html">← Cycle 0023</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0025.html">Cycle 0025 →</a>
+</nav>
+
+<footer>Generated from <code>1e1e563</code></footer>
+</body>
+</html>

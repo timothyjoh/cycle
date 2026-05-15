@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0044 · Reconcile RFC-001 raw-drop example priority with materializer default (3)</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0044</h1>
+  <div class="subtitle">Reconcile RFC-001 raw-drop example priority with materializer default (3)</div>
+  <div class="meta-row">
+    <code>7cf2c92</code> · Timothy Johnson · 2026-05-14 12:13:41 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0043.html">← Cycle 0043</a>
+  <span class="center">44 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0045.html">Cycle 0045 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><h3>SPEC — Cycle 0044: Reconcile RFC-001 raw-drop example priority with materializer default</h3>
+<h4>Objective</h4>
+<p>Eliminate a doc/code disagreement in <code>docs/RFC-001-issue-lifecycle.md</code> §&quot;Raw drop&quot;: the example frontmatter shows <code>priority: 5</code>, but <code>materializeFreeformIssue</code> (the canonical writer behind <code>cycle drop</code>) emits <code>priority: 3</code> as the default (legal range 1–10). Edit the example so a future contributor reading the RFC does not assume <code>5</code> is the default. Doc-only — no code or behavior change.</p>
+<h4>Source Issue</h4>
+<p><code>refl-0019-rfc-001-raw-drop-example-priority-mismat</code> — &quot;Reconcile RFC-001 raw-drop example priority with materializer default (3)&quot;</p>
+<h4>Scope</h4>
+<h5>In Scope</h5>
+<ul>
+<li>Edit the §&quot;Raw drop&quot; example block in <code>docs/RFC-001-issue-lifecycle.md</code> so the example&#39;s <code>priority:</code> value is <code>3</code> (Option (a) from the issue — recommended for clarity).</li>
+<li>Add a single one-line note immediately after the example block stating the legal range (1–10), the actual default (<code>3</code>), and pointing at the writer (<code>materializeFreeformIssue</code> / <code>cycle drop</code>).</li>
+</ul>
+<h5>Out of Scope</h5>
+<ul>
+<li>Any change to the materializer&#39;s default value or legal range.</li>
+<li>Adding a separate &quot;RFC examples vs. defaults&quot; section, glossary, or other structural reorganization.</li>
+<li>Stylistic sweeps of other RFC sections that do not have the same priority-default ambiguity.</li>
+<li>Changes to any code, tests, workflow YAML, prompts, or scripts.</li>
+</ul>
+<h4>Requirements</h4>
+<ul>
+<li>The §&quot;Raw drop&quot; example in <code>docs/RFC-001-issue-lifecycle.md</code> MUST show <code>priority: 3</code> (not <code>5</code>).</li>
+<li>A single inline note (one line, immediately after the fenced example block) MUST state:</li>
+</ul>
+<p>  - the legal range is <code>1–10</code> inclusive,   - the default emitted by <code>cycle drop</code> (when <code>--priority</code> is not given) is <code>3</code>,   - the writer is <code>materializeFreeformIssue</code> (and/or the <code>cycle drop</code> CLI surface).</p>
+<ul>
+<li>The edit MUST be the smallest change that satisfies the above; surrounding paragraphs, headings, and example fields other than <code>priority:</code> are untouched.</li>
+<li>No other file in the repo is modified.</li>
+</ul>
+<h4>Acceptance Criteria</h4>
+<ul>
+<li>[ ] <code>docs/RFC-001-issue-lifecycle.md</code> §&quot;Raw drop&quot; example shows <code>priority: 3</code> and no longer suggests <code>5</code> is the default.</li>
+<li>[ ] A one-line note immediately follows the example block, explicitly naming the legal range (1–10) and the default (3), and referencing <code>materializeFreeformIssue</code> / <code>cycle drop</code>.</li>
+<li>[ ] No other code, test, workflow, prompt, or doc file is modified in this cycle (verified by <code>git diff --stat</code> showing exactly one file changed).</li>
+<li>[ ] <code>npm test</code> still passes (sanity — expected no-op since only an <code>.md</code> file changed).</li>
+<li>[ ] <code>npm run typecheck</code> still passes with no warnings (sanity — expected no-op).</li>
+<li>[ ] Coverage baselines unchanged (line ≥ 95%, branch ≥ 75%, func ≥ 90%) — no source files touched.</li>
+</ul>
+<h4>Testing Strategy</h4>
+<ul>
+<li>Doc-only change; no new tests required and none expected to break.</li>
+<li>Verification: run <code>npm test</code> and <code>npm run typecheck</code> as sanity gates. Both should pass without changes.</li>
+<li>Manual verification: read the rendered §&quot;Raw drop&quot; section and confirm the example value and the inline note match the materializer&#39;s documented behavior in <code>src/issue/materialize.ts</code> (or equivalent path).</li>
+<li>No UI change → no Playwright / browser test required.</li>
+</ul>
+<h4>Documentation Updates</h4>
+<ul>
+<li><strong><code>docs/RFC-001-issue-lifecycle.md</code></strong>: the in-scope edit itself (this <em>is</em> the documentation update).</li>
+<li><strong>CLAUDE.md / AGENTS.md</strong>: no change — neither documents the raw-drop priority default.</li>
+<li><strong>README.md</strong>: no change — README does not currently surface the <code>priority:</code> default or range.</li>
+</ul>
+<p>Documentation is part of &quot;done&quot;; since the deliverable is the doc edit, completing the in-scope edit satisfies this.</p>
+<h4>Dependencies</h4>
+<ul>
+<li>The <code>materializeFreeformIssue</code> writer already emits <code>priority: 3</code> as the default with a validated 1–10 range (landed in earlier cycles 0019 and 0042). No new code or behavior is required for this cycle to be valid.</li>
+<li>No external services, env vars, or new dependencies.</li>
+</ul></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <div class="empty">No code changes (docs/markdown-only cycle).</div>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <div class="empty">No code diff.</div>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>Gates green. Diff matches SPEC + PLAN exactly. Emitting REVIEW.md to stdout.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0044
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+Doc-only edit. The change does exactly what SPEC and PLAN call for: swap `priority: 5` → `priority: 3` in the §&quot;Raw drop&quot; example and append one prose note stating the legal range (1–10), the default (`3`), and the writer (`cycle drop` / `materializeFreeformIssue`). No source, test, workflow, prompt, or script files are touched. Sanity gates pass.
+
+### Findings
+1. **Spec compliance — value swap**: `docs/RFC-001-issue-lifecycle.md:52` now reads `priority: 3           # optional hint to triage; not honored automatically`. Single-character swap, comment column preserved, surrounding fields untouched. Verified by diff.
+2. **Spec compliance — inline note**: `docs/RFC-001-issue-lifecycle.md:57` adds `Default and range: \`priority\` is an integer in the inclusive range 1–10; \`cycle drop\` (via \`materializeFreeformIssue\`) emits \`3\` when \`--priority\` is not given.` Names all three required facts (range, default, writer) in one line. Plain prose matches the existing RFC pattern after fenced blocks (lines 35, 43, 59). Backticks consistent with the rest of the file. En-dash `–` matches the issue file&#39;s Option (a) draft.
+3. **Accuracy vs. ground truth**: The note&#39;s claims are pinned by code — `src/issue/materialize.ts:9` (`priority: number = 3`), `src/cli/parse-args.ts:39` (`let priority = 3`), `src/cli/parse-args.ts:40-48` (1..10 integer validation). The doc is now in agreement with the writer, not ahead of or behind it.
+4. **Scope discipline**: The two other `priority`-adjacent lines in the RFC that SPEC explicitly excluded (`:231` &quot;priority-ordered queue&quot; — a different concept; `:320` `priority_hint: 7` in the triage JSON example — a triage-output schema field) are untouched. The §&quot;Triaged todo&quot; example block immediately following the change is also untouched.
+5. **`git diff --stat` deviation (informational, not a defect)**: Acceptance criterion §&quot;…exactly one file changed&quot; reads literally as one entry in `git diff --stat`. The current `git diff --stat` shows two entries — `docs/RFC-001-issue-lifecycle.md` (this cycle&#39;s edit) and a deletion of `docs/cycle/issues/todo/refl-0019-cycle-run-text-path-shares-writer-but-no.md`. The deletion is pre-existing housekeeping from cycle 0043 (which committed at `6fe3cc8` without including the queue-lifecycle move from `todo/` to `done/`); the matching `done/&lt;id&gt;_raw.md` and `done/&lt;id&gt;.md` files appear in `git status` as untracked. None of this is cycle 0044&#39;s work and BUILD.md correctly identifies it as such. Folding the leftover into 0044&#39;s commit would be scope creep; leaving it for the engine&#39;s `commit` step to sweep or a separate housekeeping commit is correct.
+
+### Spec Compliance Checklist
+- [x] §&quot;Raw drop&quot; example shows `priority: 3`, no longer suggests `5` is the default.
+- [x] One-line note immediately follows the closing fence (with a blank line separator matching local style), names `1–10`, `3`, `cycle drop`, and `materializeFreeformIssue`.
+- [x] No other code, test, workflow, prompt, or doc file modified by *this cycle*. Pre-existing housekeeping debt from cycle 0043 is not introduced here.
+- [x] `npm test` passes (343/343).
+- [x] `npm run typecheck` passes with no warnings.
+- [x] Coverage baselines met: line 98.55% (≥ 95), branch 91.57% (≥ 75), function 96.23% (≥ 90). No `src/` files touched, so per-file coverage is unchanged.
+
+## Adversarial Test Review
+
+### Summary
+Strong (by inheritance). No new tests because no source change. PLAN justifies the omission correctly: a runtime-grep doc-content assertion would invert the dependency between code and doc. The default `3` and the 1–10 range are already pinned by existing tests in `tests/issue/materialize.test.ts` and the CLI parse-args tests (landed in cycles 0019 and 0042). If a future code change drifts the materializer default away from `3`, those tests will fail; this RFC note will not silently rot in step with that drift, which is the correct failure mode — code is the source of truth, the RFC is the human-readable shadow.
+
+### Findings
+1. **No mock abuse, no happy-path-only coverage, no boundary gaps to flag** — there is no new code under test, so the standard rubric doesn&#39;t apply.
+2. **Inheritance check**: `tests/issue/materialize.test.ts:writes explicit priority into frontmatter when supplied` (`✔ 12.4ms` in this run) and `writes a markdown file with frontmatter to raw/` (`✔ 75ms`) both exercise `materializeFreeformIssue`. The default-priority path runs implicitly in the second test (no explicit `priority` arg → `= 3` parameter default). CLI tests cover the `1..10` validation including the missing-value, out-of-range, and non-integer cases (per cycle 0042 history). The doc note refers to behavior that is genuinely test-pinned upstream.
+3. **No drift risk introduced**: the note references the writer by name, not by value-only restatement. If the code default ever changes, a contributor reading the RFC sees they need to follow the symbol to the implementation, not trust the RFC as an oracle.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: **98.55% / 91.57% / 96.23%** (baselines ≥ 95 / ≥ 75 / ≥ 90 — all met).
+- Regressions vs base (per-file): **none** (no `src/` files touched; per-file numbers identical to cycle 0043&#39;s post-state).
+- New code without tests: **none** (no new code).
+- Specific scenarios missing tests: **none applicable** for this cycle. (Existing reflection sharp-edges from cycle 0042 — e.g. `refl-0042-drop-missing-value-test-assertion-is-tau`, `refl-0042-drop-priority-range-error-omits-default` — already live in `todo/` and will be processed in their own cycles; importing them into 0044 would widen scope.)</code></pre>
+<p>Cycle 0044 passes both review passes cleanly. No MUST-FIX.md emitted.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0043.html">← Cycle 0043</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0045.html">Cycle 0045 →</a>
+</nav>
+
+<footer>Generated from <code>7cf2c92</code></footer>
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0062 · terminalDrain lifecycle helper + bb-* orphan cleanup</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0062</h1>
+  <div class="subtitle">terminalDrain lifecycle helper + bb-* orphan cleanup</div>
+  <div class="meta-row">
+    <code>bfe3e50</code> · Timothy Johnson · 2026-05-15 14:16:32 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0061.html">← Cycle 0061</a>
+  <span class="center">62 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0065.html">Cycle 0065 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0062: Stamp failed/&lt;id&gt;.md even when mutateFrontmatter throws in terminalDrain
+
+## Objective
+
+Close the recovery hole where `terminalDrain` in `src/cli.ts` silently moves a
+todo file to `failed/&lt;id&gt;.md` without `failed_at` / `failed_step` /
+`failed_attempts` / `last_cycle_id` stamps whenever `mutateFrontmatter` throws
+(e.g. malformed or absent YAML frontmatter). Operators inspecting `failed/` to
+diagnose a halted engine currently see a file with no failure metadata; the
+truth is buried in `log.jsonl`. After this cycle, the failed/ file always
+carries the stamps — either from a successful mutation, or from a
+write-from-scratch fallback that preserves the original body bytes.
+
+## Source Issue
+
+`refl-0025-mutatefrontmatter-failure-silently-drops` — &quot;Close recovery hole:
+mutateFrontmatter failure in terminalDrain silently drops failed_* stamps&quot;
+
+## Scope
+
+### In Scope
+
+- Change `terminalDrain` in `src/cli.ts` so that when `mutateFrontmatter`
+  throws, the engine writes `failed/&lt;id&gt;.md` *with* stamps via an atomic
+  tmp-rename fallback that preserves the original body bytes (best-effort)
+  and records the original mutation error as a forensic field in the
+  frontmatter.
+- Update the existing regression test
+  `tests/cli/queue-drain.test.ts` › &quot;terminal failure with malformed
+  frontmatter: file still moves, warning logged&quot; to pin the new contract:
+  failed/`&lt;id&gt;`.md must carry `failed_at`, `failed_step`, `failed_attempts`,
+  `last_cycle_id`, plus a forensic field naming the mutation error. The
+  `queue.drain_warning` event remains emitted (now alongside the stamped
+  file rather than masking the loss).
+
+### Out of Scope
+
+- Retry / backoff for `mutateFrontmatter` failures.
+- Changing the rest of the drain pipeline (`drainFailedTerminal`,
+  `propagateBlocked`, queue row removal) — those continue to run after the
+  fallback write.
+- The success-path `mutateFrontmatter` happy path — already stamped, no
+  change.
+- The success-drain helper `drainSuccess` — no failed_* stamps to lose.
+- Filesystem-error variants of `mutateFrontmatter` (read EACCES, write
+  ENOSPC). Treat any thrown error symmetrically through the same fallback;
+  do not add per-cause branching.
+- Halt-policy changes — `terminalDrain` still increments the engine-side
+  `consecutive_failures` counter via the caller path that&#39;s already wired.
+
+## Requirements
+
+- When `mutateFrontmatter(todoPath, …)` throws inside `terminalDrain`:
+  1. Capture the original body bytes via `readFile(todoPath, &quot;utf8&quot;)`
+     (best-effort — `ENOENT` falls through to an empty body).
+  2. Build a fresh `Frontmatter` containing the same fields the happy-path
+     mutation would have written: `failed_at` (new ISO string),
+     `failed_step` (if present), `failed_attempts`, `last_cycle_id`, plus
+     a `drain_error: &quot;&lt;mutateErr.message&gt;&quot;` field naming the underlying
+     cause. If the original body parsed successfully but the *write* leg
+     failed, prefer preserving its already-existing keys; otherwise emit
+     only the failure stamps.
+  3. Serialize via the existing `serializeFrontmatter(fm, bodyAfter)` and
+     write `failed/&lt;id&gt;.md` atomically (`&lt;failedPath&gt;.tmp` →
+     `rename`).
+  4. Unlink the original `todoPath` (ignore `ENOENT`).
+  5. Continue with `drainFailedTerminal`, `propagateBlocked`,
+     `queue.drained`, `issue.failed` — same order, same payloads, no new
+     events.
+- The existing `queue.drain_warning` event continues to fire with the
+  original `mutateErr.message`. Its reason field is unchanged for
+  back-compat with downstream parsers.
+- If the fallback write itself throws, re-throw to the caller (engine
+  halts naturally via the existing failure-counter path; do not swallow).
+- No behavior change on the happy path (`mutateFrontmatter` succeeds):
+  byte-identical output, same event order, same exit code.
+
+## Acceptance Criteria
+
+- [ ] Regression test in `tests/cli/queue-drain.test.ts` for the malformed
+      -frontmatter case asserts every stamp (`failed_at`, `failed_step`,
+      `failed_attempts`, `last_cycle_id`, `drain_error`) is present in
+      `failed/&lt;id&gt;.md`. The original body bytes (e.g. `&quot;body only\n&quot;`)
+      remain reachable after the frontmatter block.
+- [ ] `queue.drain_warning` is still emitted with `reason` matching
+      `/mutateFrontmatter failed/`. (Existing assertion preserved.)
+- [ ] A new focused unit-level test (same file, same test pattern) covers
+      the &quot;frontmatter parses but tmp-write fails&quot; branch — easiest to
+      simulate by creating the todo file as a *directory* at the tmp path
+      location or by stubbing the write seam. If a directory-trap is too
+      fiddly, drop the case here and document the gap in BUILD.md; the
+      malformed-frontmatter case is the load-bearing one.
+- [ ] All existing tests pass.
+- [ ] Coverage gate holds: line ≥ 95%, branch ≥ 75%, function ≥ 90%
+      project-wide; `src/engine/triage.ts` per-file line ≥ 95% (unchanged
+      area).
+- [ ] `npm run typecheck` clean.
+
+## Testing Strategy
+
+- Node native test runner via `npm test`. Reuse the bootstrap helpers
+  already in `tests/cli/queue-drain.test.ts`.
+- Happy path is implicitly covered by existing terminal-drain tests in
+  the same file (&quot;terminal failure: file moves to failed/, stamps
+  applied&quot;); confirm they still pass byte-for-byte.
+- Adversarial: the &quot;broken-fm&quot; todo (body without `---` frontmatter) is
+  the canonical failure trigger. Re-use it; add stamp assertions on the
+  failed/ file content.
+
+## Documentation Updates
+
+- **CLAUDE.md**: Extend the &quot;Architecture quick reference&quot; bullet that
+  describes `terminalDrain` (currently mentions stamping `failed_at`,
+  `failed_step`, `failed_attempts`, `last_cycle_id` via &quot;deferred
+  mutateFrontmatter flush&quot;) to note the fallback: on mutation failure,
+  the failed/`&lt;id&gt;`.md is written from scratch with the same stamps plus
+  `drain_error: &quot;&lt;message&gt;&quot;`. Single sentence; no new section.
+- **README.md** &quot;Recovering from `engine.paused`&quot;: if the recovery
+  section enumerates failed/ frontmatter fields, add `drain_error` to
+  the list. Otherwise no change.
+
+Documentation is part of &quot;done&quot; — code without updated docs is incomplete.
+
+## Dependencies
+
+- Existing `serializeFrontmatter` / `parseFrontmatter` helpers in
+  `src/engine/frontmatter.ts` — no schema change required.
+- Existing `drainFailedTerminal`, `propagateBlocked`, and logger plumbing
+  in `src/cli.ts` and `src/engine/queue.ts` — no signature change.
+- No new external services, env vars, or workflow defaults.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/cli.ts                    | 49 +++++++++++++++++++++++++-----
+ tests/cli/queue-drain.test.ts | 69 +++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 111 insertions(+), 7 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/cli.ts b/src/cli.ts</span><span class="fileheader">index 6b908f0..ea7fba3 100644</span><span class="meta">--- a/src/cli.ts</span><span class="meta">+++ b/src/cli.ts</span><span class="hunk">@@ -1,4 +1,4 @@</span><span class="del">-import { readFile, readdir, rename, mkdir } from &quot;node:fs/promises&quot;;</span><span class="add">+import { readFile, readdir, rename, writeFile, unlink, mkdir } from &quot;node:fs/promises&quot;;</span><span class="ctx"> import { join } from &quot;node:path&quot;;</span><span class="ctx"> import { getVersion } from &quot;./version.ts&quot;;</span><span class="ctx"> import { parseArgs } from &quot;./cli/parse-args.ts&quot;;</span><span class="hunk">@@ -17,7 +17,8 @@ import {</span><span class="ctx"> } from &quot;./engine/queue.ts&quot;;</span><span class="ctx"> import { loadConfig } from &quot;./engine/workflow.ts&quot;;</span><span class="ctx"> import type { CycleConfig } from &quot;./engine/workflow.ts&quot;;</span><span class="del">-import { parseFrontmatter, mutateFrontmatter } from &quot;./engine/frontmatter.ts&quot;;</span><span class="add">+import { parseFrontmatter, mutateFrontmatter, serializeFrontmatter } from &quot;./engine/frontmatter.ts&quot;;</span><span class="add">+import type { Frontmatter } from &quot;./engine/frontmatter.ts&quot;;</span><span class="ctx"> import { propagateBlocked } from &quot;./engine/blocked.ts&quot;;</span><span class="ctx"> import { readLogTail } from &quot;./engine/log-tail.ts&quot;;</span><span class="ctx"> import type { InFlightCycle } from &quot;./engine/log-tail.ts&quot;;</span><span class="hunk">@@ -139,17 +140,51 @@ async function terminalDrain(</span><span class="ctx">   } catch (e) {</span><span class="ctx">     mutateErr = e as Error;</span><span class="ctx">   }</span><span class="del">-  try {</span><span class="del">-    await rename(todoPath, join(failedDir, `${issueId}.md`));</span><span class="del">-  } catch (e) {</span><span class="del">-    if ((e as NodeJS.ErrnoException).code !== &quot;ENOENT&quot;) throw e;</span><span class="del">-  }</span><span class="add">+  const failedPath = join(failedDir, `${issueId}.md`);</span><span class="ctx">   if (mutateErr) {</span><span class="add">+    let originalBody = &quot;&quot;;</span><span class="add">+    try {</span><span class="add">+      originalBody = await readFile(todoPath, &quot;utf8&quot;);</span><span class="add">+    } catch (e) {</span><span class="add">+      if ((e as NodeJS.ErrnoException).code !== &quot;ENOENT&quot;) throw e;</span><span class="add">+    }</span><span class="add">+    let baseFm: Frontmatter = {};</span><span class="add">+    let bodyAfter = originalBody;</span><span class="add">+    try {</span><span class="add">+      const parsed = parseFrontmatter(originalBody);</span><span class="add">+      baseFm = { ...parsed.fm };</span><span class="add">+      bodyAfter = parsed.bodyAfter;</span><span class="add">+    } catch {</span><span class="add">+      // body had no frontmatter; emit stamps only, keep raw bytes as the body</span><span class="add">+    }</span><span class="add">+    const fm: Frontmatter = {</span><span class="add">+      ...baseFm,</span><span class="add">+      failed_at: new Date().toISOString(),</span><span class="add">+      ...(failingStep ? { failed_step: failingStep } : {}),</span><span class="add">+      failed_attempts: failedAttempts,</span><span class="add">+      last_cycle_id: cycleId,</span><span class="add">+      drain_error: mutateErr.message,</span><span class="add">+    };</span><span class="add">+    const out = serializeFrontmatter(fm, bodyAfter);</span><span class="add">+    const tmpPath = `${failedPath}.tmp`;</span><span class="add">+    await writeFile(tmpPath, out, &quot;utf8&quot;);</span><span class="add">+    await rename(tmpPath, failedPath);</span><span class="add">+    try {</span><span class="add">+      await unlink(todoPath);</span><span class="add">+    } catch (e) {</span><span class="add">+      if ((e as NodeJS.ErrnoException).code !== &quot;ENOENT&quot;) throw e;</span><span class="add">+    }</span><span class="ctx">     await log.emit(&quot;queue.drain_warning&quot;, {</span><span class="ctx">       cycle_id: cycleId,</span><span class="ctx">       issue_id: issueId,</span><span class="ctx">       reason: `mutateFrontmatter failed: ${mutateErr.message}`,</span><span class="ctx">     });</span><span class="add">+  } else {</span><span class="add">+    try {</span><span class="add">+      await rename(todoPath, failedPath);</span><span class="add">+    } catch (e) {</span><span class="add">+      if ((e as NodeJS.ErrnoException).code !== &quot;ENOENT&quot;) throw e;</span><span class="add">+    }</span><span class="ctx">   }</span><span class="ctx">   await drainFailedTerminal(cwd, issueId);</span><span class="ctx">   await propagateBlocked(cwd, issueId, log);</span><span class="fileheader">diff --git a/tests/cli/queue-drain.test.ts b/tests/cli/queue-drain.test.ts</span><span class="fileheader">index 1531e99..9a5e8f6 100644</span><span class="meta">--- a/tests/cli/queue-drain.test.ts</span><span class="meta">+++ b/tests/cli/queue-drain.test.ts</span><span class="hunk">@@ -209,6 +209,75 @@ test(&quot;terminal failure with malformed frontmatter: file still moves, warning log</span><span class="ctx">     assert.ok(warning, &quot;queue.drain_warning event expected&quot;);</span><span class="ctx">     assert.equal(warning.issue_id, id);</span><span class="ctx">     assert.match(warning.reason, /mutateFrontmatter failed/);</span><span class="add">+</span><span class="add">+    const failedBody = await readFile(</span><span class="add">+      join(root, &quot;docs/cycle/issues/failed&quot;, `${id}.md`),</span><span class="add">+      &quot;utf8&quot;,</span><span class="add">+    );</span><span class="add">+    assert.match(failedBody, /^failed_at:/m);</span><span class="add">+    assert.match(failedBody, /^failed_step: boom$/m);</span><span class="add">+    assert.match(failedBody, /^failed_attempts: 1$/m);</span><span class="add">+    assert.match(failedBody, /^last_cycle_id: /m);</span><span class="add">+    assert.match(failedBody, /^drain_error: .*no frontmatter/m);</span><span class="add">+    assert.match(failedBody, /\n---\nbody only\n$/);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;terminal failure with parseable fm but tmp-write blocked: file moves with stamps + original keys preserved&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-qdrain-&quot;));</span><span class="add">+  try {</span><span class="add">+    const dist = await ensureDist();</span><span class="add">+    await bootstrapRepo(root, boomYml(1), { &quot;boom.sh&quot;: &quot;#!/bin/bash\nexit 42\n&quot; });</span><span class="add">+</span><span class="add">+    const id = &quot;wedged&quot;;</span><span class="add">+    const todoPath = join(root, &quot;docs/cycle/issues/todo&quot;, `${id}.md`);</span><span class="add">+    await writeFile(</span><span class="add">+      todoPath,</span><span class="add">+      &quot;---\ntitle: wedged\nkeep_me: original-value\n---\nreal body\n&quot;,</span><span class="add">+      &quot;utf8&quot;,</span><span class="add">+    );</span><span class="add">+    // Trap: pre-create the .tmp sibling as a directory so mutateFrontmatter&#39;s</span><span class="add">+    // internal writeFile fails with EISDIR. Our fallback then takes over.</span><span class="add">+    await mkdir(`${todoPath}.tmp`, { recursive: true });</span><span class="add">+    await writeFile(</span><span class="add">+      join(root, &quot;.cycle/tbd.jsonl&quot;),</span><span class="add">+      JSON.stringify({</span><span class="add">+        id,</span><span class="add">+        title: &quot;wedged&quot;,</span><span class="add">+        status: &quot;pending&quot;,</span><span class="add">+        attempt: 0,</span><span class="add">+        depends_on: [],</span><span class="add">+        triaged_at: &quot;2026-05-13T00:00:00Z&quot;,</span><span class="add">+      }) + &quot;\n&quot;,</span><span class="add">+      &quot;utf8&quot;,</span><span class="add">+    );</span><span class="add">+</span><span class="add">+    const r = spawnSync(&quot;node&quot;, [dist, &quot;run&quot;], { cwd: root, encoding: &quot;utf8&quot; });</span><span class="add">+    assert.equal(r.status, 1, &quot;run should exit 1 on halt&quot;);</span><span class="add">+</span><span class="add">+    const failedFiles = await readdir(join(root, &quot;docs/cycle/issues/failed&quot;));</span><span class="add">+    assert.equal(failedFiles.length, 1);</span><span class="add">+    assert.equal(failedFiles[0], `${id}.md`);</span><span class="add">+</span><span class="add">+    const failedBody = await readFile(</span><span class="add">+      join(root, &quot;docs/cycle/issues/failed&quot;, `${id}.md`),</span><span class="add">+      &quot;utf8&quot;,</span><span class="add">+    );</span><span class="add">+    assert.match(failedBody, /^keep_me: original-value$/m);</span><span class="add">+    assert.match(failedBody, /^failed_at:/m);</span><span class="add">+    assert.match(failedBody, /^failed_step: boom$/m);</span><span class="add">+    assert.match(failedBody, /^failed_attempts: 1$/m);</span><span class="add">+    assert.match(failedBody, /^last_cycle_id: /m);</span><span class="add">+    assert.match(failedBody, /^drain_error: /m);</span><span class="add">+    assert.match(failedBody, /\n---\nreal body\n$/);</span><span class="add">+</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    const events = log.trim().split(&quot;\n&quot;).map((l) =&gt; JSON.parse(l));</span><span class="add">+    const warning = events.find((e) =&gt; e.event === &quot;queue.drain_warning&quot;);</span><span class="add">+    assert.ok(warning, &quot;queue.drain_warning event expected&quot;);</span><span class="add">+    assert.match(warning.reason, /mutateFrontmatter failed/);</span><span class="ctx">   } finally {</span><span class="ctx">     await rm(root, { recursive: true, force: true });</span><span class="ctx">   }</span></pre>
+</section>
+
+
+
+<nav class="pager">
+  <a href="cycle-0061.html">← Cycle 0061</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0065.html">Cycle 0065 →</a>
+</nav>
+
+<footer>Generated from <code>bfe3e50</code></footer>
+</body>
+</html>

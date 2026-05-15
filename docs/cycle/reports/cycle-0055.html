@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0055 · Remove redundant ParsedTriageOutput type alias in triage.ts</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0055</h1>
+  <div class="subtitle">Remove redundant ParsedTriageOutput type alias in triage.ts</div>
+  <div class="meta-row">
+    <code>fe945bb</code> · Timothy Johnson · 2026-05-14 16:04:08 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0054.html">← Cycle 0054</a>
+  <span class="center">55 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0056.html">Cycle 0056 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0055: Remove redundant ParsedTriageOutput type alias
+
+## Objective
+Collapse the redundant `ParsedTriageOutput` type alias in `src/engine/triage.ts` into the canonical `TriageOutput` name so there is exactly one type identifier for the triage agent&#39;s parsed+validated output shape. Two names for the same structural type invite silent drift if one definition is later edited without the other; eliminating the alias removes that risk at zero behavioral cost.
+
+## Source Issue
+`refl-0023-parsedtriageoutput-is-a-redundant-type-a` — &quot;Remove redundant ParsedTriageOutput type alias in triage.ts&quot;
+
+## Scope
+
+### In Scope
+- Replace every in-file reference to `ParsedTriageOutput` in `src/engine/triage.ts` with `TriageOutput` and delete the `type ParsedTriageOutput = TriageOutput;` line.
+
+### Out of Scope
+- Restructuring the validator pipeline or any change to the parse-vs-validate boundary.
+- Changing the JSON contract emitted by the triage agent.
+- Touching any other type alias in `triage.ts` (or elsewhere) that is not the `ParsedTriageOutput` ↔ `TriageOutput` pair.
+- Renaming `TriageOutput` itself or splitting it into a `Raw` vs validated pair (option 2 from the issue) — the three current use sites carry no parse-vs-validated distinction, so option 1 (inline+delete) applies.
+
+## Requirements
+- After the change, `rg -n &quot;ParsedTriageOutput&quot; src tests` returns zero matches.
+- `TriageOutput` remains declared exactly once at `src/engine/triage.ts:51`.
+- The three call sites currently referencing `ParsedTriageOutput` (`src/engine/triage.ts:65, 68, 76`) compile against `TriageOutput` without further edits.
+- No runtime code path changes; this is a pure structural rename of an erased type.
+
+## Acceptance Criteria
+- [ ] `type ParsedTriageOutput = TriageOutput;` is removed from `src/engine/triage.ts`.
+- [ ] Every prior reference to `ParsedTriageOutput` in `src/engine/triage.ts` now reads `TriageOutput`.
+- [ ] `rg -n &quot;ParsedTriageOutput&quot;` across the repo returns no matches.
+- [ ] `npm run typecheck` passes with no warnings.
+- [ ] `npm test` passes (full suite, currently 381/381).
+- [ ] `npm run test:coverage` shows no per-file regression for `src/engine/triage.ts` against the master baseline; aggregate coverage stays ≥ 95% line / ≥ 75% branch / ≥ 90% function. The per-file floor `src/engine/triage.ts ≥ 95% line` enforced by `scripts/coverage-gate.mjs` must still pass.
+- [ ] No behavioral change observable in test output (test names, counts, and assertions unchanged).
+
+## Testing Strategy
+- Rely on the existing Node native test runner suite — this is a type-only rename of an erased TypeScript alias, so no new tests are warranted (and adding any would couple tests to an internal type name).
+- Verification is the existing test suite + `tsc --noEmit`; the typechecker is the actual semantic guard for this change.
+- No E2E coverage required: no UI surface, no CLI surface, no on-disk format affected.
+
+## Documentation Updates
+- **CLAUDE.md / AGENTS.md**: No update required. The &quot;Architecture quick reference&quot; entry for triage describes behavior (file moves, `tbd.jsonl` mutations, validator semantics) and does not reference the `ParsedTriageOutput` identifier.
+- **README.md**: No update required. README documents user-facing CLI behavior; this change is internal to a non-exported TypeScript type.
+
+This cycle is a pure internal rename; &quot;docs updated&quot; here means *confirmed no doc references the dropped name*, which a grep for `ParsedTriageOutput` across `README.md`, `CLAUDE.md`, `BRIEF.md`, and `docs/**/*.md` will verify during the build step.
+
+## Dependencies
+- None. The change is confined to a single file (`src/engine/triage.ts`) and depends only on the existing `TriageOutput` declaration on line 51, which is already in place.
+- No external services, no env vars, no migration.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/engine/triage.ts | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/engine/triage.ts b/src/engine/triage.ts</span><span class="fileheader">index 1032d0d..91cad3c 100644</span><span class="meta">--- a/src/engine/triage.ts</span><span class="meta">+++ b/src/engine/triage.ts</span><span class="hunk">@@ -62,10 +62,8 @@ type RawIssue = {</span><span class="ctx">   attempts: number;</span><span class="ctx"> };</span><span class="ctx"> </span><span class="del">-type ParsedTriageOutput = TriageOutput;</span><span class="del">-</span><span class="ctx"> type RawAttemptOutcome =</span><span class="del">-  | { status: &quot;ok&quot;; parsed: ParsedTriageOutput; attempts: number }</span><span class="add">+  | { status: &quot;ok&quot;; parsed: TriageOutput; attempts: number }</span><span class="ctx">   | { status: &quot;failed&quot;; lastError: string; attempts: number };</span><span class="ctx"> </span><span class="ctx"> interface ProcessCtx {</span><span class="hunk">@@ -73,7 +71,7 @@ interface ProcessCtx {</span><span class="ctx">   cfg: CycleConfig;</span><span class="ctx">   promptTemplate: string;</span><span class="ctx">   runAgent: TriageAgentRunner;</span><span class="del">-  apply?: (raw: RawIssue, parsed: ParsedTriageOutput) =&gt; Promise&lt;void&gt;;</span><span class="add">+  apply?: (raw: RawIssue, parsed: TriageOutput) =&gt; Promise&lt;void&gt;;</span><span class="ctx">   onAttemptFailed?: (attemptNumber: number, reason: string) =&gt; Promise&lt;void&gt;;</span><span class="ctx"> }</span><span class="ctx"> </span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>Gates green. Type-only rename, +2/-4 diff, 381/381 pass, coverage stable. Emit REVIEW.md. No MUST-FIX.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0055
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+A pure four-line type-only rename of a non-exported alias in `src/engine/triage.ts`, executed exactly as PLAN.md prescribed: delete the `type ParsedTriageOutput = TriageOutput;` declaration plus its trailing blank, then rewrite the two remaining use sites to the canonical `TriageOutput` name. Zero runtime change. All gates pass on the first attempt.
+
+### Findings
+1. **Diff scope is minimal and surgical** — `git diff src/engine/triage.ts` shows exactly the four lines anticipated in PLAN.md §Implementation Approach (one alias declaration deletion + one trailing blank + two identifier rewrites at the `RawAttemptOutcome` and `ProcessCtx.apply` use sites). No collateral edits. — `src/engine/triage.ts:62-77`.
+2. **Edit ordering risk explicitly called out in PLAN.md was avoided** — the alias declaration was removed before the `replace_all`, so no self-referential `type TriageOutput = TriageOutput;` collision was produced. — `src/engine/triage.ts:65` (removed) and `src/engine/triage.ts:51` (single surviving declaration confirmed via `rg -n &quot;^type TriageOutput =&quot; src/engine/triage.ts` → 1 match).
+3. **No out-of-scope edits** — tests untouched (`git diff --stat tests/` empty), no `README.md` / `CLAUDE.md` / `BRIEF.md` edits (the working-tree `README.md` modification is leftover from cycle 0054&#39;s post-commit `documentation` step, not part of this cycle&#39;s commit-able change set). Historical cycle artifacts under `docs/cycle/0023-*/` and `docs/cycle/0015-*/` correctly left intact per PLAN.md §Resolved Open Questions Q1.
+4. **TypeScript erasure means zero runtime impact** — `tsc --noEmit` clean, esbuild bundle would differ only in source-map identifier names. Behavior of `runTriage`, `dryRunTriage`, `validateOutput`, and the `ctx.apply` callback wiring is unchanged because both names always resolved to the same structural type. — `src/engine/triage.ts:51-77`.
+
+### Spec Compliance Checklist
+- [x] `type ParsedTriageOutput = TriageOutput;` removed from `src/engine/triage.ts`.
+- [x] Every prior reference renamed to `TriageOutput` (lines 68 and 76 → 65 and 74 post-shift).
+- [x] `rg -n &quot;ParsedTriageOutput&quot; src tests` → 0 matches.
+- [x] `npm run typecheck` exits 0 with no warnings.
+- [x] `npm test` reports 381 passing, 0 failing, 0 skipped (via `npm run test:coverage`).
+- [x] `npm run test:coverage` shows no per-file regression; `src/engine/triage.ts` line coverage holds at 99.72% (identical to the cycle 0054 baseline).
+- [x] No behavioral change in test output — same suite, same pass count.
+- [x] CLAUDE.md / README.md doc-update waiver honored — neither file referenced `ParsedTriageOutput`, and neither is touched as part of this cycle&#39;s intended change set.
+
+## Adversarial Test Review
+
+### Summary
+Strong, with one caveat that is correct-by-design: this cycle adds zero new tests, and that is the right call. The change is a rename of an *erased* TypeScript type alias; there is no runtime surface to assert on, and any test coupling to the internal type name would be an anti-pattern. The typechecker (`tsc --noEmit`) is the load-bearing semantic guard, and it passes.
+
+### Findings
+1. **No mock abuse risk** — no test code was added or modified. The existing `tests/engine/triage*.test.ts` suite continues to exercise `runTriage`, `dryRunTriage`, `validateOutput`, and `runAgent` through public exports and behavior, not internal identifiers. — `tests/engine/triage.test.ts`, `tests/engine/triage.faults.test.ts`, `tests/engine/triage-validator.test.ts`, `tests/engine/triage-dry-run.test.ts`.
+2. **Failure paths still covered** — the four-file triage test suite covers the alias&#39;s two consumer sites: `RawAttemptOutcome` exhaustion (retry budget → `status: &quot;failed&quot;`) is asserted in `tests/engine/triage.faults.test.ts` and `tests/engine/triage-dry-run.test.ts` (Case A from cycle 0054); `ProcessCtx.apply` is exercised by every happy-path assertion that reaches queue mutation in `tests/engine/triage.test.ts`. Both consumer shapes are still tested at the behavioral layer — the rename did not regress the failure-path coverage.
+3. **Boundary / edge cases unchanged** — coverage report shows `src/engine/triage.ts` 99.72% line / 97.80% branch / 97.50% function, identical to the cycle 0054 baseline. The only uncovered lines (`triage.ts:608-609`) are pre-existing and unrelated to this change.
+4. **Integration gap check** — public API surface of `triage.ts` is unchanged (no exported identifier renamed; both old and new names were file-private). Importers in `src/cli.ts`, `src/engine/run-cycle.ts`, and the test files do not need any update, and none was made — verified by `rg`.
+5. **Assertion quality unchanged** — no test assertions modified, so the existing assertion strength is preserved.
+
+### Test Coverage
+- Command run: `npm run test:coverage` (with `~/.nvm/versions/node/v22.22.2/bin` on PATH).
+- Line / branch / function: **99.06% / 92.86% / 96.32%** aggregate. All above the ≥ 95% / ≥ 75% / ≥ 90% floors from CLAUDE.md.
+- Regressions vs base (per-file): none. `src/engine/triage.ts` holds at 99.72% line / 97.80% branch / 97.50% function — byte-for-byte identical to the cycle 0054 baseline. `coverage-gate.mjs` exits 0 with `coverage-gate: ok — src/engine/triage.ts 99.72% ≥ 95%`.
+- New code without tests: none. No new code was added — this cycle is net `-4` lines, all of them type declarations or identifier rewrites in erased positions.
+- Specific scenarios missing tests: none warranted. A type-only rename of an erased alias has no runtime scenario to test. SPEC §Testing Strategy and PLAN.md §Anti-Mock Position both correctly resolve this — adding a test here would couple to an internal identifier name and would be the anti-pattern.
+
+### Side note (not a fix item for this cycle)
+The working tree carries a `README.md` modification that is **not** part of cycle 0055&#39;s intended change set — it is the uncommitted output of cycle 0054&#39;s post-commit `documentation` step (the trunk-based `commit` step runs before `documentation`, so the doc edit is correctly produced but lives uncommitted until the next cycle&#39;s `commit` step picks it up). This is a workflow-level artifact, not a cycle 0055 review concern, and is already tracked by reflection issues from cycle 0054 (`refl-0054-*`).</code></pre>
+<p>Review complete. Verdict: <strong>PASS</strong>. No MUST-FIX.md needed. Diff is clean 4-line rename, all gates green, coverage stable at 99.72% for <code>triage.ts</code>.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0054.html">← Cycle 0054</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0056.html">Cycle 0056 →</a>
+</nav>
+
+<footer>Generated from <code>fe945bb</code></footer>
+</body>
+</html>

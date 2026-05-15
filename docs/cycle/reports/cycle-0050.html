@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0050 · Consolidate triage validator child-id tracking into single canonical Set</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0050</h1>
+  <div class="subtitle">Consolidate triage validator child-id tracking into single canonical Set</div>
+  <div class="meta-row">
+    <code>908a967</code> · Timothy Johnson · 2026-05-14 14:14:48 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0049.html">← Cycle 0049</a>
+  <span class="center">50 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0051.html">Cycle 0051 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0050: Consolidate triage validator child-id tracking into single canonical Set
+
+## Objective
+Collapse the two parallel `Set&lt;string&gt;` collections inside `validateOutput` (`src/engine/triage.ts`) — `seen` and `childIds` — into one canonical set built once. The validator&#39;s `applyRaw` consumer mutates the queue unconditionally on accept; eliminating the duplicate bookkeeping closes a silent-divergence surface where a future contributor could update one set and forget the other, producing corrupt queue state with no test signal at the validator boundary.
+
+## Source Issue
+`refl-0021-triage-validator-seen-and-childids-dupli` — &quot;Consolidate triage validator child-id tracking into single canonical Set&quot;
+
+## Scope
+
+### In Scope
+- Build one `childIds: Set&lt;string&gt;` immediately after the `children[]` shape-validation loop completes (single pass over `children`).
+- Route all three current consumers through that single set: (1) duplicate-id rejection, (2) `ordering[]` membership check, (3) `depends_on` resolution (sibling-child branch).
+- Delete the now-unused `seen` local.
+
+### Out of Scope
+- Any change to `applyRaw`, queue writers (`writeQueue`, `tbd.jsonl` mutations), or `src/defaults/prompts/triage.md`.
+- Any change to the resolution rules added in cycle 0021 (sibling-vs-queue-vs-todo lookup order, self-loop rejection) — only the data structure they consult.
+- Any change to `ordering[]` validation rules (duplicate detection, pending-or-new membership) beyond reusing the consolidated set.
+- Any change to other validator-built sets unrelated to child ids: `orderingSeen`, `queueIds`, `pendingIds`, `todoIds`, `knownIds`.
+
+## Requirements
+- Functional: `validateOutput` rejects exactly the same inputs it rejected before, in the same order of checks. Existing error messages preserved verbatim where possible; updates only where the new code shape mechanically requires it, with the corresponding test assertion updated in lockstep.
+- Functional: `knownIds` (the `depends_on` resolution set in `triage.ts:522`) continues to be `childIds ∪ queueIds ∪ todoIds` — the merge is unchanged, only its `childIds` operand is now the canonical set.
+- Non-functional: `npm run typecheck` clean; `npm test` green; `npm run test:coverage` reports no regression vs master baseline (line ≥ 95%, branch ≥ 75%, function ≥ 90%) and per-file `src/engine/triage.ts ≥ 95%` line floor maintained.
+
+## Acceptance Criteria
+- [ ] One `Set&lt;string&gt;` of child ids in `validateOutput`, populated in exactly one place.
+- [ ] The `seen` local (currently `triage.ts:481`) is removed; the `childIds` local (currently `triage.ts:505`) is the single survivor, built once at or before the duplicate-id check.
+- [ ] Every existing `tests/engine/triage.test.ts` case covering duplicate-child-id rejection, ordering-membership rejection, unknown-`depends_on` rejection, and self-loop rejection passes (with only error-text adjustments if structurally required).
+- [ ] One new regression test asserts that a child id referenced in both `ordering[]` and another child&#39;s `depends_on[]` resolves against the same consolidated set in a single output.
+- [ ] All existing tests still pass; no new compiler/linter warnings introduced.
+- [ ] `BUILD.md` records the consolidation and the post-change line / branch / function deltas vs the BUILD baseline.
+
+## Testing Strategy
+- Framework: Node&#39;s native test runner (`node:test`), invoked via `npm test`. Coverage via `npm run test:coverage` (auto-runs the per-file gate in `scripts/coverage-gate.mjs` on completion).
+- Scenarios to keep covered (already in `tests/engine/triage.test.ts`):
+  - Duplicate child id within `children[]` → reject.
+  - `ordering[]` referencing a new child id (membership via `childIds`) → accept.
+  - `ordering[]` referencing an id absent from both pending queue and new children → reject.
+  - `depends_on` referencing a sibling child id → accept.
+  - `depends_on` self-loop → reject.
+  - `depends_on` referencing an id absent from siblings, `tbd.jsonl`, and `todo/` → reject with the existing message.
+- New regression scenario: a single triage output where child `B`&#39;s `depends_on` contains `A`, and `ordering` contains both `A` and `B` (along with any pending ids). Asserts the validator accepts the output and that both `A`-membership lookups (ordering and depends_on) succeed against the same set — exercises the consolidated set across both consumers in one pass.
+- No E2E tests required (pure validator-layer refactor; no CLI or UI surface).
+
+## Documentation Updates
+- **CLAUDE.md / AGENTS.md**: No update required — the &quot;Queue authority&quot; / triage paragraph describes behavior, not validator internals.
+- **README.md**: No update required — no user-visible CLI surface or recovery flow changes.
+
+Documentation is part of &quot;done&quot; — code without updated docs is incomplete. (No docs change is required for this cycle and the build report will explicitly state so.)
+
+## Dependencies
+- No new dependencies. Pure refactor inside `src/engine/triage.ts` plus a single new assertion in `tests/engine/triage.test.ts`.
+- No external services or env vars required.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/engine/triage.ts                  | 21 +++++++++----------
+ tests/engine/triage-validator.test.ts | 38 +++++++++++++++++++++++++++++++++++
+ 2 files changed, 47 insertions(+), 12 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/engine/triage.ts b/src/engine/triage.ts</span><span class="fileheader">index 23718b1..ad0d193 100644</span><span class="meta">--- a/src/engine/triage.ts</span><span class="meta">+++ b/src/engine/triage.ts</span><span class="hunk">@@ -404,6 +404,7 @@ export function validateOutput(</span><span class="ctx">   }</span><span class="ctx"> </span><span class="ctx">   const children: TriageChild[] = [];</span><span class="add">+  const childIds = new Set&lt;string&gt;();</span><span class="ctx">   const stringFields: (keyof TriageChild)[] = [</span><span class="ctx">     &quot;raw_id&quot;,</span><span class="ctx">     &quot;slug&quot;,</span><span class="hunk">@@ -466,27 +467,24 @@ export function validateOutput(</span><span class="ctx">       };</span><span class="ctx">     }</span><span class="ctx"> </span><span class="del">-    children.push(child);</span><span class="del">-  }</span><span class="del">-</span><span class="del">-  for (const p of obj.decomposed_parents as string[]) {</span><span class="del">-    if (!raws.some((r) =&gt; r.id === p)) {</span><span class="add">+    if (childIds.has(child.id)) {</span><span class="ctx">       return {</span><span class="ctx">         ok: false,</span><span class="del">-        reason: `decomposed_parents: ${p} not in current batch`,</span><span class="add">+        reason: `children[${i}].id: duplicate ${child.id}`,</span><span class="ctx">       };</span><span class="ctx">     }</span><span class="add">+    childIds.add(child.id);</span><span class="add">+</span><span class="add">+    children.push(child);</span><span class="ctx">   }</span><span class="ctx"> </span><span class="del">-  const seen = new Set&lt;string&gt;();</span><span class="del">-  for (let i = 0; i &lt; children.length; i++) {</span><span class="del">-    if (seen.has(children[i].id)) {</span><span class="add">+  for (const p of obj.decomposed_parents as string[]) {</span><span class="add">+    if (!raws.some((r) =&gt; r.id === p)) {</span><span class="ctx">       return {</span><span class="ctx">         ok: false,</span><span class="del">-        reason: `children[${i}].id: duplicate ${children[i].id}`,</span><span class="add">+        reason: `decomposed_parents: ${p} not in current batch`,</span><span class="ctx">       };</span><span class="ctx">     }</span><span class="del">-    seen.add(children[i].id);</span><span class="ctx">   }</span><span class="ctx"> </span><span class="ctx">   const queueIds = new Set(queueRows.map((r) =&gt; r.id));</span><span class="hunk">@@ -502,7 +500,6 @@ export function validateOutput(</span><span class="ctx">   const pendingIds = new Set(</span><span class="ctx">     queueRows.filter((r) =&gt; r.status === &quot;pending&quot;).map((r) =&gt; r.id),</span><span class="ctx">   );</span><span class="del">-  const childIds = new Set(children.map((c) =&gt; c.id));</span><span class="ctx">   const orderingArr = obj.ordering as string[];</span><span class="ctx">   const orderingSeen = new Set&lt;string&gt;();</span><span class="ctx">   for (let i = 0; i &lt; orderingArr.length; i++) {</span><span class="fileheader">diff --git a/tests/engine/triage-validator.test.ts b/tests/engine/triage-validator.test.ts</span><span class="fileheader">index 28e4d50..b09e86e 100644</span><span class="meta">--- a/tests/engine/triage-validator.test.ts</span><span class="meta">+++ b/tests/engine/triage-validator.test.ts</span><span class="hunk">@@ -18,6 +18,7 @@ const cfg: CycleConfig = {</span><span class="ctx"> </span><span class="ctx"> const fakeRaws = [</span><span class="ctx">   { id: &quot;R1&quot;, body: &quot;&quot;, fm: {}, srcPath: &quot;/tmp/R1.md&quot;, attempts: 0 },</span><span class="add">+  { id: &quot;R2&quot;, body: &quot;&quot;, fm: {}, srcPath: &quot;/tmp/R2.md&quot;, attempts: 0 },</span><span class="ctx"> ];</span><span class="ctx"> </span><span class="ctx"> function validChildR1Json(): Record&lt;string, unknown&gt; {</span><span class="hunk">@@ -301,6 +302,43 @@ test(&quot;resolves depends_on against existing pending queue row id&quot;, () =&gt; {</span><span class="ctx">   assert.equal(r.ok, true);</span><span class="ctx"> });</span><span class="ctx"> </span><span class="add">+test(&quot;childIds set serves both ordering membership and sibling depends_on resolution in one output&quot;, () =&gt; {</span><span class="add">+  const stdout = JSON.stringify({</span><span class="add">+    ordering: [&quot;R1-a&quot;, &quot;R2-b&quot;],</span><span class="add">+    children: [</span><span class="add">+      {</span><span class="add">+        raw_id: &quot;R1&quot;,</span><span class="add">+        slug: &quot;a&quot;,</span><span class="add">+        id: &quot;R1-a&quot;,</span><span class="add">+        title: &quot;A&quot;,</span><span class="add">+        workflow: &quot;feature&quot;,</span><span class="add">+        depends_on: [],</span><span class="add">+        body: &quot;body-a&quot;,</span><span class="add">+      },</span><span class="add">+      {</span><span class="add">+        raw_id: &quot;R2&quot;,</span><span class="add">+        slug: &quot;b&quot;,</span><span class="add">+        id: &quot;R2-b&quot;,</span><span class="add">+        title: &quot;B&quot;,</span><span class="add">+        workflow: &quot;feature&quot;,</span><span class="add">+        depends_on: [&quot;R1-a&quot;],</span><span class="add">+        body: &quot;body-b&quot;,</span><span class="add">+      },</span><span class="add">+    ],</span><span class="add">+    decomposed_parents: [&quot;R1&quot;, &quot;R2&quot;],</span><span class="add">+  });</span><span class="add">+  const r = validateOutput(stdout, fakeRaws as never, [], cfg);</span><span class="add">+  assert.equal(</span><span class="add">+    r.ok,</span><span class="add">+    true,</span><span class="add">+    `validator should accept; reason: ${r.ok ? &quot;&quot; : r.reason}`,</span><span class="add">+  );</span><span class="add">+  if (r.ok) {</span><span class="add">+    assert.deepEqual(r.parsed.ordering, [&quot;R1-a&quot;, &quot;R2-b&quot;]);</span><span class="add">+    assert.equal(r.parsed.children[1].depends_on[0], &quot;R1-a&quot;);</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="ctx"> test(&quot;decomposed parent&#39;s raw id in depends_on is rejected as dangling&quot;, () =&gt; {</span><span class="ctx">   const j = validChildR1Json();</span><span class="ctx">   // Child references its own raw parent id which is being decomposed</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>Cycle 0050. Refactor clean, minimal, passes all gates. Drop REVIEW to stdout. No MUST-FIX.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0050
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+Pure validator-internal refactor that lands exactly per PLAN. One `childIds: Set&lt;string&gt;` survives in `validateOutput`, populated inline during the children-shape loop and consumed by all three downstream paths (duplicate-id rejection, `ordering[]` membership, `depends_on` resolution via `knownIds`). Net `+9 / -10` lines in `src/engine/triage.ts`. Zero behavioral change observable through any existing test; one new regression test added.
+
+### Findings
+1. **Check-precedence drift on multi-error inputs (intentional, documented)**: pre-refactor, `decomposed_parents` membership and the standalone duplicate-id pass ran AFTER the full children-shape loop completed; post-refactor, the inline duplicate check fires mid-loop, so on multi-violation inputs the duplicate may now beat (a) a later child&#39;s shape error and (b) the `decomposed_parents` membership error. SPEC requires &quot;same inputs rejected&quot; (held) but speaks loosely about &quot;same order of checks&quot;; PLAN §Risk Assessment called out the cross-child shape variant but not the decomposed_parents variant. No test pins cross-violation precedence (verified by reading every `checkReject` call) and the only production caller (`processRawWithRetry`) feeds the reason back as retry text, so the practical impact is zero — `src/engine/triage.ts:470-475` vs former `src/engine/triage.ts:481-490`.
+2. **Structural invariants from PLAN hold** — `src/engine/triage.ts:407` is the single `const childIds` declaration; `seen` is gone; the `new Set(children.map((c) =&gt; c.id))` rebuild is gone. Confirmed via `rg`:
+   ```
+   const childIds = new Set&lt;string&gt;();   # src/engine/triage.ts:407 (only)
+   const orderingSeen = new Set&lt;string&gt;(); # src/engine/triage.ts:504 (untouched)
+   \bseen\b → 0 hits
+   new Set\(children\.map → 0 hits
+   ```
+3. **Reflow only outside the touched block** — `queueIds` / `pendingIds` / `ordering[]` loop / `knownIds` / `depends_on` pass are byte-identical except for line-number shift. Diff confirms (`src/engine/triage.ts:490-537`).
+4. **BUILD.md branch-drift math** — BUILD.md says &quot;branch drift is one-hundredth of a percent (92.82 → 92.78, 96.32 → 96.30).&quot; Actual deltas are −0.04 (branch) and −0.02 (function), i.e. four-hundredths and two-hundredths. Cosmetic; not worth a fix.
+
+### Spec Compliance Checklist
+- [x] One `Set&lt;string&gt;` of child ids in `validateOutput`, populated in exactly one place — `src/engine/triage.ts:407, 476`.
+- [x] `seen` removed; `childIds` survives, built once at/before the duplicate-id check.
+- [x] All existing validator + e2e cases (`duplicate`, `ordering` membership, `depends_on` resolution, self-loop, sibling-resolution, pending-queue resolution) still pass.
+- [x] New regression test asserts cross-consumer membership in one accepted output — `tests/engine/triage-validator.test.ts:305-340`.
+- [x] No new compiler/linter warnings (`npm run typecheck` exit 0, zero output).
+- [x] BUILD.md records consolidation + post-change deltas.
+
+## Adversarial Test Review
+
+### Summary
+Adequate. The new test exercises the happy path through both consumers, but it cannot pin the structural invariant the SPEC actually wants protected — that&#39;s a limitation of behavioral testing, not a defect.
+
+### Findings
+1. **New test does not fail if the consolidation is reverted** — `tests/engine/triage-validator.test.ts:305-340` asserts `r.ok === true` and reads `r.parsed.ordering` + `r.parsed.children[1].depends_on[0]`. If a future contributor splits `childIds` back into two locals (one populated by the shape loop for duplicate detection, another rebuilt later via `new Set(children.map((c) =&gt; c.id))` for `ordering`/`knownIds`), this test STILL passes because both copies would still contain `R1-a`. PLAN Task 2 Success Criteria explicitly called this out (&quot;The new test fails if childIds is artificially split back into two sets — confirms the test is load-bearing on the consolidation&quot;); that criterion is unmet because the public validator API exposes only accept/reject + parsed output, with no observable channel for set identity. The structural invariant is held instead by the `rg &quot;const childIds&quot; | wc -l == 1` check that BUILD.md performed once at build time, not by an automated regression test. Not actionable at the test layer without changing the validator&#39;s surface area, which is out of scope.
+2. **No mock abuse** — `validateOutput` is a pure function; tests call it directly with hand-built `stdout`, `queueRows`, and `cfg` fixtures. Zero mocking. Consistent with file conventions.
+3. **Boundary / failure coverage preserved** — every existing rejection case the SPEC enumerated (duplicate child id, ordering membership miss, unknown `depends_on`, self-loop, decomposed-parent-as-depends-on) continues to pass against the refactored validator. Verified by `npm test` (`368/368 pass`, +1 vs prior `367`).
+4. **`fakeRaws` extension is safe** — added `R2` entry at `tests/engine/triage-validator.test.ts:21`. No prior test asserts `fakeRaws.length === 1` (`grep` confirmed); all existing cases either build their own children referencing `R1` or use the shared `validChildR1Json` fixture which is `R1`-scoped. No regressions.
+5. **Assertion quality** — strong: `assert.equal(r.ok, true)`, `assert.deepEqual(r.parsed.ordering, …)`, `assert.equal(r.parsed.children[1].depends_on[0], …)`. Concrete shapes, not truthy checks. The `assert.equal(r.ok, true, …reason)` form even surfaces the validator&#39;s reject reason on failure, which is the right shape for this file.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: **99.05% / 92.78% / 96.30%** (aggregate)
+- Per-file `src/engine/triage.ts`: **line 99.72%** (≥ 95% floor ✓), branch 97.78%, function 97.50%
+- `posttest:coverage` gate: `ok — src/engine/triage.ts 99.72% ≥ 95%`
+- Regressions vs base (post-0049 master baseline: line 99.05%, branch 92.82%, function 96.32%, triage.ts line 99.72%):
+  - aggregate branch: 92.82 → 92.78 (−0.04, mechanical — one `for` loop removed)
+  - aggregate function: 96.32 → 96.30 (−0.02, mechanical)
+  - per-file triage.ts line: unchanged at 99.72
+  - All floors hold; no per-file regression.
+- New code without tests: none — the only new code is two lines (`if (childIds.has) reject` + `childIds.add`) and both branches are exercised by the existing &quot;rejects duplicate child ids&quot; case (true branch) and every happy-path case (false branch).
+- Specific scenarios missing tests: none beyond the structural-invariant caveat above (Finding 1), which is inherent to black-box testing.</code></pre>
+<p><code>★ Insight ─────────────────────────────────────</code> Structural invariants (&quot;exactly one Set, not two&quot;) are testable only at the syntax/AST level — black-box tests on a pure validator can pin behavior but not identity. The right enforcement is a lint/<code>rg</code> check baked into the build step or a per-file structural assertion, not a unit test. PLAN&#39;s optimism here is a small process bug worth flagging in reflection.</p>
+<p>Check-precedence on multi-violation inputs is a subtle refactoring trap: SPEC said &quot;same order of checks,&quot; but folding a check INTO a per-iteration loop reorders it relative to passes that ran AFTER the original loop. Safe here only because no test and no caller depend on the precedence — a smaller blast radius than typical. <code>─────────────────────────────────────────────────</code></p>
+<p>Cycle 0050 PASS. Eligible for <code>verify</code> → <code>commit</code> → <code>pr</code> → <code>reflection</code>. No MUST-FIX.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0049.html">← Cycle 0049</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0051.html">Cycle 0051 →</a>
+</nav>
+
+<footer>Generated from <code>908a967</code></footer>
+</body>
+</html>

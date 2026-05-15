@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0042 · CLI: `cycle drop` accepts `--priority N` (1-10), defaults to 3</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0042</h1>
+  <div class="subtitle">CLI: `cycle drop` accepts `--priority N` (1-10), defaults to 3</div>
+  <div class="meta-row">
+    <code>1c26f07</code> · Timothy Johnson · 2026-05-14 00:23:22 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0041.html">← Cycle 0041</a>
+  <span class="center">42 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0043.html">Cycle 0043 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0042: `cycle drop --priority N` flag
+
+## Objective
+Add an optional `--priority N` (1..10) flag to the `cycle drop` CLI so authors can stamp a priority on freeform issues at drop time instead of editing frontmatter post-hoc. Defaults to `3`, matching the implicit default already written by `materializeFreeformIssue`. Closes the deferral from cycle 0019&#39;s SPEC §Out of Scope, which was never filed as a queue item until reflection-time triage produced this issue.
+
+## Source Issue
+`refl-0019-cycle-drop-priority-flag-deferred-no-fol` — &quot;CLI: `cycle drop` accepts `--priority N` (1-10), defaults to 3&quot;
+
+## Scope
+
+### In Scope
+- Extend `parseArgs` in `src/cli/parse-args.ts` so the `drop` subcommand parses `--priority N` (integer, range `1..10`), with `DropArgs` carrying a `priority: number` field that defaults to `3`. Reject out-of-range, non-integer, and missing-value inputs with a clear error and non-zero exit.
+- Thread `priority` through `materializeFreeformIssue(text, repoRoot, now, priority?)` so the rendered `raw/&lt;id&gt;.md` frontmatter writes the caller&#39;s value rather than the hard-coded `priority: 3`.
+- Unit-test the new behavior end-to-end through both layers (parser validation + materialize output).
+
+### Out of Scope
+- Any `--priority` flag on `cycle run` or other subcommands.
+- Reading/honoring `priority` during triage or queue ordering — current consumers already read this field; this cycle only changes who writes it.
+- Bundling with the sibling `cli-drop-writes-to-raw-status-command` issue (separate concern on the same CLI surface, as noted in the issue body).
+- A general `--help` framework for the CLI — only the existing `drop` help text (if any) updates; no new help infra.
+
+## Requirements
+
+### Functional
+- `cycle drop &quot;&lt;text&gt;&quot; --priority N` writes `docs/cycle/issues/raw/&lt;id&gt;.md` whose YAML frontmatter contains `priority: N`.
+- `cycle drop &quot;&lt;text&gt;&quot;` (no flag) writes `priority: 3`.
+- `N` must satisfy `Number.isInteger(N) &amp;&amp; N &gt;= 1 &amp;&amp; N &lt;= 10`. Anything else (`0`, `11`, `3.5`, `&quot;high&quot;`, missing value) exits non-zero with a message naming the flag and the accepted range.
+- Order of positional text and `--priority` flag is not significant: `cycle drop --priority 7 &quot;foo&quot;` and `cycle drop &quot;foo&quot; --priority 7` both work.
+- `--help` (or the existing usage string surfaced when the command is malformed) documents the flag, its `1..10` range, and the `3` default. If no help mechanism exists for `drop` today, add a single usage line emitted on parse errors — do not build out a help system.
+
+### Non-functional
+- No change to the success-path stdout contract: still a single line `{&quot;event&quot;:&quot;issue.dropped&quot;,&quot;issue_id&quot;:&quot;…&quot;,&quot;path&quot;:&quot;…&quot;}` so any caller piping the output continues to work.
+- Validation errors go to stderr; success JSON stays on stdout.
+- No new runtime dependencies. Parser stays on `node:util parseArgs`.
+
+## Acceptance Criteria
+- [ ] `cycle drop &quot;foo&quot; --priority 7` writes `raw/&lt;id&gt;.md` containing `priority: 7`.
+- [ ] `cycle drop &quot;foo&quot;` writes `raw/&lt;id&gt;.md` containing `priority: 3`.
+- [ ] `cycle drop &quot;foo&quot; --priority 0`, `--priority 11`, `--priority 3.5`, and `--priority high` all exit non-zero with a stderr message naming the flag and the `1..10` range.
+- [ ] `cycle drop --priority` (no value) exits non-zero with a clear error.
+- [ ] `cycle drop --priority 7 &quot;foo&quot;` (flag before text) succeeds identically to the flag-after-text form.
+- [ ] Success-path stdout is unchanged: a single JSON line with `event: &quot;issue.dropped&quot;`, `issue_id`, `path`.
+- [ ] `npm run typecheck` clean, `npm test` green, coverage not regressed against the master baseline (line ≥ 95%, branch ≥ 75%, function ≥ 90%).
+- [ ] CLAUDE.md commands table updated if the `drop` row exists; otherwise no doc change required there.
+
+## Testing Strategy
+- Framework: Node&#39;s built-in test runner (existing convention; see other `tests/**/*.test.ts`).
+- New unit tests for `parseArgs`:
+  - Default: `drop &quot;foo&quot;` → `{ command: &quot;drop&quot;, text: &quot;foo&quot;, priority: 3 }`.
+  - Valid: `drop &quot;foo&quot; --priority 7` and `drop --priority 7 &quot;foo&quot;` both → `priority: 7`.
+  - Boundary: `--priority 1` and `--priority 10` both accepted.
+  - Invalid: `--priority 0`, `--priority 11`, `--priority 3.5`, `--priority high`, `--priority` (no value) — each throws (or returns an error sentinel consistent with how the file signals other parse errors today).
+- New unit tests for `materializeFreeformIssue`:
+  - Default invocation (no `priority` arg) writes `priority: 3`.
+  - Explicit `priority: 7` writes `priority: 7`.
+  - Reads back the file and asserts the frontmatter line, not just the in-memory return value.
+- Integration: one test exercising the CLI entry (`src/cli.ts`) end-to-end through `drop` with `--priority 5`, asserting both the stdout JSON shape and the on-disk frontmatter.
+
+## Documentation Updates
+- **CLAUDE.md**: if the `Commands` table mentions `cycle drop`, update its row to surface `--priority N` and the `1..10` default-`3` semantics. (Current table does not appear to list `drop` explicitly; verify during implementation and update only if present, to avoid inventing new rows.)
+- **README.md**: if a `drop` example exists, add the flag once with the default and range called out. Skip if no `drop` documentation is present today; do not create a new section.
+- **AGENTS.md**: no change expected.
+
+Documentation is part of &quot;done&quot; — if either file references `drop` and the reference is now incomplete, update it in this cycle.
+
+## Dependencies
+- `node:util` `parseArgs` (already in use).
+- Existing `freeformId` helper at `src/cli/id.ts`.
+- No new env vars, no external services.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/cli.ts                      |  2 +-
+ src/cli/parse-args.ts           | 34 ++++++++++++++++++++++--
+ src/issue/materialize.ts        |  9 +++++--
+ tests/cli/drop-priority.test.ts | 43 ++++++++++++++++++++++++++++++
+ tests/cli/parse-args.test.ts    | 59 ++++++++++++++++++++++++++++++++++++++++-
+ tests/issue/materialize.test.ts | 16 +++++++++++
+ 6 files changed, 157 insertions(+), 6 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/cli.ts b/src/cli.ts</span><span class="fileheader">index 87ddfa8..6b908f0 100644</span><span class="meta">--- a/src/cli.ts</span><span class="meta">+++ b/src/cli.ts</span><span class="hunk">@@ -66,7 +66,7 @@ const args = parseArgs(argv);</span><span class="ctx"> const cwd = process.cwd();</span><span class="ctx"> </span><span class="ctx"> if (args.command === &quot;drop&quot;) {</span><span class="del">-  const { id, path } = await materializeFreeformIssue(args.text, cwd);</span><span class="add">+  const { id, path } = await materializeFreeformIssue(args.text, cwd, new Date(), args.priority);</span><span class="ctx">   console.log(JSON.stringify({ event: &quot;issue.dropped&quot;, issue_id: id, path }));</span><span class="ctx">   process.exit(0);</span><span class="ctx"> }</span><span class="fileheader">diff --git a/src/cli/parse-args.ts b/src/cli/parse-args.ts</span><span class="fileheader">index c298087..3c61fce 100644</span><span class="meta">--- a/src/cli/parse-args.ts</span><span class="meta">+++ b/src/cli/parse-args.ts</span><span class="hunk">@@ -10,15 +10,45 @@ export type RunArgs = {</span><span class="ctx"> export type DropArgs = {</span><span class="ctx">   command: &quot;drop&quot;;</span><span class="ctx">   text: string;</span><span class="add">+  priority: number;</span><span class="ctx"> };</span><span class="ctx"> </span><span class="ctx"> export type ParsedArgs = RunArgs | DropArgs;</span><span class="ctx"> </span><span class="ctx"> export function parseArgs(argv: string[]): ParsedArgs {</span><span class="ctx">   if (argv[0] === &quot;drop&quot;) {</span><span class="del">-    const text = argv.slice(1).join(&quot; &quot;).trim();</span><span class="add">+    let values: Record&lt;string, unknown&gt;;</span><span class="add">+    let positionals: string[];</span><span class="add">+    try {</span><span class="add">+      ({ values, positionals } = nodeParseArgs({</span><span class="add">+        args: argv.slice(1),</span><span class="add">+        options: {</span><span class="add">+          priority: { type: &quot;string&quot; },</span><span class="add">+        },</span><span class="add">+        allowPositionals: true,</span><span class="add">+      }));</span><span class="add">+    } catch (err) {</span><span class="add">+      throw new Error(</span><span class="add">+        `drop: ${(err as Error).message} (usage: cycle drop &quot;&lt;text&gt;&quot; [--priority N]; N is an integer 1..10, default 3)`,</span><span class="add">+      );</span><span class="add">+    }</span><span class="add">+</span><span class="add">+    const text = positionals.join(&quot; &quot;).trim();</span><span class="ctx">     if (!text) throw new Error(&quot;drop requires task text&quot;);</span><span class="del">-    return { command: &quot;drop&quot;, text };</span><span class="add">+</span><span class="add">+    let priority = 3;</span><span class="add">+    if (values.priority !== undefined) {</span><span class="add">+      const raw = String(values.priority);</span><span class="add">+      const n = Number(raw);</span><span class="add">+      if (!/^-?\d+$/.test(raw) || !Number.isInteger(n) || n &lt; 1 || n &gt; 10) {</span><span class="add">+        throw new Error(</span><span class="add">+          `drop: --priority must be an integer 1..10 (got &quot;${raw}&quot;); usage: cycle drop &quot;&lt;text&gt;&quot; [--priority N]`,</span><span class="add">+        );</span><span class="add">+      }</span><span class="add">+      priority = n;</span><span class="add">+    }</span><span class="add">+</span><span class="add">+    return { command: &quot;drop&quot;, text, priority };</span><span class="ctx">   }</span><span class="ctx"> </span><span class="ctx">   if (argv[0] !== &quot;run&quot;) throw new Error(`unknown command: ${argv[0] ?? &quot;(none)&quot;}`);</span><span class="fileheader">diff --git a/src/issue/materialize.ts b/src/issue/materialize.ts</span><span class="fileheader">index 5354d0b..a37f944 100644</span><span class="meta">--- a/src/issue/materialize.ts</span><span class="meta">+++ b/src/issue/materialize.ts</span><span class="hunk">@@ -2,7 +2,12 @@ import { mkdir, writeFile } from &quot;node:fs/promises&quot;;</span><span class="ctx"> import { join } from &quot;node:path&quot;;</span><span class="ctx"> import { freeformId } from &quot;./id.ts&quot;;</span><span class="ctx"> </span><span class="del">-export async function materializeFreeformIssue(text: string, repoRoot: string, now: Date = new Date()) {</span><span class="add">+export async function materializeFreeformIssue(</span><span class="add">+  text: string,</span><span class="add">+  repoRoot: string,</span><span class="add">+  now: Date = new Date(),</span><span class="add">+  priority: number = 3,</span><span class="add">+) {</span><span class="ctx">   const id = freeformId(text, now);</span><span class="ctx">   const dir = join(repoRoot, &quot;docs&quot;, &quot;cycle&quot;, &quot;issues&quot;, &quot;raw&quot;);</span><span class="ctx">   await mkdir(dir, { recursive: true });</span><span class="hunk">@@ -14,7 +19,7 @@ export async function materializeFreeformIssue(text: string, repoRoot: string, n</span><span class="ctx">     `title: &quot;${text.replace(/&quot;/g, &#39;\\&quot;&#39;)}&quot;`,</span><span class="ctx">     `added_at: ${now.toISOString()}`,</span><span class="ctx">     &quot;triage_attempts: 0&quot;,</span><span class="del">-    &quot;priority: 3&quot;,</span><span class="add">+    `priority: ${priority}`,</span><span class="ctx">     &quot;---&quot;,</span><span class="ctx">     &quot;&quot;,</span><span class="ctx">     text,</span><span class="fileheader">diff --git a/tests/cli/drop-priority.test.ts b/tests/cli/drop-priority.test.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..ee51a59</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/tests/cli/drop-priority.test.ts</span><span class="hunk">@@ -0,0 +1,43 @@</span><span class="add">+import { test } from &quot;node:test&quot;;</span><span class="add">+import { strict as assert } from &quot;node:assert&quot;;</span><span class="add">+import { mkdtemp, readFile, rm } from &quot;node:fs/promises&quot;;</span><span class="add">+import { tmpdir } from &quot;node:os&quot;;</span><span class="add">+import { join } from &quot;node:path&quot;;</span><span class="add">+import { spawnSync } from &quot;node:child_process&quot;;</span><span class="add">+</span><span class="add">+test(&quot;cycle drop --priority writes priority to raw frontmatter&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-drop-priority-&quot;));</span><span class="add">+  try {</span><span class="add">+    const bin = join(process.cwd(), &quot;dist/cycle.js&quot;);</span><span class="add">+    const result = spawnSync(process.execPath, [bin, &quot;drop&quot;, &quot;foo bar&quot;, &quot;--priority&quot;, &quot;5&quot;], {</span><span class="add">+      cwd: root,</span><span class="add">+      env: process.env,</span><span class="add">+      encoding: &quot;utf8&quot;,</span><span class="add">+    });</span><span class="add">+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);</span><span class="add">+    const out = JSON.parse(result.stdout.trim());</span><span class="add">+    assert.equal(out.event, &quot;issue.dropped&quot;);</span><span class="add">+    assert.ok(typeof out.issue_id === &quot;string&quot; &amp;&amp; out.issue_id.length &gt; 0);</span><span class="add">+    assert.ok(typeof out.path === &quot;string&quot; &amp;&amp; out.path.length &gt; 0);</span><span class="add">+    const body = await readFile(out.path, &quot;utf8&quot;);</span><span class="add">+    assert.match(body, /^priority: 5$/m);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;cycle drop --priority rejects out-of-range with non-zero exit&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-drop-priority-&quot;));</span><span class="add">+  try {</span><span class="add">+    const bin = join(process.cwd(), &quot;dist/cycle.js&quot;);</span><span class="add">+    const result = spawnSync(process.execPath, [bin, &quot;drop&quot;, &quot;foo&quot;, &quot;--priority&quot;, &quot;11&quot;], {</span><span class="add">+      cwd: root,</span><span class="add">+      env: process.env,</span><span class="add">+      encoding: &quot;utf8&quot;,</span><span class="add">+    });</span><span class="add">+    assert.notEqual(result.status, 0);</span><span class="add">+    assert.match(result.stderr, /must be an integer 1\.\.10/);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="fileheader">diff --git a/tests/cli/parse-args.test.ts b/tests/cli/parse-args.test.ts</span><span class="fileheader">index 57d26d8..8ba6ca4 100644</span><span class="meta">--- a/tests/cli/parse-args.test.ts</span><span class="meta">+++ b/tests/cli/parse-args.test.ts</span><span class="hunk">@@ -26,13 +26,70 @@ test(&quot;parses --dry-run&quot;, () =&gt; {</span><span class="ctx"> </span><span class="ctx"> test(&quot;parses &#39;drop &lt;text&gt;&#39; subcommand&quot;, () =&gt; {</span><span class="ctx">   const r = parseArgs([&quot;drop&quot;, &quot;queue this task&quot;]);</span><span class="del">-  assert.deepEqual(r, { command: &quot;drop&quot;, text: &quot;queue this task&quot; });</span><span class="add">+  assert.deepEqual(r, { command: &quot;drop&quot;, text: &quot;queue this task&quot;, priority: 3 });</span><span class="ctx"> });</span><span class="ctx"> </span><span class="ctx"> test(&quot;rejects &#39;drop&#39; with no text&quot;, () =&gt; {</span><span class="ctx">   assert.throws(() =&gt; parseArgs([&quot;drop&quot;]), /drop requires task text/);</span><span class="ctx"> });</span><span class="ctx"> </span><span class="add">+test(&quot;parses &#39;drop &lt;text&gt; --priority N&#39;&quot;, () =&gt; {</span><span class="add">+  const r = parseArgs([&quot;drop&quot;, &quot;foo&quot;, &quot;--priority&quot;, &quot;7&quot;]);</span><span class="add">+  assert.deepEqual(r, { command: &quot;drop&quot;, text: &quot;foo&quot;, priority: 7 });</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;parses &#39;drop --priority N &lt;text&gt;&#39; (flag before text)&quot;, () =&gt; {</span><span class="add">+  const r = parseArgs([&quot;drop&quot;, &quot;--priority&quot;, &quot;7&quot;, &quot;foo&quot;]);</span><span class="add">+  assert.deepEqual(r, { command: &quot;drop&quot;, text: &quot;foo&quot;, priority: 7 });</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;accepts priority boundary 1&quot;, () =&gt; {</span><span class="add">+  const r = parseArgs([&quot;drop&quot;, &quot;foo&quot;, &quot;--priority&quot;, &quot;1&quot;]);</span><span class="add">+  assert.equal(r.command, &quot;drop&quot;);</span><span class="add">+  if (r.command === &quot;drop&quot;) assert.equal(r.priority, 1);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;accepts priority boundary 10&quot;, () =&gt; {</span><span class="add">+  const r = parseArgs([&quot;drop&quot;, &quot;foo&quot;, &quot;--priority&quot;, &quot;10&quot;]);</span><span class="add">+  assert.equal(r.command, &quot;drop&quot;);</span><span class="add">+  if (r.command === &quot;drop&quot;) assert.equal(r.priority, 10);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;rejects priority 0&quot;, () =&gt; {</span><span class="add">+  assert.throws(</span><span class="add">+    () =&gt; parseArgs([&quot;drop&quot;, &quot;foo&quot;, &quot;--priority&quot;, &quot;0&quot;]),</span><span class="add">+    /must be an integer 1\.\.10/,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;rejects priority 11&quot;, () =&gt; {</span><span class="add">+  assert.throws(</span><span class="add">+    () =&gt; parseArgs([&quot;drop&quot;, &quot;foo&quot;, &quot;--priority&quot;, &quot;11&quot;]),</span><span class="add">+    /must be an integer 1\.\.10/,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;rejects non-integer priority&quot;, () =&gt; {</span><span class="add">+  assert.throws(</span><span class="add">+    () =&gt; parseArgs([&quot;drop&quot;, &quot;foo&quot;, &quot;--priority&quot;, &quot;3.5&quot;]),</span><span class="add">+    /must be an integer 1\.\.10/,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;rejects non-numeric priority&quot;, () =&gt; {</span><span class="add">+  assert.throws(</span><span class="add">+    () =&gt; parseArgs([&quot;drop&quot;, &quot;foo&quot;, &quot;--priority&quot;, &quot;high&quot;]),</span><span class="add">+    /must be an integer 1\.\.10/,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;rejects --priority with no value&quot;, () =&gt; {</span><span class="add">+  assert.throws(</span><span class="add">+    () =&gt; parseArgs([&quot;drop&quot;, &quot;foo&quot;, &quot;--priority&quot;]),</span><span class="add">+    /drop:/,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="ctx"> test(&quot;rejects unknown command&quot;, () =&gt; {</span><span class="ctx">   assert.throws(() =&gt; parseArgs([&quot;wat&quot;]), /unknown command/);</span><span class="ctx"> });</span><span class="fileheader">diff --git a/tests/issue/materialize.test.ts b/tests/issue/materialize.test.ts</span><span class="fileheader">index 26e1594..3266aec 100644</span><span class="meta">--- a/tests/issue/materialize.test.ts</span><span class="meta">+++ b/tests/issue/materialize.test.ts</span><span class="hunk">@@ -38,3 +38,19 @@ test(&quot;writes a markdown file with frontmatter to raw/&quot;, async () =&gt; {</span><span class="ctx">     await rm(root, { recursive: true, force: true });</span><span class="ctx">   }</span><span class="ctx"> });</span><span class="add">+</span><span class="add">+test(&quot;writes explicit priority into frontmatter when supplied&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span><span class="add">+  try {</span><span class="add">+    const { path } = await materializeFreeformIssue(</span><span class="add">+      &quot;fix login bug&quot;,</span><span class="add">+      root,</span><span class="add">+      new Date(&quot;2026-05-12T10:30:00Z&quot;),</span><span class="add">+      7,</span><span class="add">+    );</span><span class="add">+    const body = await readFile(path, &quot;utf8&quot;);</span><span class="add">+    assert.match(body, /^priority: 7$/m);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>Verdict: PASS. No MUST-FIX needed. Emit REVIEW.md content to stdout.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0042
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+Tight, well-scoped vertical slice. `parseArgs` switches the `drop` branch to `node:util parseArgs` mirroring the `run` branch precedent; integer-range validation is a single regex + bounds check; `materializeFreeformIssue` gains one defaulted parameter that preserves all existing call-site behavior. SPEC acceptance criteria all met, no scope creep into `run`, triage, queue, or a generalized help framework.
+
+### Findings
+1. **Style / minor**: error-message inconsistency — the range-error string at `src/cli/parse-args.ts:44-46` says `usage: cycle drop &quot;&lt;text&gt;&quot; [--priority N]` without re-stating the `1..10` range or the `3` default, while the wrap of `nodeParseArgs`&#39;s native error at `src/cli/parse-args.ts:30-34` includes the full `N is an integer 1..10, default 3` hint. SPEC §Functional says the usage string should document range + default. Range is implicit in the rejection text (`must be an integer 1..10`); default is not. Cosmetic, not a correctness issue.
+2. **Style / minor**: `src/cli.ts:69` passes `new Date()` explicitly to make room for `args.priority`. Matches PLAN.md call-out but worth noting the helper&#39;s default and the explicit value are identical — no behavior change, just a readability choice.
+3. **Positive**: `materializeFreeformIssue` keeps `priority` as a plain defaulted positional parameter rather than an options bag — the right call for a 2-of-4 default override. No needless abstraction. — `src/issue/materialize.ts:5-10`.
+4. **Positive**: validator order is correct — regex first (`/^-?\d+$/`) rejects `&quot;3.5&quot;` and `&quot;high&quot;` before `Number(...)` would silently produce `NaN`/round, and `Number.isInteger` is defense-in-depth. — `src/cli/parse-args.ts:43`.
+
+### Spec Compliance Checklist
+- [x] `cycle drop &quot;&lt;text&gt;&quot; --priority N` writes `priority: N` to the raw frontmatter. (parse-args + e2e tests.)
+- [x] `cycle drop &quot;&lt;text&gt;&quot;` writes `priority: 3` (existing pin test continues to lock this — `tests/issue/materialize.test.ts:21-29`).
+- [x] Rejection of `0`, `11`, `3.5`, `&quot;high&quot;`, and missing value, each with non-zero exit and a stderr message naming the flag and the `1..10` range. (parse-args unit tests + e2e rejection test.)
+- [x] Flag-before-text and flag-after-text both succeed (`tests/cli/parse-args.test.ts:36-44`).
+- [x] Success stdout unchanged: single JSON line with `event: &quot;issue.dropped&quot;`, `issue_id`, `path` (`tests/cli/drop-priority.test.ts:18-21`).
+- [x] `npm run typecheck` clean. `npm test` 342 / 342 pass. Coverage line 98.55 / branch 91.57 / func 96.23 — above master baseline 95/75/90, no per-file regression. `parse-args.ts` 100/94.74/100; `materialize.ts` 100/100/100.
+- [x] CLAUDE.md not touched (Commands table does not list `drop`, confirmed). README.md updated with one extra example line + one explanatory sentence (`README.md:104-108`).
+- [x] No `--priority` flag added to `run`; `src/cli.ts:78` left untouched (defaults to `3` via the parameter default).
+- [x] No new runtime dependencies; parser still on `node:util parseArgs`.
+
+## Adversarial Test Review
+
+### Summary
+Strong. Zero mocks. Both layers (parser + materialize) have direct unit tests; the e2e spawn test exercises the real `dist/cycle.js` binary against a temp repo and reads the on-disk frontmatter back. Boundary cases (1, 10) and every documented rejection mode (0, 11, 3.5, &quot;high&quot;, missing value) are covered. Existing frontmatter pin test is preserved so the field order cannot drift silently.
+
+### Findings
+1. **Weak assertion (minor)**: `tests/cli/parse-args.test.ts:86-91` asserts the missing-value rejection only matches `/drop:/`. That regex would pass for *any* drop error, including the unrelated &quot;drop requires task text&quot; case. Tighten to match the wrapped usage string, e.g. `/usage: cycle drop/` or `/Option &#39;--priority|priority&#39; argument missing/i`. Does not change correctness, just makes the test less of a tautology. — `tests/cli/parse-args.test.ts:89`.
+2. **Coverage gap (minor)**: there is no parser test for `--priority -3` or `--priority -1`. The regex `/^-?\d+$/` accepts `-3` so it would reach the bounds check and be rejected by `n &lt; 1` — but in practice `node:util parseArgs` may interpret `-3` as a short flag and throw before our validator runs. Behavior is correct either way; the test gap leaves the chosen path undocumented. Optional.
+3. **Coverage gap (minor)**: no e2e test for flag-before-text ordering. The parser test covers it, so this is double-coverage rather than a true gap; only worth adding if you want the integration path verified end-to-end. Optional.
+4. **Positive**: `tests/cli/drop-priority.test.ts:23` asserts the on-disk frontmatter via `/^priority: 5$/m` with end-of-line anchor — would correctly reject `priority: 50`, `priority: 5x`, etc. Specific assertion, not a substring sniff.
+5. **Positive**: temp-dir-per-test pattern with `mkdtemp` + `rm({ recursive: true, force: true })` in `finally`. No shared state, no order dependence, no leakage on the rejection path either (the binary exits before any fs write).
+6. **Positive**: existing `tests/issue/materialize.test.ts:21-29` six-field pin test was *not* weakened — the new explicit-priority test at `tests/issue/materialize.test.ts:42-56` uses a position-agnostic `assert.match(/^priority: 7$/m)` so it does not double-lock the field order. Locking the order in one place and the value in the other is the right split.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: **98.55% / 91.57% / 96.23%** (baseline: line ≥ 95%, branch ≥ 75%, function ≥ 90% — all clear).
+- Regressions vs base (per-file): none. Touched files all moved up or stayed at 100% (`parse-args.ts`: 100% line, 94.74% branch, 100% function; `materialize.ts`: 100% across).
+- New code without tests: none. All new branches (range fail, regex fail, missing value, valid override, default) are exercised.
+- Specific scenarios missing tests (all optional, not blocking): negative-priority edge case (`-3`), `--priority=N` equals-form, flag-before-text via e2e.</code></pre>
+<p>Cycle 0042 review: PASS. 342 tests green, coverage 98.55/91.57/96.23 (no regression), all SPEC acceptance criteria met. No MUST-FIX.md emitted. Minor observations (weak missing-value test assertion, message-string inconsistency between rejection paths, no negative-number / equals-form edge cases) all logged in REVIEW.md as non-blocking notes.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0041.html">← Cycle 0041</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0043.html">Cycle 0043 →</a>
+</nav>
+
+<footer>Generated from <code>1c26f07</code></footer>
+</body>
+</html>

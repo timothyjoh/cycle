@@ -4,17 +4,18 @@
 <meta charset="utf-8" />
 <title>Cycle reports</title>
 <style>
-  body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: #1f2328; }
-  h1 { border-bottom: 1px solid #d0d7de; padding-bottom: .5rem; }
+  :root { --bg: #0d1117; --bg-elev: #161b22; --fg: #e6edf3; --fg-muted: #8b949e; --border: #30363d; --link: #58a6ff; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  h1 { border-bottom: 1px solid var(--border); padding-bottom: .5rem; }
   ul { list-style: none; padding: 0; }
-  li { padding: .4rem .6rem; border-bottom: 1px solid #f6f8fa; }
-  li:hover { background: #f6f8fa; }
-  a { color: #0969da; text-decoration: none; }
-  .id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #57606a; margin-right: .5rem; }
+  li { padding: .5rem .7rem; border-bottom: 1px solid var(--bg-elev); }
+  li:hover { background: var(--bg-elev); }
+  .id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg-muted); margin-right: .6rem; }
 </style>
 </head>
 <body>
-<h1>Cycle reports (10)</h1>
+<h1>Cycle reports (49)</h1>
 <ul>
 <li><a href="cycle-0001.html"><span class="id">0001</span>add a one-line README.md describing what cycle is (#2)</a></li>
 <li><a href="cycle-0002.html"><span class="id">0002</span>verify.sh resilience to missing node_modules (#3)</a></li>
@@ -26,6 +27,45 @@
 <li><a href="cycle-0010.html"><span class="id">0010</span>scan.ts: dedup tbd.jsonl by issue id. BRIEF says &#39;move first to queued/, then append to tbd.jsonl (dedup by id)&#39; but src/engine/scan.ts has no dedup — re-queuing an existing issue file appends a duplicate jsonl line. Read existing tbd.jsonl on scan, skip appendFile if id already present. Test: re-queue a tbd/ file twice and assert tbd.jsonl contains exactly one entry for that id. (#17)</a></li>
 <li><a href="cycle-0012.html"><span class="id">0012</span>BB-1: Rename docs/cycle/issues/tbd/ -&gt; raw/ and queued/ -&gt; todo/. Drop the empty triaged/ folder. Update src/engine/scan.ts to scan raw/ and move to todo/, with dedup by issue id (fix the existing append-twice bug). Update closes.sh and any other code/test references. See docs/RFC-001-issue-lifecycle.md sections 2, 6, 12 (BB-1). (#20)</a></li>
 <li><a href="cycle-0013.html"><span class="id">0013</span>BB-2: Consolidate workflow + engine + triage config into one src/defaults/workflows.yml file. Top sections: engine: (max_consecutive_failures, base_branch), triage: (agent, prompt, max_turns). Then a workflows: array containing the feature workflow (inline what&#39;s currently in src/defaults/workflows/feature.yaml). Update src/engine/workflow.ts to load this new shape (workflows array; pick workflow by name). Delete src/defaults/workflows/ subdirectory after migration. Update sync-defaults.mjs if needed. See docs/RFC-001-issue-lifecycle.md sections 4, 12 (BB-2). (#21)</a></li>
+<li><a href="cycle-0014.html"><span class="id">0014</span>BB-3: New tbd.jsonl row schema and drain semantics. Row fields: id, parent, title, status (pending|in_progress), attempt, depends_on, triaged_at, plus cycle_id when in_progress. Engine drains rows: on cycle.end ok, remove row and move file todo/ -&gt; done/. On cycle.end failed and attempt &lt; max, increment attempt and reset status to pending. On cycle.end failed and attempt &gt;= max_cycle_attempts, remove row and move file to failed/ with failed_at/failed_step/failed_attempts frontmatter; then run propagateBlocked. Engine reads workflow from popped file&#39;s frontmatter at cycle.start. Archive existing .cycle/tbd.jsonl to .cycle/tbd.jsonl.bootstrap-archive before adopting new schema. See docs/RFC-001-issue-lifecycle.md sections 6, 12 (BB-3). (#23)</a></li>
+<li><a href="cycle-0015.html"><span class="id">0015</span>BB-4: Build the triage subroutine. New src/engine/triage.ts: spawn claudecode subprocess with the prompt from workflows.yml triage section, parse JSON to stdout, validate schema (children[], ordering[], decomposed_parents[]), apply atomically (write todo/&lt;id&gt;.md files, move raw-&gt;done/_raw, update tbd.jsonl). Per-raw retry up to 3 attempts; on each retry feed back the validator error as one-shot self-correction. If all raws fail in one pass, emit engine.paused and exit. New src/defaults/prompts/triage.md prompt template. Wire trigger points in run-cycle.ts: at engine.start when no in-progress cycle, and between cycles when raw/ is non-empty (per RFC section 10). See docs/RFC-001-issue-lifecycle.md sections 5, 10, 12 (BB-4). (#24)</a></li>
+<li><a href="cycle-0016.html"><span class="id">0016</span>BB-5: Resume logic from log.jsonl tail. At engine.start, read log.jsonl backwards to detect any in-flight cycle (cycle.start with no matching cycle.end, or step.start with no matching step.end). If found: resume that cycle from the last incomplete step (re-run the step). Pre-resume actions: refetch base branch (git fetch + ff merge), preserve branch and earlier artifacts. Each workflow step must be restart-tolerant: prompt steps overwrite their artifact; commit.sh is already idempotent; pr.sh detects existing PR by branch and resumes polling/fallback instead of re-creating. After resume completes, fall through into the normal triage -&gt; pop loop. See docs/RFC-001-issue-lifecycle.md sections 10, 11, 12 (BB-5). This also subsumes the existing tbd/ issue &#39;engine: pull origin/master between cycles&#39; (txt-20260513-020016). (#25)</a></li>
+<li><a href="cycle-0017.html"><span class="id">0017</span>BB-6: propagateBlocked + engine-wide halt policy. New engine function propagateBlocked(failedId): walks tbd.jsonl, for every row whose depends_on contains failedId, moves todo/&lt;id&gt;.md -&gt; blocked/&lt;id&gt;.md with blocked_by:[failedId] frontmatter, drops row from tbd.jsonl, emits issue.blocked event, recurses for transitive blocking. Pure deterministic logic, no LLM. Engine halt: maintain consecutive_failures counter; increment on cycle move to failed/, reset to 0 on cycle move to done/; when counter reaches engine.max_consecutive_failures (default 2), emit engine.halted with failed cycle ids and exit non-zero. See docs/RFC-001-issue-lifecycle.md sections 7, 8, 12 (BB-6). (#26)</a></li>
+<li><a href="cycle-0018.html"><span class="id">0018</span>BB-7: Reflection step in feature workflow. Add reflection as the final step in the feature workflow in workflows.yml, agent: claudecode, prompt: prompts/reflection.md. New src/defaults/prompts/reflection.md: reads cycle artifacts (SPEC.md, RESEARCH.md, PLAN.md, BUILD.md, REVIEW.md, MUST-FIX.md, FIX.md) and git diff, surfaces sharp edges as a JSON list of {title, body, priority_hint}. Engine handles reflection output: for each sharp_edges[] entry, write a new raw/ file with source: reflection frontmatter and the body; these get triaged on the next pass. Empty array = no follow-ups. See docs/RFC-001-issue-lifecycle.md sections 9, 12 (BB-7). (#27)</a></li>
+<li><a href="cycle-0019.html"><span class="id">0019</span>CLI: cycle drop writes to raw/ (not tbd/) (#29)</a></li>
+<li><a href="cycle-0020.html"><span class="id">0020</span>CLI: add `cycle status` command (#30)</a></li>
+<li><a href="cycle-0021.html"><span class="id">0021</span>Improve triage&#39;s depends_on inference quality (#31)</a></li>
+<li><a href="cycle-0022.html"><span class="id">0022</span>engine.paused event: structured payload with per-raw failure info (#32)</a></li>
+<li><a href="cycle-0023.html"><span class="id">0023</span>cycle triage --dry-run: test triage prompt against current raws without mutating state (#33)</a></li>
+<li><a href="cycle-0024.html"><span class="id">0024</span>Document engine.paused recovery flow in README + CLAUDE.md (#34)</a></li>
+<li><a href="cycle-0025.html"><span class="id">0025</span>Add structured frontmatter to failed/ and blocked/ file moves (#35)</a></li>
+<li><a href="cycle-0028.html"><span class="id">0028</span>Cleanup: remove deprecated tbd/, queued/, triaged/ folders and stale archive (#36)</a></li>
+<li><a href="cycle-0029.html"><span class="id">0029</span>Engine: exec-module interface + agent dispatch table (#37)</a></li>
+<li><a href="cycle-0030.html"><span class="id">0030</span>Engine: exec-codex.ts provider module (#38)</a></li>
+<li><a href="cycle-0031.html"><span class="id">0031</span>Engine: exec-gemini.ts provider module (#39)</a></li>
+<li><a href="cycle-0040.html"><span class="id">0040</span>Define + enforce restart policy for `build` step (partial code on branch)</a></li>
+<li><a href="cycle-0041.html"><span class="id">0041</span>Define + enforce restart policy for `fix` step (partial fixes already applied)</a></li>
+<li><a href="cycle-0042.html"><span class="id">0042</span>CLI: `cycle drop` accepts `--priority N` (1-10), defaults to 3</a></li>
+<li><a href="cycle-0043.html"><span class="id">0043</span>Pin frontmatter byte-shape on `cycle run &quot;&lt;text&gt;&quot;` path (or collapse with `drop`)</a></li>
+<li><a href="cycle-0044.html"><span class="id">0044</span>Reconcile RFC-001 raw-drop example priority with materializer default (3)</a></li>
+<li><a href="cycle-0045.html"><span class="id">0045</span>Document ES2023 tsconfig floor (target/lib) in CLAUDE.md + ADR</a></li>
+<li><a href="cycle-0046.html"><span class="id">0046</span>Harden ingestReflection parsing: fence-strip, repair pass, escalate unparsed stdout</a></li>
+<li><a href="cycle-0048.html"><span class="id">0048</span>Guard `npm run sync-defaults` against clobbering locally-divergent files</a></li>
+<li><a href="cycle-0049.html"><span class="id">0049</span>Cover triage.ts fault-handling catches + enforce per-file line floor</a></li>
+<li><a href="cycle-0050.html"><span class="id">0050</span>Consolidate triage validator child-id tracking into single canonical Set</a></li>
+<li><a href="cycle-0051.html"><span class="id">0051</span>Pin engine.paused emitted-exactly-once cardinality in triage whole-pass-failure test</a></li>
+<li><a href="cycle-0052.html"><span class="id">0052</span>Add `documentation` workflow step + prompt (post-reflection doc sync)</a></li>
+<li><a href="cycle-0053.html"><span class="id">0053</span>Strip prompt self-narration and stray fences from workflow step artifacts</a></li>
+<li><a href="cycle-0054.html"><span class="id">0054</span>Cover dryRunTriage failure paths: runAgent throws + missing prompt template</a></li>
+<li><a href="cycle-0055.html"><span class="id">0055</span>Remove redundant ParsedTriageOutput type alias in triage.ts</a></li>
+<li><a href="cycle-0056.html"><span class="id">0056</span>Split runCliTriage: pure with-deps unit entry point + thin prod wrapper with hardcoded deps</a></li>
+<li><a href="cycle-0058.html"><span class="id">0058</span>Enforce SPEC.md non-empty contract before plan/build/review</a></li>
+<li><a href="cycle-0059.html"><span class="id">0059</span>Defer moveToFailed in triage until after all_triage_failed check; keep raws in raw/ on engine.paused</a></li>
+<li><a href="cycle-0060.html"><span class="id">0060</span>Add semantic doc-vs-code verification step for docs-only cycles</a></li>
+<li><a href="cycle-0061.html"><span class="id">0061</span>Tighten halt-test frontmatter regex anchors to full-line match</a></li>
+<li><a href="cycle-0062.html"><span class="id">0062</span>terminalDrain lifecycle helper + bb-* orphan cleanup</a></li>
+<li><a href="cycle-0065.html"><span class="id">0065</span>Surface head-capped stderr on failed step.end events from execBashStep</a></li>
+<li><a href="cycle-0066.html"><span class="id">0066</span>Surface UnknownAgentError on step.end via stderr_excerpt covering claudecode/dispatch path (closes SPEC 0029 Acceptance #6)</a></li>
 </ul>
 </body>
 </html>

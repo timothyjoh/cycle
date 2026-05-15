@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0025 · Add structured frontmatter to failed/ and blocked/ file moves (#35)</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0025</h1>
+  <div class="subtitle">Add structured frontmatter to failed/ and blocked/ file moves (#35)</div>
+  <div class="meta-row">
+    <code>b6662c3</code> · Timothy Johnson · 2026-05-13 16:15:19 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0024.html">← Cycle 0024</a>
+  <span class="center">25 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0028.html">Cycle 0028 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><h3>SPEC — Cycle 0025: Stamp <code>last_cycle_id</code> on terminal-failure moves</h3>
+<h4>Objective</h4>
+<p>Make <code>failed/&lt;id&gt;.md</code> self-describing by stamping the failing cycle&#39;s id into frontmatter at the moment <code>queue.ts</code> moves the file from <code>todo/</code> to <code>failed/</code>. A human (or future agent) opening a failed issue file should be able to jump straight to <code>.cycle/log.jsonl</code> and <code>docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/</code> without grepping for which attempt produced the failure.</p>
+<h4>Source Issue</h4>
+<p><code>failed-blocked-frontmatter</code> — &quot;Add structured frontmatter to failed/ and blocked/ file moves&quot;</p>
+<h4>Scope</h4>
+<h5>In Scope</h5>
+<ul>
+<li>Plumb the active <code>cycle_id</code> into the terminal-failure path of <code>src/engine/queue.ts</code> and stamp <code>last_cycle_id: &lt;cycle_id&gt;</code> alongside the existing <code>failed_at</code> / <code>failed_step</code> / <code>failed_attempts</code> fields when a todo file moves to <code>failed/</code>.</li>
+<li>Verification (no behavior change expected) that <code>failed_at</code>, <code>failed_step</code>, <code>failed_attempts</code> are already stamped, and that <code>blocked_at</code> + <code>blocked_by</code> are already stamped on <code>propagateBlocked</code> moves.</li>
+<li>Tests covering the new field on failed moves and a regression test covering <code>blocked_by</code> on a 2+ hop dependency graph.</li>
+</ul>
+<h5>Out of Scope</h5>
+<ul>
+<li>Any change to <code>blocked/</code> move frontmatter — <code>blocked_at</code> and <code>blocked_by</code> are already correct per the issue.</li>
+<li>New event shapes in <code>log.jsonl</code>.</li>
+<li>Re-stamping existing <code>failed/*.md</code> files in-tree (no migration / backfill).</li>
+<li>Adding <code>last_cycle_id</code> to anywhere other than the terminal-failure move.</li>
+</ul>
+<h4>Requirements</h4>
+<ul>
+<li><code>src/engine/queue.ts</code> writes <code>last_cycle_id: &lt;cycle_id&gt;</code> into the frontmatter of <code>failed/&lt;id&gt;.md</code> during the terminal-failure branch (<code>attempt &gt;= max_cycle_attempts</code>).</li>
+<li><code>cycle_id</code> reaches <code>queue.ts</code> via the existing drain call site in <code>src/engine/run-cycle.ts</code> (or wherever the queue drain is invoked); no new globals.</li>
+<li>Frontmatter mutation uses <code>parseFrontmatter</code> / <code>serializeFrontmatter</code> from <code>src/engine/frontmatter.ts</code>. No hand-rolled YAML.</li>
+<li><code>last_cycle_id</code> value equals the <code>cycle_id</code> emitted in the matching <code>cycle.start</code> log event and the artifact directory name segment.</li>
+<li>Coverage must not regress against the master baseline: line ≥ 95%, branch ≥ 75%, function ≥ 90%.</li>
+</ul>
+<h4>Acceptance Criteria</h4>
+<ul>
+<li>[ ] On terminal failure, <code>failed/&lt;id&gt;.md</code> contains all four fields: <code>failed_at</code>, <code>failed_step</code>, <code>failed_attempts</code>, <code>last_cycle_id</code>.</li>
+<li>[ ] <code>last_cycle_id</code> matches the cycle id from the failing <code>cycle.start</code> event in the fixture.</li>
+<li>[ ] On <code>propagateBlocked</code>, <code>blocked/&lt;id&gt;.md</code> contains <code>blocked_at</code> and a correct immediate-predecessor <code>blocked_by: [...]</code> for a 2+ hop dependency graph.</li>
+<li>[ ] Existing fields (<code>failed_at</code>, <code>failed_step</code>, <code>failed_attempts</code>, <code>blocked_at</code>, <code>blocked_by</code>) are preserved with current semantics.</li>
+<li>[ ] <code>npm test</code> passes.</li>
+<li>[ ] <code>npm run typecheck</code> passes (no new warnings).</li>
+<li>[ ] <code>npm run test:coverage</code> meets the baseline above; report numbers in <code>BUILD.md</code> / <code>FIX.md</code>.</li>
+</ul>
+<h4>Testing Strategy</h4>
+<ul>
+<li>Node native test runner (existing <code>tests/engine/queue.test.ts</code> and <code>tests/engine/blocked.test.ts</code> style).</li>
+<li><strong>Failed-move test</strong>: drive <code>queue.ts</code> through a fixture where a todo issue exhausts <code>max_cycle_attempts</code>, then read the resulting <code>failed/&lt;id&gt;.md</code> and assert all four frontmatter fields, with <code>last_cycle_id</code> equal to the cycle id passed into the drain call.</li>
+<li><strong>Blocked-move regression test</strong>: build a 3-node dependency chain <code>A ← B ← C</code> (or <code>A ← {B, C}</code>), fail <code>A</code>, run <code>propagateBlocked</code>, assert <code>blocked/B.md</code> has <code>blocked_by: [A]</code> and <code>blocked/C.md</code> has <code>blocked_by: [B]</code> (immediate predecessor only).</li>
+<li><strong>Frontmatter helper coverage</strong>: confirm <code>serializeFrontmatter</code> round-trips <code>last_cycle_id</code> correctly (string, not coerced).</li>
+<li>No new UI surface — no Playwright/E2E.</li>
+</ul>
+<h4>Documentation Updates</h4>
+<ul>
+<li><strong>CLAUDE.md</strong>: update the &quot;Architecture quick reference&quot; entry for <code>queue.ts</code> to list <code>last_cycle_id</code> alongside <code>failed_at</code> / <code>failed_step</code> / <code>failed_attempts</code> in the terminal-failure stamp.</li>
+<li><strong>RFC-001 (<code>docs/RFC-001-issue-lifecycle.md</code>)</strong>: if the failed-frontmatter schema is enumerated there, add <code>last_cycle_id</code> to that table.</li>
+<li><strong>README.md</strong>: no change — this isn&#39;t user-facing CLI surface; the existing &quot;Recovering from engine.paused&quot; flow doesn&#39;t reference failed-file frontmatter shape.</li>
+</ul>
+<p>Documentation is part of &quot;done&quot; — code without updated docs is incomplete.</p>
+<h4>Dependencies</h4>
+<ul>
+<li><code>src/engine/frontmatter.ts</code> <code>parseFrontmatter</code> / <code>serializeFrontmatter</code> (already present).</li>
+<li><code>src/engine/queue.ts</code> terminal-failure path (already present, missing only <code>last_cycle_id</code>).</li>
+<li>Active <code>cycle_id</code> available at the drain call site in <code>src/engine/run-cycle.ts</code> (already known there per CLAUDE.md: &quot;run-cycle.ts knows the active cycle id when it calls into the queue drain&quot;).</li>
+<li>No new external services, env vars, or packages.</li>
+</ul></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/cli.ts             |  1 +
+ tests/cli/halt.test.ts | 40 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 41 insertions(+)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/cli.ts b/src/cli.ts</span><span class="fileheader">index c63b39f..87ddfa8 100644</span><span class="meta">--- a/src/cli.ts</span><span class="meta">+++ b/src/cli.ts</span><span class="hunk">@@ -134,6 +134,7 @@ async function terminalDrain(</span><span class="ctx">       failed_at: new Date().toISOString(),</span><span class="ctx">       ...(failingStep ? { failed_step: failingStep } : {}),</span><span class="ctx">       failed_attempts: failedAttempts,</span><span class="add">+      last_cycle_id: cycleId,</span><span class="ctx">     }));</span><span class="ctx">   } catch (e) {</span><span class="ctx">     mutateErr = e as Error;</span><span class="fileheader">diff --git a/tests/cli/halt.test.ts b/tests/cli/halt.test.ts</span><span class="fileheader">index b478432..3154726 100644</span><span class="meta">--- a/tests/cli/halt.test.ts</span><span class="meta">+++ b/tests/cli/halt.test.ts</span><span class="hunk">@@ -259,6 +259,14 @@ test(&quot;halt: propagateBlocked moves dependent to blocked/ when parent fails, no h</span><span class="ctx">     const blockedBody = await readFile(join(root, &quot;docs/cycle/issues/blocked/B.md&quot;), &quot;utf8&quot;);</span><span class="ctx">     assert.match(blockedBody, /blocked_by: \[A\]/);</span><span class="ctx"> </span><span class="add">+    const failedBody = await readFile(join(root, &quot;docs/cycle/issues/failed/A.md&quot;), &quot;utf8&quot;);</span><span class="add">+    const cycleStart = events.find((e) =&gt; e.event === &quot;cycle.start&quot;) as Record&lt;string, unknown&gt;;</span><span class="add">+    const cycleId = cycleStart.cycle_id as string;</span><span class="add">+    assert.match(failedBody, /^failed_at: /m);</span><span class="add">+    assert.match(failedBody, /^failed_step: verify/m);</span><span class="add">+    assert.match(failedBody, /^failed_attempts: 1/m);</span><span class="add">+    assert.match(failedBody, new RegExp(`^last_cycle_id: &quot;${cycleId}&quot;$`, &quot;m&quot;));</span><span class="add">+</span><span class="ctx">     const queue = await readFile(join(root, &quot;.cycle/tbd.jsonl&quot;), &quot;utf8&quot;);</span><span class="ctx">     assert.equal(queue.trim(), &quot;&quot;, &quot;queue drained of both rows&quot;);</span><span class="ctx">     assert.ok(!events.find((e) =&gt; e.event === &quot;engine.halted&quot;));</span><span class="hunk">@@ -266,3 +274,35 @@ test(&quot;halt: propagateBlocked moves dependent to blocked/ when parent fails, no h</span><span class="ctx">     await rm(root, { recursive: true, force: true });</span><span class="ctx">   }</span><span class="ctx"> });</span><span class="add">+</span><span class="add">+test(&quot;halt: propagateBlocked stamps immediate-only blocked_by on 3-node chain A ← B ← C&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-halt-&quot;));</span><span class="add">+  try {</span><span class="add">+    const dist = await ensureDist();</span><span class="add">+    await bootstrapRepo(root, workflowYml(2, 1), { &quot;verify.sh&quot;: verifyScript([&quot;A&quot;]) });</span><span class="add">+    await seedTodo(root, &quot;A&quot;, &quot;a task&quot;);</span><span class="add">+    await seedTodo(root, &quot;B&quot;, &quot;b task&quot;, { depends_on: [&quot;A&quot;] });</span><span class="add">+    await seedTodo(root, &quot;C&quot;, &quot;c task&quot;, { depends_on: [&quot;B&quot;] });</span><span class="add">+</span><span class="add">+    const r = spawnSync(&quot;node&quot;, [dist, &quot;run&quot;], { cwd: root, encoding: &quot;utf8&quot; });</span><span class="add">+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);</span><span class="add">+</span><span class="add">+    const events = await readEvents(root);</span><span class="add">+    const propagated = events.find((e) =&gt; e.event === &quot;queue.propagate_blocked&quot;) as Record&lt;string, unknown&gt;;</span><span class="add">+    assert.ok(propagated, &quot;queue.propagate_blocked emitted&quot;);</span><span class="add">+    assert.deepEqual((propagated.blocked as string[]).sort(), [&quot;B&quot;, &quot;C&quot;]);</span><span class="add">+</span><span class="add">+    const blockedFiles = (await readdir(join(root, &quot;docs/cycle/issues/blocked&quot;))).sort();</span><span class="add">+    assert.deepEqual(blockedFiles, [&quot;B.md&quot;, &quot;C.md&quot;]);</span><span class="add">+    const b = await readFile(join(root, &quot;docs/cycle/issues/blocked/B.md&quot;), &quot;utf8&quot;);</span><span class="add">+    const c = await readFile(join(root, &quot;docs/cycle/issues/blocked/C.md&quot;), &quot;utf8&quot;);</span><span class="add">+    assert.match(b, /^blocked_by: \[A\]$/m);</span><span class="add">+    assert.match(c, /^blocked_by: \[B\]$/m);</span><span class="add">+    assert.match(b, /^blocked_at: /m);</span><span class="add">+    assert.match(c, /^blocked_at: /m);</span><span class="add">+</span><span class="add">+    assert.ok(!events.find((e) =&gt; e.event === &quot;engine.halted&quot;));</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><pre class="md-code" data-lang="markdown"><code># Review: Cycle 0025
+
+## Overall Verdict
+PASS — no fixes needed
+
+## Code Quality Review
+
+### Summary
+Minimal, focused change: one-line addition to the existing `mutateFrontmatter` patch in `cli.ts:terminalDrain`, plus extended E2E coverage. Resolves the SPEC&#39;s &quot;in queue.ts&quot; wording correctly by keeping the stamp at the actual file-move site in `cli.ts` and documenting the location in `CLAUDE.md`. No new exports, no signature churn, no migration logic. SPEC scope respected exactly.
+
+### Findings
+1. **Spec wording vs implementation site**: SPEC says &quot;Plumb the active `cycle_id` into the terminal-failure path of `src/engine/queue.ts`&quot; but the stamp lives in `src/cli.ts:terminalDrain` — `src/cli.ts:137`. PLAN and BUILD both acknowledge this deviation, and `CLAUDE.md:41` was updated to note the stamp&#39;s actual location (`cli.ts:terminalDrain`). The architectural separation (queue.ts = jsonl, cli.ts = file moves) is preserved. Acceptable resolution; not a fix.
+2. **Resume path coverage by construction**: Both fresh-pop (`src/cli.ts:380`) and resume (`src/cli.ts:288`) call sites go through the same `terminalDrain`, so the `last_cycle_id` stamp is applied uniformly. No call-site-specific work needed. Verified.
+3. **Insertion order in serialized YAML**: `Object.entries` preserves insertion order. The patch object spreads `...fm` first, then adds `failed_at`, optionally `failed_step`, `failed_attempts`, `last_cycle_id`. Output ordering is stable and predictable — `src/cli.ts:132-138`.
+4. **`mutateFrontmatter` error path inherited**: If `parseFrontmatter` or `writeFile` fails, `terminalDrain` emits `queue.drain_warning` and proceeds with rename anyway — `src/cli.ts:139-153`. `last_cycle_id` inherits this fallback behavior identically to the preexisting fields. SPEC&#39;s &quot;preserved with current semantics&quot; satisfied.
+5. **CLAUDE.md update**: `CLAUDE.md:41` now reads `stamps failed_at/failed_step/failed_attempts/last_cycle_id ... (the last_cycle_id stamp lives in cli.ts:terminalDrain ..., not in queue.ts itself)`. Accurate and useful for future readers.
+6. **RFC-001**: Already lists `last_cycle_id: &quot;0042&quot;` in the failed-frontmatter schema (`docs/RFC-001-issue-lifecycle.md:93`). No update needed.
+
+### Spec Compliance Checklist
+- [x] `src/engine/queue.ts` (resolved to `src/cli.ts:terminalDrain`) writes `last_cycle_id` into failed/&lt;id&gt;.md frontmatter on terminal failure
+- [x] `cycle_id` reaches the stamp via existing parameter threading; no new globals
+- [x] Frontmatter mutation uses `parseFrontmatter` / `serializeFrontmatter` via `mutateFrontmatter` helper
+- [x] `last_cycle_id` value equals the `cycle_id` emitted in matching `cycle.start` (asserted via cross-reference in test, not hard-coded)
+- [x] Coverage meets baseline (≥ 95 line, ≥ 75 branch, ≥ 90 function)
+- [x] On terminal failure, `failed/&lt;id&gt;.md` contains all four fields
+- [x] On `propagateBlocked` with a 2+ hop chain, `blocked_by` lists only immediate predecessor
+- [x] Existing fields preserved with current semantics
+- [x] `npm test` passes (287/287, 0 fail)
+- [x] `npm run typecheck` passes clean
+- [x] `CLAUDE.md` updated; RFC-001 already contained the field; README correctly skipped
+
+## Adversarial Test Review
+
+### Summary
+Strong. Both new assertions hit real filesystem state via the binary, not stubs. The `last_cycle_id` value is cross-referenced against the `cycle.start` event id rather than hard-coded, so the test survives any future change to `allocateCycleId` first-allocation behavior. Two minor regex tightness nits, none load-bearing.
+
+### Findings
+1. **Mock abuse**: None. Tests bootstrap a real git repo, real `.cycle/` tree, real `verify.sh`, spawn the real `dist/cycle.js` binary, and read real files from the temp fixture — `tests/cli/halt.test.ts:237`, `tests/cli/halt.test.ts:278`.
+2. **Happy + sad paths**: Sad path is the whole subject (cycle fails, propagation fires). Both new tests cover the failure branch end-to-end.
+3. **Boundary conditions**: Loose anchors on two assertions — `assert.match(failedBody, /^failed_step: verify/m)` would also match `failed_step: verify_extended`, and `/^failed_attempts: 1/m` would match `failed_attempts: 11` or `failed_attempts: 123`. Both fixtures are deterministic (`step: verify`, `max_cycle_attempts: 1`) so this can&#39;t actually false-positive in this test, but tightening to `/^failed_step: verify$/m` and `/^failed_attempts: 1$/m` would be free and consistent with the strict `^last_cycle_id: &quot;...&quot;$` assertion next to it — `tests/cli/halt.test.ts:266-268`. Cosmetic, not a fix.
+4. **Integration gaps**: None — the 3-node chain test is exactly the end-to-end gate the SPEC asked for, complementing the existing engine-level `tests/engine/blocked.test.ts:111` (transitive) and `:135` (diamond) cases.
+5. **Assertion quality**: The `last_cycle_id` assertion is anchored on both sides (`^last_cycle_id: &quot;${cycleId}&quot;$` with `m`) and cross-references the actual event, which is the strongest form available short of full snapshot. Strong.
+6. **Missing test cases**: SPEC mentions diamond / fan-out as a possibility (&quot;`A ← {B, C}`&quot;). Plan chose the chain form (`A ← B ← C`) which exercises 2 hops; the diamond form is already covered at the engine layer (`tests/engine/blocked.test.ts:135`). No CLI-level diamond regression, but the SPEC&#39;s &quot;or&quot; disjunction made this an explicit choice — not a gap.
+7. **Test independence**: Each test uses its own `mkdtemp` root and cleans up in `finally`. No shared mutable state.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: 97.14 / 90.64 / 96.21
+- Regressions vs base (per-file): none — every file matches or exceeds the master baseline
+- New code without tests: none — `src/cli.ts:137` is exercised by both `halt.test.ts:237` (propagateBlocked) and `halt.test.ts:278` (3-node chain)
+- Specific scenarios missing tests: none load-bearing. Possible future polish: CLI-level diamond fan-out for `blocked_by`, but engine-layer coverage already exists and SPEC accepted chain-or-diamond as alternatives.</code></pre>
+<p>End: PASS verdict. No MUST-FIX.md written. Two cosmetic regex-anchor nits noted but below fix bar.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0024.html">← Cycle 0024</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0028.html">Cycle 0028 →</a>
+</nav>
+
+<footer>Generated from <code>b6662c3</code></footer>
+</body>
+</html>

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0060 · Add semantic doc-vs-code verification step for docs-only cycles</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0060</h1>
+  <div class="subtitle">Add semantic doc-vs-code verification step for docs-only cycles</div>
+  <div class="meta-row">
+    <code>f7aab07</code> · Timothy Johnson · 2026-05-14 17:57:29 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0059.html">← Cycle 0059</a>
+  <span class="center">60 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0061.html">Cycle 0061 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><h3>SPEC — Cycle 0060: Semantic Doc-vs-Code Verification in Review</h3>
+<h4>Objective</h4>
+<p>Add a third, semantic-layer review pass to <code>feature</code> workflow&#39;s review step so that documentation-touching cycles fail review when prose introduces commands, paths, or behavioral claims that cannot be paired with a <code>file:line</code> reference at HEAD. Closes the doc-vs-code drift gap exposed by cycle 0024, where grep-only verification passed against a fictional README recovery flow.</p>
+<h4>Source Issue</h4>
+<p><code>refl-0024-docs-only-cycles-need-semantic-verificat</code> — &quot;Add semantic doc-vs-code verification step for docs-only cycles&quot;</p>
+<h4>Scope</h4>
+<h5>In Scope</h5>
+<ul>
+<li>Extend <code>src/defaults/prompts/review.md</code> with a <strong>Pass 3: Doc-vs-Code Claim Verification</strong> section, plus updated REVIEW.md output schema (new <code>## Doc-vs-Code Claim Verification</code> block) and MUST-FIX rules covering unbacked claims. Re-sync the divergence-aware portion to <code>.cycle/prompts/review.md</code> via direct edit (review.md is non-divergent — confirmed <code>diff</code> clean).</li>
+</ul>
+<h5>Out of Scope</h5>
+<ul>
+<li>Static doc-link infrastructure or auto-generated reference checks (explicitly excluded by the source issue).</li>
+<li>A separate <code>docs</code> workflow variant — the source issue calls this an explicit fork in the road, and extending the existing <code>feature</code> review prompt is the smaller slice. A dedicated <code>docs</code> workflow can be queued later if the prompt-only approach proves insufficient.</li>
+<li>Changing <code>verify.sh</code> or any non-prompt engine code. The new pass is reviewer-prompt-only; failure surfaces through the existing <code>NEEDS-FIX → MUST-FIX.md → fix step</code> path that already gates <code>cycle.end</code>.</li>
+<li>Editing the <code>documentation</code> prompt (<code>prompts/documentation.md</code>) — the documentation step is non-fatal by design (post-merge), so a verification clause there cannot gate cycle outcome.</li>
+</ul>
+<h4>Requirements</h4>
+<ul>
+<li>The Pass 3 instructions must direct the reviewer to:</li>
+</ul>
+<p>  1. Enumerate every command invocation, CLI flag, file path, event name, frontmatter field, and behavioral claim <em>introduced or modified</em> in the diff under <code>README.md</code>, <code>CLAUDE.md</code>, <code>AGENTS.md</code>, and <code>docs/**/<em>.md</code> excluding <code>docs/cycle/</em></code>.   2. Pair each enumerated item with a single <code>file:line</code> reference at HEAD proving the claim holds (e.g. flag parsed in <code>src/cli/parse-args.ts:NN</code>, event emitted from <code>src/engine/&lt;x&gt;.ts:NN</code>).   3. Mark any item where pairing fails or where a paired reference contradicts the prose as an unbacked claim, and append a MUST-FIX task with the documented prose, the file:line, and the contradiction.</p>
+<ul>
+<li>The reviewer must emit the enumerated table in REVIEW.md under a new <code>## Doc-vs-Code Claim Verification</code> heading so the audit trail is inspectable even when all claims pair cleanly.</li>
+<li>Pass 3 runs only when the diff touches at least one in-scope doc path; on a code-only diff the reviewer emits a single <code>## Doc-vs-Code Claim Verification</code> line stating &quot;No documentation prose changed; pass skipped.&quot; (prevents prompt creep on bug-only cycles).</li>
+<li>Existing Pass 1 (code quality) and Pass 2 (adversarial test) wording and output schema remain intact; Pass 3 is additive.</li>
+<li>The reviewer&#39;s &quot;Overall Verdict&quot; rule must explicitly enumerate unbacked claims as a NEEDS-FIX trigger.</li>
+</ul>
+<h4>Acceptance Criteria</h4>
+<ul>
+<li>[ ] <code>src/defaults/prompts/review.md</code> contains a <code>## Pass 3: Doc-vs-Code Claim Verification</code> section that lists the enumerate / pair / fail-on-unbacked instructions verbatim, including the explicit doc-path allow-list and <code>docs/cycle/*</code> exclusion.</li>
+<li>[ ] The REVIEW.md output template in <code>review.md</code> includes the <code>## Doc-vs-Code Claim Verification</code> block with an enumerated table column for &quot;Claim&quot;, &quot;Source (doc:line)&quot;, &quot;Backing (code:line)&quot;, &quot;Status&quot;.</li>
+<li>[ ] The MUST-FIX template in <code>review.md</code> documents how unbacked-claim tasks should be shaped, including required fields (doc:line, claim prose, expected backing or &quot;no backing exists&quot;).</li>
+<li>[ ] The &quot;Overall Verdict&quot; section explicitly lists unbacked claims as a NEEDS-FIX trigger.</li>
+<li>[ ] <code>.cycle/prompts/review.md</code> is byte-identical to <code>src/defaults/prompts/review.md</code> after the edit (verified by <code>diff</code>).</li>
+<li>[ ] <code>npm test</code> passes (full suite, no regressions).</li>
+<li>[ ] <code>npm run test:coverage</code> passes; coverage gates hold at or above master baseline (line ≥ 95%, branch ≥ 75%, function ≥ 90%; per-file <code>src/engine/triage.ts ≥ 95%</code>).</li>
+<li>[ ] <code>npm run typecheck</code> passes with no warnings.</li>
+</ul>
+<h4>Testing Strategy</h4>
+<p>This cycle ships a prompt-text change, not engine code, so the primary verification surface is prompt content rather than runtime behavior. Three guards:</p>
+<ol>
+<li><strong>Snapshot / structural test (Node <code>node:test</code>).</strong> Add a test that reads <code>src/defaults/prompts/review.md</code> and asserts:</li>
+</ol>
+<p>   - The <code>## Pass 3: Doc-vs-Code Claim Verification</code> heading is present.    - The <code>## Doc-vs-Code Claim Verification</code> output-template heading is present.    - The doc-path allow-list line names <code>README.md</code>, <code>CLAUDE.md</code>, <code>AGENTS.md</code>, and <code>docs/**/<em>.md</code>, and explicitly excludes <code>docs/cycle/</em></code>.    - The <code>code-only diff → &quot;pass skipped.&quot;</code> sentinel string is present.    Place under <code>tests/defaults/review-prompt-doc-claim-pass.test.ts</code> (new file). This pins the contract so future review-prompt edits can&#39;t silently drop the clause.</p>
+<ol>
+<li><strong>Dogfood-sync regression test.</strong> Add an assertion (in the same test file) that <code>.cycle/prompts/review.md</code> matches <code>src/defaults/prompts/review.md</code> byte-for-byte. Mirrors the divergence-guard contract from <code>scripts/sync-defaults.mjs</code> — if a future cycle edits one without the other, the test catches it before the next reviewer sees stale text.</li>
+</ol>
+<ol>
+<li><strong>Manual edge case — code-only diff.</strong> Verified through the &quot;pass skipped&quot; sentinel test above; no separate test needed since the runtime behavior is governed by the prompt itself, not engine code.</li>
+</ol>
+<p>No E2E / Playwright tests required (no UI change). No new engine state, no new event types, no new files in <code>.cycle/</code> beyond the synced prompt update.</p>
+<h4>Documentation Updates</h4>
+<ul>
+<li><strong>CLAUDE.md</strong>: under <code>## Architecture quick reference</code>, append a one-sentence note that the review prompt now includes a Pass 3 doc-vs-code claim verification clause and that unbacked claims fail review the same way as other NEEDS-FIX items.</li>
+<li><strong>README.md</strong>: no user-facing surface area changes — Pass 3 lives behind the reviewer agent and the failure path (<code>MUST-FIX.md → fix step</code>) is unchanged. No README edit warranted.</li>
+<li><strong><code>docs/RFC-001-issue-lifecycle.md</code></strong>: untouched — this is a review-prompt content change, not a lifecycle change.</li>
+<li><strong><code>docs/ARCHITECTURE.md</code></strong>: review-step paragraph (if any references the two-pass structure) needs an update to &quot;three-pass&quot; with the doc-vs-code clause named. Reviewer in this cycle confirms via <code>grep -n &quot;Pass 2\|two-pass&quot; docs/ARCHITECTURE.md</code> whether an edit is warranted.</li>
+</ul>
+<p>Documentation updates here are themselves subject to Pass 3 starting next cycle — eat-your-own-dogfood.</p>
+<h4>Dependencies</h4>
+<ul>
+<li>Existing review step in <code>feature</code> workflow (<code>workflows.yml</code>), already wired with <code>prompts/review.md</code> and the downstream <code>fix</code> step skipped unless <code>MUST-FIX.md</code> exists. No engine wiring change required.</li>
+<li><code>npm test</code> and <code>npm run test:coverage</code> (Node ≥ 22.6) — already in use.</li>
+<li>No new environment variables, external services, or third-party tooling.</li>
+</ul></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">.cycle/prompts/review.md                           | 61 +++++++++++++++++++++-
+ src/defaults/prompts/review.md                     | 61 +++++++++++++++++++++-
+ .../defaults/review-prompt-doc-claim-pass.test.ts  | 42 +++++++++++++++
+ 3 files changed, 160 insertions(+), 4 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/.cycle/prompts/review.md b/.cycle/prompts/review.md</span><span class="fileheader">index 2a58a5d..a6855ec 100644</span><span class="meta">--- a/.cycle/prompts/review.md</span><span class="meta">+++ b/.cycle/prompts/review.md</span><span class="hunk">@@ -1,8 +1,8 @@</span><span class="ctx"> # Review Cycle Implementation</span><span class="ctx"> </span><span class="ctx"> You are a staff engineer reviewing the completed cycle work. You perform</span><span class="del">-**two review passes**: code quality AND adversarial test review. You</span><span class="del">-produce one or two output documents.</span><span class="add">+**three review passes**: code quality, adversarial test review, AND</span><span class="add">+doc-vs-code claim verification. You produce one or two output documents.</span><span class="ctx"> </span><span class="ctx"> **You do NOT fix anything.** Your job is to identify issues and write</span><span class="ctx"> actionable fix instructions for the `fix` step.</span><span class="hunk">@@ -63,6 +63,38 @@ Check:</span><span class="ctx"> - **Test independence.** Do tests depend on execution order or shared</span><span class="ctx">   state?</span><span class="ctx"> </span><span class="add">+## Pass 3: Doc-vs-Code Claim Verification</span><span class="add">+</span><span class="add">+Verify that every documentation prose change in the diff is backed by a</span><span class="add">+real `file:line` reference in the source.</span><span class="add">+</span><span class="add">+**Scope:** apply this pass only to diffs that touch `README.md`,</span><span class="add">+`CLAUDE.md`, `AGENTS.md`, or `docs/**/*.md` **excluding `docs/cycle/*`**.</span><span class="add">+If the diff touches none of these paths, emit a single line under the</span><span class="add">+Doc-vs-Code block in REVIEW.md:</span><span class="add">+</span><span class="add">+&gt; No documentation prose changed; pass skipped.</span><span class="add">+</span><span class="add">+…and skip the rest of this pass.</span><span class="add">+</span><span class="add">+Otherwise:</span><span class="add">+</span><span class="add">+1. **Enumerate** every command invocation, CLI flag, file path, event</span><span class="add">+   name (e.g. `engine.paused`), frontmatter field, and behavioral</span><span class="add">+   claim that is *introduced or modified* in the diff under the</span><span class="add">+   in-scope doc paths.</span><span class="add">+2. **Pair** each enumerated item with a single `file:line` reference</span><span class="add">+   at HEAD proving the claim holds — e.g. the flag is parsed at</span><span class="add">+   `src/cli/parse-args.ts:NN`, the event is emitted at</span><span class="add">+   `src/engine/&lt;x&gt;.ts:NN`, the frontmatter field is read at</span><span class="add">+   `src/engine/frontmatter.ts:NN`.</span><span class="add">+3. **Flag as unbacked** any item where pairing fails (no matching</span><span class="add">+   reference exists) OR where the paired reference contradicts the</span><span class="add">+   documented prose. Each unbacked claim becomes a MUST-FIX task</span><span class="add">+   (see the Unbacked Claim task shape under Output 2).</span><span class="add">+</span><span class="add">+Unbacked claims are a NEEDS-FIX trigger.</span><span class="add">+</span><span class="ctx"> ## Output 1: REVIEW.md</span><span class="ctx"> </span><span class="ctx"> Output this content **to stdout** — the engine captures stdout and</span><span class="hunk">@@ -74,6 +106,10 @@ writes it to `docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/REVIEW.md`.</span><span class="ctx"> ## Overall Verdict</span><span class="ctx"> [PASS — no fixes needed / NEEDS-FIX — see MUST-FIX.md]</span><span class="ctx"> </span><span class="add">+NEEDS-FIX triggers: code-quality findings, missing tests, coverage</span><span class="add">+regressions, missing SPEC requirements, OR any unbacked doc-vs-code</span><span class="add">+claim from Pass 3.</span><span class="add">+</span><span class="ctx"> ## Code Quality Review</span><span class="ctx"> </span><span class="ctx"> ### Summary</span><span class="hunk">@@ -100,6 +136,16 @@ writes it to `docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/REVIEW.md`.</span><span class="ctx"> - Regressions vs base (per-file): [list or &quot;none&quot;]</span><span class="ctx"> - New code without tests: [list or &quot;none&quot;]</span><span class="ctx"> - Specific scenarios missing tests: [list]</span><span class="add">+</span><span class="add">+## Doc-vs-Code Claim Verification</span><span class="add">+</span><span class="add">+*(If diff touches no in-scope doc path, replace this block with the</span><span class="add">+single line:</span><span class="add">+`No documentation prose changed; pass skipped.`)*</span><span class="add">+</span><span class="add">+| Claim | Source (doc:line) | Backing (code:line) | Status |</span><span class="add">+|---|---|---|---|</span><span class="add">+| [Prose snippet] | `path/to/doc.md:LL` | `src/path/to/file.ts:NN` | OK / UNBACKED |</span><span class="ctx"> ```</span><span class="ctx"> </span><span class="ctx"> ## Output 2: MUST-FIX.md (only if issues exist)</span><span class="hunk">@@ -132,6 +178,17 @@ plan — actionable tasks, not vague observations.</span><span class="ctx"> </span><span class="ctx"> - [ ] ### Task 2: [Short title]</span><span class="ctx">   ...</span><span class="add">+</span><span class="add">+- [ ] ### Task N (Unbacked Doc Claim): [Short title]</span><span class="add">+  **Priority:** Critical</span><span class="add">+  **Doc:** `path/to/doc.md:LL`</span><span class="add">+  **Claim prose:** &quot;[exact quoted sentence from the doc]&quot;</span><span class="add">+  **Expected backing:** [path/to/code.ts:NN with the behavior the prose describes] OR `no backing exists`</span><span class="add">+  **Fix:** [Either: edit the doc to match the code at &lt;ref&gt;; OR: add the</span><span class="add">+    missing code at &lt;ref&gt; and link it; OR: delete the prose if the</span><span class="add">+    behavior is not in fact promised.]</span><span class="add">+  **Verify:** `grep -n &quot;&lt;doc snippet&gt;&quot; path/to/doc.md` returns the</span><span class="add">+    updated line; cross-check matches the named `file:line`.</span><span class="ctx"> ```</span><span class="ctx"> </span><span class="ctx"> **Rules for MUST-FIX.md:**</span><span class="fileheader">diff --git a/src/defaults/prompts/review.md b/src/defaults/prompts/review.md</span><span class="fileheader">index 2a58a5d..a6855ec 100644</span><span class="meta">--- a/src/defaults/prompts/review.md</span><span class="meta">+++ b/src/defaults/prompts/review.md</span><span class="hunk">@@ -1,8 +1,8 @@</span><span class="ctx"> # Review Cycle Implementation</span><span class="ctx"> </span><span class="ctx"> You are a staff engineer reviewing the completed cycle work. You perform</span><span class="del">-**two review passes**: code quality AND adversarial test review. You</span><span class="del">-produce one or two output documents.</span><span class="add">+**three review passes**: code quality, adversarial test review, AND</span><span class="add">+doc-vs-code claim verification. You produce one or two output documents.</span><span class="ctx"> </span><span class="ctx"> **You do NOT fix anything.** Your job is to identify issues and write</span><span class="ctx"> actionable fix instructions for the `fix` step.</span><span class="hunk">@@ -63,6 +63,38 @@ Check:</span><span class="ctx"> - **Test independence.** Do tests depend on execution order or shared</span><span class="ctx">   state?</span><span class="ctx"> </span><span class="add">+## Pass 3: Doc-vs-Code Claim Verification</span><span class="add">+</span><span class="add">+Verify that every documentation prose change in the diff is backed by a</span><span class="add">+real `file:line` reference in the source.</span><span class="add">+</span><span class="add">+**Scope:** apply this pass only to diffs that touch `README.md`,</span><span class="add">+`CLAUDE.md`, `AGENTS.md`, or `docs/**/*.md` **excluding `docs/cycle/*`**.</span><span class="add">+If the diff touches none of these paths, emit a single line under the</span><span class="add">+Doc-vs-Code block in REVIEW.md:</span><span class="add">+</span><span class="add">+&gt; No documentation prose changed; pass skipped.</span><span class="add">+</span><span class="add">+…and skip the rest of this pass.</span><span class="add">+</span><span class="add">+Otherwise:</span><span class="add">+</span><span class="add">+1. **Enumerate** every command invocation, CLI flag, file path, event</span><span class="add">+   name (e.g. `engine.paused`), frontmatter field, and behavioral</span><span class="add">+   claim that is *introduced or modified* in the diff under the</span><span class="add">+   in-scope doc paths.</span><span class="add">+2. **Pair** each enumerated item with a single `file:line` reference</span><span class="add">+   at HEAD proving the claim holds — e.g. the flag is parsed at</span><span class="add">+   `src/cli/parse-args.ts:NN`, the event is emitted at</span><span class="add">+   `src/engine/&lt;x&gt;.ts:NN`, the frontmatter field is read at</span><span class="add">+   `src/engine/frontmatter.ts:NN`.</span><span class="add">+3. **Flag as unbacked** any item where pairing fails (no matching</span><span class="add">+   reference exists) OR where the paired reference contradicts the</span><span class="add">+   documented prose. Each unbacked claim becomes a MUST-FIX task</span><span class="add">+   (see the Unbacked Claim task shape under Output 2).</span><span class="add">+</span><span class="add">+Unbacked claims are a NEEDS-FIX trigger.</span><span class="add">+</span><span class="ctx"> ## Output 1: REVIEW.md</span><span class="ctx"> </span><span class="ctx"> Output this content **to stdout** — the engine captures stdout and</span><span class="hunk">@@ -74,6 +106,10 @@ writes it to `docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/REVIEW.md`.</span><span class="ctx"> ## Overall Verdict</span><span class="ctx"> [PASS — no fixes needed / NEEDS-FIX — see MUST-FIX.md]</span><span class="ctx"> </span><span class="add">+NEEDS-FIX triggers: code-quality findings, missing tests, coverage</span><span class="add">+regressions, missing SPEC requirements, OR any unbacked doc-vs-code</span><span class="add">+claim from Pass 3.</span><span class="add">+</span><span class="ctx"> ## Code Quality Review</span><span class="ctx"> </span><span class="ctx"> ### Summary</span><span class="hunk">@@ -100,6 +136,16 @@ writes it to `docs/cycle/&lt;cycle_id&gt;-&lt;workflow&gt;-&lt;slug&gt;/REVIEW.md`.</span><span class="ctx"> - Regressions vs base (per-file): [list or &quot;none&quot;]</span><span class="ctx"> - New code without tests: [list or &quot;none&quot;]</span><span class="ctx"> - Specific scenarios missing tests: [list]</span><span class="add">+</span><span class="add">+## Doc-vs-Code Claim Verification</span><span class="add">+</span><span class="add">+*(If diff touches no in-scope doc path, replace this block with the</span><span class="add">+single line:</span><span class="add">+`No documentation prose changed; pass skipped.`)*</span><span class="add">+</span><span class="add">+| Claim | Source (doc:line) | Backing (code:line) | Status |</span><span class="add">+|---|---|---|---|</span><span class="add">+| [Prose snippet] | `path/to/doc.md:LL` | `src/path/to/file.ts:NN` | OK / UNBACKED |</span><span class="ctx"> ```</span><span class="ctx"> </span><span class="ctx"> ## Output 2: MUST-FIX.md (only if issues exist)</span><span class="hunk">@@ -132,6 +178,17 @@ plan — actionable tasks, not vague observations.</span><span class="ctx"> </span><span class="ctx"> - [ ] ### Task 2: [Short title]</span><span class="ctx">   ...</span><span class="add">+</span><span class="add">+- [ ] ### Task N (Unbacked Doc Claim): [Short title]</span><span class="add">+  **Priority:** Critical</span><span class="add">+  **Doc:** `path/to/doc.md:LL`</span><span class="add">+  **Claim prose:** &quot;[exact quoted sentence from the doc]&quot;</span><span class="add">+  **Expected backing:** [path/to/code.ts:NN with the behavior the prose describes] OR `no backing exists`</span><span class="add">+  **Fix:** [Either: edit the doc to match the code at &lt;ref&gt;; OR: add the</span><span class="add">+    missing code at &lt;ref&gt; and link it; OR: delete the prose if the</span><span class="add">+    behavior is not in fact promised.]</span><span class="add">+  **Verify:** `grep -n &quot;&lt;doc snippet&gt;&quot; path/to/doc.md` returns the</span><span class="add">+    updated line; cross-check matches the named `file:line`.</span><span class="ctx"> ```</span><span class="ctx"> </span><span class="ctx"> **Rules for MUST-FIX.md:**</span><span class="fileheader">diff --git a/tests/defaults/review-prompt-doc-claim-pass.test.ts b/tests/defaults/review-prompt-doc-claim-pass.test.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..d6af32c</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/tests/defaults/review-prompt-doc-claim-pass.test.ts</span><span class="hunk">@@ -0,0 +1,42 @@</span><span class="add">+import { test } from &quot;node:test&quot;;</span><span class="add">+import { strict as assert } from &quot;node:assert&quot;;</span><span class="add">+import { readFile } from &quot;node:fs/promises&quot;;</span><span class="add">+</span><span class="add">+const SRC = &quot;src/defaults/prompts/review.md&quot;;</span><span class="add">+const DOG = &quot;.cycle/prompts/review.md&quot;;</span><span class="add">+</span><span class="add">+test(&quot;review prompt declares Pass 3 doc-vs-code section heading&quot;, async () =&gt; {</span><span class="add">+  const body = await readFile(SRC, &quot;utf8&quot;);</span><span class="add">+  assert.match(body, /^## Pass 3: Doc-vs-Code Claim Verification$/m);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;review prompt output template includes Doc-vs-Code block&quot;, async () =&gt; {</span><span class="add">+  const body = await readFile(SRC, &quot;utf8&quot;);</span><span class="add">+  assert.match(body, /^## Doc-vs-Code Claim Verification$/m);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;review prompt names the in-scope doc allow-list and excludes docs/cycle&quot;, async () =&gt; {</span><span class="add">+  const body = await readFile(SRC, &quot;utf8&quot;);</span><span class="add">+  for (const tok of [&quot;README.md&quot;, &quot;CLAUDE.md&quot;, &quot;AGENTS.md&quot;, &quot;docs/**/*.md&quot;]) {</span><span class="add">+    assert.ok(body.includes(tok), `allow-list missing ${tok}`);</span><span class="add">+  }</span><span class="add">+  assert.match(body, /docs\/cycle\/\*/);</span><span class="add">+  assert.match(body, /excluding `docs\/cycle\/\*`|excludes? `docs\/cycle\/\*`/);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;review prompt carries the code-only-diff pass-skipped sentinel&quot;, async () =&gt; {</span><span class="add">+  const body = await readFile(SRC, &quot;utf8&quot;);</span><span class="add">+  assert.ok(</span><span class="add">+    body.includes(&quot;No documentation prose changed; pass skipped.&quot;),</span><span class="add">+    &quot;missing sentinel string&quot;,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;dogfood review prompt is byte-identical to default&quot;, async () =&gt; {</span><span class="add">+  const [src, dog] = await Promise.all([readFile(SRC), readFile(DOG)]);</span><span class="add">+  assert.equal(</span><span class="add">+    Buffer.compare(src, dog),</span><span class="add">+    0,</span><span class="add">+    &quot;src/defaults/prompts/review.md and .cycle/prompts/review.md must match byte-for-byte&quot;,</span><span class="add">+  );</span><span class="add">+});</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>Caveman mode on. No explicit task in message — just review.md prompt content + session hooks. </p>
+<p>Status: uncommitted changes in <code>.cycle/prompts/review.md</code> + <code>src/defaults/prompts/review.md</code> + others. New test file <code>review-prompt-doc-claim-pass.test.ts</code>.</p>
+<p>What want? Options:</p>
+<ul>
+<li>Run review on current branch (need cycle_id from log.jsonl)</li>
+<li>Review the review.md changes themselves</li>
+<li>Commit current state</li>
+<li>Other</li>
+</ul></div></section>
+
+<nav class="pager">
+  <a href="cycle-0059.html">← Cycle 0059</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0061.html">Cycle 0061 →</a>
+</nav>
+
+<footer>Generated from <code>f7aab07</code></footer>
+</body>
+</html>

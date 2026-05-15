@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0020 · CLI: add `cycle status` command (#30)</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0020</h1>
+  <div class="subtitle">CLI: add `cycle status` command (#30)</div>
+  <div class="meta-row">
+    <code>2d7311e</code> · Timothy Johnson · 2026-05-13 14:46:53 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0019.html">← Cycle 0019</a>
+  <span class="center">20 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0021.html">Cycle 0021 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0020: `cycle status` command
+
+## Objective
+Add a `cycle status` subcommand that prints a compact, grep-friendly snapshot of the issue state machine and engine state. Operators get one-shot visibility into queue health without `ls`-ing folders or tailing `log.jsonl` by hand.
+
+## Source Issue
+`cli-drop-writes-to-raw-status-command` — &quot;CLI: add `cycle status` command&quot;
+
+## Scope
+
+### In Scope
+- New `status` subcommand wired into `src/cli.ts` (handler in `src/cli/status.ts`) that prints: folder counts (`raw`/`todo`/`done`/`failed`/`blocked`), tbd.jsonl summary (total + by-status, listing `id`/`cycle_id` for `in_progress` rows), and in-flight cycle line derived from `log.jsonl` tail via `readLogTail`.
+- Unit tests covering: empty repo, pending-only queue, `in_progress` row with matching in-flight cycle, finished cycle with no in-flight.
+
+### Out of Scope
+- Changing the `cycle drop` target (separate sibling issue).
+- JSON output flag, colors, TTY detection, watch/live mode.
+- Any engine behavior change — read-only command.
+
+## Requirements
+- `cycle status` accepts no arguments and exits 0 even when `docs/cycle/issues/` folders or `.cycle/tbd.jsonl` / `.cycle/log.jsonl` are missing.
+- Missing folders count as zero; missing files yield a zeroed section, not an error.
+- `log.jsonl` is read via `src/engine/log-tail.ts` (`readLogTail`/`parseLogTail`) — must not slurp the whole file.
+- In-flight detection: most-recent `cycle.start` with no matching `cycle.end` ⇒ `in_flight: &lt;cycle_id&gt; step=&lt;last step.start name&gt;`; otherwise `in_flight: none`.
+- Output is plain text, one logical group per line block, stable section ordering so it&#39;s grep- and diff-friendly.
+- Subprocess discipline: no shell, no `exec`. Pure FS reads.
+
+## Acceptance Criteria
+- [ ] `cycle status` prints all five folder counts (`raw`, `todo`, `done`, `failed`, `blocked`), each on its own line.
+- [ ] Prints tbd.jsonl total plus `pending` and `in_progress` counts; lists `id` + `cycle_id` for each `in_progress` row.
+- [ ] Prints exactly one `in_flight:` line — either `none` or `&lt;cycle_id&gt; step=&lt;step_name&gt;`.
+- [ ] Exits 0 in an empty repo (no `.cycle/`, no issue folders).
+- [ ] Unit tests cover empty repo, pending-only, in-flight cycle with in_progress row, finished cycle.
+- [ ] `npm run typecheck` clean; `npm test` passes.
+- [ ] Coverage does not regress: line ≥ 95%, branch ≥ 75%, function ≥ 90%.
+- [ ] No compiler/linter warnings introduced.
+
+## Testing Strategy
+- Node native `node:test` runner (matches existing `tests/` convention).
+- Build a temp repo per test via `mkdtemp`, seed `docs/cycle/issues/&lt;state&gt;/*.md` and `.cycle/{tbd.jsonl,log.jsonl}` fixtures, invoke the status handler, assert on captured stdout.
+- Scenarios:
+  - **Empty repo**: no `.cycle/`, no issue folders → all counts 0, `in_flight: none`, exit 0.
+  - **Pending-only queue**: tbd.jsonl rows all `status:pending` → total/pending counts correct, no in-flight rows listed.
+  - **In-flight cycle**: one `in_progress` row + log tail showing `cycle.start` + `step.start` with no `cycle.end` → row id/cycle_id printed, `in_flight: &lt;id&gt; step=&lt;name&gt;`.
+  - **Finished cycle**: log tail ends in `cycle.end` → `in_flight: none`.
+  - **Missing files**: `.cycle/tbd.jsonl` absent → zero queue summary, no throw.
+- No E2E/UI test required (CLI-only, no UI surface).
+
+## Documentation Updates
+- **CLAUDE.md**: add `cycle status` to the commands table (one-line description).
+- **README.md**: surface `cycle status` in the user-facing CLI section if one exists; otherwise skip.
+- No RFC update needed — this is a read-only ergonomics addition, not a lifecycle change.
+
+## Dependencies
+- `src/engine/log-tail.ts` — already exports `readLogTail` / `parseLogTail` (used by resume logic). Reuse, do not duplicate.
+- `src/cli.ts` argv-parsing pattern — extend the existing subcommand switch.
+- No external services, env vars, or new npm deps.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/cli.ts                    |   7 ++
+ src/cli/status.ts             |  52 ++++++++++++
+ src/engine/log-tail.ts        |  26 ++++++
+ tests/cli/status.test.ts      | 186 ++++++++++++++++++++++++++++++++++++++++++
+ tests/engine/log-tail.test.ts |  50 ++++++++++++
+ 5 files changed, 321 insertions(+)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/cli.ts b/src/cli.ts</span><span class="fileheader">index 650a007..705b985 100644</span><span class="meta">--- a/src/cli.ts</span><span class="meta">+++ b/src/cli.ts</span><span class="hunk">@@ -47,6 +47,13 @@ if (argv[0] === &quot;init&quot;) {</span><span class="ctx">   process.exit(0);</span><span class="ctx"> }</span><span class="ctx"> </span><span class="add">+if (argv[0] === &quot;status&quot;) {</span><span class="add">+  const { runStatus } = await import(&quot;./cli/status.ts&quot;);</span><span class="add">+  const out = await runStatus({ cwd: process.cwd() });</span><span class="add">+  console.log(out);</span><span class="add">+  process.exit(0);</span><span class="add">+}</span><span class="add">+</span><span class="ctx"> const args = parseArgs(argv);</span><span class="ctx"> const cwd = process.cwd();</span><span class="ctx"> </span><span class="fileheader">diff --git a/src/cli/status.ts b/src/cli/status.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..1e33bdb</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/src/cli/status.ts</span><span class="hunk">@@ -0,0 +1,52 @@</span><span class="add">+import { readdir } from &quot;node:fs/promises&quot;;</span><span class="add">+import { join } from &quot;node:path&quot;;</span><span class="add">+import { readQueue } from &quot;../engine/queue.ts&quot;;</span><span class="add">+import { readLogTail } from &quot;../engine/log-tail.ts&quot;;</span><span class="add">+</span><span class="add">+export const ISSUE_FOLDERS = [&quot;raw&quot;, &quot;todo&quot;, &quot;done&quot;, &quot;failed&quot;, &quot;blocked&quot;] as const;</span><span class="add">+export type IssueFolder = (typeof ISSUE_FOLDERS)[number];</span><span class="add">+</span><span class="add">+async function countMd(dir: string): Promise&lt;number&gt; {</span><span class="add">+  try {</span><span class="add">+    const entries = await readdir(dir);</span><span class="add">+    return entries.filter((f) =&gt; f.endsWith(&quot;.md&quot;)).length;</span><span class="add">+  } catch (e) {</span><span class="add">+    if ((e as NodeJS.ErrnoException).code === &quot;ENOENT&quot;) return 0;</span><span class="add">+    throw e;</span><span class="add">+  }</span><span class="add">+}</span><span class="add">+</span><span class="add">+export async function runStatus({ cwd }: { cwd: string }): Promise&lt;string&gt; {</span><span class="add">+  const counts: Record&lt;IssueFolder, number&gt; = {</span><span class="add">+    raw: 0,</span><span class="add">+    todo: 0,</span><span class="add">+    done: 0,</span><span class="add">+    failed: 0,</span><span class="add">+    blocked: 0,</span><span class="add">+  };</span><span class="add">+  for (const name of ISSUE_FOLDERS) {</span><span class="add">+    counts[name] = await countMd(join(cwd, &quot;docs/cycle/issues&quot;, name));</span><span class="add">+  }</span><span class="add">+</span><span class="add">+  const rows = await readQueue(cwd);</span><span class="add">+  const pending = rows.filter((r) =&gt; r.status === &quot;pending&quot;).length;</span><span class="add">+  const inProgress = rows.filter((r) =&gt; r.status === &quot;in_progress&quot;);</span><span class="add">+  const tail = await readLogTail(cwd);</span><span class="add">+</span><span class="add">+  const lines: string[] = [];</span><span class="add">+  for (const name of ISSUE_FOLDERS) lines.push(`${name}: ${counts[name]}`);</span><span class="add">+  lines.push(&quot;&quot;);</span><span class="add">+  lines.push(`queue_total: ${rows.length}`);</span><span class="add">+  lines.push(`queue_pending: ${pending}`);</span><span class="add">+  lines.push(`queue_in_progress: ${inProgress.length}`);</span><span class="add">+  for (const r of inProgress) {</span><span class="add">+    lines.push(`  - id=${r.id} cycle_id=${r.cycle_id ?? &quot;-&quot;}`);</span><span class="add">+  }</span><span class="add">+  lines.push(&quot;&quot;);</span><span class="add">+  if (tail) {</span><span class="add">+    lines.push(`in_flight: ${tail.cycleId} step=${tail.lastStepStarted ?? &quot;-&quot;}`);</span><span class="add">+  } else {</span><span class="add">+    lines.push(&quot;in_flight: none&quot;);</span><span class="add">+  }</span><span class="add">+  return lines.join(&quot;\n&quot;);</span><span class="add">+}</span><span class="fileheader">diff --git a/src/engine/log-tail.ts b/src/engine/log-tail.ts</span><span class="fileheader">index 7bee807..55f6488 100644</span><span class="meta">--- a/src/engine/log-tail.ts</span><span class="meta">+++ b/src/engine/log-tail.ts</span><span class="hunk">@@ -8,6 +8,7 @@ export type InFlightCycle = {</span><span class="ctx">   title: string;</span><span class="ctx">   startTs: string;</span><span class="ctx">   completedSteps: string[];</span><span class="add">+  lastStepStarted?: string;</span><span class="ctx"> };</span><span class="ctx"> </span><span class="ctx"> type LogEvent = {</span><span class="hunk">@@ -54,6 +55,30 @@ export function parseLogTail(text: string): InFlightCycle | null {</span><span class="ctx">       completedSteps.push(name);</span><span class="ctx">     }</span><span class="ctx">   }</span><span class="add">+  let lastStepStarted: string | undefined;</span><span class="add">+  for (let i = events.length - 1; i &gt; lastStartIdx; i--) {</span><span class="add">+    const e = events[i];</span><span class="add">+    if (e.event !== &quot;step.start&quot;) continue;</span><span class="add">+    if (e.cycle_id !== cycleId) continue;</span><span class="add">+    const name = (e as { step?: string }).step;</span><span class="add">+    if (typeof name !== &quot;string&quot;) continue;</span><span class="add">+    let ended = false;</span><span class="add">+    for (let j = i + 1; j &lt; events.length; j++) {</span><span class="add">+      const f = events[j];</span><span class="add">+      if (</span><span class="add">+        f.event === &quot;step.end&quot; &amp;&amp;</span><span class="add">+        f.cycle_id === cycleId &amp;&amp;</span><span class="add">+        (f as { step?: string }).step === name</span><span class="add">+      ) {</span><span class="add">+        ended = true;</span><span class="add">+        break;</span><span class="add">+      }</span><span class="add">+    }</span><span class="add">+    if (!ended) {</span><span class="add">+      lastStepStarted = name;</span><span class="add">+      break;</span><span class="add">+    }</span><span class="add">+  }</span><span class="ctx">   const rawIssue = (start as Record&lt;string, unknown&gt;).issue_id;</span><span class="ctx">   const rawWf = (start as Record&lt;string, unknown&gt;).workflow;</span><span class="ctx">   const rawTitle = (start as Record&lt;string, unknown&gt;).title;</span><span class="hunk">@@ -67,6 +92,7 @@ export function parseLogTail(text: string): InFlightCycle | null {</span><span class="ctx">     title,</span><span class="ctx">     startTs: start.ts,</span><span class="ctx">     completedSteps,</span><span class="add">+    lastStepStarted,</span><span class="ctx">   };</span><span class="ctx"> }</span><span class="ctx"> </span><span class="fileheader">diff --git a/tests/cli/status.test.ts b/tests/cli/status.test.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..261fb58</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/tests/cli/status.test.ts</span><span class="hunk">@@ -0,0 +1,186 @@</span><span class="add">+import test from &quot;node:test&quot;;</span><span class="add">+import assert from &quot;node:assert/strict&quot;;</span><span class="add">+import { mkdtemp, mkdir, writeFile, rm } from &quot;node:fs/promises&quot;;</span><span class="add">+import { spawnSync } from &quot;node:child_process&quot;;</span><span class="add">+import { tmpdir } from &quot;node:os&quot;;</span><span class="add">+import { join } from &quot;node:path&quot;;</span><span class="add">+import { runStatus } from &quot;../../src/cli/status.ts&quot;;</span><span class="add">+</span><span class="add">+function ev(event: string, fields: Record&lt;string, unknown&gt; = {}, ts = &quot;2026-01-01T00:00:00.000Z&quot;): string {</span><span class="add">+  return JSON.stringify({ ts, event, ...fields });</span><span class="add">+}</span><span class="add">+</span><span class="add">+function row(fields: Record&lt;string, unknown&gt;): string {</span><span class="add">+  const base = {</span><span class="add">+    parent: null,</span><span class="add">+    depends_on: [],</span><span class="add">+    attempt: 0,</span><span class="add">+    triaged_at: &quot;2026-01-01T00:00:00.000Z&quot;,</span><span class="add">+  };</span><span class="add">+  return JSON.stringify({ ...base, ...fields });</span><span class="add">+}</span><span class="add">+</span><span class="add">+async function seedQueue(root: string, lines: string[]): Promise&lt;void&gt; {</span><span class="add">+  await mkdir(join(root, &quot;.cycle&quot;), { recursive: true });</span><span class="add">+  await writeFile(join(root, &quot;.cycle&quot;, &quot;tbd.jsonl&quot;), lines.join(&quot;\n&quot;) + &quot;\n&quot;, &quot;utf8&quot;);</span><span class="add">+}</span><span class="add">+</span><span class="add">+async function seedLog(root: string, lines: string[]): Promise&lt;void&gt; {</span><span class="add">+  await mkdir(join(root, &quot;.cycle&quot;), { recursive: true });</span><span class="add">+  await writeFile(join(root, &quot;.cycle&quot;, &quot;log.jsonl&quot;), lines.join(&quot;\n&quot;) + &quot;\n&quot;, &quot;utf8&quot;);</span><span class="add">+}</span><span class="add">+</span><span class="add">+test(&quot;runStatus on empty repo prints zeros + in_flight none, no throw&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-status-empty-&quot;));</span><span class="add">+  try {</span><span class="add">+    const out = await runStatus({ cwd: root });</span><span class="add">+    const expected = [</span><span class="add">+      &quot;raw: 0&quot;,</span><span class="add">+      &quot;todo: 0&quot;,</span><span class="add">+      &quot;done: 0&quot;,</span><span class="add">+      &quot;failed: 0&quot;,</span><span class="add">+      &quot;blocked: 0&quot;,</span><span class="add">+      &quot;&quot;,</span><span class="add">+      &quot;queue_total: 0&quot;,</span><span class="add">+      &quot;queue_pending: 0&quot;,</span><span class="add">+      &quot;queue_in_progress: 0&quot;,</span><span class="add">+      &quot;&quot;,</span><span class="add">+      &quot;in_flight: none&quot;,</span><span class="add">+    ].join(&quot;\n&quot;);</span><span class="add">+    assert.equal(out, expected);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;runStatus counts only .md files per folder&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-status-folders-&quot;));</span><span class="add">+  try {</span><span class="add">+    const base = join(root, &quot;docs/cycle/issues&quot;);</span><span class="add">+    for (const name of [&quot;raw&quot;, &quot;todo&quot;, &quot;done&quot;, &quot;failed&quot;, &quot;blocked&quot;]) {</span><span class="add">+      await mkdir(join(base, name), { recursive: true });</span><span class="add">+    }</span><span class="add">+    await writeFile(join(base, &quot;raw&quot;, &quot;a.md&quot;), &quot;x&quot;, &quot;utf8&quot;);</span><span class="add">+    await writeFile(join(base, &quot;raw&quot;, &quot;b.md&quot;), &quot;x&quot;, &quot;utf8&quot;);</span><span class="add">+    await writeFile(join(base, &quot;raw&quot;, &quot;not-an-issue.txt&quot;), &quot;x&quot;, &quot;utf8&quot;);</span><span class="add">+    await writeFile(join(base, &quot;todo&quot;, &quot;t1.md&quot;), &quot;x&quot;, &quot;utf8&quot;);</span><span class="add">+    await writeFile(join(base, &quot;done&quot;, &quot;d1.md&quot;), &quot;x&quot;, &quot;utf8&quot;);</span><span class="add">+    await writeFile(join(base, &quot;done&quot;, &quot;d2.md&quot;), &quot;x&quot;, &quot;utf8&quot;);</span><span class="add">+    await writeFile(join(base, &quot;done&quot;, &quot;d3.md&quot;), &quot;x&quot;, &quot;utf8&quot;);</span><span class="add">+    await writeFile(join(base, &quot;failed&quot;, &quot;f1.md&quot;), &quot;x&quot;, &quot;utf8&quot;);</span><span class="add">+    await writeFile(join(base, &quot;blocked&quot;, &quot;b1.md&quot;), &quot;x&quot;, &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+    const out = await runStatus({ cwd: root });</span><span class="add">+    assert.match(out, /^raw: 2$/m);</span><span class="add">+    assert.match(out, /^todo: 1$/m);</span><span class="add">+    assert.match(out, /^done: 3$/m);</span><span class="add">+    assert.match(out, /^failed: 1$/m);</span><span class="add">+    assert.match(out, /^blocked: 1$/m);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;runStatus on pending-only queue: totals, no in_progress bullets, in_flight none&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-status-pending-&quot;));</span><span class="add">+  try {</span><span class="add">+    await seedQueue(root, [</span><span class="add">+      row({ id: &quot;a&quot;, title: &quot;A&quot;, status: &quot;pending&quot; }),</span><span class="add">+      row({ id: &quot;b&quot;, title: &quot;B&quot;, status: &quot;pending&quot; }),</span><span class="add">+      row({ id: &quot;c&quot;, title: &quot;C&quot;, status: &quot;pending&quot; }),</span><span class="add">+    ]);</span><span class="add">+    const out = await runStatus({ cwd: root });</span><span class="add">+    assert.match(out, /^queue_total: 3$/m);</span><span class="add">+    assert.match(out, /^queue_pending: 3$/m);</span><span class="add">+    assert.match(out, /^queue_in_progress: 0$/m);</span><span class="add">+    assert.doesNotMatch(out, /^ {2}- id=/m);</span><span class="add">+    assert.match(out, /^in_flight: none$/m);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;runStatus prints in_progress bullet and in_flight line with step name&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-status-inflight-&quot;));</span><span class="add">+  try {</span><span class="add">+    await seedQueue(root, [</span><span class="add">+      row({ id: &quot;foo&quot;, title: &quot;Foo&quot;, status: &quot;in_progress&quot;, cycle_id: &quot;0042&quot; }),</span><span class="add">+    ]);</span><span class="add">+    await seedLog(root, [</span><span class="add">+      ev(&quot;cycle.start&quot;, { cycle_id: &quot;0042&quot;, workflow: &quot;feature&quot;, title: &quot;Foo&quot;, issue_id: &quot;foo&quot; }),</span><span class="add">+      ev(&quot;step.start&quot;, { cycle_id: &quot;0042&quot;, step: &quot;build&quot; }),</span><span class="add">+    ]);</span><span class="add">+    const out = await runStatus({ cwd: root });</span><span class="add">+    assert.match(out, /^queue_total: 1$/m);</span><span class="add">+    assert.match(out, /^queue_pending: 0$/m);</span><span class="add">+    assert.match(out, /^queue_in_progress: 1$/m);</span><span class="add">+    assert.match(out, /^ {2}- id=foo cycle_id=0042$/m);</span><span class="add">+    assert.match(out, /^in_flight: 0042 step=build$/m);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;runStatus reports in_flight none when last cycle ended&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-status-finished-&quot;));</span><span class="add">+  try {</span><span class="add">+    await seedLog(root, [</span><span class="add">+      ev(&quot;cycle.start&quot;, { cycle_id: &quot;0001&quot;, workflow: &quot;feature&quot;, title: &quot;T&quot;, issue_id: &quot;i&quot; }),</span><span class="add">+      ev(&quot;step.end&quot;, { cycle_id: &quot;0001&quot;, step: &quot;build&quot;, status: &quot;ok&quot; }),</span><span class="add">+      ev(&quot;cycle.end&quot;, { cycle_id: &quot;0001&quot;, status: &quot;ok&quot; }),</span><span class="add">+    ]);</span><span class="add">+    const out = await runStatus({ cwd: root });</span><span class="add">+    assert.match(out, /^in_flight: none$/m);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;runStatus handles missing tbd.jsonl but present log.jsonl ending in cycle.end&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-status-misstbd-&quot;));</span><span class="add">+  try {</span><span class="add">+    await seedLog(root, [</span><span class="add">+      ev(&quot;cycle.start&quot;, { cycle_id: &quot;0001&quot;, workflow: &quot;feature&quot;, title: &quot;T&quot;, issue_id: &quot;i&quot; }),</span><span class="add">+      ev(&quot;cycle.end&quot;, { cycle_id: &quot;0001&quot;, status: &quot;ok&quot; }),</span><span class="add">+    ]);</span><span class="add">+    const out = await runStatus({ cwd: root });</span><span class="add">+    assert.match(out, /^queue_total: 0$/m);</span><span class="add">+    assert.match(out, /^queue_pending: 0$/m);</span><span class="add">+    assert.match(out, /^queue_in_progress: 0$/m);</span><span class="add">+    assert.match(out, /^in_flight: none$/m);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;runStatus prints in_flight cycle with step=- when cycle.start has no step.start&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-status-nostep-&quot;));</span><span class="add">+  try {</span><span class="add">+    await seedLog(root, [</span><span class="add">+      ev(&quot;cycle.start&quot;, { cycle_id: &quot;0099&quot;, workflow: &quot;feature&quot;, title: &quot;T&quot;, issue_id: &quot;i&quot; }),</span><span class="add">+    ]);</span><span class="add">+    const out = await runStatus({ cwd: root });</span><span class="add">+    assert.match(out, /^in_flight: 0099 step=-$/m);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;cycle status short-circuits without booting the engine logger&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-status-spawn-&quot;));</span><span class="add">+  try {</span><span class="add">+    const bin = join(process.cwd(), &quot;dist/cycle.js&quot;);</span><span class="add">+    const result = spawnSync(process.execPath, [bin, &quot;status&quot;], {</span><span class="add">+      cwd: root,</span><span class="add">+      env: process.env,</span><span class="add">+      encoding: &quot;utf8&quot;,</span><span class="add">+    });</span><span class="add">+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);</span><span class="add">+    assert.match(result.stdout, /^raw: 0$/m);</span><span class="add">+    assert.match(result.stdout, /^in_flight: none$/m);</span><span class="add">+    const logCheck = spawnSync(&quot;ls&quot;, [join(root, &quot;.cycle&quot;)], { encoding: &quot;utf8&quot; });</span><span class="add">+    assert.notEqual(logCheck.status, 0, &quot;no .cycle/ should be created by status&quot;);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="fileheader">diff --git a/tests/engine/log-tail.test.ts b/tests/engine/log-tail.test.ts</span><span class="fileheader">index 972c8ba..fbefa7b 100644</span><span class="meta">--- a/tests/engine/log-tail.test.ts</span><span class="meta">+++ b/tests/engine/log-tail.test.ts</span><span class="hunk">@@ -108,6 +108,56 @@ test(&quot;parseLogTail ignores step.end from a different cycle_id&quot;, () =&gt; {</span><span class="ctx">   assert.deepEqual(r!.completedSteps, []);</span><span class="ctx"> });</span><span class="ctx"> </span><span class="add">+test(&quot;parseLogTail leaves lastStepStarted undefined when only cycle.start present&quot;, () =&gt; {</span><span class="add">+  const text = ev(&quot;cycle.start&quot;, { cycle_id: &quot;0001&quot;, workflow: &quot;feature&quot;, title: &quot;T&quot;, issue_id: &quot;i&quot; });</span><span class="add">+  const r = parseLogTail(text);</span><span class="add">+  assert.ok(r);</span><span class="add">+  assert.equal(r!.lastStepStarted, undefined);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;parseLogTail sets lastStepStarted to the last step.start without a matching step.end&quot;, () =&gt; {</span><span class="add">+  const text = [</span><span class="add">+    ev(&quot;cycle.start&quot;, { cycle_id: &quot;0001&quot;, workflow: &quot;feature&quot;, title: &quot;T&quot;, issue_id: &quot;i&quot; }),</span><span class="add">+    ev(&quot;step.start&quot;, { cycle_id: &quot;0001&quot;, step: &quot;plan&quot; }),</span><span class="add">+  ].join(&quot;\n&quot;);</span><span class="add">+  const r = parseLogTail(text);</span><span class="add">+  assert.ok(r);</span><span class="add">+  assert.equal(r!.lastStepStarted, &quot;plan&quot;);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;parseLogTail skips step.start that has matching step.end and finds the next running step&quot;, () =&gt; {</span><span class="add">+  const text = [</span><span class="add">+    ev(&quot;cycle.start&quot;, { cycle_id: &quot;0001&quot;, workflow: &quot;feature&quot;, title: &quot;T&quot;, issue_id: &quot;i&quot; }),</span><span class="add">+    ev(&quot;step.start&quot;, { cycle_id: &quot;0001&quot;, step: &quot;plan&quot; }),</span><span class="add">+    ev(&quot;step.end&quot;, { cycle_id: &quot;0001&quot;, step: &quot;plan&quot;, status: &quot;ok&quot; }),</span><span class="add">+    ev(&quot;step.start&quot;, { cycle_id: &quot;0001&quot;, step: &quot;build&quot; }),</span><span class="add">+  ].join(&quot;\n&quot;);</span><span class="add">+  const r = parseLogTail(text);</span><span class="add">+  assert.ok(r);</span><span class="add">+  assert.equal(r!.lastStepStarted, &quot;build&quot;);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;parseLogTail leaves lastStepStarted undefined when latest step.start was already ended&quot;, () =&gt; {</span><span class="add">+  const text = [</span><span class="add">+    ev(&quot;cycle.start&quot;, { cycle_id: &quot;0001&quot;, workflow: &quot;feature&quot;, title: &quot;T&quot;, issue_id: &quot;i&quot; }),</span><span class="add">+    ev(&quot;step.start&quot;, { cycle_id: &quot;0001&quot;, step: &quot;plan&quot; }),</span><span class="add">+    ev(&quot;step.end&quot;, { cycle_id: &quot;0001&quot;, step: &quot;plan&quot;, status: &quot;ok&quot; }),</span><span class="add">+  ].join(&quot;\n&quot;);</span><span class="add">+  const r = parseLogTail(text);</span><span class="add">+  assert.ok(r);</span><span class="add">+  assert.equal(r!.lastStepStarted, undefined);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;parseLogTail ignores step.start events from a different cycle_id&quot;, () =&gt; {</span><span class="add">+  const text = [</span><span class="add">+    ev(&quot;cycle.start&quot;, { cycle_id: &quot;0001&quot;, workflow: &quot;feature&quot;, title: &quot;T&quot;, issue_id: &quot;i&quot; }),</span><span class="add">+    ev(&quot;step.start&quot;, { cycle_id: &quot;9999&quot;, step: &quot;other&quot; }),</span><span class="add">+  ].join(&quot;\n&quot;);</span><span class="add">+  const r = parseLogTail(text);</span><span class="add">+  assert.ok(r);</span><span class="add">+  assert.equal(r!.lastStepStarted, undefined);</span><span class="add">+});</span><span class="add">+</span><span class="ctx"> test(&quot;readLogTail returns null when log.jsonl missing&quot;, async () =&gt; {</span><span class="ctx">   const root = await mkdtemp(join(tmpdir(), &quot;cycle-logtail-&quot;));</span><span class="ctx">   try {</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>Verified: typecheck clean, 253/253 tests pass, coverage line 96.65 / branch 89.48 / func 95.87 (all above baseline). status.ts: 96.15 / 87.50 / 100 (uncovered = non-ENOENT rethrow). log-tail.ts: 98.13 / 85.11 / 100.</p>
+<p>Reviewing diff against SPEC + PLAN. All acceptance criteria met. No critical issues. Minor gaps below but not MUST-FIX worthy.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0020
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+Clean, minimal implementation that hews exactly to PLAN.md. New handler is pure FS reads, dynamic-imported from `src/cli.ts` ahead of `createLogger` so the engine logger never boots on `cycle status`. The `lastStepStarted` extension on `parseLogTail` is additive and does not touch existing resume readers. Patterns match `src/cli/init.ts` and `src/engine/log-tail.ts` neighbors.
+
+### Findings
+1. **Spec interpretation (informational, not a bug)**: SPEC reads `step=&lt;last step.start name&gt;` ambiguously. PLAN locks the stricter &quot;most-recent `step.start` with no matching `step.end`&quot; reading; implementation matches. If the spec author intended &quot;any last `step.start` regardless of `step.end`,&quot; the locked PLAN reading is the better one (shows what&#39;s actually running) — no action needed, just flagging the divergence — `src/engine/log-tail.ts:58-81`.
+2. **Subprocess discipline**: `src/cli/status.ts` is FS-only; no `spawn` / `exec`. Matches CLAUDE.md policy.
+3. **Idempotency / read-only**: handler does not `mkdir` any folder, does not write `.cycle/log.jsonl`, does not emit `engine.start`. Verified by the spawn test at `tests/cli/status.test.ts:169-186`.
+4. **ENOENT handling**: `countMd` rethrows non-ENOENT (`src/cli/status.ts:13-16`); `readQueue` and `readLogTail` handle ENOENT internally. Consistent with `src/cli.ts:95-102` and `src/engine/queue.ts:49-50`.
+5. **Output format**: empty-case byte-exact in `tests/cli/status.test.ts:33-54` matches PLAN&#39;s locked block. In-flight bullet line is suppressed when `inProgress.length === 0`, avoiding diff shift (`src/cli/status.ts:42-44`).
+
+### Spec Compliance Checklist
+- [x] Prints five folder counts on individual lines.
+- [x] Prints `queue_total` / `queue_pending` / `queue_in_progress` and bullets in_progress rows with `id` + `cycle_id`.
+- [x] Prints exactly one `in_flight:` line — either `none` or `&lt;cycle_id&gt; step=&lt;name|-&gt;`.
+- [x] Exits 0 in empty repo, no throw.
+- [x] Unit tests cover empty repo, pending-only, in-flight with in_progress, finished cycle, plus folder counts and missing-tbd edge cases.
+- [x] `npm run typecheck` clean.
+- [x] `npm test` 253/253 pass.
+- [x] Coverage non-regressing: line 96.65 ≥ 95, branch 89.48 ≥ 75, func 95.87 ≥ 90.
+- [x] CLAUDE.md commands table updated.
+- [x] README.md skipped — no user-facing CLI section to update (verified).
+- [x] `log-tail.ts` reused, not duplicated.
+
+## Adversarial Test Review
+
+### Summary
+Strong. No mocks anywhere — real `mkdtemp` fixtures against real `readQueue` / `readLogTail` / `readdir`. Test bodies are tight (≤25 lines), assertion style is concrete (`assert.equal` byte-exact for the empty case, `assert.match` with `^…$` multiline anchors for field-level checks). Spawn integration test exercises the real `dist/cycle.js` shebang, which is the actual user-facing entry point.
+
+### Findings
+1. **Byte-exact assertion only on empty case** — other tests use multiline regex (`assert.match(out, /^queue_total: 3$/m)`). A future change that reordered sections (e.g. moves `in_flight:` to the top) would only trip the empty test. Considered tightening tests to compare full strings for at least the in-flight case, but the regex set covers each label individually so an out-of-order rearrangement would still fail at least one test if the section moved past its current absolute position. Not a real gap — `tests/cli/status.test.ts:84-122`.
+2. **No test for `cycle status --any-flag`** — PLAN Task 3 success criteria included asserting that trailing flags don&#39;t trip `parseArgs unknown command`. The short-circuit at `src/cli.ts:50-55` reads only `argv[0]` so the property holds, but there is no regression guard. Minor — would add ~5 lines to `tests/cli/status.test.ts` but not blocking.
+3. **`step.end status:failed` edge case** — implicitly covered: the inner loop in `parseLogTail` (`src/engine/log-tail.ts:65-76`) matches `step.end` regardless of status, so a failed step &quot;closes&quot; the `step.start`. The case &quot;in-flight cycle, latest `step.start` ended with `status:failed`, no subsequent `step.start`&quot; is not explicitly seeded in `tests/engine/log-tail.test.ts`. Behavior is identical to `step.end status:ok` and the no-running-step path is covered by the `step=-` test in `tests/cli/status.test.ts:156-167`. Adequate.
+4. **Cross-cycle isolation** — explicitly tested for both `completedSteps` and `lastStepStarted` (`tests/engine/log-tail.test.ts:101-109`, `151-159`).
+5. **Spawn test uses external `ls`** to check `.cycle/` absence (`tests/cli/status.test.ts:181`). Functional but reliant on PATH `ls`; `fs.access` would be more hermetic and portable. Minor.
+6. **No test for malformed tbd.jsonl rows / log lines via status** — but `readQueue` and `parseLogTail` exercise these directly in their own suites. Following project anti-redundancy convention. Adequate.
+
+### Test Coverage
+- Command run: `npm run test:coverage`.
+- Line / branch / function: 96.65% / 89.48% / 95.87% (baselines 95 / 75 / 90).
+- Regressions vs base (per-file): none. `src/cli/status.ts` ships at 96.15 / 87.50 / 100 — uncovered lines `15-16` are the `countMd` non-ENOENT rethrow, intentional per &quot;no error handling for scenarios that can&#39;t happen&quot; convention. `src/engine/log-tail.ts` 98.13 / 85.11 / 100 — uncovered `105-106` is the non-ENOENT rethrow in `readLogTail`, unchanged from before this cycle.
+- New code without tests: none.
+- Specific scenarios missing tests: (a) `cycle status --any-flag` short-circuits before `parseArgs`; (b) in-flight cycle where the latest `step.start` was ended with `status:failed` (covered transitively but not explicitly). Both informational, not blocking.</code></pre></div></section>
+
+<nav class="pager">
+  <a href="cycle-0019.html">← Cycle 0019</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0021.html">Cycle 0021 →</a>
+</nav>
+
+<footer>Generated from <code>2d7311e</code></footer>
+</body>
+</html>

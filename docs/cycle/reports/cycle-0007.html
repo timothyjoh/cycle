@@ -4,30 +4,63 @@
 <meta charset="utf-8" />
 <title>Cycle 0007 · pr.sh: after immediate-merge fallback succeeds, delete the remote branch (gh pr merge --delete-branch only deletes when GitHub schedules the merge; the synchronous fallback path leaves origin/cycle/feature/* orphaned). Add explicit &#39;gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/&lt;branch&gt;&#39; after successful fallback merge, with test coverage. (#9)</title>
 <style>
-  body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: #1f2328; background: #fff; }
-  header { border-bottom: 1px solid #d0d7de; padding-bottom: 1rem; margin-bottom: 1.5rem; }
-  h1 { font-size: 1.4rem; margin: 0 0 .3rem; }
-  .subtitle { color: #57606a; font-size: .9rem; }
-  .meta-row { margin-top: .4rem; color: #57606a; font-size: .85rem; }
-  .meta-row code { background: #f6f8fa; padding: .1rem .35rem; border-radius: 3px; }
-  nav.pager { display: flex; justify-content: space-between; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid #d0d7de; border-bottom: 1px solid #d0d7de; }
-  nav.pager a { color: #0969da; text-decoration: none; padding: .35rem .6rem; border-radius: 4px; }
-  nav.pager a:hover { background: #f6f8fa; }
-  nav.pager .disabled { color: #8c959f; pointer-events: none; }
-  nav.pager .center { color: #57606a; font-size: .85rem; align-self: center; }
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
   section { margin-bottom: 1.5rem; }
-  section h2 { font-size: 1rem; margin: 0 0 .5rem; color: #57606a; text-transform: uppercase; letter-spacing: .05em; }
-  pre.commit-msg { background: #f6f8fa; padding: 1rem; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
-  pre.stat { background: #f6f8fa; padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; }
-  pre.diff { background: #fff; padding: 0; border: 1px solid #d0d7de; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.5; overflow-x: auto; white-space: pre; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
   pre.diff span { display: block; padding: 0 1rem; }
-  pre.diff .add { background: #dafbe1; color: #1a7f37; }
-  pre.diff .del { background: #ffebe9; color: #cf222e; }
-  pre.diff .hunk { background: #ddf4ff; color: #0969da; }
-  pre.diff .fileheader { background: #f6f8fa; color: #57606a; font-weight: 600; padding-top: .3rem; padding-bottom: .3rem; }
-  pre.diff .meta { color: #57606a; }
-  pre.diff .ctx { color: #1f2328; }
-  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #d0d7de; color: #8c959f; font-size: .8rem; text-align: center; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
 </style>
 </head>
 <body>
@@ -41,581 +74,131 @@
 
 <nav class="pager">
   <a href="cycle-0006.html">← Cycle 0006</a>
-  <span class="center">7 of 10</span>
+  <span class="center">7 of 49 · <a href="index.html">index</a></span>
   <a href="cycle-0008.html">Cycle 0008 →</a>
 </nav>
 
 <section>
-  <h2>Commit message</h2>
-  <pre class="commit-msg">cycle 0007: pr.sh: after immediate-merge fallback succeeds, delete the remote branch (gh pr merge --delete-branch only deletes when GitHub schedules the merge; the synchronous fallback path leaves origin/cycle/feature/* orphaned). Add explicit &#39;gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/&lt;branch&gt;&#39; after successful fallback merge, with test coverage. (#9)</pre>
+  <h2>SPEC.md</h2>
+  <div class="md"><h3>SPEC — Cycle 0007: pr.sh remote branch cleanup after fallback merge</h3>
+<h4>Objective</h4>
+<p>When <code>pr.sh</code>&#39;s auto-merge attempt fails and the synchronous immediate-merge fallback completes the squash merge, the remote feature branch (<code>origin/cycle/&lt;workflow&gt;/&lt;slug&gt;</code>) is left orphaned. <code>gh pr merge --delete-branch</code> only deletes the ref when GitHub itself performs the merge asynchronously via the auto-merge queue; on the synchronous fallback path the flag is silently ignored. This cycle adds an explicit ref deletion via <code>gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/&lt;branch&gt;</code> after a successful fallback merge, with regression tests, so the fallback path matches the cleanliness contract of the happy path.</p>
+<h4>Source Issue</h4>
+<p><code>txt-20260513-011616-pr-sh-after-immediate-merge-fallback-suc</code> — &quot;pr.sh: after immediate-merge fallback succeeds, delete the remote branch&quot;</p>
+<h4>Scope</h4>
+<h5>In Scope</h5>
+<ul>
+<li>Add explicit remote branch deletion via <code>gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/&lt;branch&gt;</code> in <code>src/defaults/scripts/pr.sh</code>, executed only after the fallback merge returns exit 0.</li>
+<li>Add static test coverage in <code>tests/defaults/pr-auto-merge-fallback.test.ts</code> (or a sibling test file) asserting the deletion call shape, ordering (after merge success), and stderr-prefixed warning on deletion failure.</li>
+</ul>
+<h5>Out of Scope</h5>
+<ul>
+<li>Changing the happy-path (auto-merge queue) behavior — <code>--delete-branch</code> continues to handle that case.</li>
+<li>Cleaning up local branches (engine, not <code>pr.sh</code>, owns local branch state after <code>cycle.end</code>).</li>
+<li>Backporting the deletion logic to historical orphaned remote branches (operator concern, separate cleanup).</li>
+<li>Refactoring <code>pr.sh</code> structure beyond the fallback success block.</li>
+</ul>
+<h4>Requirements</h4>
+<ul>
+<li>The new <code>gh api -X DELETE</code> call MUST run <strong>only</strong> when the fallback merge (<code>gh pr merge ... --squash --delete-branch</code> in the fallback branch) succeeds — never on the auto-merge poll path, never on fallback failure.</li>
+<li>The owner/repo pair MUST be resolved at runtime (e.g. via <code>gh repo view --json nameWithOwner -q .nameWithOwner</code>) so the script is repo-agnostic. The branch name comes from the existing <code>${branch}</code> variable.</li>
+<li>A failed ref-deletion MUST NOT mark the cycle as failed: the merge already succeeded, so the script must emit a <code>pr.sh:</code>-prefixed warning to stderr, still print <code>${pr_url}</code> to stdout, and exit 0. Orphan ref is a janitorial concern, not a quality gate.</li>
+<li>Existing behaviors preserved: 30-minute auto-merge poll, error-classification <code>case</code> (GraphQL token + human text), <code>fallback_rc</code> capture idiom, all current <code>pr.sh:</code> stderr prefixes.</li>
+<li>No new external dependencies. Pure <code>gh</code> CLI.</li>
+</ul>
+<h4>Acceptance Criteria</h4>
+<ul>
+<li>[ ] <code>src/defaults/scripts/pr.sh</code> contains a <code>gh api -X DELETE repos/.../git/refs/heads/...</code> invocation reachable only on the fallback merge success branch.</li>
+<li>[ ] Owner/repo resolution uses <code>gh repo view --json nameWithOwner</code> (or equivalent <code>gh</code> call) — not hardcoded, not parsed from <code>git remote</code>.</li>
+<li>[ ] Fallback merge failure path is unchanged: stderr diagnostics + exit 1.</li>
+<li>[ ] Ref-deletion failure logs a <code>pr.sh:</code> warning to stderr and still exits 0 with <code>${pr_url}</code> on stdout.</li>
+<li>[ ] New regression tests in <code>tests/defaults/</code> assert: (a) the DELETE call exists, (b) it references <code>git/refs/heads/</code>, (c) it is positioned after the fallback merge and gated on its success, (d) the warn-and-continue pattern on deletion failure.</li>
+<li>[ ] All existing tests in <code>tests/defaults/pr-auto-merge-fallback.test.ts</code> still pass (regression guard for the prior cycle&#39;s behavior).</li>
+<li>[ ] <code>npm test</code> green across the full suite.</li>
+<li>[ ] No new compiler/linter warnings.</li>
+<li>[ ] Byte-equality between <code>src/defaults/scripts/pr.sh</code> and any deployed copy under <code>dist/</code> is restored after the build step (matches Cycle 0005/0006 convention).</li>
+</ul>
+<h4>Testing Strategy</h4>
+<ul>
+<li><strong>Framework.</strong> Node&#39;s built-in <code>node:test</code> + <code>node:assert/strict</code> — matches existing <code>tests/defaults/*.test.ts</code> style.</li>
+<li><strong>Static-shape tests</strong> (consistent with current <code>pr-auto-merge-fallback.test.ts</code> approach — these scripts run inside <code>gh</code> so live integration is infeasible in CI):</li>
+</ul>
+<p>  - Assert presence and shape of the <code>gh api -X DELETE repos/.../git/refs/heads/...</code> call.   - Assert the DELETE call appears textually <strong>after</strong> the fallback <code>gh pr merge</code> invocation.   - Assert the DELETE call is conditioned on <code>fallback_rc -eq 0</code> (or equivalent control flow) so a failed fallback merge cannot trigger ref deletion.   - Assert a <code>pr.sh:</code>-prefixed warning string exists for ref-deletion failures and that the deletion failure path still echoes <code>${pr_url}</code> (success-with-warning contract).</p>
+<ul>
+<li><strong>Regression coverage.</strong> Re-run the existing 7 assertions in <code>pr-auto-merge-fallback.test.ts</code> to guarantee Cycle 0006&#39;s contract is intact.</li>
+</ul>
+<h4>Documentation Updates</h4>
+<ul>
+<li><strong>CLAUDE.md / AGENTS.md</strong>: no behavior contract change for callers; skip unless a doc currently lists <code>pr.sh</code> post-conditions explicitly. If <code>CLAUDE.md</code> enumerates which side effects <code>pr.sh</code> performs, add &quot;deletes remote feature branch after fallback merge&quot; to that list.</li>
+<li><strong>README.md</strong>: surface a one-line note under any &quot;merge behavior&quot; or &quot;auto-merge fallback&quot; section that the fallback path now performs explicit ref cleanup so branch lists stay clean on repos with auto-merge disabled. If no such section exists, skip — this is an internal correctness fix.</li>
+<li><strong>DOGFOOD.md (if present)</strong>: tick off the orphaned-branch sharp edge once the change merges, mirroring how Cycle 0005/0006 resolutions were recorded.</li>
+</ul>
+<p>Documentation is part of &quot;done&quot; — code without updated docs is incomplete.</p>
+<h4>Dependencies</h4>
+<ul>
+<li>Existing <code>pr.sh</code> infrastructure from Cycle 0006 (auto-merge fallback path) — already on <code>master</code>.</li>
+<li><code>gh</code> CLI with <code>api</code> subcommand and repo read scope (already required for <code>gh pr create</code>/<code>merge</code>).</li>
+<li><code>git</code> for <code>${branch}</code> resolution (already used).</li>
+<li>No new env vars; <code>gh</code> auth context already required by every other call in this script.</li>
+</ul></div>
 </section>
 
 <section>
-  <h2>Files changed</h2>
-  <pre class="stat">.cycle/scripts/pr.sh                               |   9 +
- .../BUILD.md                                       |   3 +
- .../FIX.md                                         |   3 +
- .../PLAN.md                                        | 196 +++++++++++++++++++++
- .../RESEARCH.md                                    |  59 +++++++
- .../REVIEW.md                                      |  46 +++++
- .../SPEC.md                                        |  59 +++++++
- ...616-pr-sh-after-immediate-merge-fallback-suc.md |   9 +
- ...624-engine-after-cycle-end-ok-or-failed-chec.md |   9 +
- ...632-commit-sh-pr-sh-include-closes-n-linkage.md |   9 +
- src/defaults/scripts/pr.sh                         |   9 +
- tests/defaults/pr-auto-merge-fallback.test.ts      |  50 ++++++
- 12 files changed, 461 insertions(+)</pre>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">.cycle/scripts/pr.sh                          |  9 +++++
+ src/defaults/scripts/pr.sh                    |  9 +++++
+ tests/defaults/pr-auto-merge-fallback.test.ts | 50 +++++++++++++++++++++++++++
+ 3 files changed, 68 insertions(+)</pre>
 </section>
 
 <section>
   <h2>Diff</h2>
-  <pre class="diff"><span class="fileheader">diff --git a/.cycle/scripts/pr.sh b/.cycle/scripts/pr.sh</span>
-<span class="fileheader">index e47c679..3f2253a 100755</span>
-<span class="meta">--- a/.cycle/scripts/pr.sh</span>
-<span class="meta">+++ b/.cycle/scripts/pr.sh</span>
-<span class="hunk">@@ -41,6 +41,15 @@ case &quot;${err}&quot; in</span>
-<span class="ctx">     fallback_rc=0</span>
-<span class="ctx">     gh pr merge &quot;${pr_number}&quot; --squash --delete-branch || fallback_rc=$?</span>
-<span class="ctx">     if [ &quot;${fallback_rc}&quot; -eq 0 ]; then</span>
-<span class="add">+      # gh pr merge --delete-branch is a no-op on the synchronous merge path</span>
-<span class="add">+      # (it only fires when GitHub schedules an async auto-merge). Delete the</span>
-<span class="add">+      # remote ref explicitly so cycle/feature/* branches don&#39;t pile up.</span>
-<span class="add">+      repo_slug=$(gh repo view --json nameWithOwner -q .nameWithOwner)</span>
-<span class="add">+      delete_rc=0</span>
-<span class="add">+      gh api -X DELETE &quot;repos/${repo_slug}/git/refs/heads/${branch}&quot; &gt;/dev/null 2&gt;&amp;1 || delete_rc=$?</span>
-<span class="add">+      if [ &quot;${delete_rc}&quot; -ne 0 ]; then</span>
-<span class="add">+        echo &quot;pr.sh: failed to delete remote branch ${branch} (exit ${delete_rc}); merge succeeded, continuing&quot; &gt;&amp;2</span>
-<span class="add">+      fi</span>
-<span class="ctx">       echo &quot;${pr_url}&quot;</span>
-<span class="ctx">       exit 0</span>
-<span class="ctx">     fi</span>
-<span class="fileheader">diff --git a/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/BUILD.md b/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/BUILD.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..f3e99ee</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/BUILD.md</span>
-<span class="hunk">@@ -0,0 +1,3 @@</span>
-<span class="add">+Implementation complete. Output build summary:</span>
-<span class="add">+</span>
-<span class="add">+Modified `src/defaults/scripts/pr.sh` (+10 lines, fallback success block lines 41–53 now resolve `repo_slug` via `gh repo view --json nameWithOwner -q .nameWithOwner`, invoke `gh api -X DELETE &quot;repos/${repo_slug}/git/refs/heads/${branch}&quot; &gt;/dev/null 2&gt;&amp;1 || delete_rc=$?`, and warn-and-continue with `pr.sh: failed to delete remote branch ${branch} (exit ${delete_rc}); merge succeeded, continuing` to stderr on non-zero delete_rc before echoing `${pr_url}` and exiting 0). Modified `tests/defaults/pr-auto-merge-fallback.test.ts` (+50 lines, 4 new static-shape assertions: DELETE call presence with `git/refs/heads/${branch}`, positional ordering after fallback `gh pr merge`, gating inside `if [ &quot;${fallback_rc}&quot; -eq 0 ]; then ... echo &quot;${pr_url}&quot;`, and warn-and-continue contract verifying the `pr.sh: failed to delete remote branch` warning lives in the fallback success block). Regenerated `dist/defaults/scripts/pr.sh` via `npm run build` and refreshed `.cycle/scripts/pr.sh` via `npm run sync-defaults`; `diff` confirms byte-equality across all three copies. PLAN.md Tasks 1, 2, and 3 are all complete. Ran `npm test`: 54 tests pass, 0 fail, 0 skipped (was 50 — +4 new assertions; all 7 prior Cycle 0006 fallback assertions still green). No deviations from PLAN.md: chose the inlined `gh repo view` inside the fallback success block (zero extra `gh` calls on the happy auto-merge path), kept the `|| delete_rc=$?` idiom mirroring the existing `fallback_rc` pattern, and did not URL-encode `/` in the ref path (GitHub&#39;s git refs API accepts unencoded slashes as path segments). No deferred work — DOGFOOD.md does not exist in the repo so no tickbox to update, and CLAUDE.md/AGENTS.md/README.md do not enumerate `pr.sh` side-effects so no doc surface needed changes (consistent with PLAN.md &quot;skip unless …&quot; guidance). `git status` shows the expected modifications only: `src/defaults/scripts/pr.sh`, `.cycle/scripts/pr.sh`, `tests/defaults/pr-auto-merge-fallback.test.ts`, plus the cycle&#39;s own docs directory and the three queued tbd issue files; `dist/defaults/scripts/pr.sh` is gitignored so the regenerated byte-equal copy correctly does not appear in status.</span>
-<span class="fileheader">diff --git a/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/FIX.md b/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/FIX.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..ad76cba</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/FIX.md</span>
-<span class="hunk">@@ -0,0 +1,3 @@</span>
-<span class="add">+All 54 tests pass. No MUST-FIX.md present — review concluded PASS clean.</span>
-<span class="add">+</span>
-<span class="add">+**No fixes required.** Review step verdict: spec-compliant, byte-equal across `src/`/`dist/`/`.cycle/`, 54/54 tests green. Cycle 0007 build artifact stands as-is. Fix step ran due to engine not honoring `skip_unless: MUST-FIX.md` gate, but nothing to address.</span>
-<span class="fileheader">diff --git a/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/PLAN.md b/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/PLAN.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..a1a4593</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/PLAN.md</span>
-<span class="hunk">@@ -0,0 +1,196 @@</span>
-<span class="add">+```markdown</span>
-<span class="add">+# Implementation Plan: Cycle 0007</span>
-<span class="add">+</span>
-<span class="add">+## Overview</span>
-<span class="add">+Add explicit remote-ref deletion to `pr.sh` after the synchronous fallback merge succeeds, so feature branches don&#39;t orphan on auto-merge-disabled repos. Cover the change with static-shape regression tests in the existing fallback test file.</span>
-<span class="add">+</span>
-<span class="add">+## Current State (from Research)</span>
-<span class="add">+- `src/defaults/scripts/pr.sh:42` issues `gh pr merge ... --squash --delete-branch` in the fallback block; the `--delete-branch` flag is silently ignored when GitHub does **not** schedule the merge (synchronous path), leaving `origin/cycle/&lt;workflow&gt;/&lt;slug&gt;` orphaned.</span>
-<span class="add">+- Fallback success block at `src/defaults/scripts/pr.sh:43-46` is the right insertion point — after the merge, before `echo &quot;${pr_url}&quot;; exit 0`.</span>
-<span class="add">+- `${branch}` is already in scope (`src/defaults/scripts/pr.sh:10`); owner/repo will be resolved via `gh repo view --json nameWithOwner -q .nameWithOwner`.</span>
-<span class="add">+- Tests are static-shape regex assertions on the file contents (`tests/defaults/pr-auto-merge-fallback.test.ts:1-59`). Scripts run inside `gh` so live integration is infeasible.</span>
-<span class="add">+- Build pipeline (`scripts/build.mjs:29-31`) copies `src/defaults` → `dist/defaults` recursively, restoring byte-equality after each edit.</span>
-<span class="add">+- Test runner: `node:test` + `node:assert/strict` via `node --test --experimental-strip-types`. No mocking.</span>
-<span class="add">+</span>
-<span class="add">+## Desired End State</span>
-<span class="add">+- `src/defaults/scripts/pr.sh` fallback success branch resolves owner/repo, deletes `git/refs/heads/${branch}` via `gh api`, and continues to `echo &quot;${pr_url}&quot;; exit 0` whether or not deletion succeeds.</span>
-<span class="add">+- Deletion failure emits a `pr.sh:`-prefixed stderr warning but does not change exit code or stdout.</span>
-<span class="add">+- 4 new assertions in `tests/defaults/pr-auto-merge-fallback.test.ts` lock in: DELETE presence, ref path shape, ordering after fallback merge, gating on `fallback_rc -eq 0`, warn-and-continue contract.</span>
-<span class="add">+- `npm test` green; `npm run build` regenerates `dist/defaults/scripts/pr.sh` byte-identical to source.</span>
-<span class="add">+</span>
-<span class="add">+Verification:</span>
-<span class="add">+- `grep -c &#39;gh api -X DELETE&#39; src/defaults/scripts/pr.sh` → 1.</span>
-<span class="add">+- `diff src/defaults/scripts/pr.sh dist/defaults/scripts/pr.sh` → empty after build.</span>
-<span class="add">+- `npm test` → all tests pass, including the 7 prior fallback assertions plus the new 4.</span>
-<span class="add">+</span>
-<span class="add">+## What We&#39;re NOT Doing</span>
-<span class="add">+- No change to the auto-merge poll happy path. `--delete-branch` continues to handle that.</span>
-<span class="add">+- No refactor of `pr.sh` structure outside the fallback success block.</span>
-<span class="add">+- No engine-side cleanup of local feature branches after `cycle.end` (separate sharp-edge issue, separately queued).</span>
-<span class="add">+- No retroactive cleanup of already-orphaned remote branches on the `cycle` repo (operator concern).</span>
-<span class="add">+- No new test file — the existing `pr-auto-merge-fallback.test.ts` already scopes &quot;fallback semantics&quot; and the new assertions belong with the other 7.</span>
-<span class="add">+- No URL-encoding of `/` in the ref path. GitHub&#39;s git refs API accepts unencoded slashes (each `/` is a real path segment).</span>
-<span class="add">+- No DOGFOOD.md update — file does not exist in repo root.</span>
-<span class="add">+</span>
-<span class="add">+## Implementation Approach</span>
-<span class="add">+Single vertical slice. The change surface is ~6 lines of bash in `pr.sh` and ~4 new `test()` blocks. TDD order: write failing test assertions first, then implement the bash change, then run `npm run build` and the sync helper to propagate to `dist/` and `.cycle/`.</span>
-<span class="add">+</span>
-<span class="add">+Owner/repo resolution is inlined **inside** the fallback success block (not hoisted to script top) so the happy auto-merge path pays zero extra `gh` calls. The `gh api -X DELETE` follows the existing `rc`/`fallback_rc` idiom: assign `delete_rc=0`, then `|| delete_rc=$?`. Branch with `/` characters is fed un-encoded.</span>
-<span class="add">+</span>
-<span class="add">+---</span>
-<span class="add">+</span>
-<span class="add">+## Task 1: Add failing regression tests for ref deletion</span>
-<span class="add">+</span>
-<span class="add">+### Overview</span>
-<span class="add">+Extend `tests/defaults/pr-auto-merge-fallback.test.ts` with 4 new assertions covering the new behavior. Tests fail before implementation (red).</span>
-<span class="add">+</span>
-<span class="add">+### Changes Required</span>
-<span class="add">+**File**: `tests/defaults/pr-auto-merge-fallback.test.ts`</span>
-<span class="add">+**Changes**: Append the following tests after the existing `test(&quot;pr.sh: fallback exit code captured ...&quot;)` block.</span>
-<span class="add">+</span>
-<span class="add">+```typescript</span>
-<span class="add">+test(&quot;pr.sh: deletes orphaned remote ref after successful fallback merge&quot;, () =&gt; {</span>
-<span class="add">+  const src = readFileSync(PR_SH, &quot;utf8&quot;);</span>
-<span class="add">+  assert.match(</span>
-<span class="add">+    src,</span>
-<span class="add">+    /gh api -X DELETE &quot;?repos\/[^\s&quot;]*\/git\/refs\/heads\/\$\{branch\}&quot;?/,</span>
-<span class="add">+    &quot;pr.sh must issue an explicit DELETE to git/refs/heads/${branch} after fallback merge&quot;,</span>
-<span class="add">+  );</span>
-<span class="add">+});</span>
-<span class="add">+</span>
-<span class="add">+test(&quot;pr.sh: ref deletion call is positioned after the fallback gh pr merge&quot;, () =&gt; {</span>
-<span class="add">+  const src = readFileSync(PR_SH, &quot;utf8&quot;);</span>
-<span class="add">+  const mergeIdx = src.search(/gh pr merge &quot;\$\{pr_number\}&quot; --squash --delete-branch/);</span>
-<span class="add">+  const deleteIdx = src.search(/gh api -X DELETE &quot;?repos\/[^\s&quot;]*\/git\/refs\/heads\//);</span>
-<span class="add">+  assert.ok(mergeIdx &gt;= 0, &quot;fallback merge call missing&quot;);</span>
-<span class="add">+  assert.ok(deleteIdx &gt;= 0, &quot;ref delete call missing&quot;);</span>
-<span class="add">+  assert.ok(</span>
-<span class="add">+    deleteIdx &gt; mergeIdx,</span>
-<span class="add">+    `ref delete (${deleteIdx}) must appear after fallback merge (${mergeIdx})`,</span>
-<span class="add">+  );</span>
-<span class="add">+});</span>
-<span class="add">+</span>
-<span class="add">+test(&quot;pr.sh: ref deletion gated on fallback merge success (fallback_rc -eq 0)&quot;, () =&gt; {</span>
-<span class="add">+  const src = readFileSync(PR_SH, &quot;utf8&quot;);</span>
-<span class="add">+  const gateRegex =</span>
-<span class="add">+    /if \[ &quot;\$\{fallback_rc\}&quot; -eq 0 \];\s*then[\s\S]*?gh api -X DELETE[\s\S]*?echo &quot;\$\{pr_url\}&quot;/;</span>
-<span class="add">+  assert.match(</span>
-<span class="add">+    src,</span>
-<span class="add">+    gateRegex,</span>
-<span class="add">+    &quot;DELETE must live inside the fallback success branch, before echo ${pr_url}&quot;,</span>
-<span class="add">+  );</span>
-<span class="add">+});</span>
-<span class="add">+</span>
-<span class="add">+test(&quot;pr.sh: ref deletion failure warns to stderr with pr.sh: prefix and still exits 0&quot;, () =&gt; {</span>
-<span class="add">+  const src = readFileSync(PR_SH, &quot;utf8&quot;);</span>
-<span class="add">+  assert.match(</span>
-<span class="add">+    src,</span>
-<span class="add">+    /pr\.sh: failed to delete remote branch/,</span>
-<span class="add">+    &quot;ref-deletion failure must emit a pr.sh:-prefixed warning&quot;,</span>
-<span class="add">+  );</span>
-<span class="add">+  // The warn-and-continue contract: warning must be in the success block where echo ${pr_url} still runs.</span>
-<span class="add">+  const successBlock = src.match(</span>
-<span class="add">+    /if \[ &quot;\$\{fallback_rc\}&quot; -eq 0 \];\s*then[\s\S]*?echo &quot;\$\{pr_url\}&quot;\s*\n\s*exit 0/,</span>
-<span class="add">+  );</span>
-<span class="add">+  assert.ok(successBlock, &quot;fallback success block not found&quot;);</span>
-<span class="add">+  assert.match(</span>
-<span class="add">+    successBlock[0],</span>
-<span class="add">+    /pr\.sh: failed to delete remote branch/,</span>
-<span class="add">+    &quot;ref-deletion warning must live inside the fallback success block (before echo ${pr_url}; exit 0)&quot;,</span>
-<span class="add">+  );</span>
-<span class="add">+});</span>
-<span class="add">+```</span>
-<span class="add">+</span>
-<span class="add">+### Success Criteria</span>
-<span class="add">+- [ ] `npm test` shows 4 new failing assertions in `pr-auto-merge-fallback.test.ts`.</span>
-<span class="add">+- [ ] Existing 7 assertions still pass.</span>
-<span class="add">+- [ ] TS strips and runs under `node --test --experimental-strip-types` without syntax errors.</span>
-<span class="add">+</span>
-<span class="add">+---</span>
-<span class="add">+</span>
-<span class="add">+## Task 2: Implement ref deletion in pr.sh fallback success block</span>
-<span class="add">+</span>
-<span class="add">+### Overview</span>
-<span class="add">+Edit `src/defaults/scripts/pr.sh` so the fallback success branch resolves owner/repo, deletes the remote ref, and falls through to `echo &quot;${pr_url}&quot;; exit 0` regardless of deletion outcome. New tests turn green; old tests stay green.</span>
-<span class="add">+</span>
-<span class="add">+### Changes Required</span>
-<span class="add">+**File**: `src/defaults/scripts/pr.sh`</span>
-<span class="add">+**Changes**: Replace the fallback success block at lines 41–46 (the `*enablePullRequestAutoMerge*|...` case arm body up to the success `echo &quot;${pr_url}&quot;; exit 0`) with:</span>
-<span class="add">+</span>
-<span class="add">+```bash</span>
-<span class="add">+    fallback_rc=0</span>
-<span class="add">+    gh pr merge &quot;${pr_number}&quot; --squash --delete-branch || fallback_rc=$?</span>
-<span class="add">+    if [ &quot;${fallback_rc}&quot; -eq 0 ]; then</span>
-<span class="add">+      # gh pr merge --delete-branch is a no-op on the synchronous merge path</span>
-<span class="add">+      # (it only fires when GitHub schedules an async auto-merge). Delete the</span>
-<span class="add">+      # remote ref explicitly so cycle/feature/* branches don&#39;t pile up.</span>
-<span class="add">+      repo_slug=$(gh repo view --json nameWithOwner -q .nameWithOwner)</span>
-<span class="add">+      delete_rc=0</span>
-<span class="add">+      gh api -X DELETE &quot;repos/${repo_slug}/git/refs/heads/${branch}&quot; &gt;/dev/null 2&gt;&amp;1 || delete_rc=$?</span>
-<span class="add">+      if [ &quot;${delete_rc}&quot; -ne 0 ]; then</span>
-<span class="add">+        echo &quot;pr.sh: failed to delete remote branch ${branch} (exit ${delete_rc}); merge succeeded, continuing&quot; &gt;&amp;2</span>
-<span class="add">+      fi</span>
-<span class="add">+      echo &quot;${pr_url}&quot;</span>
-<span class="add">+      exit 0</span>
-<span class="add">+    fi</span>
-<span class="add">+```</span>
-<span class="add">+</span>
-<span class="add">+Leave lines 47–49 (failure-path stderr) and the rest of the script unchanged.</span>
-<span class="add">+</span>
-<span class="add">+### Success Criteria</span>
-<span class="add">+- [ ] `npm test` green across all 11 assertions in `pr-auto-merge-fallback.test.ts` and all other test files.</span>
-<span class="add">+- [ ] `shellcheck src/defaults/scripts/pr.sh` (if available) produces no new warnings; manual review confirms `set -euo pipefail` compatibility (every potentially-failing command is `|| rc=$?`-guarded or wrapped in an `if`).</span>
-<span class="add">+- [ ] The fallback failure path (`fallback_rc != 0`) still emits both pre-existing `pr.sh:` stderr lines and exits 1 — verified by inspection (no edits to lines 47–49).</span>
-<span class="add">+- [ ] Happy auto-merge path is byte-identical above line 35 — `git diff src/defaults/scripts/pr.sh` shows changes only within the fallback case arm body.</span>
-<span class="add">+</span>
-<span class="add">+---</span>
-<span class="add">+</span>
-<span class="add">+## Task 3: Rebuild dist and sync dogfooded scripts</span>
-<span class="add">+</span>
-<span class="add">+### Overview</span>
-<span class="add">+Regenerate `dist/defaults/scripts/pr.sh` so it is byte-identical to `src/defaults/scripts/pr.sh`, and refresh the in-repo dogfooded copy at `.cycle/scripts/pr.sh`. Cycle 0005/0006 convention.</span>
-<span class="add">+</span>
-<span class="add">+### Changes Required</span>
-<span class="add">+Run, in order:</span>
-<span class="add">+</span>
-<span class="add">+```bash</span>
-<span class="add">+npm run build</span>
-<span class="add">+npm run sync-defaults</span>
-<span class="add">+```</span>
-<span class="add">+</span>
-<span class="add">+Then verify:</span>
-<span class="add">+</span>
-<span class="add">+```bash</span>
-<span class="add">+diff src/defaults/scripts/pr.sh dist/defaults/scripts/pr.sh</span>
-<span class="add">+diff src/defaults/scripts/pr.sh .cycle/scripts/pr.sh</span>
-<span class="add">+```</span>
-<span class="add">+</span>
-<span class="add">+Both diffs must be empty.</span>
-<span class="add">+</span>
-<span class="add">+### Success Criteria</span>
-<span class="add">+- [ ] `diff` of source vs `dist/` empty.</span>
-<span class="add">+- [ ] `diff` of source vs `.cycle/scripts/` empty.</span>
-<span class="add">+- [ ] `git status` shows modifications to `src/defaults/scripts/pr.sh`, `dist/defaults/scripts/pr.sh`, `.cycle/scripts/pr.sh`, and `tests/defaults/pr-auto-merge-fallback.test.ts` only (plus the cycle docs).</span>
-<span class="add">+- [ ] Selective-staging denylist in `commit.sh` does not reject any of these paths (none live under `dist/foo.js` style residuals — `dist/defaults/scripts/pr.sh` is an expected built artifact already tracked).</span>
-<span class="add">+</span>
-<span class="add">+---</span>
-<span class="add">+</span>
-<span class="add">+## Testing Strategy</span>
-<span class="add">+</span>
-<span class="add">+### Unit Tests</span>
-<span class="add">+- 4 new static-shape assertions cover: (a) DELETE call presence with `git/refs/heads/${branch}` ref shape, (b) textual ordering after fallback merge, (c) gating inside `if [ &quot;${fallback_rc}&quot; -eq 0 ]; then ... fi` and before `echo &quot;${pr_url}&quot;`, (d) `pr.sh:`-prefixed warning living inside the success block.</span>
-<span class="add">+- Edge cases captured by regex shape: ordering is enforced positionally (not just presence), gating is enforced by requiring DELETE between the `if fallback_rc -eq 0` line and the `echo ${pr_url}` line.</span>
-<span class="add">+- No mocking — scripts are asserted as text. This matches the codebase convention (Cycle 0005/0006).</span>
-<span class="add">+</span>
-<span class="add">+### Integration / E2E Tests</span>
-<span class="add">+- Live `gh pr merge` against a real GitHub repo is infeasible in CI; static-shape coverage is the contract.</span>
-<span class="add">+- Dogfooding step is the integration test: the next cycle to merge will exercise the new code path against `timothyjoh/cycle` (auto-merge is enabled on that repo, so the fallback path won&#39;t fire on the default; however cycle 0007&#39;s own PR — if `gh pr merge --auto` is rejected due to a transient state — will exercise the new DELETE).</span>
-<span class="add">+- Manual smoke check (optional, run by operator after merge): on a repo with auto-merge disabled, run a no-op cycle and confirm `gh api repos/&lt;owner&gt;/&lt;repo&gt;/git/refs/heads/cycle/feature/&lt;slug&gt;` returns 404 after the PR merges.</span>
-<span class="add">+</span>
-<span class="add">+## Risk Assessment</span>
-<span class="add">+- **`gh api -X DELETE` against a branch already deleted (race with another tool)**: returns 422 / non-zero. Mitigation: `|| delete_rc=$?` swallows the exit code and the warn-and-continue branch logs and continues to `echo &quot;${pr_url}&quot;; exit 0`. Cycle does not fail.</span>
-<span class="add">+- **`gh repo view --json nameWithOwner` fails (network / auth)**: would propagate under `set -e` and kill the script before DELETE. The merge already succeeded at that point, so this would leave the orphaned branch *and* exit the cycle as failed. Mitigation: assign with `|| repo_slug=&quot;&quot;` pattern, then guard the DELETE with `if [ -n &quot;${repo_slug}&quot; ]`. **Decision**: keep simple unconditional assignment — `gh repo view` is read-only and runs against an already-verified auth context (every prior `gh pr` call in the script succeeded). Adding a guard adds complexity for a failure mode that should not exist in practice.</span>
-<span class="add">+- **Branch name containing characters that `gh api` rejects**: cycle branches are `cycle/&lt;workflow&gt;/&lt;kebab-slug&gt;` — only `/`, `-`, alphanumerics. `/` is a valid path segment in `git/refs/heads/`. No risk.</span>
-<span class="add">+- **Drift between `src/defaults/scripts/pr.sh` and `dist/defaults/scripts/pr.sh`**: prevented by Task 3 — `npm run build` regenerates `dist/` from `src/` recursively.</span>
-<span class="add">+- **Future change to the fallback success block invalidating the positional regex**: the test for &quot;DELETE between `if fallback_rc -eq 0` and `echo ${pr_url}`&quot; is robust to inner reformatting but would break if someone removes the gating `if`. That break is desired — it would mean the contract is broken.</span>
-<span class="add">+```</span>
-<span class="fileheader">diff --git a/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/RESEARCH.md b/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/RESEARCH.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..1e1bd36</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/RESEARCH.md</span>
-<span class="hunk">@@ -0,0 +1,59 @@</span>
-<span class="add">+Have enough. Output research doc.</span>
-<span class="add">+</span>
-<span class="add">+# Research: Cycle 0007</span>
-<span class="add">+</span>
-<span class="add">+## Cycle Context</span>
-<span class="add">+Cycle 0007 fixes a remote-branch-orphaning bug in `pr.sh`: when GitHub auto-merge is disabled and the script falls through to the synchronous `gh pr merge --squash --delete-branch` fallback, `--delete-branch` is silently ignored (it only takes effect when GitHub itself performs the merge via the auto-merge queue). The fix is to add an explicit `gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/&lt;branch&gt;` invocation after a successful fallback merge, with the owner/repo resolved at runtime via `gh repo view --json nameWithOwner -q .nameWithOwner`. A failed ref-deletion must warn (`pr.sh:`-prefixed stderr) but still print `${pr_url}` and exit 0 — orphan refs are janitorial, not a quality gate. Static-shape tests must lock in: presence of the DELETE call, textual ordering after the fallback `gh pr merge`, gating on `fallback_rc -eq 0`, and the warn-and-continue contract.</span>
-<span class="add">+</span>
-<span class="add">+## Current Codebase State</span>
-<span class="add">+</span>
-<span class="add">+### Relevant Components</span>
-<span class="add">+- `pr.sh` source (this cycle&#39;s edit target): `src/defaults/scripts/pr.sh:1-56`</span>
-<span class="add">+  - Push + create PR: `src/defaults/scripts/pr.sh:10-14`</span>
-<span class="add">+  - Auto-merge first attempt + stderr capture via `|| rc=$?`: `src/defaults/scripts/pr.sh:18-19`</span>
-<span class="add">+  - Auto-merge success → 30-min poll loop (1800s deadline) → echo `${pr_url}` / timeout: `src/defaults/scripts/pr.sh:21-34`</span>
-<span class="add">+  - Error-classification `case` (`enablePullRequestAutoMerge` GraphQL token + `Auto merge is not allowed for this repository` human text): `src/defaults/scripts/pr.sh:39-40,51-54`</span>
-<span class="add">+  - Fallback merge block — current `--delete-branch` flag (no-op on synchronous path), `fallback_rc=0` then `|| fallback_rc=$?`, success echoes `${pr_url}`, failure prints 2× `pr.sh:` stderr: `src/defaults/scripts/pr.sh:41-50`</span>
-<span class="add">+- Built/shipped copy (must stay byte-equal after `npm run build`): `dist/defaults/scripts/pr.sh:1-56` (identical to source today)</span>
-<span class="add">+- Build pipeline that produces `dist/defaults/scripts/pr.sh`: `scripts/build.mjs:29-31` (`cp(&quot;src/defaults&quot;, &quot;dist/defaults&quot;, { recursive: true })`)</span>
-<span class="add">+- Dogfood sync helper for `.cycle/scripts/` in this repo: `scripts/sync-defaults.mjs:11-15`</span>
-<span class="add">+</span>
-<span class="add">+### Existing Patterns to Follow</span>
-<span class="add">+- **Static-shape testing of bash scripts** — read the file with `readFileSync`, assert regex shapes; the scripts run inside `gh`/CI so live exec is infeasible. Reference file: `tests/defaults/pr-auto-merge-fallback.test.ts:1-59` (7 assertions: `--squash --auto`, both error tokens, fallback `--squash --delete-branch`, ≥2 `${pr_url}` echoes, 1800s deadline, ≥2 `pr.sh:` prefixes, `|| fallback_rc=$?` idiom).</span>
-<span class="add">+- **`pr.sh:`-prefixed stderr diagnostics** — every script-originated warning uses `pr.sh: &lt;message&gt;` (see `src/defaults/scripts/pr.sh:32,47,48`). New ref-deletion warning must follow this prefix.</span>
-<span class="add">+- **Exit-code capture under `set -euo pipefail`** — assign `rc=0` then `|| rc=$?` to keep `set -e` from killing the script (`src/defaults/scripts/pr.sh:18-19,41-42`).</span>
-<span class="add">+- **Success-with-warning contract** — when a non-quality-gate side effect fails, emit `pr.sh:` warning and continue to `echo &quot;${pr_url}&quot;; exit 0`. No precedent yet; this cycle is the first to introduce it, but must match the existing `${pr_url}` echo shape used twice in success branches (`src/defaults/scripts/pr.sh:27,44`).</span>
-<span class="add">+- **Selective-staging denylist** in `commit.sh` ensures the source file is shipped via `src/defaults/`, not from `dist/` — `tests/defaults/commit-staging.test.ts:80-120` rejects `dist/foo.js` as an unstaged residual. The build step then regenerates `dist/defaults/scripts/pr.sh` byte-identically.</span>
-<span class="add">+- **TS test layout** — `node:test` + `node:assert/strict`, files end `.test.ts`, run with `node --test --experimental-strip-types`. Reference: `tests/defaults/pr-auto-merge-fallback.test.ts:1-8`, `package.json` `scripts.test`.</span>
-<span class="add">+</span>
-<span class="add">+### Dependencies &amp; Integration Points</span>
-<span class="add">+- `gh` CLI (already required) — adds: `gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/&lt;branch&gt;` and `gh repo view --json nameWithOwner -q .nameWithOwner`. Both use the existing auth context already required for `gh pr create`/`merge`.</span>
-<span class="add">+- `${branch}` variable — populated from `git rev-parse --abbrev-ref HEAD` at `src/defaults/scripts/pr.sh:10`, already in scope for the new DELETE call.</span>
-<span class="add">+- `${pr_url}` — set at `src/defaults/scripts/pr.sh:13`, echoed at the existing two success branches; new warn-and-continue path must echo it too.</span>
-<span class="add">+- Engine consumer of `pr.sh` stdout/exit: stdout is the merged PR URL, exit 0 = cycle-success, exit non-zero = cycle-fail. Cycle 0006 log shows `pr` step ran for ~7s (`b7bb043`), no engine-side parsing changes needed for orphan-ref cleanup since stdout shape is unchanged.</span>
-<span class="add">+- `dist/defaults/scripts/pr.sh` — regenerated by `scripts/build.mjs:29-31`. No manual edit; byte-equality recovered after `npm run build`.</span>
-<span class="add">+- Dogfooded copy at `.cycle/scripts/pr.sh` — refreshed by `npm run sync-defaults` per `scripts/sync-defaults.mjs:11-15`.</span>
-<span class="add">+</span>
-<span class="add">+### Test Infrastructure</span>
-<span class="add">+- Test framework: Node built-in `node:test` + `node:assert/strict`.</span>
-<span class="add">+- Test command: `npm test` → `node --test --experimental-strip-types --test-reporter=spec` (see `package.json`).</span>
-<span class="add">+- Test conventions: files live under `tests/defaults/*.test.ts`; resolve script paths relative to test file via `fileURLToPath(import.meta.url)` + `resolve(__dirname, &quot;../../src/defaults/scripts/&lt;name&gt;.sh&quot;)` (`tests/defaults/pr-auto-merge-fallback.test.ts:7-8`); each `test()` is independent and synchronous.</span>
-<span class="add">+- Mocking approach: none — scripts are read as text and asserted by regex. Filesystem-touching tests (e.g. `commit-staging.test.ts`) use `mkdtemp` + real `git init` rather than mocks.</span>
-<span class="add">+- Current coverage of the change area: `tests/defaults/pr-auto-merge-fallback.test.ts` has 7 assertions covering the existing fallback (added in Cycle 0006). None cover ref deletion yet — those are the new tests this cycle adds. `tests/defaults/scripts.test.ts:5-13` validates shebang + executable bit for `pr.sh` (passive regression guard).</span>
-<span class="add">+</span>
-<span class="add">+## Code References</span>
-<span class="add">+- `src/defaults/scripts/pr.sh:42` — current `gh pr merge &quot;${pr_number}&quot; --squash --delete-branch || fallback_rc=$?` (the `--delete-branch` flag that doesn&#39;t fire on synchronous merge; new explicit DELETE must run after this line, gated on `fallback_rc -eq 0`).</span>
-<span class="add">+- `src/defaults/scripts/pr.sh:43-46` — `if [ &quot;${fallback_rc}&quot; -eq 0 ]; then echo &quot;${pr_url}&quot;; exit 0; fi` — the success block where the new ref deletion belongs, before the `echo &quot;${pr_url}&quot;`.</span>
-<span class="add">+- `src/defaults/scripts/pr.sh:47-49` — fallback-failure stderr lines; the new ref-deletion warning must follow this `pr.sh:` prefix convention but live in the success path, not the failure path.</span>
-<span class="add">+- `src/defaults/scripts/pr.sh:10` — `branch=$(git rev-parse --abbrev-ref HEAD)`; `${branch}` is the value to feed into `git/refs/heads/&lt;branch&gt;`.</span>
-<span class="add">+- `tests/defaults/pr-auto-merge-fallback.test.ts:25-28` — fallback merge regex; new tests should assert the DELETE call appears *after* this regex&#39;s match position in the file source.</span>
-<span class="add">+- `tests/defaults/pr-auto-merge-fallback.test.ts:53-58` — `|| fallback_rc=$?` idiom assertion; SPEC requires the new DELETE to be gated on `fallback_rc -eq 0`, so a new test should regex `fallback_rc -eq 0` (or equivalent) wrapping the DELETE call.</span>
-<span class="add">+- `scripts/build.mjs:31` — `cp(&quot;src/defaults&quot;, &quot;dist/defaults&quot;, …)` — explains how `dist/defaults/scripts/pr.sh` becomes byte-equal to source after build (Acceptance Criterion #8).</span>
-<span class="add">+- `package.json:13-14` — `test` and `build` scripts referenced by the Acceptance Criteria.</span>
-<span class="add">+</span>
-<span class="add">+## Open Questions</span>
-<span class="add">+- Test-file placement: SPEC says &quot;`tests/defaults/pr-auto-merge-fallback.test.ts` (or a sibling test file)&quot;. The planner must decide whether to extend the existing 7-assertion file with the new DELETE assertions, or create `tests/defaults/pr-fallback-branch-cleanup.test.ts` (or similar) alongside. Both satisfy the SPEC literally; the conventional pattern in this repo is one feature-area per test file (see `commit-staging.test.ts` vs `scripts.test.ts`), which mildly favors a sibling file but the existing file&#39;s name already covers &quot;fallback&quot; semantics.</span>
-<span class="add">+- DELETE invocation shape: SPEC mandates `gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/&lt;branch&gt;` and `gh repo view --json nameWithOwner -q .nameWithOwner` for owner/repo resolution, but does not pin whether the owner/repo lookup happens at script top (alongside `branch=`) or inside the fallback success block just before the DELETE. Hoisting it earlier costs one `gh` call on every cycle (including the happy auto-merge path); inlining it inside the fallback success block costs nothing on the happy path. Planner must pick — the test-shape assertions don&#39;t care about position of `gh repo view`, only about position of the DELETE relative to the fallback `gh pr merge`.</span>
-<span class="add">+- Branch with slashes: cycle branches look like `cycle/feature/pr-sh-after-immediate-merge-fallback-suc` — `git/refs/heads/cycle/feature/...` is the correct ref path and `gh api` accepts it un-encoded. Planner should verify no URL encoding is required for `/` in ref names (it is not, per GitHub API), but should confirm before locking the regex test.</span>
-<span class="add">+- Stderr capture pattern for the new DELETE: SPEC requires warn-and-continue on failure. Whether to capture stderr (e.g. `delete_err=$(gh api ... 2&gt;&amp;1 1&gt;/dev/null) || delete_rc=$?` mirroring the existing `rc` idiom) or just suppress output (`gh api ... 2&gt;/dev/null || true; …`) is a planner call. The existing `|| fallback_rc=$?` pattern is the closest precedent.</span>
-<span class="add">+- DOGFOOD.md presence: SPEC mentions DOGFOOD.md &quot;if present&quot; — the planner should `ls` for it; not seen in this research scan (top-level listing shows `BRIEF.md`, `README.md`, `package.json`, no `DOGFOOD.md`).</span>
-<span class="fileheader">diff --git a/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/REVIEW.md b/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/REVIEW.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..d4172c3</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/REVIEW.md</span>
-<span class="hunk">@@ -0,0 +1,46 @@</span>
-<span class="add">+Review complete. Verdict: PASS. Output below.</span>
-<span class="add">+</span>
-<span class="add">+```markdown</span>
-<span class="add">+# Review: Cycle 0007</span>
-<span class="add">+</span>
-<span class="add">+## Overall Verdict</span>
-<span class="add">+PASS — no fixes needed. Implementation matches SPEC and PLAN line-for-line; all 54 tests green; byte-equality preserved across `src/`, `dist/`, and `.cycle/`. Two minor test-coverage gaps noted but do not block.</span>
-<span class="add">+</span>
-<span class="add">+## Code Quality Review</span>
-<span class="add">+</span>
-<span class="add">+### Summary</span>
-<span class="add">+Tight, surgical change. Six lines of bash inside the fallback success block, gated behind `fallback_rc -eq 0`, with `|| delete_rc=$?` mirroring the existing `fallback_rc` idiom. Warning is `pr.sh:`-prefixed to match prior diagnostics. Comment in `src/defaults/scripts/pr.sh:44-46` explains *why* (`gh pr merge --delete-branch` is a no-op on synchronous path) — non-obvious behavior worth keeping.</span>
-<span class="add">+</span>
-<span class="add">+### Findings</span>
-<span class="add">+1. **Error handling (minor)**: `repo_slug=$(gh repo view --json nameWithOwner -q .nameWithOwner)` at `src/defaults/scripts/pr.sh:47` is unguarded. Under `set -euo pipefail`, a transient `gh repo view` failure (network, auth flake) kills the script *after* the merge already succeeded — same orphan-branch outcome the cycle was meant to prevent, plus the cycle exits failed. PLAN.md explicitly considered and accepted this risk on grounds that prior `gh` calls in the script already validated auth. Reasonable trade-off; flagged for the record.</span>
-<span class="add">+2. **Comment scope (acceptable)**: lines 44-46 are a 3-line comment. Justified — explains an undocumented GitHub behavior. Stays.</span>
-<span class="add">+3. **No deviation from PLAN.md** — owner/repo resolution inlined inside the fallback block (zero overhead on happy auto-merge path), `&gt;/dev/null 2&gt;&amp;1` silences DELETE noise, unencoded `/` in ref path matches GitHub API.</span>
-<span class="add">+</span>
-<span class="add">+### Spec Compliance Checklist</span>
-<span class="add">+- [x] DELETE call reachable only on fallback merge success (`src/defaults/scripts/pr.sh:43-54`).</span>
-<span class="add">+- [x] Owner/repo resolved via `gh repo view --json nameWithOwner` (`src/defaults/scripts/pr.sh:47`).</span>
-<span class="add">+- [x] Fallback merge failure path unchanged (`src/defaults/scripts/pr.sh:56-58`).</span>
-<span class="add">+- [x] Ref-deletion failure logs `pr.sh:` warning to stderr and exits 0 with `${pr_url}` on stdout (`src/defaults/scripts/pr.sh:50-54`).</span>
-<span class="add">+- [x] Auto-merge happy path untouched (`src/defaults/scripts/pr.sh:21-34`).</span>
-<span class="add">+- [x] All 11 fallback-test assertions pass + full suite green (54/54).</span>
-<span class="add">+- [x] Byte-equality: `diff` empty across `src/` ↔ `dist/` ↔ `.cycle/`.</span>
-<span class="add">+- [x] No new compiler/linter warnings.</span>
-<span class="add">+- [x] Doc updates: SPEC permits skipping CLAUDE.md/AGENTS.md/README.md when no `pr.sh` post-conditions are enumerated; DOGFOOD.md absent. BUILD.md confirms no surface needed.</span>
-<span class="add">+</span>
-<span class="add">+## Adversarial Test Review</span>
-<span class="add">+</span>
-<span class="add">+### Summary</span>
-<span class="add">+Strong. Static-shape regex assertions are the correct contract for bash scripts that run inside `gh` (no viable live integration in CI). Four new assertions enforce presence, positional ordering, success-gating, and warn-and-continue. Regression guard for the prior 7 fallback assertions intact.</span>
-<span class="add">+</span>
-<span class="add">+### Findings</span>
-<span class="add">+1. **Spec-locked behavior NOT asserted (minor)**: SPEC §Requirements demands owner/repo resolution use `gh repo view --json nameWithOwner` — *not hardcoded, not parsed from git remote*. The DELETE-shape regex in `tests/defaults/pr-auto-merge-fallback.test.ts:65,73` (`repos/[^\s&quot;]*/git/refs/heads/`) accepts a hardcoded `repos/timothyjoh/cycle/...` substitution. If someone replaces the runtime resolution with a literal, all tests stay green. Contract drift would not be caught.</span>
-<span class="add">+2. **DELETE silencing NOT contract-locked**: `&gt;/dev/null 2&gt;&amp;1` exists in implementation but no test asserts it. Removing redirection would re-leak `gh api` stdout into the cycle log. Low-risk regression.</span>
-<span class="add">+3. **Auto-merge happy path negative case not asserted**: no test verifies the DELETE call does *not* live in the auto-merge poll block. The positional check only enforces &quot;after fallback merge&quot; — multiple DELETE calls (one stray in the happy path) would still pass.</span>
-<span class="add">+4. **Assertion quality strong**: regexes target specific tokens (`\${branch}`, `fallback_rc -eq 0`, `pr.sh: failed to delete remote branch`). The gateRegex (line 84) and successBlock match (line 100) are positional and semantic, not just keyword.</span>
-<span class="add">+</span>
-<span class="add">+### Test Coverage</span>
-<span class="add">+- 11/11 fallback-suite assertions green; 54/54 across full repo.</span>
-<span class="add">+- Missing scenarios (non-blocking, see findings 1-3 above): runtime owner/repo resolver enforcement, DELETE stdout silencing, single-occurrence positional bound.</span>
-<span class="add">+```</span>
-<span class="add">+</span>
-<span class="add">+No MUST-FIX.md written — gaps are minor adversarial coverage notes, not correctness or spec violations.</span>
-<span class="fileheader">diff --git a/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/SPEC.md b/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/SPEC.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..6711d28</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/0007-feature-pr-sh-after-immediate-merge-fallback-suc/SPEC.md</span>
-<span class="hunk">@@ -0,0 +1,59 @@</span>
-<span class="add">+# SPEC — Cycle 0007: pr.sh remote branch cleanup after fallback merge</span>
-<span class="add">+</span>
-<span class="add">+## Objective</span>
-<span class="add">+When `pr.sh`&#39;s auto-merge attempt fails and the synchronous immediate-merge fallback completes the squash merge, the remote feature branch (`origin/cycle/&lt;workflow&gt;/&lt;slug&gt;`) is left orphaned. `gh pr merge --delete-branch` only deletes the ref when GitHub itself performs the merge asynchronously via the auto-merge queue; on the synchronous fallback path the flag is silently ignored. This cycle adds an explicit ref deletion via `gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/&lt;branch&gt;` after a successful fallback merge, with regression tests, so the fallback path matches the cleanliness contract of the happy path.</span>
-<span class="add">+</span>
-<span class="add">+## Source Issue</span>
-<span class="add">+`txt-20260513-011616-pr-sh-after-immediate-merge-fallback-suc` — &quot;pr.sh: after immediate-merge fallback succeeds, delete the remote branch&quot;</span>
-<span class="add">+</span>
-<span class="add">+## Scope</span>
-<span class="add">+</span>
-<span class="add">+### In Scope</span>
-<span class="add">+- Add explicit remote branch deletion via `gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/&lt;branch&gt;` in `src/defaults/scripts/pr.sh`, executed only after the fallback merge returns exit 0.</span>
-<span class="add">+- Add static test coverage in `tests/defaults/pr-auto-merge-fallback.test.ts` (or a sibling test file) asserting the deletion call shape, ordering (after merge success), and stderr-prefixed warning on deletion failure.</span>
-<span class="add">+</span>
-<span class="add">+### Out of Scope</span>
-<span class="add">+- Changing the happy-path (auto-merge queue) behavior — `--delete-branch` continues to handle that case.</span>
-<span class="add">+- Cleaning up local branches (engine, not `pr.sh`, owns local branch state after `cycle.end`).</span>
-<span class="add">+- Backporting the deletion logic to historical orphaned remote branches (operator concern, separate cleanup).</span>
-<span class="add">+- Refactoring `pr.sh` structure beyond the fallback success block.</span>
-<span class="add">+</span>
-<span class="add">+## Requirements</span>
-<span class="add">+- The new `gh api -X DELETE` call MUST run **only** when the fallback merge (`gh pr merge ... --squash --delete-branch` in the fallback branch) succeeds — never on the auto-merge poll path, never on fallback failure.</span>
-<span class="add">+- The owner/repo pair MUST be resolved at runtime (e.g. via `gh repo view --json nameWithOwner -q .nameWithOwner`) so the script is repo-agnostic. The branch name comes from the existing `${branch}` variable.</span>
-<span class="add">+- A failed ref-deletion MUST NOT mark the cycle as failed: the merge already succeeded, so the script must emit a `pr.sh:`-prefixed warning to stderr, still print `${pr_url}` to stdout, and exit 0. Orphan ref is a janitorial concern, not a quality gate.</span>
-<span class="add">+- Existing behaviors preserved: 30-minute auto-merge poll, error-classification `case` (GraphQL token + human text), `fallback_rc` capture idiom, all current `pr.sh:` stderr prefixes.</span>
-<span class="add">+- No new external dependencies. Pure `gh` CLI.</span>
-<span class="add">+</span>
-<span class="add">+## Acceptance Criteria</span>
-<span class="add">+- [ ] `src/defaults/scripts/pr.sh` contains a `gh api -X DELETE repos/.../git/refs/heads/...` invocation reachable only on the fallback merge success branch.</span>
-<span class="add">+- [ ] Owner/repo resolution uses `gh repo view --json nameWithOwner` (or equivalent `gh` call) — not hardcoded, not parsed from `git remote`.</span>
-<span class="add">+- [ ] Fallback merge failure path is unchanged: stderr diagnostics + exit 1.</span>
-<span class="add">+- [ ] Ref-deletion failure logs a `pr.sh:` warning to stderr and still exits 0 with `${pr_url}` on stdout.</span>
-<span class="add">+- [ ] New regression tests in `tests/defaults/` assert: (a) the DELETE call exists, (b) it references `git/refs/heads/`, (c) it is positioned after the fallback merge and gated on its success, (d) the warn-and-continue pattern on deletion failure.</span>
-<span class="add">+- [ ] All existing tests in `tests/defaults/pr-auto-merge-fallback.test.ts` still pass (regression guard for the prior cycle&#39;s behavior).</span>
-<span class="add">+- [ ] `npm test` green across the full suite.</span>
-<span class="add">+- [ ] No new compiler/linter warnings.</span>
-<span class="add">+- [ ] Byte-equality between `src/defaults/scripts/pr.sh` and any deployed copy under `dist/` is restored after the build step (matches Cycle 0005/0006 convention).</span>
-<span class="add">+</span>
-<span class="add">+## Testing Strategy</span>
-<span class="add">+- **Framework.** Node&#39;s built-in `node:test` + `node:assert/strict` — matches existing `tests/defaults/*.test.ts` style.</span>
-<span class="add">+- **Static-shape tests** (consistent with current `pr-auto-merge-fallback.test.ts` approach — these scripts run inside `gh` so live integration is infeasible in CI):</span>
-<span class="add">+  - Assert presence and shape of the `gh api -X DELETE repos/.../git/refs/heads/...` call.</span>
-<span class="add">+  - Assert the DELETE call appears textually **after** the fallback `gh pr merge` invocation.</span>
-<span class="add">+  - Assert the DELETE call is conditioned on `fallback_rc -eq 0` (or equivalent control flow) so a failed fallback merge cannot trigger ref deletion.</span>
-<span class="add">+  - Assert a `pr.sh:`-prefixed warning string exists for ref-deletion failures and that the deletion failure path still echoes `${pr_url}` (success-with-warning contract).</span>
-<span class="add">+- **Regression coverage.** Re-run the existing 7 assertions in `pr-auto-merge-fallback.test.ts` to guarantee Cycle 0006&#39;s contract is intact.</span>
-<span class="add">+</span>
-<span class="add">+## Documentation Updates</span>
-<span class="add">+- **CLAUDE.md / AGENTS.md**: no behavior contract change for callers; skip unless a doc currently lists `pr.sh` post-conditions explicitly. If `CLAUDE.md` enumerates which side effects `pr.sh` performs, add &quot;deletes remote feature branch after fallback merge&quot; to that list.</span>
-<span class="add">+- **README.md**: surface a one-line note under any &quot;merge behavior&quot; or &quot;auto-merge fallback&quot; section that the fallback path now performs explicit ref cleanup so branch lists stay clean on repos with auto-merge disabled. If no such section exists, skip — this is an internal correctness fix.</span>
-<span class="add">+- **DOGFOOD.md (if present)**: tick off the orphaned-branch sharp edge once the change merges, mirroring how Cycle 0005/0006 resolutions were recorded.</span>
-<span class="add">+</span>
-<span class="add">+Documentation is part of &quot;done&quot; — code without updated docs is incomplete.</span>
-<span class="add">+</span>
-<span class="add">+## Dependencies</span>
-<span class="add">+- Existing `pr.sh` infrastructure from Cycle 0006 (auto-merge fallback path) — already on `master`.</span>
-<span class="add">+- `gh` CLI with `api` subcommand and repo read scope (already required for `gh pr create`/`merge`).</span>
-<span class="add">+- `git` for `${branch}` resolution (already used).</span>
-<span class="add">+- No new env vars; `gh` auth context already required by every other call in this script.</span>
-<span class="fileheader">diff --git a/docs/cycle/issues/queued/txt-20260513-011616-pr-sh-after-immediate-merge-fallback-suc.md b/docs/cycle/issues/queued/txt-20260513-011616-pr-sh-after-immediate-merge-fallback-suc.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..7daf07b</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/issues/queued/txt-20260513-011616-pr-sh-after-immediate-merge-fallback-suc.md</span>
-<span class="hunk">@@ -0,0 +1,9 @@</span>
-<span class="add">+---</span>
-<span class="add">+id: txt-20260513-011616-pr-sh-after-immediate-merge-fallback-suc</span>
-<span class="add">+source: text</span>
-<span class="add">+title: &quot;pr.sh: after immediate-merge fallback succeeds, delete the remote branch (gh pr merge --delete-branch only deletes when GitHub schedules the merge; the synchronous fallback path leaves origin/cycle/feature/* orphaned). Add explicit &#39;gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/&lt;branch&gt;&#39; after successful fallback merge, with test coverage.&quot;</span>
-<span class="add">+added_at: 2026-05-13T01:16:16.008Z</span>
-<span class="add">+triage_attempts: 0</span>
-<span class="add">+---</span>
-<span class="add">+</span>
-<span class="add">+pr.sh: after immediate-merge fallback succeeds, delete the remote branch (gh pr merge --delete-branch only deletes when GitHub schedules the merge; the synchronous fallback path leaves origin/cycle/feature/* orphaned). Add explicit &#39;gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/&lt;branch&gt;&#39; after successful fallback merge, with test coverage.</span>
-<span class="fileheader">diff --git a/docs/cycle/issues/queued/txt-20260513-011624-engine-after-cycle-end-ok-or-failed-chec.md b/docs/cycle/issues/queued/txt-20260513-011624-engine-after-cycle-end-ok-or-failed-chec.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..2966600</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/issues/queued/txt-20260513-011624-engine-after-cycle-end-ok-or-failed-chec.md</span>
-<span class="hunk">@@ -0,0 +1,9 @@</span>
-<span class="add">+---</span>
-<span class="add">+id: txt-20260513-011624-engine-after-cycle-end-ok-or-failed-chec</span>
-<span class="add">+source: text</span>
-<span class="add">+title: &quot;engine: after cycle.end (ok or failed), checkout back to base branch (CYCLE_BASE) so working tree returns to a known state. Currently HEAD remains on the cycle/feature/&lt;slug&gt; branch locally, forcing manual &#39;git checkout master&#39; between runs. Add to run-cycle.ts post-cycle cleanup, with test for both ok + failed terminal states.&quot;</span>
-<span class="add">+added_at: 2026-05-13T01:16:24.807Z</span>
-<span class="add">+triage_attempts: 0</span>
-<span class="add">+---</span>
-<span class="add">+</span>
-<span class="add">+engine: after cycle.end (ok or failed), checkout back to base branch (CYCLE_BASE) so working tree returns to a known state. Currently HEAD remains on the cycle/feature/&lt;slug&gt; branch locally, forcing manual &#39;git checkout master&#39; between runs. Add to run-cycle.ts post-cycle cleanup, with test for both ok + failed terminal states.</span>
-<span class="fileheader">diff --git a/docs/cycle/issues/queued/txt-20260513-011632-commit-sh-pr-sh-include-closes-n-linkage.md b/docs/cycle/issues/queued/txt-20260513-011632-commit-sh-pr-sh-include-closes-n-linkage.md</span>
-<span class="fileheader">new file mode 100644</span>
-<span class="fileheader">index 0000000..872edf7</span>
-<span class="meta">--- /dev/null</span>
-<span class="meta">+++ b/docs/cycle/issues/queued/txt-20260513-011632-commit-sh-pr-sh-include-closes-n-linkage.md</span>
-<span class="hunk">@@ -0,0 +1,9 @@</span>
-<span class="add">+---</span>
-<span class="add">+id: txt-20260513-011632-commit-sh-pr-sh-include-closes-n-linkage</span>
-<span class="add">+source: text</span>
-<span class="add">+title: &quot;commit.sh / pr.sh: include &#39;Closes #N&#39; linkage when the cycle&#39;s issue body references a GitHub issue URL (e.g., &#39;https://github.com/&lt;owner&gt;/&lt;repo&gt;/issues/&lt;N&gt;&#39;). Parse the issue body for one or more github.com issue URLs, append &#39;Closes #&lt;N&gt;&#39; lines to the commit message body (not subject) and PR body. When PR merges, GitHub auto-closes those issues. Test: cycle whose issue body references issue #99 -&gt; commit + PR include &#39;Closes #99&#39;.&quot;</span>
-<span class="add">+added_at: 2026-05-13T01:16:32.114Z</span>
-<span class="add">+triage_attempts: 0</span>
-<span class="add">+---</span>
-<span class="add">+</span>
-<span class="add">+commit.sh / pr.sh: include &#39;Closes #N&#39; linkage when the cycle&#39;s issue body references a GitHub issue URL (e.g., &#39;https://github.com/&lt;owner&gt;/&lt;repo&gt;/issues/&lt;N&gt;&#39;). Parse the issue body for one or more github.com issue URLs, append &#39;Closes #&lt;N&gt;&#39; lines to the commit message body (not subject) and PR body. When PR merges, GitHub auto-closes those issues. Test: cycle whose issue body references issue #99 -&gt; commit + PR include &#39;Closes #99&#39;.</span>
-<span class="fileheader">diff --git a/src/defaults/scripts/pr.sh b/src/defaults/scripts/pr.sh</span>
-<span class="fileheader">index e47c679..3f2253a 100755</span>
-<span class="meta">--- a/src/defaults/scripts/pr.sh</span>
-<span class="meta">+++ b/src/defaults/scripts/pr.sh</span>
-<span class="hunk">@@ -41,6 +41,15 @@ case &quot;${err}&quot; in</span>
-<span class="ctx">     fallback_rc=0</span>
-<span class="ctx">     gh pr merge &quot;${pr_number}&quot; --squash --delete-branch || fallback_rc=$?</span>
-<span class="ctx">     if [ &quot;${fallback_rc}&quot; -eq 0 ]; then</span>
-<span class="add">+      # gh pr merge --delete-branch is a no-op on the synchronous merge path</span>
-<span class="add">+      # (it only fires when GitHub schedules an async auto-merge). Delete the</span>
-<span class="add">+      # remote ref explicitly so cycle/feature/* branches don&#39;t pile up.</span>
-<span class="add">+      repo_slug=$(gh repo view --json nameWithOwner -q .nameWithOwner)</span>
-<span class="add">+      delete_rc=0</span>
-<span class="add">+      gh api -X DELETE &quot;repos/${repo_slug}/git/refs/heads/${branch}&quot; &gt;/dev/null 2&gt;&amp;1 || delete_rc=$?</span>
-<span class="add">+      if [ &quot;${delete_rc}&quot; -ne 0 ]; then</span>
-<span class="add">+        echo &quot;pr.sh: failed to delete remote branch ${branch} (exit ${delete_rc}); merge succeeded, continuing&quot; &gt;&amp;2</span>
-<span class="add">+      fi</span>
-<span class="ctx">       echo &quot;${pr_url}&quot;</span>
-<span class="ctx">       exit 0</span>
-<span class="ctx">     fi</span>
-<span class="fileheader">diff --git a/tests/defaults/pr-auto-merge-fallback.test.ts b/tests/defaults/pr-auto-merge-fallback.test.ts</span>
-<span class="fileheader">index 96813fd..ac905aa 100644</span>
-<span class="meta">--- a/tests/defaults/pr-auto-merge-fallback.test.ts</span>
-<span class="meta">+++ b/tests/defaults/pr-auto-merge-fallback.test.ts</span>
-<span class="hunk">@@ -57,3 +57,53 @@ test(&quot;pr.sh: fallback exit code captured via || idiom, not post-if $?&quot;, () =&gt; {</span>
-<span class="ctx">     /gh pr merge &quot;\$\{pr_number\}&quot; --squash --delete-branch \|\| fallback_rc=\$\?/,</span>
-<span class="ctx">   );</span>
-<span class="ctx"> });</span>
-<span class="add">+</span>
-<span class="add">+test(&quot;pr.sh: deletes orphaned remote ref after successful fallback merge&quot;, () =&gt; {</span>
-<span class="add">+  const src = readFileSync(PR_SH, &quot;utf8&quot;);</span>
-<span class="add">+  assert.match(</span>
-<span class="add">+    src,</span>
-<span class="add">+    /gh api -X DELETE &quot;?repos\/[^\s&quot;]*\/git\/refs\/heads\/\$\{branch\}&quot;?/,</span>
-<span class="add">+    &quot;pr.sh must issue an explicit DELETE to git/refs/heads/${branch} after fallback merge&quot;,</span>
-<span class="add">+  );</span>
-<span class="add">+});</span>
-<span class="add">+</span>
-<span class="add">+test(&quot;pr.sh: ref deletion call is positioned after the fallback gh pr merge&quot;, () =&gt; {</span>
-<span class="add">+  const src = readFileSync(PR_SH, &quot;utf8&quot;);</span>
-<span class="add">+  const mergeIdx = src.search(/gh pr merge &quot;\$\{pr_number\}&quot; --squash --delete-branch/);</span>
-<span class="add">+  const deleteIdx = src.search(/gh api -X DELETE &quot;?repos\/[^\s&quot;]*\/git\/refs\/heads\//);</span>
-<span class="add">+  assert.ok(mergeIdx &gt;= 0, &quot;fallback merge call missing&quot;);</span>
-<span class="add">+  assert.ok(deleteIdx &gt;= 0, &quot;ref delete call missing&quot;);</span>
-<span class="add">+  assert.ok(</span>
-<span class="add">+    deleteIdx &gt; mergeIdx,</span>
-<span class="add">+    `ref delete (${deleteIdx}) must appear after fallback merge (${mergeIdx})`,</span>
-<span class="add">+  );</span>
-<span class="add">+});</span>
-<span class="add">+</span>
-<span class="add">+test(&quot;pr.sh: ref deletion gated on fallback merge success (fallback_rc -eq 0)&quot;, () =&gt; {</span>
-<span class="add">+  const src = readFileSync(PR_SH, &quot;utf8&quot;);</span>
-<span class="add">+  const gateRegex =</span>
-<span class="add">+    /if \[ &quot;\$\{fallback_rc\}&quot; -eq 0 \];\s*then[\s\S]*?gh api -X DELETE[\s\S]*?echo &quot;\$\{pr_url\}&quot;/;</span>
-<span class="add">+  assert.match(</span>
-<span class="add">+    src,</span>
-<span class="add">+    gateRegex,</span>
-<span class="add">+    &quot;DELETE must live inside the fallback success branch, before echo ${pr_url}&quot;,</span>
-<span class="add">+  );</span>
-<span class="add">+});</span>
-<span class="add">+</span>
-<span class="add">+test(&quot;pr.sh: ref deletion failure warns to stderr with pr.sh: prefix and still exits 0&quot;, () =&gt; {</span>
-<span class="add">+  const src = readFileSync(PR_SH, &quot;utf8&quot;);</span>
-<span class="add">+  assert.match(</span>
-<span class="add">+    src,</span>
-<span class="add">+    /pr\.sh: failed to delete remote branch/,</span>
-<span class="add">+    &quot;ref-deletion failure must emit a pr.sh:-prefixed warning&quot;,</span>
-<span class="add">+  );</span>
-<span class="add">+  const successBlock = src.match(</span>
-<span class="add">+    /if \[ &quot;\$\{fallback_rc\}&quot; -eq 0 \];\s*then[\s\S]*?echo &quot;\$\{pr_url\}&quot;\s*\n\s*exit 0/,</span>
-<span class="add">+  );</span>
-<span class="add">+  assert.ok(successBlock, &quot;fallback success block not found&quot;);</span>
-<span class="add">+  assert.match(</span>
-<span class="add">+    successBlock[0],</span>
-<span class="add">+    /pr\.sh: failed to delete remote branch/,</span>
-<span class="add">+    &quot;ref-deletion warning must live inside the fallback success block (before echo ${pr_url}; exit 0)&quot;,</span>
-<span class="add">+  );</span>
-<span class="add">+});</span>
-<span class="ctx">&nbsp;</span></pre>
+  <pre class="diff"><span class="fileheader">diff --git a/.cycle/scripts/pr.sh b/.cycle/scripts/pr.sh</span><span class="fileheader">index e47c679..3f2253a 100755</span><span class="meta">--- a/.cycle/scripts/pr.sh</span><span class="meta">+++ b/.cycle/scripts/pr.sh</span><span class="hunk">@@ -41,6 +41,15 @@ case &quot;${err}&quot; in</span><span class="ctx">     fallback_rc=0</span><span class="ctx">     gh pr merge &quot;${pr_number}&quot; --squash --delete-branch || fallback_rc=$?</span><span class="ctx">     if [ &quot;${fallback_rc}&quot; -eq 0 ]; then</span><span class="add">+      # gh pr merge --delete-branch is a no-op on the synchronous merge path</span><span class="add">+      # (it only fires when GitHub schedules an async auto-merge). Delete the</span><span class="add">+      # remote ref explicitly so cycle/feature/* branches don&#39;t pile up.</span><span class="add">+      repo_slug=$(gh repo view --json nameWithOwner -q .nameWithOwner)</span><span class="add">+      delete_rc=0</span><span class="add">+      gh api -X DELETE &quot;repos/${repo_slug}/git/refs/heads/${branch}&quot; &gt;/dev/null 2&gt;&amp;1 || delete_rc=$?</span><span class="add">+      if [ &quot;${delete_rc}&quot; -ne 0 ]; then</span><span class="add">+        echo &quot;pr.sh: failed to delete remote branch ${branch} (exit ${delete_rc}); merge succeeded, continuing&quot; &gt;&amp;2</span><span class="add">+      fi</span><span class="ctx">       echo &quot;${pr_url}&quot;</span><span class="ctx">       exit 0</span><span class="ctx">     fi</span><span class="fileheader">diff --git a/src/defaults/scripts/pr.sh b/src/defaults/scripts/pr.sh</span><span class="fileheader">index e47c679..3f2253a 100755</span><span class="meta">--- a/src/defaults/scripts/pr.sh</span><span class="meta">+++ b/src/defaults/scripts/pr.sh</span><span class="hunk">@@ -41,6 +41,15 @@ case &quot;${err}&quot; in</span><span class="ctx">     fallback_rc=0</span><span class="ctx">     gh pr merge &quot;${pr_number}&quot; --squash --delete-branch || fallback_rc=$?</span><span class="ctx">     if [ &quot;${fallback_rc}&quot; -eq 0 ]; then</span><span class="add">+      # gh pr merge --delete-branch is a no-op on the synchronous merge path</span><span class="add">+      # (it only fires when GitHub schedules an async auto-merge). Delete the</span><span class="add">+      # remote ref explicitly so cycle/feature/* branches don&#39;t pile up.</span><span class="add">+      repo_slug=$(gh repo view --json nameWithOwner -q .nameWithOwner)</span><span class="add">+      delete_rc=0</span><span class="add">+      gh api -X DELETE &quot;repos/${repo_slug}/git/refs/heads/${branch}&quot; &gt;/dev/null 2&gt;&amp;1 || delete_rc=$?</span><span class="add">+      if [ &quot;${delete_rc}&quot; -ne 0 ]; then</span><span class="add">+        echo &quot;pr.sh: failed to delete remote branch ${branch} (exit ${delete_rc}); merge succeeded, continuing&quot; &gt;&amp;2</span><span class="add">+      fi</span><span class="ctx">       echo &quot;${pr_url}&quot;</span><span class="ctx">       exit 0</span><span class="ctx">     fi</span><span class="fileheader">diff --git a/tests/defaults/pr-auto-merge-fallback.test.ts b/tests/defaults/pr-auto-merge-fallback.test.ts</span><span class="fileheader">index 96813fd..ac905aa 100644</span><span class="meta">--- a/tests/defaults/pr-auto-merge-fallback.test.ts</span><span class="meta">+++ b/tests/defaults/pr-auto-merge-fallback.test.ts</span><span class="hunk">@@ -57,3 +57,53 @@ test(&quot;pr.sh: fallback exit code captured via || idiom, not post-if $?&quot;, () =&gt; {</span><span class="ctx">     /gh pr merge &quot;\$\{pr_number\}&quot; --squash --delete-branch \|\| fallback_rc=\$\?/,</span><span class="ctx">   );</span><span class="ctx"> });</span><span class="add">+</span><span class="add">+test(&quot;pr.sh: deletes orphaned remote ref after successful fallback merge&quot;, () =&gt; {</span><span class="add">+  const src = readFileSync(PR_SH, &quot;utf8&quot;);</span><span class="add">+  assert.match(</span><span class="add">+    src,</span><span class="add">+    /gh api -X DELETE &quot;?repos\/[^\s&quot;]*\/git\/refs\/heads\/\$\{branch\}&quot;?/,</span><span class="add">+    &quot;pr.sh must issue an explicit DELETE to git/refs/heads/${branch} after fallback merge&quot;,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;pr.sh: ref deletion call is positioned after the fallback gh pr merge&quot;, () =&gt; {</span><span class="add">+  const src = readFileSync(PR_SH, &quot;utf8&quot;);</span><span class="add">+  const mergeIdx = src.search(/gh pr merge &quot;\$\{pr_number\}&quot; --squash --delete-branch/);</span><span class="add">+  const deleteIdx = src.search(/gh api -X DELETE &quot;?repos\/[^\s&quot;]*\/git\/refs\/heads\//);</span><span class="add">+  assert.ok(mergeIdx &gt;= 0, &quot;fallback merge call missing&quot;);</span><span class="add">+  assert.ok(deleteIdx &gt;= 0, &quot;ref delete call missing&quot;);</span><span class="add">+  assert.ok(</span><span class="add">+    deleteIdx &gt; mergeIdx,</span><span class="add">+    `ref delete (${deleteIdx}) must appear after fallback merge (${mergeIdx})`,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;pr.sh: ref deletion gated on fallback merge success (fallback_rc -eq 0)&quot;, () =&gt; {</span><span class="add">+  const src = readFileSync(PR_SH, &quot;utf8&quot;);</span><span class="add">+  const gateRegex =</span><span class="add">+    /if \[ &quot;\$\{fallback_rc\}&quot; -eq 0 \];\s*then[\s\S]*?gh api -X DELETE[\s\S]*?echo &quot;\$\{pr_url\}&quot;/;</span><span class="add">+  assert.match(</span><span class="add">+    src,</span><span class="add">+    gateRegex,</span><span class="add">+    &quot;DELETE must live inside the fallback success branch, before echo ${pr_url}&quot;,</span><span class="add">+  );</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;pr.sh: ref deletion failure warns to stderr with pr.sh: prefix and still exits 0&quot;, () =&gt; {</span><span class="add">+  const src = readFileSync(PR_SH, &quot;utf8&quot;);</span><span class="add">+  assert.match(</span><span class="add">+    src,</span><span class="add">+    /pr\.sh: failed to delete remote branch/,</span><span class="add">+    &quot;ref-deletion failure must emit a pr.sh:-prefixed warning&quot;,</span><span class="add">+  );</span><span class="add">+  const successBlock = src.match(</span><span class="add">+    /if \[ &quot;\$\{fallback_rc\}&quot; -eq 0 \];\s*then[\s\S]*?echo &quot;\$\{pr_url\}&quot;\s*\n\s*exit 0/,</span><span class="add">+  );</span><span class="add">+  assert.ok(successBlock, &quot;fallback success block not found&quot;);</span><span class="add">+  assert.match(</span><span class="add">+    successBlock[0],</span><span class="add">+    /pr\.sh: failed to delete remote branch/,</span><span class="add">+    &quot;ref-deletion warning must live inside the fallback success block (before echo ${pr_url}; exit 0)&quot;,</span><span class="add">+  );</span><span class="add">+});</span></pre>
 </section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>Review complete. Verdict: PASS. Output below.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0007
+
+## Overall Verdict
+PASS — no fixes needed. Implementation matches SPEC and PLAN line-for-line; all 54 tests green; byte-equality preserved across `src/`, `dist/`, and `.cycle/`. Two minor test-coverage gaps noted but do not block.
+
+## Code Quality Review
+
+### Summary
+Tight, surgical change. Six lines of bash inside the fallback success block, gated behind `fallback_rc -eq 0`, with `|| delete_rc=$?` mirroring the existing `fallback_rc` idiom. Warning is `pr.sh:`-prefixed to match prior diagnostics. Comment in `src/defaults/scripts/pr.sh:44-46` explains *why* (`gh pr merge --delete-branch` is a no-op on synchronous path) — non-obvious behavior worth keeping.
+
+### Findings
+1. **Error handling (minor)**: `repo_slug=$(gh repo view --json nameWithOwner -q .nameWithOwner)` at `src/defaults/scripts/pr.sh:47` is unguarded. Under `set -euo pipefail`, a transient `gh repo view` failure (network, auth flake) kills the script *after* the merge already succeeded — same orphan-branch outcome the cycle was meant to prevent, plus the cycle exits failed. PLAN.md explicitly considered and accepted this risk on grounds that prior `gh` calls in the script already validated auth. Reasonable trade-off; flagged for the record.
+2. **Comment scope (acceptable)**: lines 44-46 are a 3-line comment. Justified — explains an undocumented GitHub behavior. Stays.
+3. **No deviation from PLAN.md** — owner/repo resolution inlined inside the fallback block (zero overhead on happy auto-merge path), `&gt;/dev/null 2&gt;&amp;1` silences DELETE noise, unencoded `/` in ref path matches GitHub API.
+
+### Spec Compliance Checklist
+- [x] DELETE call reachable only on fallback merge success (`src/defaults/scripts/pr.sh:43-54`).
+- [x] Owner/repo resolved via `gh repo view --json nameWithOwner` (`src/defaults/scripts/pr.sh:47`).
+- [x] Fallback merge failure path unchanged (`src/defaults/scripts/pr.sh:56-58`).
+- [x] Ref-deletion failure logs `pr.sh:` warning to stderr and exits 0 with `${pr_url}` on stdout (`src/defaults/scripts/pr.sh:50-54`).
+- [x] Auto-merge happy path untouched (`src/defaults/scripts/pr.sh:21-34`).
+- [x] All 11 fallback-test assertions pass + full suite green (54/54).
+- [x] Byte-equality: `diff` empty across `src/` ↔ `dist/` ↔ `.cycle/`.
+- [x] No new compiler/linter warnings.
+- [x] Doc updates: SPEC permits skipping CLAUDE.md/AGENTS.md/README.md when no `pr.sh` post-conditions are enumerated; DOGFOOD.md absent. BUILD.md confirms no surface needed.
+
+## Adversarial Test Review
+
+### Summary
+Strong. Static-shape regex assertions are the correct contract for bash scripts that run inside `gh` (no viable live integration in CI). Four new assertions enforce presence, positional ordering, success-gating, and warn-and-continue. Regression guard for the prior 7 fallback assertions intact.
+
+### Findings
+1. **Spec-locked behavior NOT asserted (minor)**: SPEC §Requirements demands owner/repo resolution use `gh repo view --json nameWithOwner` — *not hardcoded, not parsed from git remote*. The DELETE-shape regex in `tests/defaults/pr-auto-merge-fallback.test.ts:65,73` (`repos/[^\s&quot;]*/git/refs/heads/`) accepts a hardcoded `repos/timothyjoh/cycle/...` substitution. If someone replaces the runtime resolution with a literal, all tests stay green. Contract drift would not be caught.
+2. **DELETE silencing NOT contract-locked**: `&gt;/dev/null 2&gt;&amp;1` exists in implementation but no test asserts it. Removing redirection would re-leak `gh api` stdout into the cycle log. Low-risk regression.
+3. **Auto-merge happy path negative case not asserted**: no test verifies the DELETE call does *not* live in the auto-merge poll block. The positional check only enforces &quot;after fallback merge&quot; — multiple DELETE calls (one stray in the happy path) would still pass.
+4. **Assertion quality strong**: regexes target specific tokens (`\${branch}`, `fallback_rc -eq 0`, `pr.sh: failed to delete remote branch`). The gateRegex (line 84) and successBlock match (line 100) are positional and semantic, not just keyword.
+
+### Test Coverage
+- 11/11 fallback-suite assertions green; 54/54 across full repo.
+- Missing scenarios (non-blocking, see findings 1-3 above): runtime owner/repo resolver enforcement, DELETE stdout silencing, single-occurrence positional bound.</code></pre>
+<p>No MUST-FIX.md written — gaps are minor adversarial coverage notes, not correctness or spec violations.</p></div></section>
 
 <nav class="pager">
   <a href="cycle-0006.html">← Cycle 0006</a>

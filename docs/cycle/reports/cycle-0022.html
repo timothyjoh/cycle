@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0022 · engine.paused event: structured payload with per-raw failure info (#32)</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0022</h1>
+  <div class="subtitle">engine.paused event: structured payload with per-raw failure info (#32)</div>
+  <div class="meta-row">
+    <code>b0782b3</code> · Timothy Johnson · 2026-05-13 15:19:00 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0021.html">← Cycle 0021</a>
+  <span class="center">22 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0023.html">Cycle 0023 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0022: engine.paused Event — Structured Payload With Per-Raw Failure Info
+
+## Objective
+Enrich the `engine.paused` event emitted by `src/engine/triage.ts` so a human (or future automation) reading `.cycle/log.jsonl` can see exactly which raw issues exhausted their retry budget and what error each one failed on — without re-running triage. Today the event carries only `{ reason: &quot;triage_failed&quot;, failed }`, which tells the operator a pass died but not why per raw, forcing them to guess at recovery.
+
+## Source Issue
+`engine-paused-recovery-event-payload` — &quot;engine.paused event: structured payload with per-raw failure info&quot;
+
+## Scope
+
+### In Scope
+- Capture and surface the final per-raw error message in the `engine.paused` event payload, alongside the list of failed raw ids and a canonical `reason` string. One additive change to a single emission site in `src/engine/triage.ts`.
+- Test coverage for the new payload shape (full-fail, partial-fail, truncation).
+
+### Out of Scope
+- New CLI subcommands (deferred to `engine-paused-recovery-dry-run`).
+- Documentation updates beyond CLAUDE.md (deferred to `engine-paused-recovery-docs`).
+- Surfacing paused state inside `cycle status` (depends on the status command and is intentionally not bundled here).
+- Changing exit codes, event ordering, or the conditions under which `engine.paused` fires.
+
+## Requirements
+
+### Functional
+- `engine.paused` payload MUST include, in addition to current fields:
+  - `reason: &quot;all_triage_failed&quot;` — literal string. Reserve other reason values for future use.
+  - `raw_ids: string[]` — every raw id that exhausted its retry budget in this pass.
+  - `last_errors: Array&lt;{ raw_id: string, error: string }&gt;` — one entry per `raw_ids` entry, **same length and same order**. `error` is the final validator / parse error message captured for that raw on its terminal attempt.
+- The per-raw retry loop already carries forward the last error string to feed into the next prompt; reuse that same captured string for `last_errors[i].error` rather than re-deriving it.
+- Each `error` string MUST be truncated to a cap of **2000 characters** (max) so a runaway stack trace cannot bloat the log. Truncation drops trailing characters; no marker required, but a `…` suffix is acceptable if the original was longer.
+- `engine.paused` MUST emit exactly **once per pass**, immediately before the existing non-zero exit path. Not emitted on `--dry-run` (current behavior — triage is skipped entirely under `--dry-run`, no change needed).
+- A pass where at least one raw succeeded MUST NOT emit `engine.paused`.
+- The `failed` field currently on the payload may be kept (for any external readers) or replaced by `raw_ids`. **Decision:** keep `failed` as an alias of `raw_ids` for one release to avoid breaking any local log parsers; both fields contain the same array in the same order. (If no external readers exist, dropping `failed` is acceptable — note the choice in BUILD.md.)
+
+### Non-functional
+- No new dependencies.
+- No change to event ordering, exit code, or to any event other than `engine.paused`.
+- Truncation must be O(1) on string length (slice, not regex scan).
+
+## Acceptance Criteria
+- [ ] Unit test: triage pass where every raw fails all retries → emitted `engine.paused` has `reason: &quot;all_triage_failed&quot;`, `raw_ids` equal to the failed set, and `last_errors` of identical length and order, each with a non-empty `error` string drawn from the last retry attempt.
+- [ ] Unit test: triage pass where at least one raw succeeds → no `engine.paused` event in the log.
+- [ ] Unit test: a raw whose final error message exceeds the 2000-char cap is truncated to ≤ 2000 chars in `last_errors[i].error`; an error shorter than the cap passes through untouched.
+- [ ] Unit test: `last_errors` order matches `raw_ids` order one-for-one (verify with at least 2 failed raws to make ordering observable).
+- [ ] Coverage: line ≥ 95%, branch ≥ 75%, function ≥ 90%; no per-file regression vs master baseline.
+- [ ] `npm test` and `npm run typecheck` clean.
+- [ ] All existing triage tests still pass without modification beyond updating any assertions tied to the literal `&quot;triage_failed&quot;` reason string (callers that match on the prior reason are part of the diff).
+
+## Testing Strategy
+- Node&#39;s native test runner (`node --test`, spec reporter) — same framework as the rest of `tests/`.
+- Drive triage through its public entry point (the existing `runTriage` / equivalent used by other triage tests) with a stub agent runner that:
+  - Returns invalid output for every raw across all retry attempts (full-fail case) — captures distinct error strings per raw to exercise per-raw ordering.
+  - Returns valid output for one raw and invalid for another (partial-fail case).
+  - Returns an oversized error string (&gt;2000 chars) for at least one raw (truncation case).
+- Assertions read the emitted log entries via the existing in-memory log fixture used by sibling tests; assert payload shape with explicit deep-equality on `reason`, `raw_ids`, and `last_errors`.
+- No new E2E surface — this is a payload shape change in an existing event; no UI involved.
+
+## Documentation Updates
+- **CLAUDE.md**: update the &quot;Triage subroutine&quot; bullet to note the enriched `engine.paused` payload shape (`reason`, `raw_ids`, `last_errors`) and the 2000-char truncation cap. One sentence is enough; this is a payload contract, not a workflow change.
+- **README.md**: no change — `engine.paused` is an internal log event, not user-facing CLI surface.
+- **RFC-001**: §5 already specifies the event-emission behavior at the level the RFC cares about; no edit needed unless the RFC enumerates payload fields (it does not today).
+
+## Dependencies
+- Existing per-raw retry loop in `src/engine/triage.ts` that already captures the last error string from each attempt. No new modules, no new env vars, no external services.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/engine/triage.ts        |  16 +++++-
+ tests/engine/triage.test.ts | 133 +++++++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 147 insertions(+), 2 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/engine/triage.ts b/src/engine/triage.ts</span><span class="fileheader">index 0ee235b..24657ed 100644</span><span class="meta">--- a/src/engine/triage.ts</span><span class="meta">+++ b/src/engine/triage.ts</span><span class="hunk">@@ -97,6 +97,7 @@ export async function runTriage(</span><span class="ctx"> </span><span class="ctx">   const processed: string[] = [];</span><span class="ctx">   const failed: string[] = [];</span><span class="add">+  const lastErrors: string[] = []; // index-aligned with `failed`</span><span class="ctx">   let lastOrdering: string[] | null = null;</span><span class="ctx"> </span><span class="ctx">   // Per-raw invocation: each raw gets its own agent call and its own 3-attempt</span><span class="hunk">@@ -191,6 +192,7 @@ export async function runTriage(</span><span class="ctx"> </span><span class="ctx">     if (!succeeded) {</span><span class="ctx">       failed.push(raw.id);</span><span class="add">+      lastErrors.push(lastError);</span><span class="ctx">       await moveToFailed(repoRoot, raw);</span><span class="ctx">     }</span><span class="ctx">   }</span><span class="hunk">@@ -200,7 +202,19 @@ export async function runTriage(</span><span class="ctx">   }</span><span class="ctx"> </span><span class="ctx">   if (failed.length === raws.length) {</span><span class="del">-    await log.emit(&quot;engine.paused&quot;, { reason: &quot;triage_failed&quot;, failed });</span><span class="add">+    const MAX_ERR_LEN = 2000;</span><span class="add">+    const truncate = (s: string) =&gt;</span><span class="add">+      s.length &gt; MAX_ERR_LEN ? s.slice(0, MAX_ERR_LEN - 1) + &quot;…&quot; : s;</span><span class="add">+    const raw_ids = failed;</span><span class="add">+    const last_errors = failed.map((raw_id, i) =&gt; ({</span><span class="add">+      raw_id,</span><span class="add">+      error: truncate(lastErrors[i] ?? &quot;&quot;),</span><span class="add">+    }));</span><span class="add">+    await log.emit(&quot;engine.paused&quot;, {</span><span class="add">+      reason: &quot;all_triage_failed&quot;,</span><span class="add">+      raw_ids,</span><span class="add">+      last_errors,</span><span class="add">+    });</span><span class="ctx">     return { status: &quot;paused&quot;, processed, failed };</span><span class="ctx">   }</span><span class="ctx"> </span><span class="fileheader">diff --git a/tests/engine/triage.test.ts b/tests/engine/triage.test.ts</span><span class="fileheader">index c93d5b1..f43c0be 100644</span><span class="meta">--- a/tests/engine/triage.test.ts</span><span class="meta">+++ b/tests/engine/triage.test.ts</span><span class="hunk">@@ -502,7 +502,18 @@ test(&quot;whole-pass failure: only raw fails all attempts → engine.paused&quot;, async</span><span class="ctx"> </span><span class="ctx">     const paused = events.find((e) =&gt; e.event === &quot;engine.paused&quot;);</span><span class="ctx">     assert.ok(paused, &quot;engine.paused must fire on whole-pass failure&quot;);</span><span class="del">-    assert.equal(paused?.fields.reason, &quot;triage_failed&quot;);</span><span class="add">+    assert.equal(paused?.fields.reason, &quot;all_triage_failed&quot;);</span><span class="add">+    assert.deepEqual(paused?.fields.raw_ids, [&quot;only&quot;]);</span><span class="add">+    const lastErrors = paused?.fields.last_errors as Array&lt;{</span><span class="add">+      raw_id: string;</span><span class="add">+      error: string;</span><span class="add">+    }&gt;;</span><span class="add">+    assert.equal(Array.isArray(lastErrors), true);</span><span class="add">+    assert.equal(lastErrors.length, 1);</span><span class="add">+    assert.equal(lastErrors[0].raw_id, &quot;only&quot;);</span><span class="add">+    assert.equal(typeof lastErrors[0].error, &quot;string&quot;);</span><span class="add">+    assert.ok(lastErrors[0].error.length &gt; 0);</span><span class="add">+    assert.equal(&quot;failed&quot; in (paused?.fields as object), false);</span><span class="ctx"> </span><span class="ctx">     const failedFiles = await readdir(join(root, &quot;docs/cycle/issues/failed&quot;));</span><span class="ctx">     assert.deepEqual(failedFiles, [&quot;only.md&quot;]);</span><span class="hunk">@@ -517,6 +528,126 @@ test(&quot;whole-pass failure: only raw fails all attempts → engine.paused&quot;, async</span><span class="ctx">   }</span><span class="ctx"> });</span><span class="ctx"> </span><span class="add">+test(&quot;engine.paused last_errors order matches raw_ids order across multiple failed raws&quot;, async () =&gt; {</span><span class="add">+  const root = await setupRepo();</span><span class="add">+  try {</span><span class="add">+    await writeFile(</span><span class="add">+      join(root, &quot;docs/cycle/issues/raw/raw-a.md&quot;),</span><span class="add">+      rawBody(&quot;raw-a&quot;, &quot;A task&quot;),</span><span class="add">+      &quot;utf8&quot;,</span><span class="add">+    );</span><span class="add">+    await writeFile(</span><span class="add">+      join(root, &quot;docs/cycle/issues/raw/raw-b.md&quot;),</span><span class="add">+      rawBody(&quot;raw-b&quot;, &quot;B task&quot;),</span><span class="add">+      &quot;utf8&quot;,</span><span class="add">+    );</span><span class="add">+    const deps: TriageDeps = {</span><span class="add">+      runAgent: async (prompt) =&gt; {</span><span class="add">+        if (prompt.includes(&quot;=== raw: raw-a ===&quot;)) {</span><span class="add">+          return { exitCode: 0, stdout: &quot;BAD-A-OUT-not-json&quot;, stderr: &quot;&quot; };</span><span class="add">+        }</span><span class="add">+        return { exitCode: 0, stdout: &quot;BAD-B-OUT-not-json&quot;, stderr: &quot;&quot; };</span><span class="add">+      },</span><span class="add">+    };</span><span class="add">+    const { log, events } = makeLog();</span><span class="add">+    const result = await runTriage(root, makeConfig(), log, deps);</span><span class="add">+    assert.equal(result.status, &quot;paused&quot;);</span><span class="add">+</span><span class="add">+    const paused = events.find((e) =&gt; e.event === &quot;engine.paused&quot;);</span><span class="add">+    assert.ok(paused, &quot;engine.paused must fire on whole-pass failure&quot;);</span><span class="add">+    assert.deepEqual(paused?.fields.raw_ids, [&quot;raw-a&quot;, &quot;raw-b&quot;]);</span><span class="add">+    const lastErrors = paused?.fields.last_errors as Array&lt;{</span><span class="add">+      raw_id: string;</span><span class="add">+      error: string;</span><span class="add">+    }&gt;;</span><span class="add">+    assert.equal(lastErrors.length, 2);</span><span class="add">+    assert.equal(lastErrors[0].raw_id, &quot;raw-a&quot;);</span><span class="add">+    assert.equal(lastErrors[1].raw_id, &quot;raw-b&quot;);</span><span class="add">+    assert.match(lastErrors[0].error, /BAD-A-OUT/);</span><span class="add">+    assert.match(lastErrors[1].error, /BAD-B-OUT/);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;engine.paused last_errors truncates errors longer than 2000 chars&quot;, async () =&gt; {</span><span class="add">+  const root = await setupRepo();</span><span class="add">+  try {</span><span class="add">+    await writeFile(</span><span class="add">+      join(root, &quot;docs/cycle/issues/raw/big.md&quot;),</span><span class="add">+      rawBody(&quot;big&quot;, &quot;big task&quot;),</span><span class="add">+      &quot;utf8&quot;,</span><span class="add">+    );</span><span class="add">+    const huge = &quot;X&quot;.repeat(3000);</span><span class="add">+    const deps: TriageDeps = {</span><span class="add">+      runAgent: async () =&gt; ({</span><span class="add">+        exitCode: 1,</span><span class="add">+        stdout: &quot;&quot;,</span><span class="add">+        stderr: huge,</span><span class="add">+      }),</span><span class="add">+    };</span><span class="add">+    const { log, events } = makeLog();</span><span class="add">+    const result = await runTriage(root, makeConfig(), log, deps);</span><span class="add">+    assert.equal(result.status, &quot;paused&quot;);</span><span class="add">+</span><span class="add">+    const paused = events.find((e) =&gt; e.event === &quot;engine.paused&quot;);</span><span class="add">+    const lastErrors = paused?.fields.last_errors as Array&lt;{</span><span class="add">+      raw_id: string;</span><span class="add">+      error: string;</span><span class="add">+    }&gt;;</span><span class="add">+    assert.equal(lastErrors.length, 1);</span><span class="add">+    assert.ok(</span><span class="add">+      lastErrors[0].error.length &lt;= 2000,</span><span class="add">+      `expected length ≤ 2000, got ${lastErrors[0].error.length}`,</span><span class="add">+    );</span><span class="add">+    assert.equal(lastErrors[0].error.endsWith(&quot;…&quot;), true);</span><span class="add">+    assert.equal(lastErrors[0].error.startsWith(&quot;agent exited 1: X&quot;), true);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;engine.paused last_errors at boundary length 2000 is not truncated&quot;, async () =&gt; {</span><span class="add">+  const root = await setupRepo();</span><span class="add">+  try {</span><span class="add">+    await writeFile(</span><span class="add">+      join(root, &quot;docs/cycle/issues/raw/edge.md&quot;),</span><span class="add">+      rawBody(&quot;edge&quot;, &quot;edge task&quot;),</span><span class="add">+      &quot;utf8&quot;,</span><span class="add">+    );</span><span class="add">+    // Validator path: `lastError = validation.reason`. The reason for an</span><span class="add">+    // unparseable stdout starts with the literal prefix</span><span class="add">+    // `stdout is not valid JSON: Unexpected token &#39;Y&#39;, &quot;YYY...&quot; is not valid JSON`.</span><span class="add">+    // We hit that path with valid-looking but non-JSON input and pad the stdout</span><span class="add">+    // to make the final error message exactly 2000 chars. Since computing the</span><span class="add">+    // exact pad length depends on JSON parser quirks, instead rely on the</span><span class="add">+    // simpler agent-throw path which produces `agent failed: &lt;message&gt;` and</span><span class="add">+    // we can size precisely.</span><span class="add">+    const prefix = &quot;agent failed: &quot;;</span><span class="add">+    const target = 2000;</span><span class="add">+    const payload = &quot;Y&quot;.repeat(target - prefix.length);</span><span class="add">+    const deps: TriageDeps = {</span><span class="add">+      runAgent: async () =&gt; {</span><span class="add">+        throw new Error(payload);</span><span class="add">+      },</span><span class="add">+    };</span><span class="add">+    const { log, events } = makeLog();</span><span class="add">+    const result = await runTriage(root, makeConfig(), log, deps);</span><span class="add">+    assert.equal(result.status, &quot;paused&quot;);</span><span class="add">+</span><span class="add">+    const paused = events.find((e) =&gt; e.event === &quot;engine.paused&quot;);</span><span class="add">+    const lastErrors = paused?.fields.last_errors as Array&lt;{</span><span class="add">+      raw_id: string;</span><span class="add">+      error: string;</span><span class="add">+    }&gt;;</span><span class="add">+    assert.equal(lastErrors.length, 1);</span><span class="add">+    assert.equal(lastErrors[0].error.length, 2000);</span><span class="add">+    assert.equal(lastErrors[0].error.endsWith(&quot;…&quot;), false);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="ctx"> test(&quot;empty raw/: returns ok with zero processed and no exec call&quot;, async () =&gt; {</span><span class="ctx">   const root = await setupRepo();</span><span class="ctx">   try {</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>Review complete. All tests pass (266/266), typecheck clean, coverage above baseline. Verdict: PASS, no MUST-FIX needed.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0022
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+Implementation matches PLAN exactly: a parallel `lastErrors: string[]` accumulator captured in lockstep with `failed` preserves order by construction, an inline `truncate` helper applies the 2000-char cap at emit time only, and the `engine.paused` payload now carries `{reason: &quot;all_triage_failed&quot;, raw_ids, last_errors}`. The diff is tight (~18 LOC in `src/`, ~135 LOC in tests, 1 line in CLAUDE.md), additive, and contained to a single emission site. No CLI changes — RESEARCH confirmed CLI reads only `triageResult.status`.
+
+### Findings
+1. **Defensive code branch untested**: `lastErrors[i] ?? &quot;&quot;` at `src/engine/triage.ts:211` — the `?? &quot;&quot;` fallback is unreachable given the lockstep `lastErrors.push(lastError)` at line 195. PLAN explicitly acknowledged this and chose to keep it as belt-and-suspenders; coverage did not slip. Acceptable as-is; remove later only if a per-file branch regression appears.
+2. **Inline truncate helper not reusable**: `MAX_ERR_LEN` and `truncate` are scoped inside the `if (failed.length === raws.length)` block. PLAN explicitly chose this over a module-level helper to avoid premature abstraction. If a second emission site appears, extract then — not now. Consistent with project&#39;s &quot;no premature abstraction&quot; stance.
+3. **Truncation length math is exact**: `s.slice(0, 1999) + &quot;…&quot;` produces exactly 2000 chars (the U+2026 ellipsis is a single BMP code unit). Boundary `s.length === 2000` skips truncation; `s.length === 2001` produces a 2000-char truncated string. Both branches exercised.
+
+### Spec Compliance Checklist
+- [x] `reason: &quot;all_triage_failed&quot;` — `src/engine/triage.ts:214`
+- [x] `raw_ids: string[]` containing every failed raw id — `:215`, source `failed[]` at `:208`
+- [x] `last_errors: Array&lt;{raw_id, error}&gt;` same length and order as `raw_ids` — `:209-212`, lockstep push at `:195`
+- [x] Each `error` truncated to ≤ 2000 chars with `…` marker on overflow — `:206-207`
+- [x] Reuses captured per-raw `lastError` rather than re-deriving — `:195` reuses the loop&#39;s `lastError`
+- [x] Fires exactly once per pass before non-zero exit — single emission site outside any loop, followed immediately by `return`
+- [x] Empty pass does not emit — guarded by `raws.length === 0` early return at `:88-91`
+- [x] Partial success does not emit — `failed.length === raws.length` gate at `:204`
+- [x] `failed` field dropped (RESEARCH confirmed zero external readers; BUILD.md §Deviations records the choice; test at `:516` asserts `&quot;failed&quot; in fields === false` to lock the decision)
+- [x] No new dependencies, no event-ordering or exit-code changes
+- [x] O(1) truncation via `slice`
+- [x] CLAUDE.md &quot;Triage subroutine&quot; bullet updated with new payload contract and 2000-char cap
+
+## Adversarial Test Review
+
+### Summary
+Strong. Tests use the established `TriageDeps.runAgent` injection point with deterministic stubs — no FS or Logger mocking, same depth as the rest of the file. All four SPEC acceptance criteria are explicitly covered, with boundary and truncation tests on both sides of the comparison.
+
+### Findings
+1. **No assertion that `engine.paused` emits exactly once**: tests use `events.find(e =&gt; e.event === &quot;engine.paused&quot;)`, which returns the first match but does not verify uniqueness. SPEC §Functional says &quot;MUST emit exactly once per pass&quot;. The code structure (single emission site outside any loop, followed by `return`) guarantees this, but a `events.filter(e =&gt; e.event === &quot;engine.paused&quot;).length === 1` assertion would lock it. Not a defect — minor hardening opportunity.
+2. **Boundary test deviates from PLAN by using agent-throw instead of validator path**: BUILD.md §Deviations justifies this — the agent-throw path produces a precisely-sized `agent failed: &lt;Error.message&gt;` string (`prefix.length + payload.length = 14 + 1986 = 2000`), while the validator path&#39;s `stdout is not valid JSON: &lt;Node JSON.parse snippet&gt;` is implementation-defined and fragile across Node versions. Same `truncate` branch is exercised; deviation has stronger justification than the original plan. Accepted.
+3. **Truncation marker assertion is exact**: `endsWith(&quot;…&quot;) === true` and `startsWith(&quot;agent exited 1: X&quot;) === true` together verify both head-kept and tail-marked semantics. Pairs with the boundary test&#39;s `endsWith(&quot;…&quot;) === false`.
+4. **Order invariant uses distinct stderr substrings (`BAD-A-OUT`, `BAD-B-OUT`)**: any future change that breaks lockstep insertion (e.g., switching `failed` to a `Set`) trips `assert.match(lastErrors[0].error, /BAD-A-OUT/)` immediately. Strong against ordering drift.
+5. **Tests are independent**: each test creates a fresh `mkdtemp` repo and tears it down in `finally`. No shared state or order dependencies.
+6. **Assertions are specific, not weak**: `deepEqual` on `raw_ids`, `equal` on lengths and specific indices, `match` on substring content. No `assert.ok(result)` or `toBeTruthy`-style weak checks.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function (all files): **96.73 / 89.53 / 95.97** — above 95/75/90 baseline
+- `triage.ts` per-file: **line 93.64% (was 93.5% baseline per refl-0021), branch 91.95%, func 97.06%** — net positive vs master, no per-file regression
+- Regressions vs base (per-file): none
+- New code without tests: none (the `?? &quot;&quot;` fallback is intentionally unreachable per PLAN §Notes)
+- Specific scenarios missing tests: none required by SPEC. Optional hardening: explicit &quot;exactly once per pass&quot; assertion (see Finding 1).
+
+## Notes on Process
+- Tests all green: 266/266 pass.
+- Typecheck clean: `tsc --noEmit` no output.
+- BUILD.md accurately reports deviations and rationale (drop `failed` field, agent-throw boundary path, defensive `?? &quot;&quot;` retained).
+- Bundle (`.cycle/bin/cycle.js`) auto-rebuilds via `pretest` / `pretest:coverage` per CLAUDE.md.
+- No `MUST-FIX.md` written — no actionable issues.</code></pre>
+<p>End of turn. No MUST-FIX.md created (no actionable issues). Cycle 0022 is PASS.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0021.html">← Cycle 0021</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0023.html">Cycle 0023 →</a>
+</nav>
+
+<footer>Generated from <code>b0782b3</code></footer>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0061 · Tighten halt-test frontmatter regex anchors to full-line match</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0061</h1>
+  <div class="subtitle">Tighten halt-test frontmatter regex anchors to full-line match</div>
+  <div class="meta-row">
+    <code>ef7d2d0</code> · Timothy Johnson · 2026-05-14 18:16:13 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0060.html">← Cycle 0060</a>
+  <span class="center">61 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0062.html">Cycle 0062 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><p>Source raw recovered from git history, current test file confirms two loose anchors at <code>tests/cli/halt.test.ts:266-267</code>. Emitting spec.</p>
+<pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0061: Tighten halt-test frontmatter regex anchors to full-line match
+
+## Objective
+Right-anchor two assertions in `tests/cli/halt.test.ts` (`failed_step` and `failed_attempts`) so they match the same strict full-line form (`/^…$/m`) already used by the adjacent `last_cycle_id` assertion. Pure test tightening — no production code change. Removes future false-positive risk if the workflow step name or attempt counters ever grow (`verify_extended`, `failed_attempts: 11`).
+
+## Source Issue
+`refl-0025-halt-test-frontmatter-regex-anchors-loos` — &quot;Tighten halt-test frontmatter regex anchors to full-line match&quot;
+
+## Scope
+
+### In Scope
+- Replace `/^failed_step: verify/m` → `/^failed_step: verify$/m` at `tests/cli/halt.test.ts:266`.
+- Replace `/^failed_attempts: 1/m` → `/^failed_attempts: 1$/m` at `tests/cli/halt.test.ts:267`.
+
+### Out of Scope
+- Sweeping other test files for similar loose-anchor patterns. If a similar gap is noticed incidentally, surface it in REFLECTION.md — do not fix here.
+- Any change to `src/cli.ts` `terminalDrain`, queue logic, blocked propagation, or the halt fixture itself.
+- Adding new test cases. The existing assertions are simply being hardened.
+
+## Requirements
+- Both edited assertions use the strict right-anchored form `/^&lt;key&gt;: &lt;value&gt;$/m`, matching the existing `last_cycle_id` assertion on the next line.
+- No other lines in `tests/cli/halt.test.ts` are touched.
+- No production source files are touched.
+
+## Acceptance Criteria
+- [ ] `tests/cli/halt.test.ts:266` reads `assert.match(failedBody, /^failed_step: verify$/m);`.
+- [ ] `tests/cli/halt.test.ts:267` reads `assert.match(failedBody, /^failed_attempts: 1$/m);`.
+- [ ] `npm test` passes (full suite, including the halt test).
+- [ ] `npm run typecheck` passes with no warnings.
+- [ ] Coverage gates hold vs the master baseline (line ≥ 95%, branch ≥ 75%, func ≥ 90%; per-file `src/engine/triage.ts` ≥ 95%). No regression expected — test-file change is coverage-neutral.
+
+## Testing Strategy
+- Framework: Node&#39;s native test runner (already in use across the repo).
+- Primary verification: `npm test` — the existing halt-fixture test exercises the same assertions, so the tightened regexes must continue to match the deterministic fixture output (`failed_step: verify`, `failed_attempts: 1`).
+- Mutation sanity check (optional, by inspection): the new patterns reject `failed_step: verify_extended` and `failed_attempts: 11`, where the old patterns would have accepted them. No new test required — the change is a pin-tightening within an existing test.
+- No UI surface — no E2E tests required.
+
+## Documentation Updates
+- **CLAUDE.md / AGENTS.md**: No change. The convention being applied (full-line anchors in halt assertions) is already implicit in the adjacent `last_cycle_id` line; this cycle aligns the other two assertions to it rather than introducing a new rule.
+- **README.md**: No change. Internal test hardening, no user-facing behavior.
+
+Documentation is part of &quot;done&quot; — code without updated docs is incomplete. (Nothing to update here.)
+
+## Dependencies
+- None beyond the existing repo state. Fixture is deterministic (`max_cycle_attempts: 1`, workflow step name `verify`), so the strict patterns will continue to match without any other change.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">tests/cli/halt.test.ts | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/tests/cli/halt.test.ts b/tests/cli/halt.test.ts</span><span class="fileheader">index 3154726..181c717 100644</span><span class="meta">--- a/tests/cli/halt.test.ts</span><span class="meta">+++ b/tests/cli/halt.test.ts</span><span class="hunk">@@ -263,8 +263,8 @@ test(&quot;halt: propagateBlocked moves dependent to blocked/ when parent fails, no h</span><span class="ctx">     const cycleStart = events.find((e) =&gt; e.event === &quot;cycle.start&quot;) as Record&lt;string, unknown&gt;;</span><span class="ctx">     const cycleId = cycleStart.cycle_id as string;</span><span class="ctx">     assert.match(failedBody, /^failed_at: /m);</span><span class="del">-    assert.match(failedBody, /^failed_step: verify/m);</span><span class="del">-    assert.match(failedBody, /^failed_attempts: 1/m);</span><span class="add">+    assert.match(failedBody, /^failed_step: verify$/m);</span><span class="add">+    assert.match(failedBody, /^failed_attempts: 1$/m);</span><span class="ctx">     assert.match(failedBody, new RegExp(`^last_cycle_id: &quot;${cycleId}&quot;$`, &quot;m&quot;));</span><span class="ctx"> </span><span class="ctx">     const queue = await readFile(join(root, &quot;.cycle/tbd.jsonl&quot;), &quot;utf8&quot;);</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>All gates green. Output REVIEW.md.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0061
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+Two-line test-pin tightening lands exactly per SPEC at `tests/cli/halt.test.ts:266-267`, mirroring the strict full-line anchor form already in use at line 268. No production source touched. Verify suite, typecheck, and coverage gate all green.
+
+### Findings
+None. SPEC adherence is exact:
+- `tests/cli/halt.test.ts:266` now reads `assert.match(failedBody, /^failed_step: verify$/m);` ✓
+- `tests/cli/halt.test.ts:267` now reads `assert.match(failedBody, /^failed_attempts: 1$/m);` ✓
+- Adjacent intentionally-loose `^failed_at: /m` at line 265 left alone (ISO timestamp) ✓
+- `git diff master...HEAD` for `tests/cli/halt.test.ts`: exactly two lines changed ✓
+
+Minor observation (not a fix target): the working tree carries unrelated residue from cycle 0060&#39;s drain (`docs/cycle/issues/todo/refl-0024-...md` deletion + new `docs/cycle/issues/done/refl-0024-...md` + cycle 0060 DOCUMENTATION.md/REFLECTION.md artifacts). This is engine-level commit/drain ordering from the prior cycle, not anything cycle 0061&#39;s edit introduced. Cycle 0061&#39;s commit step will sweep these up; out of scope to fix in this cycle.
+
+### Spec Compliance Checklist
+- [x] `tests/cli/halt.test.ts:266` strict-anchored
+- [x] `tests/cli/halt.test.ts:267` strict-anchored
+- [x] `npm test` passes (397/397)
+- [x] `npm run typecheck` clean (no warnings)
+- [x] Coverage gates hold vs master baseline (line 98.98% / branch 92.78% / func 96.36%; per-file `src/engine/triage.ts` 99.45% ≥ 95%)
+- [x] No production source files touched
+- [x] No README/CLAUDE.md/AGENTS.md updates needed (convention already implicit via adjacent `last_cycle_id`)
+
+## Adversarial Test Review
+
+### Summary
+Strong. Test fixture is integration-grade: real temp repo, spawned bundled CLI, real filesystem artifacts and `.cycle/log.jsonl` events. No mocks. The tightened patterns correctly pin both deterministic fixture outputs (`failed_step: verify`, `failed_attempts: 1`) without flakiness risk.
+
+### Findings
+1. **Mutation coverage by inspection only**: SPEC explicitly excludes adding a regression test that proves the old loose pattern would accept `verify_extended` / `failed_attempts: 11` while the new strict pattern rejects them. This is intentional (&quot;Adding new test cases&quot; is out of scope) and acceptable — the test that was tightened is itself a real assertion against deterministic output, so a future regression in `terminalDrain` (e.g. trailing whitespace, key suffix drift) would now surface as an assertion failure rather than slipping through. Not a finding to act on.
+2. **Loose anchor at `tests/cli/halt.test.ts:265`** (`/^failed_at: /m`) intentionally left loose because the value is an ISO timestamp. Correct call.
+3. No mock abuse, no happy-path-only gap (failure-case test by construction — A is forced to fail), no test-independence issue (per-test `mkdtemp` + `finally` cleanup), assertions are specific (full-line regex, exact event-id match, deepEqual on `propagated.blocked`).
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: 98.98% / 92.78% / 96.36%
+- Regressions vs base (per-file): none
+- New code without tests: none (test-file change, no `src/` touched — coverage-neutral)
+- Specific scenarios missing tests: none in scope
+
+## Doc-vs-Code Claim Verification
+
+No documentation prose changed; pass skipped.</code></pre>
+<p>Cycle 0061 review: PASS. No MUST-FIX.md emitted. Tests 397/397 pass, typecheck clean, coverage holds (line 98.98 / branch 92.78 / func 96.36; triage.ts 99.45). Two-line edit at <code>tests/cli/halt.test.ts:266-267</code> matches SPEC exactly.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0060.html">← Cycle 0060</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0062.html">Cycle 0062 →</a>
+</nav>
+
+<footer>Generated from <code>ef7d2d0</code></footer>
+</body>
+</html>

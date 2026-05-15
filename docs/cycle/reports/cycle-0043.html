@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0043 · Pin frontmatter byte-shape on `cycle run &quot;&lt;text&gt;&quot;` path (or collapse with `drop`)</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0043</h1>
+  <div class="subtitle">Pin frontmatter byte-shape on `cycle run &quot;&lt;text&gt;&quot;` path (or collapse with `drop`)</div>
+  <div class="meta-row">
+    <code>6fe3cc8</code> · Timothy Johnson · 2026-05-14 11:56:32 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0042.html">← Cycle 0042</a>
+  <span class="center">43 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0044.html">Cycle 0044 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><p>Now write spec to stdout.</p>
+<pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0043: Pin frontmatter byte-shape on `cycle run &quot;&lt;text&gt;&quot;` path
+
+## Objective
+The `cycle run &quot;&lt;text&gt;&quot;` convenience path and `cycle drop &quot;&lt;text&gt;&quot;` share `materializeFreeformIssue` as their writer, so both emit the same raw-issue frontmatter today (including `priority: 3`). Only `drop` has e2e coverage on that frontmatter shape; the `run &quot;&lt;text&gt;&quot;` path is unpinned. Add a focused e2e assertion so future divergence between the two call sites (e.g. wiring `--priority N` onto `drop` only) cannot silently change the `run &quot;&lt;text&gt;&quot;` byte shape without tripping a test.
+
+## Source Issue
+`refl-0019-cycle-run-text-path-shares-writer-but-no` — &quot;Pin frontmatter byte-shape on `cycle run \&quot;&lt;text&gt;\&quot;` path (or collapse with `drop`)&quot;
+
+## Scope
+
+### In Scope
+- One new e2e test in `tests/cli/multi-loop.test.ts` that spawns `cycle run &quot;&lt;some text&gt;&quot; --dry-run` against a temp repo and asserts the resulting `docs/cycle/issues/raw/&lt;id&gt;.md` frontmatter contains the same fields the `drop` test pins, in particular `priority: 3`.
+
+### Out of Scope
+- Refactoring `cli.ts` to collapse the `drop` and `run &quot;&lt;text&gt;&quot;` branches into a shared helper (Option B in the issue). Bodies differ structurally — `drop` emits `issue.dropped` JSON and exits; `run` flows into the engine loop — so extraction is not &quot;near-identical&quot; and would expand scope beyond pinning byte-shape.
+- Adding `--priority N` to `run` or `drop` (`drop` already has it; `run` is tracked separately).
+- Changing the default `priority: 3` value or any frontmatter field name/format.
+- Changing triage&#39;s handling of the `priority` field.
+
+## Requirements
+- **Functional:** `cycle run &quot;&lt;text&gt;&quot; --dry-run` continues to materialize a raw-issue file via `materializeFreeformIssue`. No production-code change is required to satisfy the spec — this is a coverage-pinning cycle.
+- **Test isolation:** the new test must run against a temp repo (mirror the existing `drop` test&#39;s `mkdtemp` + `ensureDist` setup) and clean up via `rm(root, { recursive: true, force: true })`.
+- **Test must use `--dry-run`** so the engine does not attempt to load `.cycle/workflows.yml`, triage, or spawn agents — the test scope is the materialize call only.
+- **Assertion fidelity:** the new test must assert the exact `priority: 3` line (or an equivalent byte-shape check on the frontmatter) so that a future divergence between the `drop` and `run` call sites — e.g. someone passing a non-default priority to `materializeFreeformIssue` on the `drop` path only — fails the test.
+
+## Acceptance Criteria
+- [ ] New test in `tests/cli/multi-loop.test.ts` (or sibling) runs `cycle run &quot;&lt;text&gt;&quot; --dry-run` end-to-end and reads back the raw-issue file from `docs/cycle/issues/raw/`.
+- [ ] Test asserts `priority: 3` appears in the raw file&#39;s frontmatter.
+- [ ] Test asserts `source: text` and the title/body match the text argument, mirroring the existing `drop` assertion at `tests/cli/multi-loop.test.ts:123`.
+- [ ] Test fails if `materializeFreeformIssue` is bypassed on the `run &quot;&lt;text&gt;&quot;` path, OR if the default priority on the `run` path is changed away from `3`.
+- [ ] `npm test` passes (342+ tests, including the new one).
+- [ ] `npm run typecheck` passes with no warnings.
+- [ ] `npm run test:coverage` passes; line ≥ 95%, branch ≥ 75%, function ≥ 90%. No per-file regressions.
+
+## Testing Strategy
+- **Framework:** Node&#39;s native `node:test` runner (existing convention in `tests/cli/multi-loop.test.ts`).
+- **Style:** e2e — `spawnSync(&quot;node&quot;, [distPath, &quot;run&quot;, &quot;&lt;text&gt;&quot;, &quot;--dry-run&quot;], { cwd: tempRoot })`, then `readFile` the resulting `docs/cycle/issues/raw/&lt;id&gt;.md`. Reuse `ensureDist`, `mkdtemp`, and `rm` cleanup pattern from the neighboring `drop` test.
+- **Scenarios to cover:**
+  - Happy path: `cycle run &quot;park this too&quot; --dry-run` writes a raw file with `priority: 3` in frontmatter and the body containing the text.
+  - The test pairs structurally with the existing `&#39;drop&#39; materializes an issue to raw/ without running` test so the two assertions stay in lockstep.
+- **E2E tooling:** Playwright is not required — this is a CLI-only change with no UI surface.
+
+## Documentation Updates
+- **CLAUDE.md / AGENTS.md:** no convention or command changes — this cycle adds test coverage only.
+- **README.md:** no user-facing change.
+
+Documentation is part of &quot;done&quot; — confirmed N/A here because the cycle adds a regression test against an existing, already-shipped behavior.
+
+## Dependencies
+- `dist/cycle.js` (built by `pretest` via `npm run build`) — already required by the existing `multi-loop.test.ts` and unchanged here.
+- Node ≥ 22.6 (uses `--experimental-strip-types`) — already a project baseline.
+- No new external services, env vars, or dependencies.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">tests/cli/multi-loop.test.ts | 52 +++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 51 insertions(+), 1 deletion(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/tests/cli/multi-loop.test.ts b/tests/cli/multi-loop.test.ts</span><span class="fileheader">index ffca1a1..4c859d6 100644</span><span class="meta">--- a/tests/cli/multi-loop.test.ts</span><span class="meta">+++ b/tests/cli/multi-loop.test.ts</span><span class="hunk">@@ -1,6 +1,6 @@</span><span class="ctx"> import { test } from &quot;node:test&quot;;</span><span class="ctx"> import { strict as assert } from &quot;node:assert&quot;;</span><span class="del">-import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, appendFile } from &quot;node:fs/promises&quot;;</span><span class="add">+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, chmod, appendFile } from &quot;node:fs/promises&quot;;</span><span class="ctx"> import { tmpdir } from &quot;node:os&quot;;</span><span class="ctx"> import { join } from &quot;node:path&quot;;</span><span class="ctx"> import { spawnSync } from &quot;node:child_process&quot;;</span><span class="hunk">@@ -145,3 +145,53 @@ test(&quot;&#39;drop&#39; materializes an issue to raw/ without running&quot;, async () =&gt; {</span><span class="ctx">     await rm(root, { recursive: true, force: true });</span><span class="ctx">   }</span><span class="ctx"> });</span><span class="add">+</span><span class="add">+test(&quot;&#39;run \&quot;&lt;text&gt;\&quot; --dry-run&#39; pins raw frontmatter byte-shape (priority: 3 default)&quot;, async () =&gt; {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-test-&quot;));</span><span class="add">+  try {</span><span class="add">+    const distPath = await ensureDist();</span><span class="add">+</span><span class="add">+    const r = spawnSync(</span><span class="add">+      &quot;node&quot;,</span><span class="add">+      [distPath, &quot;run&quot;, &quot;park this too&quot;, &quot;--dry-run&quot;],</span><span class="add">+      { cwd: root, encoding: &quot;utf8&quot; },</span><span class="add">+    );</span><span class="add">+    assert.equal(r.status, 0, `cycle run exit: ${r.status}\nstderr: ${r.stderr}`);</span><span class="add">+</span><span class="add">+    const rawDir = join(root, &quot;docs/cycle/issues/raw&quot;);</span><span class="add">+    const entries = (await readdir(rawDir)).filter((f) =&gt; f.endsWith(&quot;.md&quot;));</span><span class="add">+    assert.equal(entries.length, 1, `expected exactly one raw .md, got: ${entries.join(&quot;, &quot;)}`);</span><span class="add">+</span><span class="add">+    const filename = entries[0];</span><span class="add">+    assert.match(filename, /^txt-\d{8}-\d{6}-park-this-too\.md$/);</span><span class="add">+    const id = filename.slice(0, -3);</span><span class="add">+</span><span class="add">+    const body = await readFile(join(rawDir, filename), &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+    assert.match(</span><span class="add">+      body,</span><span class="add">+      /^added_at: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/m,</span><span class="add">+      &quot;added_at must be ISO-8601 with milliseconds&quot;,</span><span class="add">+    );</span><span class="add">+</span><span class="add">+    const addedAtMatch = body.match(/^added_at: .*$/m);</span><span class="add">+    assert.ok(addedAtMatch, &quot;added_at line missing&quot;);</span><span class="add">+    const expectedFrontmatter =</span><span class="add">+      &quot;---\n&quot; +</span><span class="add">+      `id: ${id}\n` +</span><span class="add">+      &quot;source: text\n&quot; +</span><span class="add">+      &#39;title: &quot;park this too&quot;\n&#39; +</span><span class="add">+      `${addedAtMatch[0]}\n` +</span><span class="add">+      &quot;triage_attempts: 0\n&quot; +</span><span class="add">+      &quot;priority: 3\n&quot; +</span><span class="add">+      &quot;---\n&quot;;</span><span class="add">+    assert.ok(</span><span class="add">+      body.startsWith(expectedFrontmatter),</span><span class="add">+      `frontmatter mismatch:\n${body}`,</span><span class="add">+    );</span><span class="add">+</span><span class="add">+    assert.match(body, /\npark this too\n$/);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>Verify done. Run quality + adversarial review.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0043
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+Test-only cycle. Adds one e2e test pinning the `cycle run &quot;&lt;text&gt;&quot; --dry-run` raw-issue frontmatter byte-shape (including `priority: 3` default). Implementation matches PLAN.md Task 1 verbatim, scope held to SPEC (no production change, no helper extraction). Patterns mirror the neighboring `drop` test. Quality gates green.
+
+### Findings
+1. **Scope discipline**: Test-only, no production code touched — matches SPEC&#39;s explicit out-of-scope list (no Option B refactor, no `--priority` on `run`, no default change) — `tests/cli/multi-loop.test.ts:149-197`.
+2. **Pattern fidelity**: New test mirrors `&#39;drop&#39; materializes ...` test structure (mkdtemp + ensureDist + spawnSync + rm-in-finally), keeping the two sibling tests lockstep — `tests/cli/multi-loop.test.ts:123-147` vs `:149-197`.
+3. **Assertion strength**: Byte-exact prefix match on the full 6-field frontmatter block (`id`, `source: text`, `title`, `added_at`, `triage_attempts: 0`, `priority: 3`), strictly stronger than the requirement-level &quot;assert `priority: 3`&quot; check in SPEC AC — `tests/cli/multi-loop.test.ts:175-187`.
+4. **Time-dependent fields**: `added_at` and `id` timestamp are handled correctly — shape-pinned via separate regex (`tests/cli/multi-loop.test.ts:167-171`), value-substituted into the byte-prefix from the observed line. Avoids flake.
+5. **Cleanup**: `rm(root, { recursive: true, force: true })` in `finally` — safe under failure paths.
+
+### Spec Compliance Checklist
+- [x] New test in `tests/cli/multi-loop.test.ts`
+- [x] Asserts `priority: 3` in frontmatter
+- [x] Asserts `source: text` and body matches text
+- [x] Fails if `materializeFreeformIssue` is bypassed on `run &quot;&lt;text&gt;&quot;` path (any divergent writer → different bytes)
+- [x] Fails if default priority on `run` path changes away from 3
+- [x] `npm test` passes — 343/343
+- [x] `npm run typecheck` clean — no warnings
+- [x] `npm run test:coverage` passes thresholds — line 98.55%, branch 91.57%, func 96.23%
+- [x] No doc updates required (test-only cycle against shipped behavior) — confirmed N/A per SPEC
+
+## Adversarial Test Review
+
+### Summary
+Strong. No mocks. Real spawn against real `dist/cycle.js`, real temp repo, real `readdir` + `readFile`. Byte-exact frontmatter match is the strongest form of pin. Single-scenario coverage is correct given SPEC&#39;s narrow scope (&quot;pin byte-shape on the `run &quot;&lt;text&gt;&quot;` path&quot;).
+
+### Findings
+1. **No mock abuse**: 0% mocking. End-to-end through the real binary. Cannot test &quot;the mock&quot; — there is none.
+2. **Happy path only — by design**: SPEC explicitly defines one scenario; failure paths (invalid text, missing dirs, escape handling) are out of scope and already covered at the unit level by `tests/issue/materialize.test.ts`.
+3. **Assertion specificity**: `body.startsWith(expectedFrontmatter)` with the full 6-line block — beats any regex-per-field approach for catching field reorder/rename. `assert.match(filename, /^txt-\d{8}-\d{6}-park-this-too\.md$/)` pins id format + slug truncation.
+4. **Body tail check**: `assert.match(body, /\npark this too\n$/)` pins the trailing newline contract from `materialize.ts:23-26` (`[&quot;---&quot;, &quot;&quot;, text, &quot;&quot;].join(&quot;\n&quot;)`).
+5. **No execution-order coupling**: `mkdtemp` gives each test its own root; no shared global state. Independent.
+6. **Minor — `r.status` message includes only `stderr`**: error message at `tests/cli/multi-loop.test.ts:159` doesn&#39;t include `r.stdout` for diagnostics on non-zero exit. Not a correctness defect; just a debug-quality nit if the binary fails on future changes. Not worth a fix.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: **98.55% / 91.57% / 96.23%** (baseline: 95 / 75 / 90 — all clear)
+- Regressions vs base (per-file): **none**. `src/issue/materialize.ts` 100/100/100. `src/issue/id.ts` 100/100/100. Other files unchanged from cycle 0042 baseline.
+- New code without tests: **none** — diff is test-only.
+- Specific scenarios missing tests: none in scope. Out-of-scope (per SPEC) and already covered elsewhere: title-quote-escape (handled at unit level via `materialize.ts:19` and `tests/issue/materialize.test.ts`), explicit `--priority` value on `drop` (cycle 0042 tests), `run` engine-loop integration (existing multi-loop tests).</code></pre>
+<p>PASS verdict. No MUST-FIX.md written.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0042.html">← Cycle 0042</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0044.html">Cycle 0044 →</a>
+</nav>
+
+<footer>Generated from <code>6fe3cc8</code></footer>
+</body>
+</html>

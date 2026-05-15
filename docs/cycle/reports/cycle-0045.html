@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0045 · Document ES2023 tsconfig floor (target/lib) in CLAUDE.md + ADR</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0045</h1>
+  <div class="subtitle">Document ES2023 tsconfig floor (target/lib) in CLAUDE.md + ADR</div>
+  <div class="meta-row">
+    <code>d7c784d</code> · Timothy Johnson · 2026-05-14 12:29:15 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0044.html">← Cycle 0044</a>
+  <span class="center">45 of 49 · <a href="index.html">index</a></span>
+  <a href="cycle-0046.html">Cycle 0046 →</a>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><pre class="md-code" data-lang="markdown"><code># SPEC — Cycle 0045: Document ES2023 tsconfig floor in CLAUDE.md + RFC-002
+
+## Objective
+Turn cycle 0019&#39;s silent `tsconfig.json` bump (`target`/`lib` → `ES2023`) into a documented project-level decision. Add a one-liner in `CLAUDE.md`&#39;s Runtime section and a new short RFC under `docs/` that records context, decision, and consequences, so the next contributor who reaches for an ES2023 array method (or considers downgrading the lib floor) has a single, linkable rationale instead of having to re-litigate it from cycle history.
+
+## Source Issue
+`refl-0019-tsconfig-es2023-bump-needs-formal-decisi` — &quot;Document ES2023 tsconfig floor (target/lib) in CLAUDE.md + ADR&quot;
+
+## Scope
+
+### In Scope
+- One-line addition under the existing `Node ≥ 22.6` bullet in `CLAUDE.md` → `## Runtime`, naming ES2023 as the floor and linking to the new RFC.
+- New `docs/RFC-002-typescript-es2023-floor.md` with Context / Decision / Consequences sections, referencing cycle 0019&#39;s `BUILD.md` and `REVIEW.md` as the trigger.
+
+### Out of Scope
+- Any change to `tsconfig.json` (current `target: ES2023` / `lib: [&quot;ES2023&quot;]` stays as-is).
+- Any change under `src/`, `tests/`, `dist/`, or `scripts/`.
+- A CI check that pins the lib floor (separate future issue).
+- Creating a `docs/adr/` directory — the project&#39;s existing documented-decision convention is RFC (see `docs/RFC-001-issue-lifecycle.md`), so we extend that convention rather than introducing a parallel one.
+
+## Requirements
+- **CLAUDE.md Runtime bullet** must:
+  - Sit immediately under the existing `Node ≥ 22.6` line so the runtime/typecheck floor are visually adjacent.
+  - State explicitly that ES2023 is the *floor* (not aspirational), so `findLast`, `findLastIndex`, `toSorted`, `toReversed`, `with`, and Hashbang grammar are usable without polyfills.
+  - Include a relative link to `docs/RFC-002-typescript-es2023-floor.md` for the rationale.
+- **RFC-002** must:
+  - Follow the file-naming pattern of `docs/RFC-001-issue-lifecycle.md`.
+  - **Context** — note cycle 0019&#39;s `findLast` typecheck errors at `tests/cli/multi-loop.test.ts:53,114` and that the bump was flagged out-of-scope in cycle 0019&#39;s `BUILD.md` / `REVIEW.md`.
+  - **Decision** — bump `tsconfig.json` `target` and `lib` to `ES2023`; Node 22.6 runtime floor (already documented) makes this safe at runtime.
+  - **Consequences** — Node 22.6 floor is now load-bearing for *type-checking*, not just runtime; downgrading `lib` requires either a Node downgrade or polyfills; future ES2023+ APIs (`Array.prototype.toSorted`, `Object.groupBy`, etc.) need no further decision.
+- Both files must reference each other so a reader can navigate either direction in one hop.
+- No new dependencies, no scripts, no engine changes.
+
+## Acceptance Criteria
+- [ ] `CLAUDE.md` Runtime section contains the new ES2023-floor bullet directly under `Node ≥ 22.6`, with a working relative link to `docs/RFC-002-typescript-es2023-floor.md`.
+- [ ] `docs/RFC-002-typescript-es2023-floor.md` exists with Context, Decision, Consequences sections, references cycle 0019&#39;s BUILD.md and REVIEW.md, and links back to the relevant `CLAUDE.md` line.
+- [ ] `tsconfig.json` is byte-identical to its pre-cycle state.
+- [ ] No files under `src/`, `tests/`, `dist/`, `scripts/`, or `.cycle/` are modified.
+- [ ] `npm test` passes (342/342, no regressions).
+- [ ] `npm run typecheck` passes with no warnings.
+- [ ] `npm run test:coverage` shows no decrease vs. the master baseline (line ≥ 95%, branch ≥ 75%, function ≥ 90%) — expected to be unchanged since no source files move.
+
+## Testing Strategy
+- Docs-only cycle; no new test code required.
+- Verification = run the full suite (`npm test`) and typecheck (`npm run typecheck`) to confirm zero collateral damage from touching `CLAUDE.md`.
+- Manually verify both new cross-links resolve (relative paths) by reading the rendered files.
+- Coverage run (`npm run test:coverage`) executes as part of the build/fix gates per `CLAUDE.md`; numbers should be flat.
+
+## Documentation Updates
+- **CLAUDE.md**: One new bullet in `## Runtime` documenting the ES2023 typecheck floor with a link to RFC-002. This is the primary deliverable.
+- **docs/RFC-002-typescript-es2023-floor.md**: New file — the decision record itself.
+- **README.md**: No change. The TypeScript floor is contributor-facing, not user-facing; users only need Node ≥ 22.6 (already covered).
+- **AGENTS.md**: Not present in repo; no update needed.
+
+## Dependencies
+- `docs/RFC-001-issue-lifecycle.md` already exists and establishes the RFC convention/file-naming pattern — RFC-002 follows it.
+- Cycle 0019&#39;s `docs/cycle/0019-*/BUILD.md` and `REVIEW.md` must still be present on master to be referenced; they are (git history is the canonical record).
+- No external services, no env vars, no new npm packages.</code></pre></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <div class="empty">No code changes (docs/markdown-only cycle).</div>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <div class="empty">No code diff.</div>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>Verify cycle 0019 artifacts + findLast cites + tsconfig + tests + coverage all check out. Docs-only diff is 1-line CLAUDE.md insert + new 21-line RFC-002. No issues. Verdict: PASS, no MUST-FIX.</p>
+<pre class="md-code" data-lang="markdown"><code># Review: Cycle 0045
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+Clean docs-only cycle. Two-file change exactly as planned: one bullet inserted into `CLAUDE.md` `## Runtime` and one new `docs/RFC-002-typescript-es2023-floor.md` with Context / Decision / Consequences. Every SPEC acceptance criterion verified end-to-end (artifact paths exist, cross-links resolve, test/typecheck/coverage all green, `tsconfig.json` byte-identical, no `src/`/`tests/`/`dist/`/`scripts/`/`.cycle/` files touched). BUILD.md&#39;s claim of 343/343 is correct (SPEC&#39;s &quot;342/342&quot; was a stale baseline — pre-cycle suite already had 343 tests; docs-only change can&#39;t move the count).
+
+### Findings
+None. The implementation matches PLAN.md verbatim — bullet wording, RFC section names, `Accepted (2026-05-14)` status line, and bare-path cross-link form (`docs/RFC-002-typescript-es2023-floor.md` forward, `../CLAUDE.md` back).
+
+### Spec Compliance Checklist
+- [x] CLAUDE.md Runtime bullet sits immediately under `Node ≥ 22.6` — `CLAUDE.md:14`.
+- [x] Bullet states &quot;ES2023&quot; as the *floor* and names `findLast`, `findLastIndex`, `toSorted`, `toReversed`, `with`, plus Hashbang grammar.
+- [x] Bullet includes relative link `docs/RFC-002-typescript-es2023-floor.md`.
+- [x] `docs/RFC-002-typescript-es2023-floor.md` exists with `## Context` / `## Decision` / `## Consequences` in that order.
+- [x] RFC references cycle 0019 `BUILD.md` and `REVIEW.md` (paths resolve: `docs/cycle/0019-feature-cli-cycle-drop-writes-to-raw-not-tbd/{BUILD,REVIEW}.md` present).
+- [x] RFC back-links to `../CLAUDE.md`.
+- [x] `tests/cli/multi-loop.test.ts:53,114` cited and both lines confirmed to call `events.findLast(...)`.
+- [x] `tsconfig.json` byte-identical (`target: &quot;ES2023&quot;`, `lib: [&quot;ES2023&quot;]`, unchanged otherwise).
+- [x] No files under `src/`, `tests/`, `dist/`, `scripts/`, or `.cycle/` modified.
+- [x] `npm test` — 343/343 pass, 0 fail (26.1s).
+- [x] `npm run typecheck` — clean, no warnings.
+- [x] `npm run test:coverage` — see below.
+
+## Adversarial Test Review
+
+### Summary
+N/A. Docs-only cycle adds zero test code; PLAN explicitly states no `src/` line moves so no coverage delta is possible. The regression gate is the existing 343-test suite, which passes unchanged. No new mocks, no new assertions, no new fixtures — nothing to scrutinize.
+
+### Findings
+None. The conscious choice not to add tests is correct for a documentation-only RFC and Runtime-bullet edit. A test that asserted &quot;CLAUDE.md contains a specific bullet&quot; would be implementation-coupled brittleness with no failure scenario it could catch that a careful human review couldn&#39;t.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: **98.55% / 91.57% / 96.23%**
+- Baselines (CLAUDE.md): line ≥ 95%, branch ≥ 75%, function ≥ 90% — all met with margin.
+- Regressions vs base (per-file): none. Coverage table is unchanged from the prior cycle (no `src/` files touched in this cycle).
+- New code without tests: none — no `src/` changes.
+- Specific scenarios missing tests: none in scope. A future CI guard pinning the lib floor is explicitly SPEC-out-of-scope (and noted in the RFC&#39;s Consequences as a deferrable concern).</code></pre>
+<p>Verdict: <strong>PASS</strong>. No MUST-FIX.md written.</p></div></section>
+
+<nav class="pager">
+  <a href="cycle-0044.html">← Cycle 0044</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <a href="cycle-0046.html">Cycle 0046 →</a>
+</nav>
+
+<footer>Generated from <code>d7c784d</code></footer>
+</body>
+</html>

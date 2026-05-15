@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cycle 0066 · Surface UnknownAgentError on step.end via stderr_excerpt covering claudecode/dispatch path (closes SPEC 0029 Acceptance #6)</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-elev: #161b22;
+    --bg-soft: #1c2128;
+    --fg: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-dim: #6e7681;
+    --border: #30363d;
+    --link: #58a6ff;
+    --add-bg: #1a3826;
+    --add-fg: #3fb950;
+    --del-bg: #3d1418;
+    --del-fg: #f85149;
+    --hunk-bg: #0b2942;
+    --hunk-fg: #79c0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; max-width: 1100px; margin: 0 auto; padding: 1.5rem; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .3rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 .5rem; color: var(--fg); }
+  h4 { font-size: 1rem; margin: .9rem 0 .4rem; color: var(--fg); }
+  h5, h6 { font-size: .9rem; margin: .8rem 0 .3rem; color: var(--fg-muted); }
+  .subtitle { color: var(--fg-muted); font-size: .95rem; }
+  .meta-row { margin-top: .4rem; color: var(--fg-muted); font-size: .85rem; }
+  .meta-row code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; color: var(--fg); }
+  nav.pager { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; padding: .5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  nav.pager a { padding: .35rem .6rem; border-radius: 4px; }
+  nav.pager a:hover { background: var(--bg-elev); text-decoration: none; }
+  nav.pager .disabled { color: var(--fg-dim); pointer-events: none; }
+  nav.pager .center { color: var(--fg-muted); font-size: .85rem; }
+  section { margin-bottom: 1.5rem; }
+  section > h2 { font-size: .85rem; margin: 0 0 .6rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+  .scope-note { font-size: .8rem; color: var(--fg-dim); margin-bottom: .5rem; }
+  .md p { margin: .5rem 0; }
+  .md ul, .md ol { margin: .4rem 0 .4rem 1.5rem; padding: 0; }
+  .md li { margin: .2rem 0; }
+  .md code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; color: var(--fg); }
+  .md pre.md-code { background: var(--bg-elev); border: 1px solid var(--border); padding: .9rem 1rem; border-radius: 6px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; }
+  .md pre.md-code code { background: none; padding: 0; font-size: inherit; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .md table { border-collapse: collapse; margin: .5rem 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: .3rem .6rem; }
+  pre.stat { background: var(--bg-elev); padding: 1rem; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.4; overflow-x: auto; color: var(--fg); border: 1px solid var(--border); }
+  pre.diff { background: var(--bg); padding: 0; border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; line-height: 1.4; overflow-x: auto; white-space: pre; margin: 0; }
+  pre.diff span { display: block; padding: 0 1rem; }
+  pre.diff .add { background: var(--add-bg); color: var(--add-fg); }
+  pre.diff .del { background: var(--del-bg); color: var(--del-fg); }
+  pre.diff .hunk { background: var(--hunk-bg); color: var(--hunk-fg); }
+  pre.diff .fileheader { background: var(--bg-elev); color: var(--fg-muted); font-weight: 600; }
+  pre.diff .meta { color: var(--fg-muted); }
+  pre.diff .ctx { color: var(--fg); }
+  .empty { background: var(--bg-elev); padding: 1rem; border-radius: 6px; color: var(--fg-muted); font-style: italic; border: 1px solid var(--border); }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: .8rem; text-align: center; }
+  footer code { background: var(--bg-elev); padding: .1rem .35rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cycle 0066</h1>
+  <div class="subtitle">Surface UnknownAgentError on step.end via stderr_excerpt covering claudecode/dispatch path (closes SPEC 0029 Acceptance #6)</div>
+  <div class="meta-row">
+    <code>a38eda6</code> · Timothy Johnson · 2026-05-15 14:53:30 -0400
+  </div>
+</header>
+
+<nav class="pager">
+  <a href="cycle-0065.html">← Cycle 0065</a>
+  <span class="center">66 of 49 · <a href="index.html">index</a></span>
+  <span class="disabled">next →</span>
+</nav>
+
+<section>
+  <h2>SPEC.md</h2>
+  <div class="md"><h3>SPEC — Cycle 0066: Extend step.end stderr surface to dispatch path</h3>
+<h4>Objective</h4>
+<p>Extend the head-capped <code>stderr</code> field on failed <code>step.end</code> events to cover the agent-dispatch failure path (the <code>claudecode</code>/<code>codex</code>/<code>gemini</code> branch in <code>run-cycle.ts</code>) so an <code>UnknownAgentError</code> — or any synthesized dispatch-time failure — is observable on disk in <code>.cycle/log.jsonl</code> without re-running the registry. Closes SPEC 0029 §Acceptance bullet 6.</p>
+<h4>Source Issue</h4>
+<p><code>refl-0029-spec-acceptance-bullet-6-deferred-to-wro</code> — &quot;Surface UnknownAgentError on step.end via stderr_excerpt covering claudecode/dispatch path (closes SPEC 0029 Acceptance #6)&quot;</p>
+<h4>Naming reconciliation (binding)</h4>
+<p>The source issue body calls the field <code>stderr_excerpt</code>. The already-shipped bash path (cycle 0065, commit <code>33f2b0a</code>) uses the field name <strong><code>stderr</code></strong> at <code>src/engine/run-cycle.ts:178-180</code>. To preserve identical observable behavior across both failure paths, this cycle uses <strong><code>stderr</code></strong> for the dispatch path as well. Renaming the existing bash-path field is out of scope.</p>
+<h4>Scope</h4>
+<h5>In Scope</h5>
+<ul>
+<li>Broaden the failed-step <code>stderr</code> emission at <code>src/engine/run-cycle.ts:178-180</code> from <code>step.agent === &quot;bash&quot; &amp;&amp; r.status === &quot;failed&quot;</code> to <code>r.status === &quot;failed&quot;</code> (any agent), using the existing <code>truncateStepEndStderr</code> helper unchanged.</li>
+<li>Test coverage for the dispatch path: an unknown agent name in the step config causes <code>resolveAgent</code> to throw <code>UnknownAgentError</code>, which is caught at <code>run-cycle.ts:149-155</code> and synthesized into <code>r.stderr = err.message</code>; the resulting <code>step.end status:&quot;failed&quot;</code> event must carry <code>stderr</code> equal to that message (verbatim, below the 2000-char cap).</li>
+</ul>
+<h5>Out of Scope</h5>
+<ul>
+<li>Renaming the existing <code>stderr</code> field on failed bash <code>step.end</code> events to <code>stderr_excerpt</code>.</li>
+<li>Routing the message anywhere other than the <code>step.end</code> payload (no new artifact, no log-line restructuring).</li>
+<li>Refactoring <code>UnknownAgentError</code> itself, the agent registry, or <code>exec.ts</code>/<code>exec-claudecode.ts</code>/<code>exec-codex.ts</code>/<code>exec-gemini.ts</code> dispatch internals.</li>
+<li>Changing <code>exit_code:-1</code> semantics on dispatch failures.</li>
+<li>Adding <code>stderr</code> to successful <code>step.end</code> events.</li>
+<li>Extracting a shared <code>truncateStepEndStderr</code>/<code>truncate</code> helper across <code>run-cycle.ts</code> and <code>triage.ts</code> (covered by sibling <code>refl-0065-extract-shared-head-capped-truncate-help</code>).</li>
+</ul>
+<h4>Requirements</h4>
+<ul>
+<li>The <code>step.end</code> gate becomes <code>r.status === &quot;failed&quot;</code> for <strong>both</strong> bash and agent-dispatch paths. The agent-path failure (real subprocess exit) and the dispatch-time synthesized failure (<code>UnknownAgentError</code> caught at <code>run-cycle.ts:149-155</code>) both flow through the same gate.</li>
+<li>The 2000-char head-kept cap with trailing <code>…</code> on overflow matches the existing <code>truncateStepEndStderr</code> helper (<code>src/engine/run-cycle.ts:27-29</code>) byte-for-byte; the helper is reused, not duplicated again.</li>
+<li>Successful <code>step.end</code> events on <strong>all</strong> paths continue to omit the <code>stderr</code> key entirely.</li>
+<li><code>r.stderr</code> is the documented <code>StepResult.stderr</code> string (already <code>&quot;&quot;</code> on dispatch-path success); the gate is on <code>status</code>, not on <code>stderr</code> truthiness, so an empty string from a failed dispatch (defensive) emits <code>&quot;stderr&quot;:&quot;&quot;</code> literally — matching the bash-path contract.</li>
+</ul>
+<h4>Acceptance Criteria</h4>
+<ul>
+<li>[ ] A failed <code>step.end</code> from the dispatch path (workflow step with <code>agent: bogus</code>) emits an event whose JSON parses to <code>{event:&quot;step.end&quot;, status:&quot;failed&quot;, stderr:&quot;&lt;UnknownAgentError message verbatim&gt;&quot;}</code> and includes no other shape changes (cycle_id, step, exit_code preserved).</li>
+<li>[ ] The dispatch-path <code>stderr</code> field is head-capped at 2000 chars with trailing <code>…</code> on overflow, observably identical to the bash-path cap (covered by an overflow test fixture).</li>
+<li>[ ] The existing three tests in <code>tests/engine/run-cycle.step-end-stderr.test.ts</code> still pass unchanged (successful-bash omission, failed-bash verbatim, failed-bash overflow).</li>
+<li>[ ] Successful agent-path <code>step.end</code> events (any non-bash agent) still omit <code>stderr</code>.</li>
+<li>[ ] <code>npm test</code> passes end-to-end.</li>
+<li>[ ] <code>npm run typecheck</code> passes without warnings.</li>
+<li>[ ] <code>npm run test:coverage</code> passes the per-file floor (<code>src/engine/triage.ts ≥ 95%</code>); overall coverage does not regress vs current master (line ≥ 95%, branch ≥ 75%, function ≥ 90%).</li>
+</ul>
+<h4>Testing Strategy</h4>
+<ul>
+<li>Node&#39;s native test runner, same fixture style as <code>tests/engine/run-cycle.step-end-stderr.test.ts</code> (real <code>runCycle</code> invocation against a tmp repo + minimal <code>workflows.yml</code> + injected log scan).</li>
+<li>New test file: <code>tests/engine/run-cycle.step-end-stderr-dispatch.test.ts</code> (or extend the existing file; prefer new file to keep bash- vs dispatch-path fixtures readable).</li>
+<li>Scenarios:</li>
+</ul>
+<p>  1. <strong>Unknown agent → failed dispatch carries verbatim stderr.</strong> Workflow <code>{steps:[{name:&quot;spec&quot;, agent:&quot;bogus&quot;, prompt:&quot;…&quot;}]}</code>. Assert the failed <code>step.end</code> carries <code>stderr</code> equal to the exact <code>UnknownAgentError.message</code> string thrown by <code>resolveAgent(&quot;bogus&quot;)</code> (read the message from a direct call so the assertion is not pinned to a literal that may drift).   2. <strong>Successful agent path omits stderr.</strong> Stub a registered agent&#39;s <code>runStep</code> (or use the existing test seam if any) to return <code>{status:&quot;ok&quot;, exitCode:0, stdout:&quot;…&quot;, stderr:&quot;&quot;}</code> and assert the resulting <code>step.end</code> JSON has no <code>stderr</code> key.   3. <strong>Dispatch-path overflow head-caps at 2000.</strong> Construct or simulate an agent that produces a <code>&gt;2000</code>-char <code>r.stderr</code> on a failed <code>step.end</code> (either via a registered fake agent returning a long <code>stderr</code>, or by extending the dispatch synthesis if a less invasive seam exists). Assert <code>stderr.length === 2000</code> and <code>stderr.endsWith(&quot;…&quot;)</code> — mirroring the existing bash overflow test at <code>tests/engine/run-cycle.step-end-stderr.test.ts:113-139</code>.</p>
+<p>If scenario 2 or 3 requires a registered fake agent and one does not exist in the test harness, add a minimal in-test agent registration (or, if the registry is module-frozen, add a <code>__test__</code>-style seam in <code>exec.ts</code> — but only if strictly required; the bash-path overflow test does not need one, so prefer the dispatch-only path that uses the real <code>UnknownAgentError</code> mechanism).</p>
+<h4>Documentation Updates</h4>
+<ul>
+<li><strong>CLAUDE.md</strong> — Update the <code>### Failed bash step.end events …</code> paragraph (currently scoped to bash) to describe the broadened gate. Replace the &quot;Gate is <code>step.agent === &quot;bash&quot; &amp;&amp; r.status === &quot;failed&quot;</code>&quot; wording with the new <code>r.status === &quot;failed&quot;</code> gate, and note both code paths now surface <code>stderr</code> (bash <code>execBashStep</code> failure + dispatch-time <code>UnknownAgentError</code> synthesis). Keep the line about the duplicate truncate helper.</li>
+<li><strong>docs/ARCHITECTURE.md</strong> — If it carries an equivalent claim about the failed-<code>step.end</code> stderr surface, update it for parity (verify in build; only edit if drift exists).</li>
+<li><strong>README.md</strong> — No user-visible CLI change; skip unless an operator-facing event reference exists in README that mentions bash-only.</li>
+<li><strong>AGENTS.md</strong> — No update expected (verify in build).</li>
+</ul>
+<p>Documentation is part of &quot;done&quot; — code without updated docs is incomplete. The dogfood mirror under <code>.cycle/</code> is untouched (no <code>src/defaults/</code> change).</p>
+<h4>Dependencies</h4>
+<ul>
+<li><code>refl-0028-stderr-dropped-on-failed-bash-step</code> (DONE in cycle 0065, commit <code>33f2b0a</code>) — provides the <code>truncateStepEndStderr</code> helper at <code>src/engine/run-cycle.ts:27-29</code> and the bash-path emission this cycle widens.</li>
+<li>Existing <code>UnknownAgentError</code> synthesis at <code>src/engine/run-cycle.ts:149-155</code> (no change required to that path).</li>
+<li>No new env vars, no external services.</li>
+</ul></div>
+</section>
+
+<section>
+  <h2>Files changed (code only)</h2>
+  <div class="scope-note">excluded: <code>*.md</code>, <code>docs/</code>, <code>.claude/</code>, <code>*.lock</code>, <code>package-lock.json</code></div>
+  <pre class="stat">src/engine/run-cycle.ts                            |   6 +-
+ .../run-cycle.step-end-stderr-dispatch.test.ts     | 151 +++++++++++++++++++++
+ 2 files changed, 154 insertions(+), 3 deletions(-)</pre>
+</section>
+
+<section>
+  <h2>Diff</h2>
+  <pre class="diff"><span class="fileheader">diff --git a/src/engine/run-cycle.ts b/src/engine/run-cycle.ts</span><span class="fileheader">index 4693ae5..2cbb356 100644</span><span class="meta">--- a/src/engine/run-cycle.ts</span><span class="meta">+++ b/src/engine/run-cycle.ts</span><span class="hunk">@@ -24,8 +24,8 @@ const RESET_ELIGIBLE_STEPS = new Set([&quot;build&quot;, &quot;fix&quot;]);</span><span class="ctx"> </span><span class="ctx"> export const SPEC_MIN_BYTES = 200;</span><span class="ctx"> </span><span class="del">-const MAX_STEP_END_STDERR = 2000;</span><span class="del">-const truncateStepEndStderr = (s: string): string =&gt;</span><span class="add">+export const MAX_STEP_END_STDERR = 2000;</span><span class="add">+export const truncateStepEndStderr = (s: string): string =&gt;</span><span class="ctx">   s.length &gt; MAX_STEP_END_STDERR ? s.slice(0, MAX_STEP_END_STDERR - 1) + &quot;…&quot; : s;</span><span class="ctx"> </span><span class="ctx"> export function formatSpecGuardError(path: string, bytes: number, threshold: number): string {</span><span class="hunk">@@ -175,7 +175,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {</span><span class="ctx">         step: step.name,</span><span class="ctx">         status: r.status,</span><span class="ctx">         exit_code: r.exitCode,</span><span class="del">-        ...(step.agent === &quot;bash&quot; &amp;&amp; r.status === &quot;failed&quot;</span><span class="add">+        ...(r.status === &quot;failed&quot;</span><span class="ctx">           ? { stderr: truncateStepEndStderr(r.stderr) }</span><span class="ctx">           : {}),</span><span class="ctx">       });</span><span class="fileheader">diff --git a/tests/engine/run-cycle.step-end-stderr-dispatch.test.ts b/tests/engine/run-cycle.step-end-stderr-dispatch.test.ts</span><span class="fileheader">new file mode 100644</span><span class="fileheader">index 0000000..9460bfa</span><span class="meta">--- /dev/null</span><span class="meta">+++ b/tests/engine/run-cycle.step-end-stderr-dispatch.test.ts</span><span class="hunk">@@ -0,0 +1,151 @@</span><span class="add">+import { test } from &quot;node:test&quot;;</span><span class="add">+import { strict as assert } from &quot;node:assert&quot;;</span><span class="add">+import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from &quot;node:fs/promises&quot;;</span><span class="add">+import { tmpdir } from &quot;node:os&quot;;</span><span class="add">+import { join } from &quot;node:path&quot;;</span><span class="add">+import { spawnSync } from &quot;node:child_process&quot;;</span><span class="add">+import {</span><span class="add">+  runCycle,</span><span class="add">+  truncateStepEndStderr,</span><span class="add">+  MAX_STEP_END_STDERR,</span><span class="add">+} from &quot;../../src/engine/run-cycle.ts&quot;;</span><span class="add">+import { resolveAgent, UnknownAgentError } from &quot;../../src/engine/exec.ts&quot;;</span><span class="add">+</span><span class="add">+function git(cwd: string, args: string[]) {</span><span class="add">+  const r = spawnSync(&quot;git&quot;, args, { cwd, encoding: &quot;utf8&quot; });</span><span class="add">+  if (r.status !== 0) throw new Error(`git ${args.join(&quot; &quot;)}: ${r.stderr}`);</span><span class="add">+  return r.stdout;</span><span class="add">+}</span><span class="add">+</span><span class="add">+function workflowYml(stepsBody: string): string {</span><span class="add">+  return `engine:</span><span class="add">+  max_consecutive_failures: 2</span><span class="add">+  base_branch: main</span><span class="add">+triage:</span><span class="add">+  agent: claudecode</span><span class="add">+  prompt: prompts/triage.md</span><span class="add">+  max_turns: 10</span><span class="add">+workflows:</span><span class="add">+  - name: feature</span><span class="add">+    max_cycle_attempts: 3</span><span class="add">+    steps:</span><span class="add">+${stepsBody}`;</span><span class="add">+}</span><span class="add">+</span><span class="add">+async function setupRepo(stepsBody: string) {</span><span class="add">+  const root = await mkdtemp(join(tmpdir(), &quot;cycle-stderr-dispatch-&quot;));</span><span class="add">+  git(root, [&quot;init&quot;, &quot;-b&quot;, &quot;main&quot;]);</span><span class="add">+  git(root, [&quot;config&quot;, &quot;user.email&quot;, &quot;t@t&quot;]);</span><span class="add">+  git(root, [&quot;config&quot;, &quot;user.name&quot;, &quot;t&quot;]);</span><span class="add">+  git(root, [&quot;commit&quot;, &quot;--allow-empty&quot;, &quot;-m&quot;, &quot;init&quot;]);</span><span class="add">+</span><span class="add">+  await mkdir(join(root, &quot;.cycle/scripts&quot;), { recursive: true });</span><span class="add">+  await writeFile(join(root, &quot;.cycle/workflows.yml&quot;), workflowYml(stepsBody), &quot;utf8&quot;);</span><span class="add">+  return root;</span><span class="add">+}</span><span class="add">+</span><span class="add">+function findStepEnd(log: string, stepName: string): Record&lt;string, unknown&gt; {</span><span class="add">+  const line = log.trim().split(&quot;\n&quot;).find(l =&gt; {</span><span class="add">+    if (!l.includes(&#39;&quot;event&quot;:&quot;step.end&quot;&#39;)) return false;</span><span class="add">+    try {</span><span class="add">+      return (JSON.parse(l) as { step?: string }).step === stepName;</span><span class="add">+    } catch {</span><span class="add">+      return false;</span><span class="add">+    }</span><span class="add">+  });</span><span class="add">+  assert.ok(line, `step.end for ${stepName} not found`);</span><span class="add">+  return JSON.parse(line!);</span><span class="add">+}</span><span class="add">+</span><span class="add">+test(&quot;failed dispatch step.end carries verbatim UnknownAgentError stderr&quot;, async () =&gt; {</span><span class="add">+  let expectedMessage = &quot;&quot;;</span><span class="add">+  try {</span><span class="add">+    resolveAgent(&quot;bogus&quot;);</span><span class="add">+  } catch (e) {</span><span class="add">+    assert.ok(e instanceof UnknownAgentError);</span><span class="add">+    expectedMessage = (e as Error).message;</span><span class="add">+  }</span><span class="add">+  assert.ok(expectedMessage.length &gt; 0 &amp;&amp; expectedMessage.length &lt; MAX_STEP_END_STDERR);</span><span class="add">+</span><span class="add">+  const root = await setupRepo(</span><span class="add">+    `      - name: dispatch_fail</span><span class="add">+        agent: bogus</span><span class="add">+        prompt: prompts/x.md</span><span class="add">+`,</span><span class="add">+  );</span><span class="add">+  try {</span><span class="add">+    await mkdir(join(root, &quot;.cycle/prompts&quot;), { recursive: true });</span><span class="add">+    await writeFile(join(root, &quot;.cycle/prompts/x.md&quot;), &quot;noop&quot;, &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      issueId: &quot;SE-DISPATCH&quot;,</span><span class="add">+      title: &quot;dispatch fail step&quot;,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      env: { CYCLE_BASE: &quot;main&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;failed&quot;);</span><span class="add">+    assert.equal(r.failingStep, &quot;dispatch_fail&quot;);</span><span class="add">+</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    const parsed = findStepEnd(log, &quot;dispatch_fail&quot;);</span><span class="add">+    assert.equal(parsed.status, &quot;failed&quot;);</span><span class="add">+    assert.equal(parsed.exit_code, -1);</span><span class="add">+    assert.equal(parsed.stderr, expectedMessage);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;successful agent step.end omits stderr key&quot;, async () =&gt; {</span><span class="add">+  const root = await setupRepo(</span><span class="add">+    `      - name: ok_agent</span><span class="add">+        agent: claudecode</span><span class="add">+        prompt: prompts/x.md</span><span class="add">+`,</span><span class="add">+  );</span><span class="add">+  const bin = await mkdtemp(join(tmpdir(), &quot;cycle-bin-&quot;));</span><span class="add">+  try {</span><span class="add">+    await mkdir(join(root, &quot;.cycle/prompts&quot;), { recursive: true });</span><span class="add">+    await writeFile(join(root, &quot;.cycle/prompts/x.md&quot;), &quot;noop&quot;, &quot;utf8&quot;);</span><span class="add">+</span><span class="add">+    const fake = join(bin, &quot;claude&quot;);</span><span class="add">+    await writeFile(fake, &quot;#!/bin/bash\necho &#39;agent output&#39;\nexit 0\n&quot;, &quot;utf8&quot;);</span><span class="add">+    await chmod(fake, 0o755);</span><span class="add">+</span><span class="add">+    const r = await runCycle(root, {</span><span class="add">+      issueId: &quot;SE-AGENT-OK&quot;,</span><span class="add">+      title: &quot;ok agent step&quot;,</span><span class="add">+      workflow: &quot;feature&quot;,</span><span class="add">+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: &quot;main&quot; },</span><span class="add">+    });</span><span class="add">+    assert.equal(r.status, &quot;ok&quot;);</span><span class="add">+</span><span class="add">+    const log = await readFile(join(root, &quot;.cycle/log.jsonl&quot;), &quot;utf8&quot;);</span><span class="add">+    const parsed = findStepEnd(log, &quot;ok_agent&quot;);</span><span class="add">+    assert.equal(parsed.status, &quot;ok&quot;);</span><span class="add">+    assert.ok(!(&quot;stderr&quot; in parsed), &quot;successful agent step.end must not carry stderr&quot;);</span><span class="add">+  } finally {</span><span class="add">+    await rm(root, { recursive: true, force: true });</span><span class="add">+    await rm(bin, { recursive: true, force: true });</span><span class="add">+  }</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;truncateStepEndStderr head-caps at MAX_STEP_END_STDERR with trailing ellipsis&quot;, () =&gt; {</span><span class="add">+  const input = &quot;x&quot;.repeat(2500);</span><span class="add">+  const out = truncateStepEndStderr(input);</span><span class="add">+  assert.equal(out.length, MAX_STEP_END_STDERR);</span><span class="add">+  assert.equal(MAX_STEP_END_STDERR, 2000);</span><span class="add">+  assert.ok(out.endsWith(&quot;…&quot;));</span><span class="add">+  assert.equal(out.slice(0, MAX_STEP_END_STDERR - 1), &quot;x&quot;.repeat(MAX_STEP_END_STDERR - 1));</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;truncateStepEndStderr passes through short input unchanged&quot;, () =&gt; {</span><span class="add">+  const input = &quot;agent \&quot;bogus\&quot; is not registered; known agents: claudecode, codex, gemini&quot;;</span><span class="add">+  assert.equal(truncateStepEndStderr(input), input);</span><span class="add">+});</span><span class="add">+</span><span class="add">+test(&quot;truncateStepEndStderr boundary: exact MAX is unchanged&quot;, () =&gt; {</span><span class="add">+  const input = &quot;y&quot;.repeat(MAX_STEP_END_STDERR);</span><span class="add">+  assert.equal(truncateStepEndStderr(input), input);</span><span class="add">+  assert.equal(truncateStepEndStderr(input).length, MAX_STEP_END_STDERR);</span><span class="add">+});</span></pre>
+</section>
+
+<section><h2>REVIEW.md</h2><div class="md"><p>All checks pass. Emit REVIEW.md to stdout. No MUST-FIX file.</p>
+<pre class="md-code"><code># Review: Cycle 0066
+
+## Overall Verdict
+PASS — no fixes needed.
+
+## Code Quality Review
+
+### Summary
+Minimal, surgical widening of the failed-`step.end` `stderr` gate from bash-only to status-only, plus two `export` keyword additions to surface the helper for direct unit testing. Five new tests, two doc updates. All SPEC Acceptance criteria are observable in the diff and verified by tests.
+
+### Findings
+1. **Code change correctness**: gate at `src/engine/run-cycle.ts:178` now reads `r.status === &quot;failed&quot;` only — matches SPEC requirement and PLAN Task 1 exactly. Helper at `src/engine/run-cycle.ts:27-29` reused unchanged.
+2. **Side-effect (positive, not a finding)**: the widening also surfaces stderr for the spec-guard synthesized failure (`formatSpecGuardError` at `src/engine/run-cycle.ts:165`), which previously emitted no `stderr` key on agent-path spec-step failures. Net improvement for operator observability. SPEC §Requirements (`gate is status-only`) is consistent with this — the spec-guard path mutates `r.status = &quot;failed&quot;` before the emit and is the same gate logic.
+3. **Export widening justified**: exporting `MAX_STEP_END_STDERR` + `truncateStepEndStderr` is consistent with the precedent at `src/engine/run-cycle.ts:35-58` (exported `findPriorStepHeadSha` for test access). Alternative (in-test agent registry seam) is explicitly out-of-scope per SPEC.
+4. **No leftover bash-only conditional**: grep confirms `step.agent === &quot;bash&quot;` no longer appears alongside `r.status === &quot;failed&quot;` in the gate path; the only remaining `step.agent === &quot;bash&quot;` is the legitimate dispatch branch at `src/engine/run-cycle.ts:143`.
+
+### Spec Compliance Checklist
+- [x] Acceptance #1 (dispatch path emits `stderr` verbatim, no other shape changes) — `tests/engine/run-cycle.step-end-stderr-dispatch.test.ts:60-97`
+- [x] Acceptance #2 (head-cap at 2000 with `…`) — `tests/engine/run-cycle.step-end-stderr-dispatch.test.ts:133-140`
+- [x] Acceptance #3 (existing 3 bash-path tests still pass) — full `npm test` 406/406 green
+- [x] Acceptance #4 (successful agent-path omits `stderr`) — `tests/engine/run-cycle.step-end-stderr-dispatch.test.ts:99-131`
+- [x] Acceptance #5 (`npm test` passes) — 406/406
+- [x] Acceptance #6 (`npm run typecheck`) — clean
+- [x] Acceptance #7 (coverage floors) — line 98.99 / branch 92.85 / func 96.99; per-file `triage.ts` 99.45%
+
+## Adversarial Test Review
+
+### Summary
+Strong. No mock abuse — fake `claude` is a real binary on PATH (project&#39;s preferred anti-mock pattern). Assertions are specific (exact-equality on `stderr`, `exit_code`, `status`, plus `in`-key check). Overflow boundary explicitly tested with strict-`&gt;` proof via the `exact MAX is unchanged` case.
+
+### Findings
+1. **Helper duplication acknowledged**: `findStepEnd` / `workflowYml` / `setupRepo` are reimplemented inline from the sibling test file rather than shared. PLAN §&quot;Changes Required&quot; notes this is intentional (&quot;those helpers are not exported&quot;). Acceptable for now; extracting them is a separate refactor (`refl-0065-extract-shared-head-capped-truncate-help` covers the runtime helper; the test-fixture helpers are uncovered by either reflection). Not blocking.
+2. **Verbatim assertion is drift-proof**: the test calls `resolveAgent(&quot;bogus&quot;)` at runtime to read `UnknownAgentError.message`, then asserts the `step.end` `stderr` equals that live value (`tests/engine/run-cycle.step-end-stderr-dispatch.test.ts:60-68`). If the registry list ever changes, the test self-heals — no literal to update.
+3. **Boundary precision**: `exact MAX is unchanged` test (line 147-151) proves the gate is strict `&gt;`, matching `src/engine/run-cycle.ts:29`. This catches the easy off-by-one regression where someone &quot;fixes&quot; the helper to `&gt;=`.
+4. **No happy-path-only weakness**: dispatch failure, agent success, helper overflow, helper short, helper boundary — five distinct branches.
+
+### Test Coverage
+- Command run: `npm run test:coverage`
+- Line / branch / function: 98.99 / 92.85 / 96.99
+- Regressions vs base (per-file): none. `src/engine/run-cycle.ts` improved to 100/96.05/100. `src/engine/triage.ts` holds 99.45%.
+- New code without tests: none. Two new exports are both exercised; the widened gate&#39;s new branch (failed dispatch carries stderr) and preserved branch (successful agent omits stderr) are both hit.
+- Specific scenarios missing tests: none required by SPEC. A future &quot;fake agent registry seam → dispatch-path overflow through `runCycle`&quot; integration test is explicitly deferred per PLAN §Out of Scope (out of proportion for the boundary already proven at the unit level).
+
+## Doc-vs-Code Claim Verification
+
+Diff touches `CLAUDE.md` and `docs/ARCHITECTURE.md` — Pass 3 applies.
+
+| Claim | Source (doc:line) | Backing (code:line) | Status |
+|---|---|---|---|
+| &quot;Failed `step.end` events carry a head-capped `stderr` field (2000-char convention, slice to `MAX-1` + `…`)&quot; | `CLAUDE.md:79` | `src/engine/run-cycle.ts:27-29` | OK |
+| &quot;mirroring the `engine.paused last_errors[].error` truncation at `src/engine/triage.ts:231-233`&quot; | `CLAUDE.md:79` | `src/engine/triage.ts:231-233` | OK |
+| &quot;successful `step.end` events on all paths omit the field&quot; | `CLAUDE.md:79` | `src/engine/run-cycle.ts:178-180` (conditional spread on `r.status === &quot;failed&quot;`) | OK |
+| &quot;Gate is `r.status === &quot;failed&quot;` (any agent)&quot; | `CLAUDE.md:79` | `src/engine/run-cycle.ts:178` | OK |
+| &quot;real subprocess failure in `execBashStep` (bash agent)&quot; | `CLAUDE.md:79` | `src/engine/run-cycle.ts:143-144` | OK |
+| &quot;dispatch-time `UnknownAgentError` synthesis at `src/engine/run-cycle.ts:149-155`&quot; | `CLAUDE.md:79` | `src/engine/run-cycle.ts:149-155` | OK |
+| &quot;the exported `MAX_STEP_END_STDERR` constant + `truncateStepEndStderr` helper&quot; | `CLAUDE.md:79` | `src/engine/run-cycle.ts:27` (`export const`) + `:28` (`export const`) | OK |
+| &quot;Failed `step.end` events (any agent) carry a head-capped `stderr` field (2000-char convention, slice to `MAX-1` + `…`)&quot; | `docs/ARCHITECTURE.md:262-263` | `src/engine/run-cycle.ts:27-29` + `:178` | OK |
+| &quot;Both bash-step subprocess failures and dispatch-time `UnknownAgentError` synthesis surface here&quot; | `docs/ARCHITECTURE.md:264-265` | `src/engine/run-cycle.ts:143-144` (bash) + `:149-155` (dispatch) | OK |
+| &quot;Successful `step.end` events on all paths omit the field&quot; | `docs/ARCHITECTURE.md:266` | `src/engine/run-cycle.ts:178-180` | OK |
+| Example JSONL `{&quot;event&quot;:&quot;step.end&quot;,…,&quot;status&quot;:&quot;failed&quot;,&quot;exit_code&quot;:1,&quot;stderr&quot;:&quot;npm test failed: …&quot;}` | `docs/ARCHITECTURE.md:269` | `src/engine/run-cycle.ts:173-181` (event shape) | OK |
+
+No unbacked claims. No drift.
+</code></pre></div></section>
+
+<nav class="pager">
+  <a href="cycle-0065.html">← Cycle 0065</a>
+  <span class="center"><a href="index.html">Index</a></span>
+  <span class="disabled">next →</span>
+</nav>
+
+<footer>Generated from <code>a38eda6</code></footer>
+</body>
+</html>
