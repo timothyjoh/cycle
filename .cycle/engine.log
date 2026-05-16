@@ -616,3 +616,25 @@
 {"ts":"2026-05-16T17:20:08.031Z","event":"step.start","cycle_id":"0100","step":"verify","agent":"bash"}
 {"ts":"2026-05-16T17:20:29.881Z","event":"step.end","cycle_id":"0100","step":"verify","status":"ok","exit_code":0}
 {"ts":"2026-05-16T17:20:29.882Z","event":"step.start","cycle_id":"0100","step":"commit","agent":"bash"}
+{"ts":"2026-05-16T17:20:31.531Z","event":"step.end","cycle_id":"0100","step":"commit","status":"ok","exit_code":0}
+{"ts":"2026-05-16T17:20:31.531Z","event":"cycle.end","cycle_id":"0100","status":"ok"}
+{"ts":"2026-05-16T17:20:31.551Z","event":"cycle.checkout","cycle_id":"0100","status":"skipped","base":"main","head_before":"master","reason":"no_branch"}
+{"ts":"2026-05-16T17:20:32.002Z","event":"cycle.base_pull","cycle_id":"0100","status":"failed","base":"main","reason":"git fetch origin main failed: fatal: couldn't find remote ref main\n"}
+{"ts":"2026-05-16T17:20:32.004Z","event":"queue.drained","cycle_id":"0100","issue_id":"refl-0083-commit-trunk-sh-commits-artifact-only-ch","outcome":"ok"}
+{"ts":"2026-05-16T17:20:32.004Z","event":"issue.ingested","issue_id":"refl-0081-reflection-before-commit-reorder-still-u","path":"/Users/timothyjohnson/wrk/cycle/docs/cycle/issues/todo/refl-0081-reflection-before-commit-reorder-still-u.md"}
+{"ts":"2026-05-16T17:20:32.013Z","event":"cycle.start","cycle_id":"0101","workflow":"feature","title":"Apply reflection-before-commit step reorder in workflows.yml, test, and CLAUDE.md (cycle 0082 target)","issue_id":"refl-0081-reflection-before-commit-reorder-still-u"}
+{"ts":"2026-05-16T17:20:32.014Z","event":"step.start","cycle_id":"0101","step":"spec","agent":"claudecode"}
+{"ts":"2026-05-16T17:21:47.650Z","event":"step.end","cycle_id":"0101","step":"spec","status":"ok","exit_code":0}
+{"ts":"2026-05-16T17:21:47.651Z","event":"step.start","cycle_id":"0101","step":"research","agent":"claudecode"}
+{"ts":"2026-05-16T17:23:54.706Z","event":"step.end","cycle_id":"0101","step":"research","status":"ok","exit_code":0}
+{"ts":"2026-05-16T17:23:54.707Z","event":"step.start","cycle_id":"0101","step":"plan","agent":"claudecode"}
+{"ts":"2026-05-16T17:25:17.038Z","event":"step.end","cycle_id":"0101","step":"plan","status":"ok","exit_code":0}
+{"ts":"2026-05-16T17:25:17.039Z","event":"step.start","cycle_id":"0101","step":"build","agent":"claudecode"}
+{"ts":"2026-05-16T17:25:54.687Z","event":"step.end","cycle_id":"0101","step":"build","status":"ok","exit_code":0}
+{"ts":"2026-05-16T17:25:54.687Z","event":"step.start","cycle_id":"0101","step":"review","agent":"claudecode"}
+{"ts":"2026-05-16T17:30:06.103Z","event":"step.end","cycle_id":"0101","step":"review","status":"ok","exit_code":0}
+{"ts":"2026-05-16T17:30:06.103Z","event":"step.start","cycle_id":"0101","step":"fix","agent":"claudecode"}
+{"ts":"2026-05-16T17:32:15.039Z","event":"step.end","cycle_id":"0101","step":"fix","status":"ok","exit_code":0}
+{"ts":"2026-05-16T17:32:15.039Z","event":"step.start","cycle_id":"0101","step":"verify","agent":"bash"}
+{"ts":"2026-05-16T17:32:44.199Z","event":"step.end","cycle_id":"0101","step":"verify","status":"ok","exit_code":0}
+{"ts":"2026-05-16T17:32:44.199Z","event":"step.start","cycle_id":"0101","step":"commit","agent":"bash"}
