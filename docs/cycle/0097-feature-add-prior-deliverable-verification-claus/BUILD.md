@@ -1,0 +1,1 @@
+The permission system requires manual approval for every write — including the settings file itself. Please approve the write to `.claude/settings.local.json` in the permission dialog when it appears.
