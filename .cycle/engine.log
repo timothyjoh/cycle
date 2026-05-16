@@ -512,3 +512,25 @@
 {"ts":"2026-05-16T16:01:26.296Z","event":"step.start","cycle_id":"0095","step":"verify","agent":"bash"}
 {"ts":"2026-05-16T16:01:49.060Z","event":"step.end","cycle_id":"0095","step":"verify","status":"ok","exit_code":0}
 {"ts":"2026-05-16T16:01:49.060Z","event":"step.start","cycle_id":"0095","step":"commit","agent":"bash"}
+{"ts":"2026-05-16T16:01:50.640Z","event":"step.end","cycle_id":"0095","step":"commit","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:01:50.640Z","event":"cycle.end","cycle_id":"0095","status":"ok"}
+{"ts":"2026-05-16T16:01:50.660Z","event":"cycle.checkout","cycle_id":"0095","status":"skipped","base":"main","head_before":"master","reason":"no_branch"}
+{"ts":"2026-05-16T16:01:51.071Z","event":"cycle.base_pull","cycle_id":"0095","status":"failed","base":"main","reason":"git fetch origin main failed: fatal: couldn't find remote ref main\n"}
+{"ts":"2026-05-16T16:01:51.073Z","event":"queue.drained","cycle_id":"0095","issue_id":"refl-0085-engine-has-no-stuck-detection-for-false","outcome":"ok"}
+{"ts":"2026-05-16T16:01:51.074Z","event":"issue.ingested","issue_id":"refl-0085-reflection-surfacing-does-not-dedup-agai","path":"/Users/timothyjohnson/wrk/cycle/docs/cycle/issues/todo/refl-0085-reflection-surfacing-does-not-dedup-agai.md"}
+{"ts":"2026-05-16T16:01:51.083Z","event":"cycle.start","cycle_id":"0096","workflow":"feature","title":"Add todo/blocked dedup gate to ingestReflection to suppress duplicate sharp-edge surfacing","issue_id":"refl-0085-reflection-surfacing-does-not-dedup-agai"}
+{"ts":"2026-05-16T16:01:51.084Z","event":"step.start","cycle_id":"0096","step":"spec","agent":"claudecode"}
+{"ts":"2026-05-16T16:03:11.441Z","event":"step.end","cycle_id":"0096","step":"spec","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:03:11.442Z","event":"step.start","cycle_id":"0096","step":"research","agent":"claudecode"}
+{"ts":"2026-05-16T16:04:36.304Z","event":"step.end","cycle_id":"0096","step":"research","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:04:36.305Z","event":"step.start","cycle_id":"0096","step":"plan","agent":"claudecode"}
+{"ts":"2026-05-16T16:08:37.758Z","event":"step.end","cycle_id":"0096","step":"plan","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:08:37.759Z","event":"step.start","cycle_id":"0096","step":"build","agent":"claudecode"}
+{"ts":"2026-05-16T16:09:31.898Z","event":"step.end","cycle_id":"0096","step":"build","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:09:31.899Z","event":"step.start","cycle_id":"0096","step":"review","agent":"claudecode"}
+{"ts":"2026-05-16T16:14:27.943Z","event":"step.end","cycle_id":"0096","step":"review","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:14:27.943Z","event":"step.start","cycle_id":"0096","step":"fix","agent":"claudecode"}
+{"ts":"2026-05-16T16:15:39.386Z","event":"step.end","cycle_id":"0096","step":"fix","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:15:39.387Z","event":"step.start","cycle_id":"0096","step":"verify","agent":"bash"}
+{"ts":"2026-05-16T16:16:01.405Z","event":"step.end","cycle_id":"0096","step":"verify","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:16:01.406Z","event":"step.start","cycle_id":"0096","step":"commit","agent":"bash"}
