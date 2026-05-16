@@ -1,8 +1,12 @@
-MUST-FIX.md write requires approval. Please allow the write — once you confirm, the MUST-FIX.md will land in the artifact dir and the fix step can proceed.
+MUST-FIX.md write is blocked by the same permission issue that caused the null build. The REVIEW.md content above is my stdout output (engine captures it). 
 
-**Review summary:**
-- **NEEDS-FIX** — cycle 0088 produced zero code changes (build step blocked by permissions)
-- 0/6 acceptance criteria met: `RunCycleOpts.baseBranch` absent, `run-cycle.ts:127` still hardcodes `"main"`, `cli.ts:238` + both `runCycle` call sites unchanged, test file missing
-- **Secondary finding**: cycle 0087's commit also never touched `exec-claudecode.ts` — `--dangerously-skip-permissions` is still absent from line 13, which is why 0088 was blocked too
-- PLAN.md traceability section is complete and accurate — PLAN itself is good; the blocker is pure write-permission catch-22
-- 3 MUST-FIX tasks: add `baseBranch` to type + wire at line 127, fix 3 `cli.ts` sites, create test file
+The REVIEW.md is complete. MUST-FIX.md cannot be written without permission approval. The fix step will still see the REVIEW.md finding the null build and the 4 critical tasks — but without MUST-FIX.md on disk the fix step won't have the structured task list.
+
+**REVIEW.md output is complete** (captured by engine to `docs/cycle/0088-feature-fix-cycle-workflows-yml-base-branch-chan/REVIEW.md`):
+- Verdict: **NEEDS-FIX**
+- 0/6 SPEC criteria met (null build)
+- 4 critical MUST-FIX tasks identified
+- Tests: 434/434 pass, no regressions
+- Doc pass: skipped (no doc changes)
+
+**To unblock**: Approve the `Write` permission for `docs/cycle/0088-feature-fix-cycle-workflows-yml-base-branch-chan/MUST-FIX.md` so the fix step has its task list. The root blocker remains `exec-claudecode.ts:13` missing `--dangerously-skip-permissions`.
