@@ -481,3 +481,34 @@
 {"ts":"2026-05-16T15:39:58.752Z","event":"step.start","cycle_id":"0094","step":"verify","agent":"bash"}
 {"ts":"2026-05-16T15:40:20.338Z","event":"step.end","cycle_id":"0094","step":"verify","status":"ok","exit_code":0}
 {"ts":"2026-05-16T15:40:20.339Z","event":"step.start","cycle_id":"0094","step":"commit","agent":"bash"}
+{"ts":"2026-05-16T15:40:21.863Z","event":"step.end","cycle_id":"0094","step":"commit","status":"ok","exit_code":0}
+{"ts":"2026-05-16T15:40:21.864Z","event":"cycle.end","cycle_id":"0094","status":"ok"}
+{"ts":"2026-05-16T15:40:21.885Z","event":"cycle.checkout","cycle_id":"0094","status":"skipped","base":"main","head_before":"master","reason":"no_branch"}
+{"ts":"2026-05-16T15:40:22.343Z","event":"cycle.base_pull","cycle_id":"0094","status":"failed","base":"main","reason":"git fetch origin main failed: fatal: couldn't find remote ref main\n"}
+{"ts":"2026-05-16T15:40:22.345Z","event":"queue.drained","cycle_id":"0094","issue_id":"refl-0087-build-and-fix-steps-accept-permissions-r-verify-source-mutation-test","outcome":"ok"}
+{"ts":"2026-05-16T15:40:22.346Z","event":"issue.ingested","issue_id":"refl-0085-engine-has-no-stuck-detection-for-false","path":"/Users/timothyjohnson/wrk/cycle/docs/cycle/issues/todo/refl-0085-engine-has-no-stuck-detection-for-false.md"}
+{"ts":"2026-05-16T15:40:22.355Z","event":"cycle.start","cycle_id":"0095","workflow":"feature","title":"Add consecutive-noop-cycles counter to halt engine on repeated false-positive-success cycles","issue_id":"refl-0085-engine-has-no-stuck-detection-for-false"}
+{"ts":"2026-05-16T15:40:22.355Z","event":"step.start","cycle_id":"0095","step":"spec","agent":"claudecode"}
+{"ts":"2026-05-16T15:41:36.089Z","event":"step.end","cycle_id":"0095","step":"spec","status":"failed","exit_code":1,"stderr":"spec post-condition failed: /Users/timothyjohnson/wrk/cycle/docs/cycle/0095-feature-add-consecutive-noop-cycles-counter-to-h/SPEC.md is 0 bytes (< 200)"}
+{"ts":"2026-05-16T15:41:36.089Z","event":"cycle.end","cycle_id":"0095","status":"failed","failing_step":"spec"}
+{"ts":"2026-05-16T15:41:36.108Z","event":"cycle.checkout","cycle_id":"0095","status":"skipped","base":"main","head_before":"master","reason":"no_branch"}
+{"ts":"2026-05-16T15:41:36.591Z","event":"cycle.base_pull","cycle_id":"0095","status":"failed","base":"main","reason":"git fetch origin main failed: fatal: couldn't find remote ref main\n"}
+{"ts":"2026-05-16T15:41:36.593Z","event":"queue.drained","cycle_id":"0095","issue_id":"refl-0085-engine-has-no-stuck-detection-for-false","outcome":"retry"}
+{"ts":"2026-05-16T15:41:36.593Z","event":"issue.failed","issue_id":"refl-0085-engine-has-no-stuck-detection-for-false","failing_step":"spec"}
+{"ts":"2026-05-16T15:41:36.593Z","event":"issue.ingested","issue_id":"refl-0085-engine-has-no-stuck-detection-for-false","path":"/Users/timothyjohnson/wrk/cycle/docs/cycle/issues/todo/refl-0085-engine-has-no-stuck-detection-for-false.md"}
+{"ts":"2026-05-16T15:41:36.598Z","event":"cycle.start","cycle_id":"0095","workflow":"feature","title":"Add consecutive-noop-cycles counter to halt engine on repeated false-positive-success cycles","issue_id":"refl-0085-engine-has-no-stuck-detection-for-false"}
+{"ts":"2026-05-16T15:41:36.598Z","event":"step.start","cycle_id":"0095","step":"spec","agent":"claudecode"}
+{"ts":"2026-05-16T15:43:13.805Z","event":"step.end","cycle_id":"0095","step":"spec","status":"ok","exit_code":0}
+{"ts":"2026-05-16T15:43:13.805Z","event":"step.start","cycle_id":"0095","step":"research","agent":"claudecode"}
+{"ts":"2026-05-16T15:44:39.521Z","event":"step.end","cycle_id":"0095","step":"research","status":"ok","exit_code":0}
+{"ts":"2026-05-16T15:44:39.522Z","event":"step.start","cycle_id":"0095","step":"plan","agent":"claudecode"}
+{"ts":"2026-05-16T15:51:58.423Z","event":"step.end","cycle_id":"0095","step":"plan","status":"ok","exit_code":0}
+{"ts":"2026-05-16T15:51:58.423Z","event":"step.start","cycle_id":"0095","step":"build","agent":"claudecode"}
+{"ts":"2026-05-16T15:54:27.610Z","event":"step.end","cycle_id":"0095","step":"build","status":"ok","exit_code":0}
+{"ts":"2026-05-16T15:54:27.611Z","event":"step.start","cycle_id":"0095","step":"review","agent":"claudecode"}
+{"ts":"2026-05-16T15:57:41.505Z","event":"step.end","cycle_id":"0095","step":"review","status":"ok","exit_code":0}
+{"ts":"2026-05-16T15:57:41.505Z","event":"step.start","cycle_id":"0095","step":"fix","agent":"claudecode"}
+{"ts":"2026-05-16T16:01:26.296Z","event":"step.end","cycle_id":"0095","step":"fix","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:01:26.296Z","event":"step.start","cycle_id":"0095","step":"verify","agent":"bash"}
+{"ts":"2026-05-16T16:01:49.060Z","event":"step.end","cycle_id":"0095","step":"verify","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:01:49.060Z","event":"step.start","cycle_id":"0095","step":"commit","agent":"bash"}
