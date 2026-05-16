@@ -5,6 +5,10 @@ workflow: feature
 depends_on: []
 triaged_at: "2026-05-16T00:41:57.149Z"
 source: triage
+failed_at: "2026-05-16T19:12:32.044Z"
+failed_step: verify
+failed_attempts: 3
+last_cycle_id: "0107"
 ---
 ## Problem
 

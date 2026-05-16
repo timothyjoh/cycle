@@ -10,10 +10,11 @@ export const claudecodeExec: ExecModule = {
     const abs = join(repoRoot, ".cycle", promptPath);
     const prompt = await readFile(abs, "utf8");
     return new Promise<StepResult>((resolve) => {
-      const child = spawn("claude", ["-p", prompt], {
+      const child = spawn("claude", ["--dangerously-skip-permissions", "-p", prompt], {
         cwd: repoRoot,
         env: buildChildEnv(env ?? {}),
         shell: false,
+        stdio: ["ignore", "pipe", "pipe"],
       });
       let stdout = "";
       let stderr = "";

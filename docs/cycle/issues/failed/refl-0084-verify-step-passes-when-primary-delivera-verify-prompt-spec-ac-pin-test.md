@@ -6,6 +6,10 @@ depends_on: [refl-0084-verify-step-passes-when-primary-delivera-verify-prompt-re
 triaged_at: "2026-05-16T02:12:37.206Z"
 source: triage
 parent: refl-0084-verify-step-passes-when-primary-delivera
+failed_at: "2026-05-16T18:03:13.144Z"
+failed_step: build
+failed_attempts: 3
+last_cycle_id: "0103"
 ---
 ## Problem
 

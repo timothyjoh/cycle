@@ -5,6 +5,10 @@ workflow: quickfix
 depends_on: []
 triaged_at: "2026-05-16T00:10:28.506Z"
 source: triage
+failed_at: "2026-05-16T18:05:13.772Z"
+failed_step: plan_fix
+failed_attempts: 3
+last_cycle_id: "0106"
 ---
 ## Context
 

@@ -31,7 +31,7 @@ workflows:
 `;
 
 const fakeClaude = `#!/bin/bash
-PROMPT="$2"
+PROMPT="$3"
 RAW_ID=$(printf '%s' "$PROMPT" | grep -oE '=== raw: [^ ]+ ===' | head -1 | sed 's/=== raw: //;s/ ===//')
 cat <<JSON
 {"ordering":["\${RAW_ID}-a","\${RAW_ID}-b"],"children":[{"raw_id":"\${RAW_ID}","slug":"a","id":"\${RAW_ID}-a","title":"A","workflow":"feature","depends_on":[],"body":"A body"},{"raw_id":"\${RAW_ID}","slug":"b","id":"\${RAW_ID}-b","title":"B","workflow":"feature","depends_on":["\${RAW_ID}-a"],"body":"B body"}],"decomposed_parents":["\${RAW_ID}"]}
