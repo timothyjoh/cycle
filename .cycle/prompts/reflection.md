@@ -12,11 +12,7 @@ The cycle artifact directory is the current working directory. Read
 whichever of these files exist:
 
 - `SPEC.md` — what we set out to build.
-- `RESEARCH.md` — codebase state going in.
-- `PLAN.md` — how it was supposed to land.
-- `BUILD.md` — what was actually built (line counts, deviations).
 - `REVIEW.md` — staff-engineer review findings.
-- `MUST-FIX.md` (may be absent) — required fixes called out by review.
 - `FIX.md` (may be absent) — what was fixed in response.
 
 Then inspect:
@@ -52,7 +48,7 @@ Emit exactly one JSON object:
   "sharp_edges": [
     {
       "title": "<one-line title, <= 80 chars, kebab-friendly>",
-      "body":  "<1-3 short paragraphs; a future triage should be able to act on this without rereading the diff>",
+      "body":  "<1-5 short paragraphs; a future triage should be able to act on this without rereading the diff>",
       "priority_hint": <number 1-10; higher = more urgent>
     }
   ]
