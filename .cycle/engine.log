@@ -21,3 +21,36 @@
 {"ts":"2026-05-16T00:29:02.759Z","event":"step.start","cycle_id":"0081","step":"verify","agent":"bash"}
 {"ts":"2026-05-16T00:29:25.481Z","event":"step.end","cycle_id":"0081","step":"verify","status":"ok","exit_code":0}
 {"ts":"2026-05-16T00:29:25.482Z","event":"step.start","cycle_id":"0081","step":"commit","agent":"bash"}
+{"ts":"2026-05-16T00:29:27.371Z","event":"step.end","cycle_id":"0081","step":"commit","status":"ok","exit_code":0}
+{"ts":"2026-05-16T00:29:27.371Z","event":"step.start","cycle_id":"0081","step":"reflection","agent":"claudecode"}
+{"ts":"2026-05-16T00:32:47.226Z","event":"reflection.surfaced","cycle_id":"0081","raw_id":"refl-0081-reflection-before-commit-reorder-still-u","title":"reflection-before-commit reorder still unimplemented — refile as cycle 0082 target","priority_hint":10}
+{"ts":"2026-05-16T00:32:47.227Z","event":"reflection.surfaced","cycle_id":"0081","raw_id":"refl-0081-cycle-0081-drained-done-with-placeholder","title":"cycle 0081 drained done with placeholder artifacts — traceability gap in git log","priority_hint":8}
+{"ts":"2026-05-16T00:32:47.228Z","event":"reflection.surfaced","cycle_id":"0081","raw_id":"refl-0081-dogfood-cycle-workflows-yml-feature-step","title":"dogfood .cycle/workflows.yml feature step order has no pinning test","priority_hint":5}
+{"ts":"2026-05-16T00:32:47.228Z","event":"reflection.summary","cycle_id":"0081","count":3,"skipped":0}
+{"ts":"2026-05-16T00:32:47.228Z","event":"step.end","cycle_id":"0081","step":"reflection","status":"ok","exit_code":0}
+{"ts":"2026-05-16T00:32:47.228Z","event":"cycle.end","cycle_id":"0081","status":"ok"}
+{"ts":"2026-05-16T00:32:47.251Z","event":"cycle.checkout","cycle_id":"0081","status":"skipped","base":"main","head_before":"master","reason":"no_branch"}
+{"ts":"2026-05-16T00:32:47.735Z","event":"cycle.base_pull","cycle_id":"0081","status":"failed","base":"main","reason":"git fetch origin main failed: fatal: couldn't find remote ref main\n"}
+{"ts":"2026-05-16T00:32:47.737Z","event":"queue.drained","cycle_id":"0081","issue_id":"refl-0078-cycle-0078-fix-never-applied-reflection","outcome":"ok"}
+{"ts":"2026-05-16T00:32:47.739Z","event":"triage.start","count":3}
+{"ts":"2026-05-16T00:36:16.810Z","event":"triage.raw.ok","raw_id":"refl-0081-cycle-0081-drained-done-with-placeholder","children":["refl-0081-cycle-0081-drained-done-with-placeholder-historical-context","refl-0081-cycle-0081-drained-done-with-placeholder-empty-diff-smoke-test"]}
+{"ts":"2026-05-16T00:41:57.151Z","event":"triage.raw.ok","raw_id":"refl-0081-dogfood-cycle-workflows-yml-feature-step","children":["refl-0081-dogfood-cycle-workflows-yml-feature-step"]}
+{"ts":"2026-05-16T00:44:44.628Z","event":"triage.raw.ok","raw_id":"refl-0081-reflection-before-commit-reorder-still-u","children":["refl-0081-reflection-before-commit-reorder-still-u"]}
+{"ts":"2026-05-16T00:44:44.630Z","event":"triage.end","processed":3,"failed":0}
+{"ts":"2026-05-16T00:44:44.630Z","event":"issue.ingested","issue_id":"refl-0079-cycle-0079-tsconfig-floor-guard-never-bu","path":"/Users/timothyjohnson/wrk/cycle/docs/cycle/issues/todo/refl-0079-cycle-0079-tsconfig-floor-guard-never-bu.md"}
+{"ts":"2026-05-16T00:44:44.642Z","event":"cycle.start","cycle_id":"0082","workflow":"feature","title":"Implement tsconfig floor guard: check-tsconfig-floor.mjs, tests, package.json wire-up, RFC-002 annotation","issue_id":"refl-0079-cycle-0079-tsconfig-floor-guard-never-bu"}
+{"ts":"2026-05-16T00:44:44.643Z","event":"step.start","cycle_id":"0082","step":"spec","agent":"claudecode"}
+{"ts":"2026-05-16T00:45:35.359Z","event":"step.end","cycle_id":"0082","step":"spec","status":"ok","exit_code":0}
+{"ts":"2026-05-16T00:45:35.359Z","event":"step.start","cycle_id":"0082","step":"research","agent":"claudecode"}
+{"ts":"2026-05-16T00:47:30.257Z","event":"step.end","cycle_id":"0082","step":"research","status":"ok","exit_code":0}
+{"ts":"2026-05-16T00:47:30.258Z","event":"step.start","cycle_id":"0082","step":"plan","agent":"claudecode"}
+{"ts":"2026-05-16T00:49:06.891Z","event":"step.end","cycle_id":"0082","step":"plan","status":"ok","exit_code":0}
+{"ts":"2026-05-16T00:49:06.892Z","event":"step.start","cycle_id":"0082","step":"build","agent":"claudecode"}
+{"ts":"2026-05-16T00:56:36.404Z","event":"step.end","cycle_id":"0082","step":"build","status":"ok","exit_code":0}
+{"ts":"2026-05-16T00:56:36.404Z","event":"step.start","cycle_id":"0082","step":"review","agent":"claudecode"}
+{"ts":"2026-05-16T01:01:25.385Z","event":"step.end","cycle_id":"0082","step":"review","status":"ok","exit_code":0}
+{"ts":"2026-05-16T01:01:25.386Z","event":"step.start","cycle_id":"0082","step":"fix","agent":"claudecode"}
+{"ts":"2026-05-16T01:05:14.640Z","event":"step.end","cycle_id":"0082","step":"fix","status":"ok","exit_code":0}
+{"ts":"2026-05-16T01:05:14.640Z","event":"step.start","cycle_id":"0082","step":"verify","agent":"bash"}
+{"ts":"2026-05-16T01:05:35.657Z","event":"step.end","cycle_id":"0082","step":"verify","status":"ok","exit_code":0}
+{"ts":"2026-05-16T01:05:35.658Z","event":"step.start","cycle_id":"0082","step":"commit","agent":"bash"}
