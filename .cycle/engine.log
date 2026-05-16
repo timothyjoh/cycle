@@ -572,3 +572,25 @@
 {"ts":"2026-05-16T16:33:48.185Z","event":"step.start","cycle_id":"0098","step":"verify","agent":"bash"}
 {"ts":"2026-05-16T16:34:10.464Z","event":"step.end","cycle_id":"0098","step":"verify","status":"ok","exit_code":0}
 {"ts":"2026-05-16T16:34:10.465Z","event":"step.start","cycle_id":"0098","step":"commit","agent":"bash"}
+{"ts":"2026-05-16T16:34:11.965Z","event":"step.end","cycle_id":"0098","step":"commit","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:34:11.965Z","event":"cycle.end","cycle_id":"0098","status":"ok"}
+{"ts":"2026-05-16T16:34:11.986Z","event":"cycle.checkout","cycle_id":"0098","status":"skipped","base":"main","head_before":"master","reason":"no_branch"}
+{"ts":"2026-05-16T16:34:12.437Z","event":"cycle.base_pull","cycle_id":"0098","status":"failed","base":"main","reason":"git fetch origin main failed: fatal: couldn't find remote ref main\n"}
+{"ts":"2026-05-16T16:34:12.440Z","event":"queue.drained","cycle_id":"0098","issue_id":"refl-0080-cycle-0080-empty-diff-guard-never-implem-apply-fix-md-tasks","outcome":"ok"}
+{"ts":"2026-05-16T16:34:12.441Z","event":"issue.ingested","issue_id":"refl-0081-cycle-0081-drained-done-with-placeholder-empty-diff-smoke-test","path":"/Users/timothyjohnson/wrk/cycle/docs/cycle/issues/todo/refl-0081-cycle-0081-drained-done-with-placeholder-empty-diff-smoke-test.md"}
+{"ts":"2026-05-16T16:34:12.449Z","event":"cycle.start","cycle_id":"0099","workflow":"feature","title":"Smoke test: assert non-empty diff after build/fix steps that report status:ok","issue_id":"refl-0081-cycle-0081-drained-done-with-placeholder-empty-diff-smoke-test"}
+{"ts":"2026-05-16T16:34:12.449Z","event":"step.start","cycle_id":"0099","step":"spec","agent":"claudecode"}
+{"ts":"2026-05-16T16:36:54.929Z","event":"step.end","cycle_id":"0099","step":"spec","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:36:54.930Z","event":"step.start","cycle_id":"0099","step":"research","agent":"claudecode"}
+{"ts":"2026-05-16T16:38:57.065Z","event":"step.end","cycle_id":"0099","step":"research","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:38:57.066Z","event":"step.start","cycle_id":"0099","step":"plan","agent":"claudecode"}
+{"ts":"2026-05-16T16:42:15.602Z","event":"step.end","cycle_id":"0099","step":"plan","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:42:15.602Z","event":"step.start","cycle_id":"0099","step":"build","agent":"claudecode"}
+{"ts":"2026-05-16T16:52:22.727Z","event":"step.end","cycle_id":"0099","step":"build","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:52:22.728Z","event":"step.start","cycle_id":"0099","step":"review","agent":"claudecode"}
+{"ts":"2026-05-16T16:58:38.342Z","event":"step.end","cycle_id":"0099","step":"review","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:58:38.343Z","event":"step.start","cycle_id":"0099","step":"fix","agent":"claudecode"}
+{"ts":"2026-05-16T16:59:51.027Z","event":"step.end","cycle_id":"0099","step":"fix","status":"ok","exit_code":0}
+{"ts":"2026-05-16T16:59:51.027Z","event":"step.start","cycle_id":"0099","step":"verify","agent":"bash"}
+{"ts":"2026-05-16T17:00:12.982Z","event":"step.end","cycle_id":"0099","step":"verify","status":"ok","exit_code":0}
+{"ts":"2026-05-16T17:00:12.982Z","event":"step.start","cycle_id":"0099","step":"commit","agent":"bash"}
