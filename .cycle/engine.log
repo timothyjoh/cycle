@@ -415,3 +415,25 @@
 {"ts":"2026-05-16T14:51:17.720Z","event":"step.start","cycle_id":"0091","step":"verify","agent":"bash"}
 {"ts":"2026-05-16T14:51:40.543Z","event":"step.end","cycle_id":"0091","step":"verify","status":"ok","exit_code":0}
 {"ts":"2026-05-16T14:51:40.543Z","event":"step.start","cycle_id":"0091","step":"commit","agent":"bash"}
+{"ts":"2026-05-16T14:51:41.994Z","event":"step.end","cycle_id":"0091","step":"commit","status":"ok","exit_code":0}
+{"ts":"2026-05-16T14:51:41.994Z","event":"cycle.end","cycle_id":"0091","status":"ok"}
+{"ts":"2026-05-16T14:51:42.017Z","event":"cycle.checkout","cycle_id":"0091","status":"skipped","base":"main","head_before":"master","reason":"no_branch"}
+{"ts":"2026-05-16T14:51:42.460Z","event":"cycle.base_pull","cycle_id":"0091","status":"failed","base":"main","reason":"git fetch origin main failed: fatal: couldn't find remote ref main\n"}
+{"ts":"2026-05-16T14:51:42.463Z","event":"queue.drained","cycle_id":"0091","issue_id":"refl-0082-check-tsconfig-floor-mjs-contains-covera","outcome":"ok"}
+{"ts":"2026-05-16T14:51:42.465Z","event":"issue.ingested","issue_id":"refl-0082-cycle-0082-tasks-2-4-never-executed-pack","path":"/Users/timothyjohnson/wrk/cycle/docs/cycle/issues/todo/refl-0082-cycle-0082-tasks-2-4-never-executed-pack.md"}
+{"ts":"2026-05-16T14:51:42.477Z","event":"cycle.start","cycle_id":"0092","workflow":"feature","title":"cycle 0082 tasks 2-4 never executed — package.json, test suite, RFC-002 all missing","issue_id":"refl-0082-cycle-0082-tasks-2-4-never-executed-pack"}
+{"ts":"2026-05-16T14:51:42.478Z","event":"step.start","cycle_id":"0092","step":"spec","agent":"claudecode"}
+{"ts":"2026-05-16T14:52:46.834Z","event":"step.end","cycle_id":"0092","step":"spec","status":"ok","exit_code":0}
+{"ts":"2026-05-16T14:52:46.834Z","event":"step.start","cycle_id":"0092","step":"research","agent":"claudecode"}
+{"ts":"2026-05-16T14:54:43.726Z","event":"step.end","cycle_id":"0092","step":"research","status":"ok","exit_code":0}
+{"ts":"2026-05-16T14:54:43.727Z","event":"step.start","cycle_id":"0092","step":"plan","agent":"claudecode"}
+{"ts":"2026-05-16T14:57:10.537Z","event":"step.end","cycle_id":"0092","step":"plan","status":"ok","exit_code":0}
+{"ts":"2026-05-16T14:57:10.538Z","event":"step.start","cycle_id":"0092","step":"build","agent":"claudecode"}
+{"ts":"2026-05-16T15:06:00.097Z","event":"step.end","cycle_id":"0092","step":"build","status":"ok","exit_code":0}
+{"ts":"2026-05-16T15:06:00.097Z","event":"step.start","cycle_id":"0092","step":"review","agent":"claudecode"}
+{"ts":"2026-05-16T15:11:23.496Z","event":"step.end","cycle_id":"0092","step":"review","status":"ok","exit_code":0}
+{"ts":"2026-05-16T15:11:23.496Z","event":"step.start","cycle_id":"0092","step":"fix","agent":"claudecode"}
+{"ts":"2026-05-16T15:18:13.035Z","event":"step.end","cycle_id":"0092","step":"fix","status":"ok","exit_code":0}
+{"ts":"2026-05-16T15:18:13.035Z","event":"step.start","cycle_id":"0092","step":"verify","agent":"bash"}
+{"ts":"2026-05-16T15:18:35.396Z","event":"step.end","cycle_id":"0092","step":"verify","status":"ok","exit_code":0}
+{"ts":"2026-05-16T15:18:35.396Z","event":"step.start","cycle_id":"0092","step":"commit","agent":"bash"}
