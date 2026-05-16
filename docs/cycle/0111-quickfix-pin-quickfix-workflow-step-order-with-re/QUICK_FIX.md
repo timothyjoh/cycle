@@ -1,0 +1,3 @@
+Pre-existing errors in `tests/dogfood/feature-yaml.test.ts`, not introduced by my change. Typecheck clean for my new file.
+
+`tests/defaults/quickfix-yaml.test.ts` created. Two `test()` blocks mirror `tests/defaults/feature-yaml.test.ts` pattern — one reads `src/defaults/workflows.yml`, one reads `.cycle/workflows.yml`. Both find the `quickfix` workflow, map step names, and assert deep equality to `["plan_fix", "quick_fix", "test_fix"]` with step count guard of 3. Note: both workflows currently define more steps (5–6), so these tests will fail in `test_fix` — that step resolves whether the workflows should be trimmed or the assertions adjusted.

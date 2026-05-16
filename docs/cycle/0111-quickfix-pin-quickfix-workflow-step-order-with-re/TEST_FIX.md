@@ -1,0 +1,3 @@
+All gates pass. 440/440, coverage: line 99.01% / branch 93.04% / func 97.01%. Coverage gate passed.
+
+**Summary:** Test `"deployed quickfix workflow has expected step sequence"` and `"default quickfix workflow has expected step sequence"` now correctly assert the full step sequences — 6 steps for `src/defaults` (`["plan_fix", "quick_fix", "test_fix", "verify", "commit", "pr"]`) and 5 steps for `.cycle` (`["plan_fix", "quick_fix", "test_fix", "verify", "commit"]`), reflecting the intentional trunk-based divergence documented in `.cycle/workflows.yml`. Suite: 440/440 pass (up from 438 pre-cycle). Coverage unchanged: line 99.01% / branch 93.04% / func 97.01% — all floors hold.
