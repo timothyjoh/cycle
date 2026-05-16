@@ -10,11 +10,15 @@ export type Step = {
   skip_unless?: string;
 };
 
+export type CommitConfig = {
+  mode: "trunk" | "local-only" | "worktree-pr";
+  push: boolean;
+};
+
 export type Workflow = {
   name: string;
   description?: string;
   max_cycle_attempts: number;
-  no_branch?: boolean;
   steps: Step[];
 };
 
@@ -22,6 +26,7 @@ export type EngineConfig = {
   max_consecutive_failures: number;
   base_branch: string;
   skip_completed_on_retry?: boolean;
+  commit: CommitConfig;
 };
 
 export type TriageConfig = {
@@ -62,6 +67,21 @@ export async function loadConfig(repoRoot: string): Promise<CycleConfig> {
       throw new Error(`workflows.yml malformed: workflow entry missing name or steps (${path})`);
     }
   }
+  const COMMIT_DEFAULTS: CommitConfig = { mode: "trunk", push: true };
+  const rawCommit = parsed.engine.commit;
+  let commitConfig: CommitConfig;
+  if (!rawCommit) {
+    commitConfig = COMMIT_DEFAULTS;
+  } else {
+    const mode = rawCommit.mode;
+    if (mode !== "trunk" && mode !== "local-only" && mode !== "worktree-pr") {
+      throw new Error(
+        `workflows.yml malformed: engine.commit.mode must be "trunk", "local-only", or "worktree-pr", got "${mode}" (${path})`
+      );
+    }
+    commitConfig = { mode, push: rawCommit.push !== false };
+  }
+  parsed.engine.commit = commitConfig;
   return parsed as CycleConfig;
 }
 

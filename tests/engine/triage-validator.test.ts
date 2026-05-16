@@ -5,7 +5,7 @@ import type { CycleConfig } from "../../src/engine/workflow.ts";
 import type { QueueRow } from "../../src/engine/queue.ts";
 
 const cfg: CycleConfig = {
-  engine: { max_consecutive_failures: 2, base_branch: "main" },
+  engine: { max_consecutive_failures: 2, base_branch: "main", commit: { mode: "trunk" as const, push: true } },
   triage: { agent: "claudecode", prompt: "prompts/triage.md", max_turns: 10 },
   workflows: [
     {

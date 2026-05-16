@@ -26,6 +26,9 @@ async function ensureDist(): Promise<string> {
 const workflowYml = `engine:
   max_consecutive_failures: 2
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md

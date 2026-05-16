@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
-import { createCycleBranch, checkoutCycleBranch, checkoutBase, pullBase, prepareTrunkArtifactDir, currentBranchName, revParseHead, resetCycleBranchTo, shaExists } from "../../src/engine/branch.ts";
+import { createCycleBranch, checkoutCycleBranch, checkoutBase, pullBase, prepareTrunkArtifactDir, currentBranchName, revParseHead, resetCycleBranchTo, shaExists, resolveBaseBranch } from "../../src/engine/branch.ts";
 
 function git(cwd: string, args: string[]) {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -346,6 +346,24 @@ test("shaExists is true for HEAD and false for a synthetic 40-char sha", async (
 test("shaExists returns false when cwd does not exist (spawn error path)", async () => {
   const got = await shaExists("/nonexistent-xyz-cycle-test", "deadbeef");
   assert.equal(got, false);
+});
+
+test("resolveBaseBranch: returns configBase when no frontmatter override", () => {
+  assert.equal(resolveBaseBranch("master"), "master");
+  assert.equal(resolveBaseBranch("master", undefined), "master");
+});
+
+test("resolveBaseBranch: returns frontmatterBase when non-empty string provided", () => {
+  assert.equal(resolveBaseBranch("master", "release-x"), "release-x");
+});
+
+test("resolveBaseBranch: ignores empty string frontmatterBase, falls back to configBase", () => {
+  assert.equal(resolveBaseBranch("master", ""), "master");
+});
+
+test("resolveBaseBranch: preserves configBase exactly (no silent main injection)", () => {
+  assert.equal(resolveBaseBranch("develop", "feature/x"), "feature/x");
+  assert.equal(resolveBaseBranch("develop"), "develop");
 });
 
 test("prepareTrunkArtifactDir: creates artifact dir without branching", async () => {

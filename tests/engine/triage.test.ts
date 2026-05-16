@@ -22,7 +22,7 @@ import { parseFrontmatter } from "../../src/engine/frontmatter.ts";
 
 function makeConfig(): CycleConfig {
   return {
-    engine: { max_consecutive_failures: 2, base_branch: "main" },
+    engine: { max_consecutive_failures: 2, base_branch: "main", commit: { mode: "trunk" as const, push: true } },
     triage: { agent: "claudecode", prompt: "prompts/triage.md", max_turns: 10 },
     workflows: [
       {

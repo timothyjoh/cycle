@@ -38,7 +38,7 @@ It gives a parent agent a single subprocess to hand work to, while cycle handles
 
 - **Intake:** normalize freeform tasks, tracker issues, and raw markdown drops into one inbox.
 - **Triage:** inspect the repo, select a workflow, and split oversized asks into smaller cycles.
-- **Execution:** run `spec → research → plan → build → review → fix → verify → commit → pr` style workflows.
+- **Execution:** run `spec → research → plan → build → review → fix → verify` style workflows; commit, push, and PR are engine-managed after steps complete.
 - **Quality gates:** run verification before commit / PR, lean on branch protection, and retry failed cycles from a clean slate. On retry, the engine skips pre-build steps (`spec`, `research`, `plan`) whose artifact files already exist non-empty; pass `--no-skip-completed` to force re-derivation.
 - **State:** keep a live drain queue plus an append-only JSONL audit log.
 - **Recovery:** resume in-flight work after a crash, pause safely when triage fails, and block only dependent work after terminal failures.
@@ -78,7 +78,7 @@ So cycle makes repo context and artifacts first-class. Each cycle writes durable
 - `.cycle/bin/cycle.js` — the bundled engine
 - `.cycle/workflows.yml` — engine, triage, and workflow configuration
 - `.cycle/prompts/` — prompts for spec, research, plan, build, review, fix, verify, reflection, and triage
-- `.cycle/scripts/` — git / GitHub helpers such as `commit.sh` and `pr.sh`
+- `.cycle/scripts/` — git / GitHub helpers
 - `docs/cycle/issues/` — raw / todo / done / failed / blocked issue folders
 - optional `.claude/skills/cycle.md` — a Claude Code skill that teaches a parent agent how to invoke cycle
 
@@ -121,9 +121,7 @@ Re-run triage diagnostics without mutating engine state:
 
 ## Current behavior
 
-- `commit.sh` selectively stages the cycle's intended change surface and honors a hard denylist for `.claude`, `dist`, `node_modules`, `*.lock`, and submodule gitlinks.
-- `pr.sh` opens the PR with `--squash --auto` and falls back to a synchronous squash merge when the repo has auto-merge disabled, deleting the orphaned remote branch afterward.
-- `commit.sh` and `pr.sh` append `Closes #N` lines for any `https://github.com/<owner>/<repo>/issues/<N>` URL found in the cycle's issue body, scoped to the current repo, so merged PRs auto-close the referenced issues.
+- After all workflow steps complete with `status: ok`, the engine calls `commitCycle()` which stages non-denied files, commits with subject `cycle <id>: <title>`, appends `Closes #N` lines from the issue body, and pushes with 3× backoff retry. Commit and push behavior is controlled by `engine.commit` in `workflows.yml` (`mode: trunk | local-only | worktree-pr`, `push: true | false`).
 - The feature workflow is the main dogfooded path today; the docs describe the broader workflow library and factory model the engine is growing toward.
 
 ## Design docs

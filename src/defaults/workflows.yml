@@ -1,6 +1,9 @@
 engine:
   max_consecutive_failures: 2
   base_branch: master
+  commit:
+    mode: trunk
+    push: true
 
 triage:
   agent: claudecode
@@ -19,8 +22,6 @@ workflows:
       - { name: review,   agent: claudecode, prompt: prompts/review.md }
       - { name: fix,      agent: claudecode, prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
       - { name: verify,   agent: bash,       command: scripts/verify.sh }
-      - { name: commit,   agent: bash,       command: scripts/commit.sh }
-      - { name: pr,       agent: bash,       command: scripts/pr.sh }
       - { name: documentation, agent: claudecode, prompt: prompts/documentation.md }
 
   - name: quickfix
@@ -31,13 +32,10 @@ workflows:
       - { name: quick_fix, agent: claudecode, prompt: prompts/quick_fix.md }
       - { name: test_fix,  agent: claudecode, prompt: prompts/test_fix.md }
       - { name: verify,    agent: bash,       command: scripts/verify.sh }
-      - { name: commit,    agent: bash,       command: scripts/commit.sh }
-      - { name: pr,        agent: bash,       command: scripts/pr.sh }
 
   - name: e2e-tests
     description: Write or extend Playwright end-to-end tests against the running app. Works directly on the base branch — no per-cycle branch, no PR.
     max_cycle_attempts: 3
-    no_branch: true
     steps:
       - { name: research,   agent: claudecode, prompt: prompts/research.md }
       - { name: test_plan,  agent: claudecode, prompt: prompts/test-plan.md }
@@ -45,4 +43,3 @@ workflows:
       - { name: review,     agent: claudecode, prompt: prompts/review.md }
       - { name: fix,        agent: claudecode, prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
       - { name: verify,     agent: bash,       command: scripts/verify.sh }
-      - { name: commit,     agent: bash,       command: scripts/commit-trunk.sh }

@@ -11,6 +11,9 @@ import { relative, isAbsolute } from "node:path";
 
 const FLOORS = {
   "src/engine/triage.ts": 95,
+  "src/engine/issue-lifecycle.ts": 95,
+  "src/engine/commit-cycle.ts": 95,
+  "src/engine/branch.ts": 90,
 };
 
 const LCOV_PATH = process.argv[2] ?? ".cycle/coverage.lcov";

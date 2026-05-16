@@ -21,6 +21,9 @@ function workflowYml(stepsBody: string, opts: { noBranch?: boolean } = {}): stri
   return `engine:
   max_consecutive_failures: 2
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md

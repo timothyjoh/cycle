@@ -108,3 +108,7 @@ export function shaExists(repoRoot: string, sha: string): Promise<boolean> {
     child.on("error", () => resolve(false));
   });
 }
+
+export function resolveBaseBranch(configBase: string, frontmatterBase?: string): string {
+  return (frontmatterBase != null && frontmatterBase.length > 0) ? frontmatterBase : configBase;
+}

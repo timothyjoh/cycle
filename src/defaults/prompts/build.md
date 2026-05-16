@@ -75,6 +75,13 @@ describing:
   them).
 - Any deviations from PLAN.md and why.
 - Any deferred work or follow-up notes.
+- The `## Touched Files` YAML list: every file you created, modified, or deleted — exact repo-relative paths, no globs. Format:
+
+  ```
+  ## Touched Files
+  - src/engine/commit-cycle.ts
+  - tests/engine/commit-cycle.test.ts
+  ```
 
 The engine captures stdout and writes it to
 `docs/cycle/<cycle_id>-<workflow>-<slug>/BUILD.md`. Nothing else in the

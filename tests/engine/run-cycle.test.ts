@@ -12,10 +12,31 @@ function git(cwd: string, args: string[]) {
   return r.stdout;
 }
 
+function workflowYmlBranch(stepsBody: string): string {
+  return `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+  commit:
+    mode: worktree-pr
+    push: false
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+${stepsBody}`;
+}
+
 function workflowYml(stepsBody: string): string {
   return `engine:
   max_consecutive_failures: 2
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md
@@ -88,7 +109,7 @@ test("checks out base branch after successful cycle", async () => {
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
 
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
 `), "utf8");
@@ -136,7 +157,7 @@ test("checks out base branch after failed cycle", async () => {
     await mkdir(join(root, ".cycle/scripts"), { recursive: true });
 
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: boom
@@ -258,7 +279,7 @@ test("logs cycle.checkout status=failed when base branch does not exist", async 
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
 `), "utf8");
@@ -308,7 +329,7 @@ test("pulls origin/<CYCLE_BASE> between cycles so second cycle branches off refr
 
     await mkdir(join(workRoot, ".cycle/prompts"), { recursive: true });
     await writeFile(join(workRoot, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
 `), "utf8");
@@ -365,7 +386,7 @@ test("logs cycle.base_pull status=failed when origin remote is missing", async (
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
 `), "utf8");
@@ -517,7 +538,7 @@ test("resume mode fails cleanly when cycle branch is missing (no cycle.end emitt
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
 `), "utf8");
@@ -610,7 +631,7 @@ test("logs cycle.base_pull status=skipped when prior checkout failed", async () 
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
 `), "utf8");
@@ -768,7 +789,7 @@ test("fresh build step.start records head_sha; non-build step.start does not", a
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: build
@@ -817,6 +838,9 @@ test("no_branch workflow: build step.start omits head_sha (fresh + resume)", asy
     const trunkWorkflow = `engine:
   max_consecutive_failures: 2
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md
@@ -893,7 +917,7 @@ test("fresh fix step.start records head_sha; spec/review step.start does not", a
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: review
@@ -948,6 +972,9 @@ test("no_branch workflow: fix step.start omits head_sha (fresh + resume)", async
     const trunkWorkflow = `engine:
   max_consecutive_failures: 2
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md
@@ -1023,7 +1050,7 @@ test("resume at build hard-resets to prior step.start head_sha", async () => {
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await mkdir(join(root, ".cycle/scripts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: build
@@ -1110,7 +1137,7 @@ test("resume at build with no prior head_sha emits build_pre_sha_missing and ski
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: build
@@ -1177,7 +1204,7 @@ test("resume at build with unreachable head_sha emits build_pre_sha_unreachable 
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: build
@@ -1245,7 +1272,7 @@ test("resume at fix hard-resets to prior step.start head_sha", async () => {
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: research
@@ -1347,7 +1374,7 @@ test("resume at fix with no prior head_sha emits fix_pre_sha_missing and skips r
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: research
@@ -1435,7 +1462,7 @@ test("resume at fix with unreachable head_sha emits fix_pre_sha_unreachable and 
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: research

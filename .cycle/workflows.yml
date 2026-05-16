@@ -1,6 +1,9 @@
 engine:
   max_consecutive_failures: 2
   base_branch: master
+  commit:
+    mode: trunk
+    push: true
 
 triage:
   agent: claudecode
@@ -9,15 +12,13 @@ triage:
 
 workflows:
   # LOCAL DIVERGENCE FROM src/defaults/workflows.yml
-  # This repo is trunk-based (see CLAUDE.md). feature here runs no_branch:true
-  # and commits directly to master via commit-trunk.sh; the pr step is dropped.
-  # src/defaults/workflows.yml still ships branch+PR for downstream consumers.
-  # `npm run sync-defaults` will overwrite this file — do not run it without
-  # restoring this divergence afterward.
+  # This repo's workflows.yml adds a 'document' workflow not present in src/defaults.
+  # The sync-defaults divergence guard preserves this file when syncing.
+  # engine.commit (mode: trunk, push: true) is now set in the engine block above;
+  # commit steps have been removed from all workflows.
   - name: feature
-    description: Full SDLC pass for a single cycle of work, trunk-based.
+    description: Full SDLC pass for a single cycle of work.
     max_cycle_attempts: 3
-    no_branch: true
     steps:
       - { name: spec,     agent: claudecode, prompt: prompts/spec.md }
       - { name: research, agent: claudecode, prompt: prompts/research.md }
@@ -26,36 +27,31 @@ workflows:
       - { name: review,   agent: claudecode, prompt: prompts/review.md }
       - { name: fix,      agent: claudecode, prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
       - { name: verify,   agent: bash,       command: scripts/verify.sh }
-      - { name: commit,   agent: bash,       command: scripts/commit-trunk.sh }
+      - { name: documentation, agent: claudecode, prompt: prompts/documentation.md }
 
   # Documentation-only workflow: doc/prompt edits, no code changes.
-  # Trunk-based, no reflection (don't compound from doc work).
+  # No reflection (don't compound from doc work). engine.commit handles commit.
   - name: document
     description: Documentation- and prompt-only edits. No code, no tests, no reflection.
     max_cycle_attempts: 3
-    no_branch: true
     steps:
       - { name: plan_documents,   agent: claudecode, prompt: prompts/plan_documents.md }
       - { name: authoring,        agent: claudecode, prompt: prompts/authoring.md }
       - { name: review_documents, agent: claudecode, prompt: prompts/review_documents.md }
       - { name: verify,           agent: bash,       command: scripts/verify.sh }
-      - { name: commit,           agent: bash,       command: scripts/commit-trunk.sh }
 
   - name: quickfix
-    description: Surgical fix for a well-scoped issue. Plan → fix → test. Trunk-based.
+    description: Surgical fix for a well-scoped issue. Plan → fix → test.
     max_cycle_attempts: 3
-    no_branch: true
     steps:
       - { name: plan_fix,  agent: claudecode, prompt: prompts/plan_fix.md }
       - { name: quick_fix, agent: claudecode, prompt: prompts/quick_fix.md }
       - { name: test_fix,  agent: claudecode, prompt: prompts/test_fix.md }
       - { name: verify,    agent: bash,       command: scripts/verify.sh }
-      - { name: commit,    agent: bash,       command: scripts/commit-trunk.sh }
 
   - name: e2e-tests
-    description: Write or extend Playwright end-to-end tests against the running app. Works directly on the base branch — no per-cycle branch, no PR.
+    description: Write or extend Playwright end-to-end tests against the running app.
     max_cycle_attempts: 3
-    no_branch: true
     steps:
       - { name: research,   agent: claudecode, prompt: prompts/research.md }
       - { name: test_plan,  agent: claudecode, prompt: prompts/test-plan.md }
@@ -63,4 +59,3 @@ workflows:
       - { name: review,     agent: claudecode, prompt: prompts/review.md }
       - { name: fix,        agent: claudecode, prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
       - { name: verify,     agent: bash,       command: scripts/verify.sh }
-      - { name: commit,     agent: bash,       command: scripts/commit-trunk.sh }

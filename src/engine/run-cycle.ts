@@ -1,5 +1,5 @@
 import { allocateCycleId } from "./cycle-id.ts";
-import { loadWorkflow } from "./workflow.ts";
+import { loadConfig } from "./workflow.ts";
 import { createLogger } from "./log.ts";
 import { execBashStep, type StepResult } from "./exec-bash.ts";
 import { resolveAgent, UnknownAgentError } from "./exec.ts";
@@ -13,6 +13,7 @@ import {
   revParseHead,
   resetCycleBranchTo,
   shaExists,
+  resolveBaseBranch,
 } from "./branch.ts";
 import { ingestReflection } from "./reflection.ts";
 import { sanitizeArtifactStdout } from "./sanitize-artifact.ts";
@@ -90,13 +91,16 @@ export type RunCycleOpts = {
   resume?: { startStepIndex: number };
   attempt?: number;
   skipCompletedOnRetry?: boolean;
+  baseBranch?: string;
 };
 
 export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
   const cycleId = opts.cycleId ?? (await allocateCycleId(repoRoot));
   const log = await createLogger(repoRoot);
   const slug = slugify(opts.title);
-  const wf = await loadWorkflow(repoRoot, opts.workflow);
+  const cfg = await loadConfig(repoRoot);
+  const wf = cfg.workflows.find((w) => w.name === opts.workflow);
+  if (!wf) throw new Error(`unknown workflow: ${opts.workflow}`);
 
   let artifactDir: string;
   if (opts.resume) {
@@ -107,14 +111,14 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
       issue_id: opts.issueId,
       start_step_index: opts.resume.startStepIndex,
     });
-    if (wf.no_branch) {
+    if (cfg.engine.commit.mode !== "worktree-pr") {
       ({ artifactDir } = await prepareTrunkArtifactDir(repoRoot, { cycleId, workflow: opts.workflow, slug }));
     } else {
       ({ artifactDir } = await checkoutCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug }));
     }
   } else {
     await log.emit("cycle.start", { cycle_id: cycleId, workflow: opts.workflow, title: opts.title, issue_id: opts.issueId });
-    if (wf.no_branch) {
+    if (cfg.engine.commit.mode !== "worktree-pr") {
       ({ artifactDir } = await prepareTrunkArtifactDir(repoRoot, { cycleId, workflow: opts.workflow, slug }));
     } else {
       ({ artifactDir } = await createCycleBranch(repoRoot, { cycleId, workflow: opts.workflow, slug }));
@@ -124,7 +128,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
   const cycleEnv: Record<string, string> = {
     CYCLE_ID: cycleId,
     CYCLE_TITLE: opts.title,
-    CYCLE_BASE: process.env.CYCLE_BASE ?? "main",
+    CYCLE_BASE: process.env.CYCLE_BASE ?? resolveBaseBranch(cfg.engine.base_branch, opts.baseBranch),
     ...(opts.issueId ? { CYCLE_ISSUE_ID: opts.issueId } : {}),
     ...(opts.env ?? {}),
   };
@@ -153,7 +157,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         }
       }
 
-      if (isResetEligible && !wf.no_branch) {
+      if (isResetEligible && cfg.engine.commit.mode === "worktree-pr") {
         if (!isResumeEntry) {
           headSha = await revParseHead(repoRoot);
         } else {
@@ -236,9 +240,9 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
   } finally {
     const headBefore = await currentBranchName(repoRoot);
     let checkoutOk = false;
-    if (wf.no_branch) {
-      // Trunk workflows never left base; record the no-op explicitly for the audit log.
-      await log.emit("cycle.checkout", { cycle_id: cycleId, status: "skipped", base: cycleEnv.CYCLE_BASE, head_before: headBefore, reason: "no_branch" });
+    if (cfg.engine.commit.mode !== "worktree-pr") {
+      // Trunk/local-only: never left base; record the no-op explicitly for the audit log.
+      await log.emit("cycle.checkout", { cycle_id: cycleId, status: "skipped", base: cycleEnv.CYCLE_BASE, head_before: headBefore, reason: "trunk" });
       checkoutOk = true;
     } else {
       try {

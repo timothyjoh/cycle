@@ -78,6 +78,9 @@ test("'run' halts on cycle failure and leaves remaining queue intact", async () 
       `engine:
   max_consecutive_failures: 1
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md

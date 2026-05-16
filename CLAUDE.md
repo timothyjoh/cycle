@@ -31,17 +31,17 @@ Project conventions for cycle. Read before touching code or running the workflow
 
 - **Coverage must not decrease** vs master baseline (as of 2026-05-13): Line ≥ 95%, Branch ≥ 75%, Function ≥ 90%.
 - Report numbers in `BUILD.md` / `FIX.md`. Add tests in the same cycle, not as follow-up.
-- **Per-file floor** — `src/engine/triage.ts`: line ≥ 95%. Enforced by `scripts/coverage-gate.mjs` (LCOV-driven). Extend the `FLOORS` table inside that script to add more floors.
+- **Per-file floors** (line ≥ 95% each): `src/engine/triage.ts`, `src/engine/issue-lifecycle.ts`, `src/engine/commit-cycle.ts`. Enforced by `scripts/coverage-gate.mjs` (LCOV-driven). Extend the `FLOORS` table inside that script to add more floors.
 
 ## Architecture
 
-Key modules: `src/engine/` (run-cycle, queue, triage, reflection, blocked, log, branch, exec-*), `src/cli.ts`, `src/defaults/`.
+Key modules: `src/engine/` (run-cycle, queue, triage, reflection, blocked, log, branch, exec-*, commit-cycle, issue-lifecycle), `src/cli.ts`, `src/defaults/`.
 
 After editing `src/defaults/`, run `npm run sync-defaults`.
 
 Issue lifecycle: `docs/cycle/issues/{raw,todo,done,blocked,failed}/` — see [docs/RFC-001-issue-lifecycle.md](docs/RFC-001-issue-lifecycle.md).
 
-**Detailed engine implementation notes:** [docs/ENGINE.md](docs/ENGINE.md) — covers triage, queue drain, blocked propagation, halt policy, resume, restart policy, retry skip, reflection, documentation step, artifact sanitization, spec post-condition, review Pass 3, and SPEC→PLAN traceability.
+**Detailed engine implementation notes:** [docs/ENGINE.md](docs/ENGINE.md) — covers triage, queue drain, blocked propagation, halt policy, resume, restart policy, retry skip, reflection, documentation step, artifact sanitization, spec post-condition, review Pass 3, SPEC→PLAN traceability, engine-managed commit lifecycle, and commit scope guard.
 
 ## Subprocess discipline
 

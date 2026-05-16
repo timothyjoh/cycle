@@ -77,6 +77,9 @@ async function seedTodo(
 const okYml = `engine:
   max_consecutive_failures: 2
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md
@@ -93,6 +96,9 @@ workflows:
 const boomYml = (max: number, maxConsecutive = 1) => `engine:
   max_consecutive_failures: ${maxConsecutive}
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md
@@ -329,6 +335,9 @@ test("workflow from frontmatter overrides CLI default", async () => {
     const yml = `engine:
   max_consecutive_failures: 2
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md
