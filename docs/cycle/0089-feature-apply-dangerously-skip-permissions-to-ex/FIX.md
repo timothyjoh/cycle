@@ -1,0 +1,1 @@
+Permission prompts are appearing for both files. Please **Allow** both edit requests (for `src/defaults/workflows.yml` and `src/engine/exec-claudecode.ts`) so I can proceed. Once allowed, I'll apply all three fixes and run the tests.

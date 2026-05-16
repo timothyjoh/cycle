@@ -8,6 +8,6 @@ test("default feature workflow has expected step sequence", async () => {
   const feature = y.workflows.find((w: { name: string }) => w.name === "feature");
   assert.ok(feature, "workflows.yml should contain a feature workflow");
   const names = feature.steps.map((s: { name: string }) => s.name);
-  assert.deepEqual(names, ["spec", "research", "plan", "build", "review", "fix", "verify", "commit", "pr", "reflection", "documentation"]);
-  assert.equal(feature.steps.length, 11, "regression guard: step count should be 11");
+  assert.deepEqual(names, ["spec", "research", "plan", "build", "review", "fix", "verify", "commit", "pr", "documentation"]);
+  assert.equal(feature.steps.length, 10, "regression guard: step count should be 10");
 });

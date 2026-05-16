@@ -42,6 +42,10 @@ Do NOT surface:
   `reflection.surfaced` ids — avoid duplicating titles you can see).
 - Cosmetic preferences with no concrete cost.
 - "Nice to have" features outside SPEC.
+- Low-severity issues (`priority_hint` 1–4): minor style nits, trivial
+  naming preferences, or observations with negligible concrete impact.
+  Only surface issues you would assign `priority_hint` ≥ 5 (medium or
+  higher).
 
 ## Output contract
 

@@ -27,7 +27,6 @@ workflows:
       - { name: fix,      agent: claudecode, prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
       - { name: verify,   agent: bash,       command: scripts/verify.sh }
       - { name: commit,   agent: bash,       command: scripts/commit-trunk.sh }
-      - { name: reflection, agent: claudecode, prompt: prompts/reflection.md }
 
   # Documentation-only workflow: doc/prompt edits, no code changes.
   # Trunk-based, no reflection (don't compound from doc work).
