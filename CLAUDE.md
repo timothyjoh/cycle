@@ -7,6 +7,7 @@ Project conventions for cycle. Read before touching code or running the workflow
 - **Trunk-based development.** All work goes directly on `master`. Commits land via fast-forward merge from local branches that are immediately deleted.
 - **Do NOT use git worktrees in this repo.** No `EnterWorktree`, no `git worktree add`. Edit master directly.
 - Pushes to `master` are authorized — no PR review required. See `.claude/settings.local.json` for the `autoMode.allow` rule.
+- **Trunk-based operation is enforced via `CYCLE_TRUNK_BASED=1` in `.cycle/.env`**, not via `workflows.yml`. The defaults ship `engine.commit.mode: worktree-pr`; the env var overrides it to `trunk` at engine bootstrap. Any repo needing trunk mode: create `.cycle/.env` with `CYCLE_TRUNK_BASED=1`, or pass `--trunk` to `cycle run`.
 
 ## Runtime
 
@@ -21,6 +22,7 @@ Project conventions for cycle. Read before touching code or running the workflow
 | `npm test` | Full test suite. Auto-builds first. Must pass before commit. |
 | `npm run test:coverage` | Tests with LCOV coverage. **Required in `build`/`fix` steps.** |
 | `npm run check:coverage` | Enforce per-file floors against `.cycle/coverage.lcov`. Runs automatically after `test:coverage`. |
+| `npm run check:invariants` | Enforce build-time structural invariants. Runs automatically after `test:coverage`. |
 | `npm run typecheck` | `tsc --noEmit` — no warnings allowed. |
 | `npm run build` | esbuild bundle `src/cli.ts` → `dist/cycle.js`. Runs via `pretest`. |
 | `npm run sync-defaults` | Copy `src/defaults/` → `.cycle/`. Run after editing defaults. See [docs/sync-defaults.md](docs/sync-defaults.md). |
@@ -31,11 +33,17 @@ Project conventions for cycle. Read before touching code or running the workflow
 
 - **Coverage must not decrease** vs master baseline (as of 2026-05-13): Line ≥ 95%, Branch ≥ 75%, Function ≥ 90%.
 - Report numbers in `BUILD.md` / `FIX.md`. Add tests in the same cycle, not as follow-up.
-- **Per-file floors** (line ≥ 95% each): `src/engine/triage.ts`, `src/engine/issue-lifecycle.ts`, `src/engine/commit-cycle.ts`. Enforced by `scripts/coverage-gate.mjs` (LCOV-driven). Extend the `FLOORS` table inside that script to add more floors.
+- **Per-file floors**: `src/engine/triage.ts` (95%), `src/engine/issue-lifecycle.ts` (95%), `src/engine/commit-cycle.ts` (95%), `src/engine/branch.ts` (90%), `src/engine/stale-dist.ts` (95%), `src/cli/run-one.ts` (70%), `scripts/sync-defaults.mjs` (90%). Enforced by `scripts/coverage-gate.mjs` (LCOV-driven). `scripts/**` no longer excluded from `test:coverage`. Extend the `FLOORS` table inside that script to add more floors.
+
+## Structural-invariants policy
+
+The `INVARIANTS` table in `scripts/structural-invariants.mjs` is the single source of truth for build-time structural rules. Extend it to register new invariants; enforced via `npm run check:invariants` (runs automatically after `test:coverage`).
 
 ## Architecture
 
 Key modules: `src/engine/` (run-cycle, queue, triage, reflection, blocked, log, branch, exec-*, commit-cycle, issue-lifecycle), `src/cli.ts`, `src/defaults/`.
+
+`src/engine/log-fmt.ts` — shared `truncateHeadCapped(s, max)` helper used by run-cycle and triage.
 
 After editing `src/defaults/`, run `npm run sync-defaults`.
 
