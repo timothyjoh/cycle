@@ -96,9 +96,10 @@ test("rejects non-numeric priority", () => {
 });
 
 test("rejects --priority with no value", () => {
+  // Pins to node:util missing-argument path, not the "drop requires task text" path
   assert.throws(
     () => parseArgs(["drop", "foo", "--priority"]),
-    /drop:/,
+    /Option '--priority.* argument missing/i,
   );
 });
 
