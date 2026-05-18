@@ -23,5 +23,5 @@ test("dogfood feature workflow has engine-managed commit (no commit step, no no_
   assert.ok(!hasCommitStep, "commit must not be a workflow step — engine handles it");
   const hasPrStep = feature.steps.some((s: WorkflowEntry["steps"][number]) => s.name === "pr");
   assert.ok(!hasPrStep, "pr must not be a workflow step");
-  assert.equal(y.engine?.commit?.mode, "trunk", "engine.commit.mode must be trunk");
+  assert.equal(y.engine?.commit?.mode, "worktree-pr", "engine.commit.mode must be worktree-pr — trunk-based operation enforced via CYCLE_TRUNK_BASED=1 in .cycle/.env");
 });

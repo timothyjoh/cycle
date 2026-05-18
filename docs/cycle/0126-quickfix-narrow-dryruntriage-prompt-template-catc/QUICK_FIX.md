@@ -1,0 +1,1 @@
+Need write permission for `src/engine/triage.ts`. Please approve the edit — making a one-line insertion into the catch block at line 286 to add `if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;` before the wrapped error, so only ENOENT gets the "prompt template missing" label.

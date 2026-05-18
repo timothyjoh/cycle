@@ -1,8 +1,10 @@
+# Trunk-based repos: set CYCLE_TRUNK_BASED=1 in .cycle/.env instead of changing this file.
+# engine.commit.mode is overridden at runtime; sync-defaults can safely overwrite workflows.yml.
 engine:
   max_consecutive_failures: 2
   base_branch: master
   commit:
-    mode: trunk
+    mode: worktree-pr
     push: true
 
 triage:
@@ -24,8 +26,17 @@ workflows:
       - { name: verify,   agent: bash,       command: scripts/verify.sh }
       - { name: documentation, agent: claudecode, prompt: prompts/documentation.md }
 
+  - name: document
+    description: Documentation- and prompt-only edits. No code, no tests, no reflection.
+    max_cycle_attempts: 3
+    steps:
+      - { name: plan_documents,   agent: claudecode, prompt: prompts/plan_documents.md }
+      - { name: authoring,        agent: claudecode, prompt: prompts/authoring.md }
+      - { name: review_documents, agent: claudecode, prompt: prompts/review_documents.md }
+      - { name: verify,           agent: bash,       command: scripts/verify.sh }
+
   - name: quickfix
-    description: Surgical fix for a well-scoped issue. Plan → fix → test. No spec, no research, no PR review.
+    description: Surgical fix for a well-scoped issue. Plan to fix to test. No spec, no research, no PR review.
     max_cycle_attempts: 3
     steps:
       - { name: plan_fix,  agent: claudecode, prompt: prompts/plan_fix.md }
@@ -34,7 +45,7 @@ workflows:
       - { name: verify,    agent: bash,       command: scripts/verify.sh }
 
   - name: e2e-tests
-    description: Write or extend Playwright end-to-end tests against the running app. Works directly on the base branch — no per-cycle branch, no PR.
+    description: Write or extend Playwright end-to-end tests against the running app. Works directly on the base branch.
     max_cycle_attempts: 3
     steps:
       - { name: research,   agent: claudecode, prompt: prompts/research.md }

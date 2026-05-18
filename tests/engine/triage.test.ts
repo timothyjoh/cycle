@@ -530,7 +530,7 @@ test("whole-pass failure: only raw fails all attempts → engine.paused", async 
       "utf8",
     );
     const { fm } = parseFrontmatter(rawBodyAfter);
-    assert.equal(fm.triage_attempts, 3);
+    assert.equal(fm.triage_attempts, 0);
     assert.equal(fm.failed_at, undefined);
     assert.equal(fm.failed_step, undefined);
   } finally {
@@ -538,7 +538,7 @@ test("whole-pass failure: only raw fails all attempts → engine.paused", async 
   }
 });
 
-test("all-fail: raws remain in raw/ with triage_attempts=3 and no failure stamps", async () => {
+test("all-fail: raws remain in raw/ with triage_attempts reset to 0 and no failure stamps", async () => {
   const root = await setupRepo();
   try {
     await writeFile(
@@ -573,10 +573,46 @@ test("all-fail: raws remain in raw/ with triage_attempts=3 and no failure stamps
         "utf8",
       );
       const { fm } = parseFrontmatter(body);
-      assert.equal(fm.triage_attempts, 3);
+      assert.equal(fm.triage_attempts, 0);
       assert.equal(fm.failed_at, undefined);
       assert.equal(fm.failed_step, undefined);
     }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("all-fail reset: subsequent triage pass invokes agent for each retained raw", async () => {
+  const root = await setupRepo();
+  try {
+    await writeFile(join(root, "docs/cycle/issues/raw/a.md"), rawBody("a", "task a"), "utf8");
+    await writeFile(join(root, "docs/cycle/issues/raw/b.md"), rawBody("b", "task b"), "utf8");
+
+    let callCount = 0;
+    const deps: TriageDeps = {
+      runAgent: async () => {
+        callCount++;
+        return { exitCode: 0, stdout: "not json", stderr: "" };
+      },
+    };
+
+    // First pass: all-fail → paused; reset writes triage_attempts: 0
+    const { log: log1 } = makeLog();
+    const result1 = await runTriage(root, makeConfig(), log1, deps);
+    assert.equal(result1.status, "paused");
+
+    for (const id of ["a", "b"]) {
+      const body = await readFile(join(root, `docs/cycle/issues/raw/${id}.md`), "utf8");
+      const { fm } = parseFrontmatter(body);
+      assert.equal(fm.triage_attempts, 0);
+    }
+
+    // Second pass: must invoke agent (not zero-call short-circuit)
+    callCount = 0;
+    const { log: log2 } = makeLog();
+    const result2 = await runTriage(root, makeConfig(), log2, deps);
+    assert.equal(result2.status, "paused");
+    assert.ok(callCount >= 2, "agent must be invoked for each retained raw on re-triage");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

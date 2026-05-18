@@ -18,6 +18,7 @@ const FLOORS = {
   "src/cli/run-one.ts": 70,
   "scripts/sync-defaults.mjs": 90,
   "scripts/structural-invariants.mjs": 90,
+  "src/cli/cleanup.ts": 70,
 };
 
 const LCOV_PATH = process.argv[2] ?? ".cycle/coverage.lcov";

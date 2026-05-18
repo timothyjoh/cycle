@@ -1,0 +1,1 @@
+Updated docs/ENGINE.md triage section to document the `triage_attempts: 0` reset on the all-fail path before `engine.paused` emission. README.md was already updated as part of the build (four passages: `triage_attempts: 3 → 0`, manual-reset instruction removed, safety guarantee updated).

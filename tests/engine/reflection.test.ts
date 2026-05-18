@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ingestReflection } from "../../src/engine/reflection.ts";
 import { parseFrontmatter } from "../../src/engine/frontmatter.ts";
+import { expectExactlyOne } from "../helpers.ts";
 
 type EmittedEvent = { event: string; fields: Record<string, unknown> };
 
@@ -74,10 +75,9 @@ test("ingestReflection: happy path with 2 entries writes files and emits events"
     assert.equal(surfaced[0].fields.raw_id, `refl-${CID}-foo-bar`);
     assert.equal(surfaced[0].fields.priority_hint, 7);
 
-    const summary = events.find((e) => e.event === "reflection.summary");
-    assert.ok(summary);
-    assert.equal(summary!.fields.count, 2);
-    assert.equal(summary!.fields.skipped, 0);
+    const summary = expectExactlyOne(events, "reflection.summary");
+    assert.equal(summary.fields.count, 2);
+    assert.equal(summary.fields.skipped, 0);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -109,10 +109,9 @@ test("ingestReflection: unparseable stdout escalates to refl-<cid>-parse-error.m
     const skip = events.find((e) => e.event === "reflection.skipped");
     assert.ok(skip, "reflection.skipped emitted");
     assert.equal(skip!.fields.reason, "parse_error");
-    const summary = events.find((e) => e.event === "reflection.summary");
-    assert.ok(summary, "reflection.summary emitted on escalation");
-    assert.equal(summary!.fields.count, 0);
-    assert.equal(summary!.fields.skipped, 1);
+    const summary = expectExactlyOne(events, "reflection.summary");
+    assert.equal(summary.fields.count, 0);
+    assert.equal(summary.fields.skipped, 1);
     const errPath = join(root, "docs/cycle/issues/raw", `refl-${CID}-parse-error.md`);
     assert.ok(await fileExists(errPath));
     const body = await readFile(errPath, "utf8");
@@ -156,10 +155,9 @@ test("ingestReflection: leading prose + fenced JSON + trailing prose recovers vi
     assert.deepEqual(r, { written: [], skipped: 0 });
     const skip = events.find((e) => e.event === "reflection.skipped");
     assert.equal(skip, undefined, "repair pass succeeds — no reflection.skipped");
-    const summary = events.find((e) => e.event === "reflection.summary");
-    assert.ok(summary);
-    assert.equal(summary!.fields.count, 0);
-    assert.equal(summary!.fields.skipped, 0);
+    const summary = expectExactlyOne(events, "reflection.summary");
+    assert.equal(summary.fields.count, 0);
+    assert.equal(summary.fields.skipped, 0);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -179,9 +177,9 @@ test("ingestReflection: JSON with trailing prose parses via repair pass", async 
     assert.equal(skip, undefined, "repair pass succeeds — no reflection.skipped");
     const surfaced = events.filter((e) => e.event === "reflection.surfaced");
     assert.equal(surfaced.length, 1);
-    const summary = events.find((e) => e.event === "reflection.summary");
-    assert.equal(summary!.fields.count, 1);
-    assert.equal(summary!.fields.skipped, 0);
+    const summary = expectExactlyOne(events, "reflection.summary");
+    assert.equal(summary.fields.count, 1);
+    assert.equal(summary.fields.skipped, 0);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -254,9 +252,9 @@ test("ingestReflection: repair-substring still invalid JSON escalates with secon
     assert.ok(skip);
     assert.equal(skip!.fields.reason, "parse_error");
     assert.match(String(skip!.fields.message), /JSON|token|expected/i);
-    const summary = events.find((e) => e.event === "reflection.summary");
-    assert.equal(summary!.fields.count, 0);
-    assert.equal(summary!.fields.skipped, 1);
+    const summary = expectExactlyOne(events, "reflection.summary");
+    assert.equal(summary.fields.count, 0);
+    assert.equal(summary.fields.skipped, 1);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -354,9 +352,9 @@ test("ingestReflection: entry with missing body is dropped, others written", asy
     assert.equal(skip!.fields.reason, "invalid_entry");
     assert.equal(skip!.fields.entry_index, 1);
     assert.equal(skip!.fields.field, "body");
-    const summary = events.find((e) => e.event === "reflection.summary");
-    assert.equal(summary!.fields.count, 1);
-    assert.equal(summary!.fields.skipped, 1);
+    const summary = expectExactlyOne(events, "reflection.summary");
+    assert.equal(summary.fields.count, 1);
+    assert.equal(summary.fields.skipped, 1);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

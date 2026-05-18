@@ -1,11 +1,12 @@
 import { readFile, readdir, rename, mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
+import { buildChildEnv } from "./engine/child-env.ts";
 import { getVersion } from "./version.ts";
 import { parseArgs } from "./cli/parse-args.ts";
 import { materializeFreeformIssue } from "./issue/materialize.ts";
 import { runTriage } from "./engine/triage.ts";
 import { createLogger } from "./engine/log.ts";
-import { runCycle } from "./engine/run-cycle.ts";
 import { allocateCycleId } from "./engine/cycle-id.ts";
 import {
   popNextPending,
@@ -22,6 +23,7 @@ import type { InFlightCycle } from "./engine/log-tail.ts";
 import { checkoutBase, pullBase, resolveBaseBranch } from "./engine/branch.ts";
 import { commitCycle } from "./engine/commit-cycle.ts";
 import { terminalDrain } from "./engine/issue-lifecycle.ts";
+import { emitStaleDistWarning } from "./engine/stale-dist.ts";
 import type { Logger } from "./engine/log.ts";
 import type { RunArgs } from "./cli/parse-args.ts";
 
@@ -34,6 +36,7 @@ type ResumeResult = {
   failingStep?: string;
 };
 
+const processStart = Date.now();
 const argv = process.argv.slice(2);
 if (argv[0] === "--version") {
   console.log(await getVersion());
@@ -62,6 +65,20 @@ if (argv[0] === "triage") {
   process.exit(result.exitCode);
 }
 
+if (argv[0] === "run-one") {
+  const { runOne } = await import("./cli/run-one.ts");
+  await runOne(argv.slice(1), process.cwd());
+  // runOne always calls process.exit(); this line is unreachable
+}
+
+
+if (argv[0] === "cleanup") {
+  const { runCliCleanup } = await import("./cli/cleanup.ts");
+  const result = await runCliCleanup(process.cwd(), argv.slice(1));
+  if (result.stdout) process.stdout.write(result.stdout + String.fromCharCode(10));
+  if (result.stderr) process.stderr.write(result.stderr + String.fromCharCode(10));
+  process.exit(result.exitCode);
+}
 const args = parseArgs(argv);
 const cwd = process.cwd();
 
@@ -84,11 +101,14 @@ const rawDir = join(cwd, "docs/cycle/issues/raw");
 await mkdir(doneDir, { recursive: true });
 await mkdir(failedDir, { recursive: true });
 
+if (args.trunk) process.env.CYCLE_TRUNK_BASED = "1";
+
 const cfg = args.dryRun ? null : await loadConfig(cwd);
 
 const skipCompletedOnRetry =
   args.noSkipCompleted ? false : (cfg?.engine?.skip_completed_on_retry ?? true);
 
+await emitStaleDistWarning(log, processStart, cwd);
 await log.emit("engine.start", { skip_completed_on_retry: skipCompletedOnRetry });
 
 if (!args.dryRun && cfg) {
@@ -148,6 +168,66 @@ async function drainRetry(
   await drainFailedRetry(cwd, issueId);
   await log.emit("queue.drained", { cycle_id: cycleId, issue_id: issueId, outcome: "retry" });
   await log.emit("issue.failed", { issue_id: issueId, failing_step: failingStep });
+}
+
+type RunOneParams = {
+  cycleId: string;
+  issueId: string;
+  title: string;
+  workflow: string;
+  attempt: number;
+  skipCompletedOnRetry: boolean;
+  baseBranch?: string;
+  resumeFromStep?: number;
+};
+
+function spawnRunOne(params: RunOneParams): Promise<number> {
+  const args: string[] = [
+    "--cycle-id", params.cycleId,
+    "--issue-id", params.issueId,
+    "--title", params.title,
+    "--workflow", params.workflow,
+    "--attempt", String(params.attempt),
+  ];
+  if (params.skipCompletedOnRetry) args.push("--skip-completed-on-retry");
+  if (params.baseBranch !== undefined) args.push("--base-branch", params.baseBranch);
+  if (params.resumeFromStep !== undefined)
+    args.push("--resume-from-step", String(params.resumeFromStep));
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      [process.argv[1], "run-one", ...args],
+      { env: buildChildEnv({}), stdio: "inherit", shell: false },
+    );
+    child.on("close", (code) => resolve(code ?? 1));
+    child.on("error", reject);
+  });
+}
+
+async function readCycleEndFailingStep(
+  repoRoot: string,
+  cycleId: string,
+): Promise<string | undefined> {
+  try {
+    const text = await readFile(join(repoRoot, ".cycle", "log.jsonl"), "utf8");
+    const lines = text.split("\n");
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      try {
+        const ev = JSON.parse(line) as Record<string, unknown>;
+        if (
+          ev.event === "cycle.end" &&
+          ev.cycle_id === cycleId &&
+          ev.status === "failed"
+        ) {
+          return typeof ev.failing_step === "string" ? ev.failing_step : undefined;
+        }
+      } catch { /* skip malformed */ }
+    }
+  } catch { /* ENOENT or read error */ }
+  return undefined;
 }
 
 async function runResumeOnce(
@@ -240,18 +320,21 @@ async function runResumeOnce(
   const rawMax = wfDef.max_cycle_attempts ?? 3;
   const maxAttempts = rawMax < 1 ? 1 : rawMax;
 
-  const rr = await runCycle(cwd, {
+  const exitCode = await spawnRunOne({
     cycleId: tail.cycleId,
     issueId: tail.issueId,
     title: tail.title,
     workflow: workflowName,
-    resume: { startStepIndex },
     attempt: row!.attempt,
     skipCompletedOnRetry,
+    resumeFromStep: startStepIndex,
   });
+  const failingStep = exitCode !== 0
+    ? await readCycleEndFailingStep(cwd, tail.cycleId)
+    : undefined;
 
   const todoPath = join(todoDir, `${tail.issueId}.md`);
-  if (rr.status === "ok") {
+  if (exitCode === 0) {
     const cr = await commitCycle(cwd, {
       cycleId: tail.cycleId,
       title: tail.title,
@@ -271,11 +354,11 @@ async function runResumeOnce(
     return { processed: 1, outcome: "ok" };
   }
   if (row!.attempt + 1 < maxAttempts) {
-    await drainRetry(cwd, log, tail.cycleId, tail.issueId, rr.failingStep);
-    return { processed: 0, outcome: "retry", issueId: tail.issueId, failingStep: rr.failingStep };
+    await drainRetry(cwd, log, tail.cycleId, tail.issueId, failingStep);
+    return { processed: 0, outcome: "retry", issueId: tail.issueId, failingStep };
   }
-  await terminalDrain(cwd, log, todoPath, failedDir, tail.cycleId, tail.issueId, rr.failingStep, row!.attempt + 1);
-  return { processed: 0, outcome: "terminal", issueId: tail.issueId, failingStep: rr.failingStep };
+  await terminalDrain(cwd, log, todoPath, failedDir, tail.cycleId, tail.issueId, failingStep, row!.attempt + 1);
+  return { processed: 0, outcome: "terminal", issueId: tail.issueId, failingStep };
 }
 
 if (!args.dryRun && cfg) {
@@ -353,7 +436,7 @@ while (!halted) {
   const cycleId = row.cycle_id ?? (await allocateCycleId(cwd));
   await markInProgress(cwd, row.id, cycleId);
 
-  const r = await runCycle(cwd, {
+  const exitCode = await spawnRunOne({
     cycleId,
     issueId: row.id,
     title: row.title,
@@ -362,8 +445,11 @@ while (!halted) {
     skipCompletedOnRetry,
     baseBranch: fmBaseBranch,
   });
+  const failingStep = exitCode !== 0
+    ? await readCycleEndFailingStep(cwd, cycleId)
+    : undefined;
 
-  if (r.status === "ok") {
+  if (exitCode === 0) {
     const cr = await commitCycle(cwd, {
       cycleId,
       title: row.title,
@@ -393,13 +479,13 @@ while (!halted) {
       lastHaltContext = undefined;
     }
   } else if (row.attempt + 1 < maxAttempts) {
-    await drainRetry(cwd, log, cycleId, row.id, r.failingStep);
+    await drainRetry(cwd, log, cycleId, row.id, failingStep);
     // retry-drain: counter unchanged; popNextPending will see the row again with attempt++.
   } else {
-    await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, r.failingStep, row.attempt + 1);
+    await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, failingStep, row.attempt + 1);
     consecutiveFailures += 1;
     failedCycles.push(cycleId);
-    lastHaltContext = { issueId: row.id, failingStep: r.failingStep };
+    lastHaltContext = { issueId: row.id, failingStep };
     if (consecutiveFailures >= maxConsecutiveFailures) {
       halted = true;
       haltReason = "max_consecutive_failures";

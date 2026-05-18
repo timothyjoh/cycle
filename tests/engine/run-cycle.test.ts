@@ -1043,8 +1043,9 @@ test("resume at build hard-resets to prior step.start head_sha", async () => {
     git(root, ["init", "-b", "main"]);
     git(root, ["config", "user.email", "t@t"]);
     git(root, ["config", "user.name", "t"]);
+    await writeFile(join(root, ".gitignore"), ".cycle/\n", "utf8");
     await writeFile(join(root, "tracked.txt"), "v1", "utf8");
-    git(root, ["add", "tracked.txt"]);
+    git(root, ["add", "."]);
     git(root, ["commit", "-m", "init"]);
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
@@ -1067,6 +1068,10 @@ test("resume at build hard-resets to prior step.start head_sha", async () => {
     await chmod(verifyScript, 0o755);
 
     git(root, ["checkout", "-b", "cycle/feature/resume-build"]);
+    await mkdir(join(root, "docs", "cycle", "0042-feature-resume-build"), { recursive: true });
+    await writeFile(join(root, "docs", "cycle", "0042-feature-resume-build", ".gitkeep"), "", "utf8");
+    git(root, ["add", "docs"]);
+    git(root, ["commit", "-m", "cycle artifact dir"]);
     const shaBuildStart = git(root, ["rev-parse", "HEAD"]).trim();
 
     const seedLines = [
@@ -1108,6 +1113,8 @@ test("resume at build hard-resets to prior step.start head_sha", async () => {
     assert.equal(tracked, "v1");
     const partialGone = await stat(join(root, "partial.txt")).then(() => false, () => true);
     assert.equal(partialGone, true);
+    const untrackedGone = await stat(join(root, "untracked.txt")).then(() => false, () => true);
+    assert.equal(untrackedGone, true, "untracked file removed by git clean -fd after build reset");
 
     const observed = await readFile(statusFile, "utf8");
     assert.doesNotMatch(observed, /^.M tracked\.txt/m);
@@ -1131,8 +1138,9 @@ test("resume at build with no prior head_sha emits build_pre_sha_missing and ski
     git(root, ["init", "-b", "main"]);
     git(root, ["config", "user.email", "t@t"]);
     git(root, ["config", "user.name", "t"]);
+    await writeFile(join(root, ".gitignore"), ".cycle/\n", "utf8");
     await writeFile(join(root, "tracked.txt"), "v1", "utf8");
-    git(root, ["add", "tracked.txt"]);
+    git(root, ["add", "."]);
     git(root, ["commit", "-m", "init"]);
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
@@ -1267,7 +1275,8 @@ test("resume at fix hard-resets to prior step.start head_sha", async () => {
     git(root, ["config", "user.email", "t@t"]);
     git(root, ["config", "user.name", "t"]);
     await writeFile(join(root, "tracked.txt"), "v1", "utf8");
-    git(root, ["add", "tracked.txt"]);
+    await writeFile(join(root, ".gitignore"), ".cycle/\n", "utf8");
+    git(root, ["add", "."]);
     git(root, ["commit", "-m", "init"]);
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
@@ -1296,6 +1305,10 @@ test("resume at fix hard-resets to prior step.start head_sha", async () => {
     }
 
     git(root, ["checkout", "-b", "cycle/feature/resume-fix"]);
+    await mkdir(join(root, "docs", "cycle", "0042-feature-resume-fix"), { recursive: true });
+    await writeFile(join(root, "docs", "cycle", "0042-feature-resume-fix", ".gitkeep"), "", "utf8");
+    git(root, ["add", "docs"]);
+    git(root, ["commit", "-m", "cycle artifact dir"]);
     const shaFixStart = git(root, ["rev-parse", "HEAD"]).trim();
 
     const seedLines = [
@@ -1345,6 +1358,8 @@ test("resume at fix hard-resets to prior step.start head_sha", async () => {
     assert.equal(tracked, "v1");
     const partialGone = await stat(join(root, "partial.txt")).then(() => false, () => true);
     assert.equal(partialGone, true);
+    const untrackedGone = await stat(join(root, "untracked.txt")).then(() => false, () => true);
+    assert.equal(untrackedGone, true, "untracked file removed by git clean -fd after fix reset");
 
     const observed = await readFile(statusFile, "utf8");
     assert.doesNotMatch(observed, /^.M tracked\.txt/m);

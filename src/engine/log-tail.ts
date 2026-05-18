@@ -53,6 +53,8 @@ export function parseLogTail(text: string): InFlightCycle | null {
       name = (e as { step?: string }).step;
     } else if (e.event === "step.skipped") {
       name = (e as { step?: string }).step;
+    } else if (e.event === "step.end" && (e as { status?: string }).status === "skipped") {
+      name = (e as { step?: string }).step;
     } else {
       continue;
     }

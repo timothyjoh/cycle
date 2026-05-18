@@ -17,6 +17,7 @@ import {
 import { resolveAgent } from "./exec.ts";
 import type { CycleConfig, TriageConfig } from "./workflow.ts";
 import type { Logger } from "./log.ts";
+import { truncateHeadCapped } from './log-fmt.ts';
 
 export type TriageAgentResult = { exitCode: number; stdout: string; stderr: string };
 
@@ -165,7 +166,7 @@ export async function runTriage(
   const rawDir = join(repoRoot, "docs/cycle/issues/raw");
   await mkdir(rawDir, { recursive: true });
 
-  const raws = await loadRaws(rawDir);
+  const raws = await loadRaws(rawDir, log);
 
   await log.emit("triage.start", { count: raws.length });
 
@@ -228,13 +229,20 @@ export async function runTriage(
   if (failed.length === raws.length) {
     // All-fail path: raws stay in raw/ so `cycle triage --dry-run` can
     // re-evaluate them after operator edits without any manual `mv`.
-    const MAX_ERR_LEN = 2000;
-    const truncate = (s: string) =>
-      s.length > MAX_ERR_LEN ? s.slice(0, MAX_ERR_LEN - 1) + "…" : s;
+
+    // Reset attempts so the next engine invocation is not a no-op.
+    for (const raw of failedRaws) {
+      try {
+        await mutateFrontmatter(raw.srcPath, (fm) => ({ ...fm, triage_attempts: 0 }));
+      } catch {
+        // raw may have been removed mid-flight; skip silently
+      }
+    }
+
     const raw_ids = failed;
     const last_errors = failed.map((raw_id, i) => ({
       raw_id,
-      error: truncate(lastErrors[i] ?? ""),
+      error: truncateHeadCapped(lastErrors[i] ?? "", 2000),
     }));
     await log.emit("engine.paused", {
       reason: "all_triage_failed",
@@ -263,7 +271,8 @@ export async function dryRunTriage(
 ): Promise<DryRunReport[]> {
   const runAgent = deps.runAgent ?? runAgentViaDispatch;
   const rawDir = join(repoRoot, "docs/cycle/issues/raw");
-  const raws = await loadRaws(rawDir);
+  const silentLog: Logger = { async emit() {} };
+  const raws = await loadRaws(rawDir, silentLog);
   if (raws.length === 0) return [];
 
   // dryRunTriage contract: a missing prompt template throws synchronously
@@ -314,7 +323,7 @@ export async function dryRunTriage(
   return reports;
 }
 
-async function loadRaws(rawDir: string): Promise<RawIssue[]> {
+async function loadRaws(rawDir: string, log: Logger): Promise<RawIssue[]> {
   let files: string[] = [];
   try {
     files = (await readdir(rawDir)).filter((f) => f.endsWith(".md")).sort();
@@ -324,12 +333,20 @@ async function loadRaws(rawDir: string): Promise<RawIssue[]> {
   const raws: RawIssue[] = [];
   for (const f of files) {
     const srcPath = join(rawDir, f);
-    const body = await readFile(srcPath, "utf8");
-    const { fm, bodyAfter } = parseFrontmatter(body);
-    const id = String(fm.id);
-    const attempts =
-      typeof fm.triage_attempts === "number" ? fm.triage_attempts : 0;
-    raws.push({ id, body: bodyAfter, fm, srcPath, attempts });
+    try {
+      const body = await readFile(srcPath, "utf8");
+      const { fm, bodyAfter } = parseFrontmatter(body);
+      const id = String(fm.id);
+      const attempts =
+        typeof fm.triage_attempts === "number" ? fm.triage_attempts : 0;
+      raws.push({ id, body: bodyAfter, fm, srcPath, attempts });
+    } catch (e) {
+      const raw_id = f.replace(/.md$/, "");
+      await log.emit("triage.raw.load_error", {
+        raw_id,
+        error: truncateHeadCapped(String((e as Error).message ?? e), 2000),
+      });
+    }
   }
   return raws;
 }

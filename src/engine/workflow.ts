@@ -81,6 +81,9 @@ export async function loadConfig(repoRoot: string): Promise<CycleConfig> {
     }
     commitConfig = { mode, push: rawCommit.push !== false };
   }
+  if (process.env.CYCLE_TRUNK_BASED === "1") {
+    commitConfig.mode = "trunk";
+  }
   parsed.engine.commit = commitConfig;
   return parsed as CycleConfig;
 }

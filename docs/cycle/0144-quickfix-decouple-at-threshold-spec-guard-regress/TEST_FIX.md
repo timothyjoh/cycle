@@ -1,0 +1,1 @@
+Need write permission for that test file. Please approve the edit to `tests/engine/run-cycle.spec-guard.test.ts` line 139-143: changing `printf '%s'` to `printf '%s\n'` to make the 200-byte count self-contained in the stub rather than relying on the sanitizer's trailing-newline append.

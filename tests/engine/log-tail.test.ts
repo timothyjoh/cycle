@@ -222,3 +222,26 @@ test("parseLogTail ignores step.skipped from a different cycle_id", () => {
   assert.ok(r);
   assert.deepEqual(r!.completedSteps, ["spec"]);
 });
+test("parseLogTail counts step.end status:skipped as completed", () => {
+  const r = parseLogTail(
+    [
+      ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "t", issue_id: "i" }),
+      ev("step.end", { cycle_id: "0001", step: "spec", status: "ok" }),
+      ev("step.end", { cycle_id: "0001", step: "fix", status: "skipped", reason: "skip_unless_artifact_missing", artifact: "MUST-FIX.md" }),
+    ].join("\n")
+  );
+  assert.ok(r);
+  assert.deepEqual(r!.completedSteps, ["spec", "fix"]);
+});
+
+test("parseLogTail ignores step.end status:skipped from a different cycle_id", () => {
+  const r = parseLogTail(
+    [
+      ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "t", issue_id: "i" }),
+      ev("step.end", { cycle_id: "9999", step: "fix", status: "skipped", reason: "skip_unless_artifact_missing", artifact: "MUST-FIX.md" }),
+    ].join("\n")
+  );
+  assert.ok(r);
+  assert.deepEqual(r!.completedSteps, []);
+});
+

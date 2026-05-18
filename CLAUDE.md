@@ -28,12 +28,25 @@ Project conventions for cycle. Read before touching code or running the workflow
 | `npm run sync-defaults` | Copy `src/defaults/` → `.cycle/`. Run after editing defaults. See [docs/sync-defaults.md](docs/sync-defaults.md). |
 | `cycle status` | Print queue counts and in-flight cycle. Read-only. |
 | `cycle triage --dry-run` | Re-run triage against `raw/` without mutating state. Diagnostic for `engine.paused {reason: "all_triage_failed"}`. |
+| `cycle cleanup [--dry-run|--yes] [--force]` | List (or delete with `--yes`) local `cycle/*` branches with no matching `in_progress` queue row. Safe by default: `--dry-run` is implicit; `--force` bypasses the dirty-tree guard. |
 
 ## Coverage policy
 
 - **Coverage must not decrease** vs master baseline (as of 2026-05-13): Line ≥ 95%, Branch ≥ 75%, Function ≥ 90%.
 - Report numbers in `BUILD.md` / `FIX.md`. Add tests in the same cycle, not as follow-up.
-- **Per-file floors**: `src/engine/triage.ts` (95%), `src/engine/issue-lifecycle.ts` (95%), `src/engine/commit-cycle.ts` (95%), `src/engine/branch.ts` (90%), `src/engine/stale-dist.ts` (95%), `src/cli/run-one.ts` (70%), `scripts/sync-defaults.mjs` (90%). Enforced by `scripts/coverage-gate.mjs` (LCOV-driven). `scripts/**` no longer excluded from `test:coverage`. Extend the `FLOORS` table inside that script to add more floors.
+- **Per-file floors**: `src/engine/triage.ts` (95%), `src/engine/issue-lifecycle.ts` (95%), `src/engine/commit-cycle.ts` (95%), `src/engine/branch.ts` (90%), `src/engine/stale-dist.ts` (95%), `src/cli/run-one.ts` (70%), `scripts/sync-defaults.mjs` (90%), `src/cli/cleanup.ts` (70%). Enforced by `scripts/coverage-gate.mjs` (LCOV-driven). `scripts/**` no longer excluded from `test:coverage`. Extend the `FLOORS` table inside that script to add more floors.
+
+## Test conventions
+
+- **Exactly-once engine events must be cardinality-pinned.** Use
+  `filter(predicate).length === 1` (not `find(predicate) !== undefined`) when
+  asserting that an engine event fires exactly once. A bare `find` only confirms
+  existence — it lets double-emission bugs slip through undetected.
+- Use the `expectExactlyOne(events, eventName)` helper from `tests/helpers.ts`
+  for events where you also need the payload. It asserts `length === 1` and
+  returns the matched event.
+- Background: cycles 0022 and 0051 established this rule. `engine.halted` and
+  `reflection.summary` are the canonical exactly-once events.
 
 ## Structural-invariants policy
 
