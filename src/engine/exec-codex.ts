@@ -36,12 +36,8 @@ export const codexExec: ExecModule = {
         });
       });
       child.stdin.on("error", () => {});
-      try {
-        child.stdin.write(prompt);
-        child.stdin.end();
-      } catch {
-        // child.on("error", …) owns the resolve when stdin closes before write
-      }
+      child.stdin.write(prompt);
+      child.stdin.end();
     });
   },
 };

@@ -5,6 +5,10 @@ workflow: feature
 depends_on: [refl-0043-frontmatter-byte-shape-pin-misses-blank]
 triaged_at: "2026-05-14T16:02:02.497Z"
 source: triage
+failed_at: "2026-05-18T22:15:17.021Z"
+failed_step: commit
+failed_attempts: 3
+last_cycle_id: "0160"
 ---
 ## Context
 

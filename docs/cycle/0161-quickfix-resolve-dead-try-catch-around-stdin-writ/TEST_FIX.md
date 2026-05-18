@@ -1,0 +1,5 @@
+The PLAN's prediction that function coverage would reach ≥ 90% was incorrect — the catch block contained no function literal, so removing it couldn't change function count. The uncovered function is the `() => {}` stdin error handler (triggered only by EPIPE, untested). No per-file floor is registered for `exec-codex.ts`, so this doesn't block anything.
+
+---
+
+The regression contract test ("codex: resolves StepResult{status:failed,exitCode:-1} when codex binary missing (spawn ENOENT)") passes cleanly with the fix in place; the dead try/catch around `child.stdin.write(prompt)` and `child.stdin.end()` has been removed, leaving bare statements as specified. Full test suite: 505/505 pass, 0 fail. Overall coverage: line 98.47% / branch 91.53% / function 92.83% — all above project floors and unchanged vs the pre-fix baseline. Note: PLAN.md's prediction that removing the try/catch would lift exec-codex.ts function coverage to ≥ 90% was incorrect; the catch block contained no function literal, so function coverage remains at 85.71% (6/7 — the `() => {}` stdin error handler is untested); no per-file floor is registered for exec-codex.ts, so all gates pass.

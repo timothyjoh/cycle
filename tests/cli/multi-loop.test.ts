@@ -212,3 +212,43 @@ test("'run \"<text>\" --dry-run' pins raw frontmatter byte-shape (priority: 3 de
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("'drop' and 'run \"<text>\"' produce byte-equal frontmatter after normalizing id and added_at", async () => {
+  const rootA = await mkdtemp(join(tmpdir(), "cycle-drop-"));
+  const rootB = await mkdtemp(join(tmpdir(), "cycle-run-"));
+  try {
+    const distPath = await ensureDist();
+    const text = "shared equivalence probe";
+
+    // drop: stdout is a single JSON object with { path }
+    const dropResult = spawnSync("node", [distPath, "drop", text], { cwd: rootA, encoding: "utf8" });
+    assert.equal(dropResult.status, 0, `cycle drop exit: ${dropResult.status}\nstderr: ${dropResult.stderr}`);
+    const dropOut = JSON.parse(dropResult.stdout.trim());
+    const bodyA = await readFile(dropOut.path, "utf8");
+
+    // run --dry-run: stdout is NDJSON events; locate raw file via readdir
+    const runResult = spawnSync("node", [distPath, "run", text, "--dry-run"], { cwd: rootB, encoding: "utf8" });
+    assert.equal(runResult.status, 0, `cycle run exit: ${runResult.status}\nstderr: ${runResult.stderr}`);
+    const rawDir = join(rootB, "docs/cycle/issues/raw");
+    const entries = (await readdir(rawDir)).filter((f) => f.endsWith(".md"));
+    assert.equal(entries.length, 1, `expected exactly one raw .md, got: ${entries.join(", ")}`);
+    const bodyB = await readFile(join(rawDir, entries[0]), "utf8");
+
+    const normalize = (s: string) =>
+      s
+        .replace(/^id: .+$/m, "id: <ID>")
+        .replace(/^added_at: .+$/m, "added_at: <TS>");
+
+    const normA = normalize(bodyA);
+    const normB = normalize(bodyB);
+
+    assert.strictEqual(
+      normA,
+      normB,
+      `frontmatter diverged:\n--- drop ---\n${normA}\n--- run --dry-run ---\n${normB}`,
+    );
+  } finally {
+    await rm(rootA, { recursive: true, force: true });
+    await rm(rootB, { recursive: true, force: true });
+  }
+});
