@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
+import { expectExactlyOne } from "../helpers.ts";
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, chmod, appendFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -45,13 +46,19 @@ test("'run' lists pending rows in dry-run mode", async () => {
     const r = spawnSync("node", [distPath, "run", "--dry-run"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `cycle run exit: ${r.status}\nstderr: ${r.stderr}`);
 
-    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
-    const events = log.trim().split("\n").map(l => JSON.parse(l));
-    const ingested = events.filter(e => e.event === "issue.ingested");
+    const events = r.stdout.trim().split("\n").map((l: string) => JSON.parse(l));
+    const ingested = events.filter((e: { event: string }) => e.event === "issue.ingested");
     assert.equal(ingested.length, 2);
 
-    const stop = events.findLast((e: { event: string }) => e.event === "engine.stop");
+    const stop = expectExactlyOne(events, "engine.stop");
     assert.equal(stop.dry_run, true);
+
+    try {
+      await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+      assert.fail("run --dry-run should not write log.jsonl");
+    } catch (e: unknown) {
+      assert.equal((e as NodeJS.ErrnoException).code, "ENOENT");
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -187,13 +194,20 @@ test("'run \"<text>\" --dry-run' pins raw frontmatter byte-shape (priority: 3 de
       `${addedAtMatch[0]}\n` +
       "triage_attempts: 0\n" +
       "priority: 3\n" +
-      "---\n";
+      "---\n\n";
     assert.ok(
       body.startsWith(expectedFrontmatter),
       `frontmatter mismatch:\n${body}`,
     );
 
     assert.match(body, /\npark this too\n$/);
+
+    try {
+      await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+      assert.fail("run '<text>' --dry-run should not write log.jsonl");
+    } catch (e: unknown) {
+      assert.equal((e as NodeJS.ErrnoException).code, "ENOENT");
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }

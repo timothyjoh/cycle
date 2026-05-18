@@ -88,11 +88,32 @@ if (args.command === "drop") {
   process.exit(0);
 }
 
-const log = await createLogger(cwd);
-
 if (args.text) {
   await materializeFreeformIssue(args.text, cwd);
 }
+
+if (args.dryRun) {
+  const rows = await readQueue(cwd);
+  for (const row of rows) {
+    if (row.status !== "pending") continue;
+    console.log(JSON.stringify({
+      ts: new Date().toISOString(),
+      event: "issue.ingested",
+      issue_id: row.id,
+      path: join(cwd, "docs/cycle/issues/todo", `${row.id}.md`),
+    }));
+  }
+  console.log(JSON.stringify({
+    ts: new Date().toISOString(),
+    event: "engine.stop",
+    status: "ok",
+    dry_run: true,
+    cycles_processed: 0,
+  }));
+  process.exit(0);
+}
+
+const log = await createLogger(cwd);
 
 const todoDir = join(cwd, "docs/cycle/issues/todo");
 const doneDir = join(cwd, "docs/cycle/issues/done");
@@ -103,7 +124,7 @@ await mkdir(failedDir, { recursive: true });
 
 if (args.trunk) process.env.CYCLE_TRUNK_BASED = "1";
 
-const cfg = args.dryRun ? null : await loadConfig(cwd);
+const cfg = await loadConfig(cwd);
 
 const skipCompletedOnRetry =
   args.noSkipCompleted ? false : (cfg?.engine?.skip_completed_on_retry ?? true);
@@ -111,7 +132,7 @@ const skipCompletedOnRetry =
 await emitStaleDistWarning(log, processStart, cwd);
 await log.emit("engine.start", { skip_completed_on_retry: skipCompletedOnRetry });
 
-if (!args.dryRun && cfg) {
+if (cfg) {
   const triageResult = await runTriage(cwd, cfg, log);
   if (triageResult.status === "paused") {
     await log.emit("engine.stop", {
@@ -361,7 +382,7 @@ async function runResumeOnce(
   return { processed: 0, outcome: "terminal", issueId: tail.issueId, failingStep };
 }
 
-if (!args.dryRun && cfg) {
+if (cfg) {
   const tail = await readLogTail(cwd);
   if (tail) {
     const result = await runResumeOnce(cwd, log, cfg, args, tail, todoDir, doneDir, failedDir);
@@ -382,20 +403,6 @@ if (!args.dryRun && cfg) {
   }
 }
 
-if (args.dryRun) {
-  const rows = await readQueue(cwd);
-  for (const row of rows) {
-    if (row.status !== "pending") continue;
-    const todoPath = join(todoDir, `${row.id}.md`);
-    await log.emit("issue.ingested", { issue_id: row.id, path: todoPath });
-  }
-  await log.emit("engine.stop", {
-    status: "ok",
-    dry_run: true,
-    cycles_processed: 0,
-  });
-  process.exit(0);
-}
 
 while (!halted) {
   if (cfg && (await rawHasFiles())) {
@@ -503,8 +510,8 @@ if (halted && haltReason === "max_consecutive_failures" && failedCycles.length >
 }
 
 await log.emit("engine.stop", {
-  status: args.dryRun ? "ok" : halted ? "halted" : "ok",
-  dry_run: args.dryRun,
+  status: halted ? "halted" : "ok",
+  dry_run: false,
   cycles_processed: cyclesProcessed,
   ...(halted && haltReason === "triage_failed" ? { reason: "triage_failed" } : {}),
   ...(halted && lastHaltContext

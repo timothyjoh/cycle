@@ -18,7 +18,7 @@ Per-file load isolation: `loadRaws` catches per-file errors (`readFile` or `pars
 
 Whole-pass failure: emits `engine.paused { reason: "all_triage_failed", raw_ids, last_errors }` with errors capped at 2000 chars, exits non-zero. Raws stay in `raw/` (no rename) so `cycle triage --dry-run` can re-evaluate after operator edits. Partial failure moves the failed subset to `failed/<id>.md` with `failed_step: "triage"`.
 
-`cli.ts` runs triage at `engine.start` and again before each pop when `raw/` is non-empty. `--dry-run` skips triage.
+`cli.ts` runs triage at `engine.start` and again before each pop when `raw/` is non-empty. `--dry-run` short-circuits before `createLogger` — no `.cycle/log.jsonl` is written — and skips triage.
 
 ## Queue
 
