@@ -44,7 +44,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
       const n = Number(raw);
       if (!/^-?\d+$/.test(raw) || !Number.isInteger(n) || n < 1 || n > 10) {
         throw new Error(
-          `drop: --priority must be an integer 1..10 (got "${raw}"); usage: cycle drop "<text>" [--priority N]`,
+          `drop: --priority must be an integer 1..10 (got "${raw}"); usage: cycle drop "<text>" [--priority N]  (N is an integer 1..10, default 3)`,
         );
       }
       priority = n;

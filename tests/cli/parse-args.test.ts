@@ -74,6 +74,16 @@ test("rejects priority 0", () => {
   );
 });
 
+test("range-rejection error mentions default 3", () => {
+  assert.throws(
+    () => parseArgs(["drop", "foo", "--priority", "0"]),
+    (err: unknown) => {
+      assert.match((err as Error).message, /default 3/);
+      return true;
+    },
+  );
+});
+
 test("rejects priority 11", () => {
   assert.throws(
     () => parseArgs(["drop", "foo", "--priority", "11"]),
