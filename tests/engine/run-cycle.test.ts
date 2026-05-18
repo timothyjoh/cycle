@@ -1553,6 +1553,23 @@ test("resume at fix with unreachable head_sha emits fix_pre_sha_unreachable and 
   }
 });
 
+test("findPriorBuildHeadSha returns newer sha when two build step.start rows exist for same cycle", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await mkdir(join(root, ".cycle"), { recursive: true });
+    const lines = [
+      JSON.stringify({ event: "step.start", step: "build", cycle_id: "0099", head_sha: "OLD_SHA" }),
+      JSON.stringify({ event: "step.warning", step: "build", cycle_id: "0099", reason: "build_pre_sha_missing" }),
+      JSON.stringify({ event: "step.start", step: "build", cycle_id: "0099", head_sha: "NEW_SHA" }),
+    ];
+    await writeFile(join(root, ".cycle/log.jsonl"), lines.join("\n") + "\n", "utf8");
+    const got = await findPriorBuildHeadSha(root, "0099");
+    assert.equal(got, "NEW_SHA");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("step with unregistered agent fails the step and ends the cycle", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
