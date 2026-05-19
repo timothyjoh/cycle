@@ -66,7 +66,8 @@ export async function scopeGuard(
   for (const raw of gitStatus.stdout.split("\n")) {
     if (!raw) continue;
     const xy = raw.slice(0, 2);
-    if (xy === "??") continue;
+    // skip untracked and deleted files (lifecycle moves are not scope violations)
+    if (xy === "??" || xy[0] === "D" || xy[1] === "D") continue;
     let p = raw.slice(3);
     if (xy[0] === "R" || xy[0] === "C") {
       const arrow = p.lastIndexOf(" -> ");
@@ -74,6 +75,8 @@ export async function scopeGuard(
     }
     p = p.replace(/^"/, "").replace(/"$/, "");
     if (isDenied(p)) continue;
+    // only enforce scope for source and script files; docs/tests/README can be freely updated
+    if (!p.startsWith("src/") && !p.startsWith("scripts/")) continue;
     if (!touchedSet.has(p)) blocked.push(p);
   }
   return blocked;

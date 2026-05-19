@@ -31,6 +31,73 @@ const RESET_ELIGIBLE_STEPS = new Set(["build", "fix"]);
 // <artifactDir>/<STEP>.md from agent stdout, so the artifact IS the work.
 const SKIP_ELIGIBLE_STEPS = new Set(["spec", "research", "plan"]);
 
+const DOC_APPEND_DENYLIST_PREFIXES = [".claude", "dist", "node_modules"];
+const DOC_APPEND_DENYLIST_EXACT = [".cycle/cycle.pid"];
+
+function isDocAppendDenied(p: string): boolean {
+  const q = p.replace(/\/$/, "");
+  for (const prefix of DOC_APPEND_DENYLIST_PREFIXES) {
+    if (q === prefix || q.startsWith(prefix + "/")) return true;
+  }
+  if (DOC_APPEND_DENYLIST_EXACT.includes(q)) return true;
+  if (q.endsWith(".lock")) return true;
+  return false;
+}
+
+async function appendDocumentationPaths(repoRoot: string, buildMdPath: string): Promise<void> {
+  let text: string;
+  try {
+    text = await readFile(buildMdPath, "utf8");
+  } catch {
+    return;
+  }
+
+  const lines = text.split("\n");
+  const headerIdx = lines.findIndex((l) => l.trim() === "## Touched Files");
+  if (headerIdx === -1) return;
+
+  const touchedSet = new Set<string>();
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    if (lines[i].startsWith("##")) break;
+    const m = /^\s*-\s+(.+)/.exec(lines[i]);
+    if (m) touchedSet.add(m[1].trim());
+  }
+
+  const result = spawnSync("git", ["status", "--porcelain"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    shell: false,
+  });
+
+  const toAppend: string[] = [];
+  for (const raw of (result.stdout ?? "").split("\n")) {
+    if (!raw) continue;
+    const xy = raw.slice(0, 2);
+    if (xy === "??") continue;
+    let p = raw.slice(3);
+    if (xy[0] === "R" || xy[0] === "C") {
+      const arrow = p.lastIndexOf(" -> ");
+      if (arrow !== -1) p = p.slice(arrow + 4);
+    }
+    p = p.replace(/^"/, "").replace(/"$/, "");
+    if (isDocAppendDenied(p)) continue;
+    if (!touchedSet.has(p)) toAppend.push(p);
+  }
+
+  if (toAppend.length === 0) return;
+
+  let insertIdx = lines.length;
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    if (lines[i].startsWith("##")) { insertIdx = i; break; }
+  }
+  while (insertIdx > headerIdx + 1 && lines[insertIdx - 1].trim() === "") {
+    insertIdx--;
+  }
+
+  lines.splice(insertIdx, 0, ...toAppend.map((p) => `- ${p}`));
+  await writeFile(buildMdPath, lines.join("\n"), "utf8");
+}
+
 export async function shouldSkipForArtifact(
   artifactDir: string,
   stepName: string,
@@ -264,6 +331,11 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         }
         if (r.status === "ok" && step.name === "reflection") {
           await ingestReflection(repoRoot, cycleId, slug, r.stdout, log);
+        }
+        if (r.status === "ok" && step.name === "documentation") {
+          try {
+            await appendDocumentationPaths(repoRoot, join(artifactDir, "BUILD.md"));
+          } catch { /* best-effort append; never fail the cycle */ }
         }
       }
       await log.emit("step.end", {

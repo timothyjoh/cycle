@@ -293,163 +293,84 @@ var init_queue = __esm({
   }
 });
 
-// src/engine/exec-claudecode.ts
+// src/engine/exec-spawn.ts
 import { spawn } from "node:child_process";
 import { readFile as readFile4 } from "node:fs/promises";
 import { join as join3 } from "node:path";
+async function runAgent(opts) {
+  const { binary, argv: argv2, promptDelivery, promptPath, repoRoot, env, signal } = opts;
+  const abs = join3(repoRoot, ".cycle", promptPath);
+  const prompt = await readFile4(abs, "utf8");
+  const finalArgv = promptDelivery === "argv" ? [...argv2, prompt] : argv2;
+  const base = { cwd: repoRoot, env: buildChildEnv(env ?? {}), shell: false, signal };
+  return new Promise((resolve2) => {
+    const child = promptDelivery === "argv" ? spawn(binary, finalArgv, { ...base, stdio: ["ignore", "pipe", "pipe"] }) : spawn(binary, finalArgv, base);
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d) => {
+      stdout += d.toString();
+    });
+    child.stderr.on("data", (d) => {
+      stderr += d.toString();
+    });
+    child.on("close", (code) => {
+      resolve2({ status: code === 0 ? "ok" : "failed", exitCode: code ?? -1, stdout, stderr });
+    });
+    child.on("error", (err) => {
+      resolve2({ status: "failed", exitCode: -1, stdout: "", stderr: err.message });
+    });
+    if (promptDelivery === "stdin") {
+      child.stdin.on("error", () => {
+      });
+      child.stdin.write(prompt);
+      child.stdin.end();
+    }
+  });
+}
+var init_exec_spawn = __esm({
+  "src/engine/exec-spawn.ts"() {
+    "use strict";
+    init_child_env();
+  }
+});
+
+// src/engine/exec-claudecode.ts
 var claudecodeExec;
 var init_exec_claudecode = __esm({
   "src/engine/exec-claudecode.ts"() {
     "use strict";
-    init_child_env();
+    init_exec_spawn();
     claudecodeExec = {
-      async runStep({ repoRoot, promptPath, env }) {
-        const abs = join3(repoRoot, ".cycle", promptPath);
-        const prompt = await readFile4(abs, "utf8");
-        return new Promise((resolve2) => {
-          const child = spawn("claude", ["--dangerously-skip-permissions", "-p", prompt], {
-            cwd: repoRoot,
-            env: buildChildEnv(env ?? {}),
-            shell: false,
-            stdio: ["ignore", "pipe", "pipe"]
-          });
-          let stdout = "";
-          let stderr = "";
-          child.stdout.on("data", (d) => {
-            stdout += d.toString();
-          });
-          child.stderr.on("data", (d) => {
-            stderr += d.toString();
-          });
-          child.on("close", (code) => {
-            resolve2({
-              status: code === 0 ? "ok" : "failed",
-              exitCode: code ?? -1,
-              stdout,
-              stderr
-            });
-          });
-          child.on("error", (err) => {
-            resolve2({
-              status: "failed",
-              exitCode: -1,
-              stdout: "",
-              stderr: err.message
-            });
-          });
-        });
+      runStep(args2) {
+        return runAgent({ binary: "claude", argv: ["--dangerously-skip-permissions", "-p"], promptDelivery: "argv", ...args2 });
       }
     };
   }
 });
 
 // src/engine/exec-codex.ts
-import { spawn as spawn2 } from "node:child_process";
-import { readFile as readFile5 } from "node:fs/promises";
-import { join as join4 } from "node:path";
 var codexExec;
 var init_exec_codex = __esm({
   "src/engine/exec-codex.ts"() {
     "use strict";
-    init_child_env();
+    init_exec_spawn();
     codexExec = {
-      async runStep({ repoRoot, promptPath, env }) {
-        const abs = join4(repoRoot, ".cycle", promptPath);
-        const prompt = await readFile5(abs, "utf8");
-        return new Promise((resolve2) => {
-          const child = spawn2("codex", [], {
-            cwd: repoRoot,
-            env: buildChildEnv(env ?? {}),
-            shell: false
-          });
-          let stdout = "";
-          let stderr = "";
-          child.stdout.on("data", (d) => {
-            stdout += d.toString();
-          });
-          child.stderr.on("data", (d) => {
-            stderr += d.toString();
-          });
-          child.on("close", (code) => {
-            resolve2({
-              status: code === 0 ? "ok" : "failed",
-              exitCode: code ?? -1,
-              stdout,
-              stderr
-            });
-          });
-          child.on("error", (err) => {
-            resolve2({
-              status: "failed",
-              exitCode: -1,
-              stdout: "",
-              stderr: err.message
-            });
-          });
-          child.stdin.on("error", () => {
-          });
-          try {
-            child.stdin.write(prompt);
-            child.stdin.end();
-          } catch {
-          }
-        });
+      runStep(args2) {
+        return runAgent({ binary: "codex", argv: [], promptDelivery: "stdin", ...args2 });
       }
     };
   }
 });
 
 // src/engine/exec-gemini.ts
-import { spawn as spawn3 } from "node:child_process";
-import { readFile as readFile6 } from "node:fs/promises";
-import { join as join5 } from "node:path";
 var geminiExec;
 var init_exec_gemini = __esm({
   "src/engine/exec-gemini.ts"() {
     "use strict";
-    init_child_env();
+    init_exec_spawn();
     geminiExec = {
-      async runStep({ repoRoot, promptPath, env }) {
-        const abs = join5(repoRoot, ".cycle", promptPath);
-        const prompt = await readFile6(abs, "utf8");
-        return new Promise((resolve2) => {
-          const child = spawn3("gemini", [], {
-            cwd: repoRoot,
-            env: buildChildEnv(env ?? {}),
-            shell: false
-          });
-          let stdout = "";
-          let stderr = "";
-          child.stdout.on("data", (d) => {
-            stdout += d.toString();
-          });
-          child.stderr.on("data", (d) => {
-            stderr += d.toString();
-          });
-          child.on("close", (code) => {
-            resolve2({
-              status: code === 0 ? "ok" : "failed",
-              exitCode: code ?? -1,
-              stdout,
-              stderr
-            });
-          });
-          child.on("error", (err) => {
-            resolve2({
-              status: "failed",
-              exitCode: -1,
-              stdout: "",
-              stderr: err.message
-            });
-          });
-          child.stdin.on("error", () => {
-          });
-          try {
-            child.stdin.write(prompt);
-            child.stdin.end();
-          } catch {
-          }
-        });
+      runStep(args2) {
+        return runAgent({ binary: "gemini", argv: [], promptDelivery: "stdin", ...args2 });
       }
     };
   }
@@ -495,8 +416,8 @@ var init_log_fmt = __esm({
 
 // src/engine/triage.ts
 import { randomBytes } from "node:crypto";
-import { readFile as readFile7, writeFile as writeFile4, readdir, mkdir as mkdir3, rename as rename3, unlink } from "node:fs/promises";
-import { join as join6, dirname as dirname3 } from "node:path";
+import { readFile as readFile5, writeFile as writeFile4, readdir, mkdir as mkdir3, rename as rename3, unlink } from "node:fs/promises";
+import { join as join4, dirname as dirname3 } from "node:path";
 async function processRawWithRetry(raw, ctx) {
   let lastError = "";
   let attemptsRun = 0;
@@ -553,9 +474,9 @@ ${lastError}` : "";
   return { status: "failed", lastError, attempts: attemptsRun };
 }
 async function runTriage(repoRoot, cfg2, log2, deps = {}) {
-  const runAgent = deps.runAgent ?? runAgentViaDispatch;
+  const runAgent2 = deps.runAgent ?? runAgentViaDispatch;
   await bootstrapArchiveIfLegacy(repoRoot);
-  const rawDir2 = join6(repoRoot, "docs/cycle/issues/raw");
+  const rawDir2 = join4(repoRoot, "docs/cycle/issues/raw");
   await mkdir3(rawDir2, { recursive: true });
   const raws = await loadRaws(rawDir2, log2);
   await log2.emit("triage.start", { count: raws.length });
@@ -563,8 +484,8 @@ async function runTriage(repoRoot, cfg2, log2, deps = {}) {
     await log2.emit("triage.end", { processed: 0, failed: 0 });
     return { status: "ok", processed: [], failed: [] };
   }
-  const promptTemplate = await readFile7(
-    join6(repoRoot, ".cycle", cfg2.triage.prompt),
+  const promptTemplate = await readFile5(
+    join4(repoRoot, ".cycle", cfg2.triage.prompt),
     "utf8"
   );
   const processed = [];
@@ -577,7 +498,7 @@ async function runTriage(repoRoot, cfg2, log2, deps = {}) {
       repoRoot,
       cfg: cfg2,
       promptTemplate,
-      runAgent,
+      runAgent: runAgent2,
       apply: (r, parsed) => applyRaw(repoRoot, r, parsed),
       onAttemptFailed: async (attemptNumber, reason) => {
         await bumpAttempts(raw.srcPath, attemptNumber);
@@ -633,16 +554,16 @@ async function runTriage(repoRoot, cfg2, log2, deps = {}) {
   return { status: "ok", processed, failed };
 }
 async function dryRunTriage(repoRoot, cfg2, deps = {}) {
-  const runAgent = deps.runAgent ?? runAgentViaDispatch;
-  const rawDir2 = join6(repoRoot, "docs/cycle/issues/raw");
+  const runAgent2 = deps.runAgent ?? runAgentViaDispatch;
+  const rawDir2 = join4(repoRoot, "docs/cycle/issues/raw");
   const silentLog = { async emit() {
   } };
   const raws = await loadRaws(rawDir2, silentLog);
   if (raws.length === 0) return [];
-  const promptPath = join6(repoRoot, ".cycle", cfg2.triage.prompt);
+  const promptPath = join4(repoRoot, ".cycle", cfg2.triage.prompt);
   let promptTemplate;
   try {
-    promptTemplate = await readFile7(promptPath, "utf8");
+    promptTemplate = await readFile5(promptPath, "utf8");
   } catch (e) {
     throw new Error(
       `prompt template missing: ${promptPath}: ${e.message}`
@@ -656,7 +577,7 @@ async function dryRunTriage(repoRoot, cfg2, deps = {}) {
         repoRoot,
         cfg: cfg2,
         promptTemplate,
-        runAgent
+        runAgent: runAgent2
       }
     );
     if (outcome.status === "ok") {
@@ -686,9 +607,9 @@ async function loadRaws(rawDir2, log2) {
   }
   const raws = [];
   for (const f of files) {
-    const srcPath = join6(rawDir2, f);
+    const srcPath = join4(rawDir2, f);
     try {
-      const body = await readFile7(srcPath, "utf8");
+      const body = await readFile5(srcPath, "utf8");
       const { fm, bodyAfter } = parseFrontmatter(body);
       const id = String(fm.id);
       const attempts = typeof fm.triage_attempts === "number" ? fm.triage_attempts : 0;
@@ -704,7 +625,7 @@ async function loadRaws(rawDir2, log2) {
   return raws;
 }
 async function listTodos(repoRoot) {
-  const todoDir2 = join6(repoRoot, "docs/cycle/issues/todo");
+  const todoDir2 = join4(repoRoot, "docs/cycle/issues/todo");
   try {
     return (await readdir(todoDir2)).filter((f) => f.endsWith(".md")).sort();
   } catch {
@@ -896,13 +817,13 @@ async function applyRaw(repoRoot, raw, parsed) {
   const children = parsed.children.filter((c) => c.raw_id === raw.id);
   const appliedTodos = [];
   const appliedIds = [];
-  const todoDir2 = join6(repoRoot, "docs/cycle/issues/todo");
-  const doneDir2 = join6(repoRoot, "docs/cycle/issues/done");
+  const todoDir2 = join4(repoRoot, "docs/cycle/issues/todo");
+  const doneDir2 = join4(repoRoot, "docs/cycle/issues/done");
   await mkdir3(todoDir2, { recursive: true });
   try {
     const triagedAt = (/* @__PURE__ */ new Date()).toISOString();
     for (const child of children) {
-      const todoPath = join6(todoDir2, `${child.id}.md`);
+      const todoPath = join4(todoDir2, `${child.id}.md`);
       const fm = {
         id: child.id,
         title: child.title,
@@ -929,7 +850,7 @@ async function applyRaw(repoRoot, raw, parsed) {
       appliedIds.push(child.id);
     }
     await mkdir3(doneDir2, { recursive: true });
-    await rename3(raw.srcPath, join6(doneDir2, `${raw.id}_raw.md`));
+    await rename3(raw.srcPath, join4(doneDir2, `${raw.id}_raw.md`));
   } catch (e) {
     for (const todo of appliedTodos) {
       try {
@@ -973,7 +894,7 @@ async function bumpAttempts(srcPath, attempts) {
   }
 }
 async function moveToFailed(repoRoot, raw) {
-  const failedDir2 = join6(repoRoot, "docs/cycle/issues/failed");
+  const failedDir2 = join4(repoRoot, "docs/cycle/issues/failed");
   await mkdir3(failedDir2, { recursive: true });
   try {
     await mutateFrontmatter(raw.srcPath, (fm) => ({
@@ -985,7 +906,7 @@ async function moveToFailed(repoRoot, raw) {
   } catch {
   }
   try {
-    await rename3(raw.srcPath, join6(failedDir2, `${raw.id}.md`));
+    await rename3(raw.srcPath, join4(failedDir2, `${raw.id}.md`));
   } catch {
   }
 }
@@ -1010,10 +931,10 @@ async function rewriteOrdering(repoRoot, ordering, log2) {
 }
 async function runAgentViaDispatch(prompt, cfg2, repoRoot) {
   const mod = resolveAgent(cfg2.agent);
-  const cycleDir = join6(repoRoot, ".cycle");
+  const cycleDir = join4(repoRoot, ".cycle");
   await mkdir3(cycleDir, { recursive: true });
   const tmpName = `.triage-${randomBytes(8).toString("hex")}.prompt.md`;
-  const tmpPath = join6(cycleDir, tmpName);
+  const tmpPath = join4(cycleDir, tmpName);
   try {
     await writeFile4(tmpPath, prompt, "utf8");
     const r = await mod.runStep({ repoRoot, promptPath: tmpName });
@@ -1037,10 +958,10 @@ var init_triage = __esm({
 
 // src/engine/log.ts
 import { appendFile as appendFile2, mkdir as mkdir4 } from "node:fs/promises";
-import { join as join7 } from "node:path";
+import { join as join5 } from "node:path";
 async function createLogger(repoRoot, sink = console.log) {
-  const path = join7(repoRoot, ".cycle", "log.jsonl");
-  await mkdir4(join7(repoRoot, ".cycle"), { recursive: true });
+  const path = join5(repoRoot, ".cycle", "log.jsonl");
+  await mkdir4(join5(repoRoot, ".cycle"), { recursive: true });
   return {
     async emit(event, fields) {
       const line = JSON.stringify({ ts: (/* @__PURE__ */ new Date()).toISOString(), event, ...fields });
@@ -1056,12 +977,12 @@ var init_log = __esm({
 });
 
 // src/engine/cycle-id.ts
-import { readFile as readFile8 } from "node:fs/promises";
-import { join as join8 } from "node:path";
+import { readFile as readFile6 } from "node:fs/promises";
+import { join as join6 } from "node:path";
 async function allocateCycleId(repoRoot) {
   let highest = 0;
   try {
-    const log2 = await readFile8(join8(repoRoot, ".cycle/log.jsonl"), "utf8");
+    const log2 = await readFile6(join6(repoRoot, ".cycle/log.jsonl"), "utf8");
     for (const line of log2.split("\n")) {
       if (!line) continue;
       try {
@@ -8409,13 +8330,13 @@ var require_dist = __commonJS({
 });
 
 // src/engine/workflow.ts
-import { readFile as readFile9 } from "node:fs/promises";
-import { join as join9 } from "node:path";
+import { readFile as readFile7 } from "node:fs/promises";
+import { join as join7 } from "node:path";
 async function loadConfig(repoRoot) {
-  const path = join9(repoRoot, ".cycle/workflows.yml");
+  const path = join7(repoRoot, ".cycle/workflows.yml");
   let body;
   try {
-    body = await readFile9(path, "utf8");
+    body = await readFile7(path, "utf8");
   } catch {
     throw new Error(`workflows.yml missing: ${path}`);
   }
@@ -8466,8 +8387,8 @@ var init_workflow = __esm({
 });
 
 // src/engine/log-tail.ts
-import { readFile as readFile10 } from "node:fs/promises";
-import { join as join10 } from "node:path";
+import { readFile as readFile8 } from "node:fs/promises";
+import { join as join8 } from "node:path";
 function parseLogTail(text) {
   const events = [];
   for (const line of text.split("\n")) {
@@ -8549,7 +8470,7 @@ function parseLogTail(text) {
 }
 async function readLogTail(repoRoot) {
   try {
-    const text = await readFile10(join10(repoRoot, ".cycle", "log.jsonl"), "utf8");
+    const text = await readFile8(join8(repoRoot, ".cycle", "log.jsonl"), "utf8");
     return parseLogTail(text);
   } catch (e) {
     if (e.code === "ENOENT") return null;
@@ -8563,12 +8484,12 @@ var init_log_tail = __esm({
 });
 
 // src/engine/branch.ts
-import { spawn as spawn4 } from "node:child_process";
+import { spawn as spawn2 } from "node:child_process";
 import { mkdir as mkdir5 } from "node:fs/promises";
-import { join as join11 } from "node:path";
+import { join as join9 } from "node:path";
 function git(repoRoot, args2) {
   return new Promise((resolve2, reject) => {
-    const child = spawn4("git", args2, { cwd: repoRoot, shell: false });
+    const child = spawn2("git", args2, { cwd: repoRoot, shell: false });
     let stderr = "";
     child.stderr.on("data", (d) => {
       stderr += d.toString();
@@ -8581,7 +8502,7 @@ function git(repoRoot, args2) {
 }
 async function branchExists(repoRoot, branch) {
   return new Promise((resolve2) => {
-    const child = spawn4("git", ["rev-parse", "--verify", `refs/heads/${branch}`], {
+    const child = spawn2("git", ["rev-parse", "--verify", `refs/heads/${branch}`], {
       cwd: repoRoot,
       shell: false
     });
@@ -8596,14 +8517,14 @@ async function createCycleBranch(repoRoot, opts) {
   } else {
     await git(repoRoot, ["checkout", "-b", branch]);
   }
-  const artifactDir = join11(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
+  const artifactDir = join9(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
   await mkdir5(artifactDir, { recursive: true });
   return { branch, artifactDir };
 }
 async function checkoutCycleBranch(repoRoot, opts) {
   const branch = `cycle/${opts.workflow}/${opts.slug}`;
   await git(repoRoot, ["checkout", branch]);
-  const artifactDir = join11(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
+  const artifactDir = join9(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
   await mkdir5(artifactDir, { recursive: true });
   return { branch, artifactDir };
 }
@@ -8611,13 +8532,13 @@ async function checkoutBase(repoRoot, base) {
   await git(repoRoot, ["checkout", base]);
 }
 async function prepareTrunkArtifactDir(repoRoot, opts) {
-  const artifactDir = join11(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
+  const artifactDir = join9(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
   await mkdir5(artifactDir, { recursive: true });
   return { artifactDir };
 }
 function revParse(repoRoot, ref) {
   return new Promise((resolve2) => {
-    const child = spawn4("git", ["rev-parse", ref], { cwd: repoRoot, shell: false });
+    const child = spawn2("git", ["rev-parse", ref], { cwd: repoRoot, shell: false });
     let stdout = "";
     child.stdout.on("data", (d) => {
       stdout += d.toString();
@@ -8635,7 +8556,7 @@ async function pullBase(repoRoot, base) {
 }
 function currentBranchName(repoRoot) {
   return new Promise((resolve2) => {
-    const child = spawn4("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoRoot, shell: false });
+    const child = spawn2("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoRoot, shell: false });
     let stdout = "";
     child.stdout.on("data", (d) => {
       stdout += d.toString();
@@ -8649,7 +8570,7 @@ async function revParseHead(repoRoot) {
 }
 function gitCleanSoft(repoRoot) {
   return new Promise((resolve2) => {
-    const child = spawn4("git", ["clean", "-fd"], { cwd: repoRoot, shell: false });
+    const child = spawn2("git", ["clean", "-fd"], { cwd: repoRoot, shell: false });
     let stderr = "";
     child.stderr.on("data", (d) => {
       stderr += d.toString();
@@ -8669,7 +8590,7 @@ async function resetCycleBranchTo(repoRoot, sha) {
 }
 function shaExists(repoRoot, sha) {
   return new Promise((resolve2) => {
-    const child = spawn4("git", ["cat-file", "-e", `${sha}^{commit}`], { cwd: repoRoot, shell: false });
+    const child = spawn2("git", ["cat-file", "-e", `${sha}^{commit}`], { cwd: repoRoot, shell: false });
     child.on("close", (code) => resolve2(code === 0));
     child.on("error", () => resolve2(false));
   });
@@ -8679,7 +8600,7 @@ function resolveBaseBranch(configBase, frontmatterBase) {
 }
 function gitCapture(repoRoot, args2) {
   return new Promise((resolve2, reject) => {
-    const child = spawn4("git", args2, { cwd: repoRoot, shell: false });
+    const child = spawn2("git", args2, { cwd: repoRoot, shell: false });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (d) => {
@@ -8726,27 +8647,27 @@ __export(init_exports, {
 });
 import { cp, mkdir as mkdir6, stat as stat3, chmod, copyFile } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname4, join as join16 } from "node:path";
+import { dirname as dirname4, join as join14 } from "node:path";
 async function runInit(opts) {
   const t = opts.targetRoot;
   const enginePath = await locateEngineBundle();
-  await mkdir6(join16(t, ".cycle/bin"), { recursive: true });
-  await copyFile(enginePath, join16(t, ".cycle/bin/cycle.js"));
-  await chmod(join16(t, ".cycle/bin/cycle.js"), 493);
+  await mkdir6(join14(t, ".cycle/bin"), { recursive: true });
+  await copyFile(enginePath, join14(t, ".cycle/bin/cycle.js"));
+  await chmod(join14(t, ".cycle/bin/cycle.js"), 493);
   const defaults = await locateDefaultsDir();
-  await mkdir6(join16(t, ".cycle"), { recursive: true });
-  await copyFile(join16(defaults, "workflows.yml"), join16(t, ".cycle/workflows.yml"));
-  await cp(join16(defaults, "prompts"), join16(t, ".cycle/prompts"), { recursive: true });
-  await cp(join16(defaults, "scripts"), join16(t, ".cycle/scripts"), { recursive: true });
+  await mkdir6(join14(t, ".cycle"), { recursive: true });
+  await copyFile(join14(defaults, "workflows.yml"), join14(t, ".cycle/workflows.yml"));
+  await cp(join14(defaults, "prompts"), join14(t, ".cycle/prompts"), { recursive: true });
+  await cp(join14(defaults, "scripts"), join14(t, ".cycle/scripts"), { recursive: true });
   for (const sub of ["raw", "todo", "done", "blocked", "failed"]) {
-    await mkdir6(join16(t, "docs/cycle/issues", sub), { recursive: true });
+    await mkdir6(join14(t, "docs/cycle/issues", sub), { recursive: true });
   }
 }
 async function locateEngineBundle() {
   const candidates = [
-    join16(HERE, "..", "..", "dist", "cycle.js"),
-    join16(HERE, "..", "dist", "cycle.js"),
-    join16(HERE, "cycle.js")
+    join14(HERE, "..", "..", "dist", "cycle.js"),
+    join14(HERE, "..", "dist", "cycle.js"),
+    join14(HERE, "cycle.js")
   ];
   for (const c of candidates) {
     try {
@@ -8759,13 +8680,13 @@ async function locateEngineBundle() {
 }
 async function locateDefaultsDir() {
   const candidates = [
-    join16(HERE, "defaults"),
+    join14(HERE, "defaults"),
     // dist/defaults next to dist/cycle.js
-    join16(HERE, "..", "defaults"),
+    join14(HERE, "..", "defaults"),
     // dist/../defaults
-    join16(HERE, "..", "..", "src", "defaults"),
+    join14(HERE, "..", "..", "src", "defaults"),
     // local dev from src/cli/
-    join16(HERE, "..", "src", "defaults")
+    join14(HERE, "..", "src", "defaults")
     // local dev from src/
   ];
   for (const c of candidates) {
@@ -8792,7 +8713,7 @@ __export(status_exports, {
   runStatus: () => runStatus
 });
 import { readdir as readdir3 } from "node:fs/promises";
-import { join as join17 } from "node:path";
+import { join as join15 } from "node:path";
 async function countMd(dir) {
   try {
     const entries = await readdir3(dir);
@@ -8811,7 +8732,7 @@ async function runStatus({ cwd: cwd2 }) {
     blocked: 0
   };
   for (const name of ISSUE_FOLDERS) {
-    counts[name] = await countMd(join17(cwd2, "docs/cycle/issues", name));
+    counts[name] = await countMd(join15(cwd2, "docs/cycle/issues", name));
   }
   const rows = await readQueue(cwd2);
   const pending = rows.filter((r) => r.status === "pending").length;
@@ -8895,12 +8816,12 @@ runs as part of \`cycle run\`.`;
 });
 
 // src/engine/exec-bash.ts
-import { spawn as spawn5 } from "node:child_process";
-import { join as join18 } from "node:path";
+import { spawn as spawn3 } from "node:child_process";
+import { join as join16 } from "node:path";
 function execBashStep(repoRoot, command, env) {
   return new Promise((resolve2) => {
-    const abs = join18(repoRoot, ".cycle", command);
-    const child = spawn5("/bin/bash", [abs], {
+    const abs = join16(repoRoot, ".cycle", command);
+    const child = spawn3("/bin/bash", [abs], {
       cwd: repoRoot,
       env: buildChildEnv(env),
       shell: false
@@ -8932,16 +8853,16 @@ var init_exec_bash = __esm({
 
 // src/engine/reflection.ts
 import { mkdir as mkdir7, readdir as readdir4, rename as rename6, unlink as unlink3, writeFile as writeFile6 } from "node:fs/promises";
-import { dirname as dirname5, join as join19 } from "node:path";
+import { dirname as dirname5, join as join17 } from "node:path";
 async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2) {
-  const rawDir2 = join19(repoRoot, "docs/cycle/issues/raw");
+  const rawDir2 = join17(repoRoot, "docs/cycle/issues/raw");
   await mkdir7(rawDir2, { recursive: true });
   const existing = await readdir4(rawDir2);
   const re = new RegExp(`^refl-${cycleId}-.+\\.md$`);
   for (const name of existing) {
     if (re.test(name)) {
       try {
-        await unlink3(join19(rawDir2, name));
+        await unlink3(join17(rawDir2, name));
       } catch {
       }
     }
@@ -9014,7 +8935,7 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2) {
       },
       "\n" + e.body + "\n"
     );
-    await atomicWrite2(join19(rawDir2, `${id}.md`), content);
+    await atomicWrite2(join17(rawDir2, `${id}.md`), content);
     written.push(id);
     await log2.emit("reflection.surfaced", {
       cycle_id: cycleId,
@@ -9112,7 +9033,7 @@ async function writeParseError(rawDir2, cycleId, stdout) {
     },
     "\n" + body + "\n"
   );
-  await atomicWrite2(join19(rawDir2, `${id}.md`), content);
+  await atomicWrite2(join17(rawDir2, `${id}.md`), content);
   return id;
 }
 function validateEntry(e) {
@@ -9171,11 +9092,70 @@ var init_sanitize_artifact = __esm({
 });
 
 // src/engine/run-cycle.ts
-import { writeFile as writeFile7, readFile as readFile13, stat as stat4 } from "node:fs/promises";
-import { join as join20 } from "node:path";
+import { writeFile as writeFile7, readFile as readFile11, stat as stat4 } from "node:fs/promises";
+import { join as join18 } from "node:path";
+import { spawnSync as spawnSync2 } from "node:child_process";
+function isDocAppendDenied(p) {
+  const q = p.replace(/\/$/, "");
+  for (const prefix of DOC_APPEND_DENYLIST_PREFIXES) {
+    if (q === prefix || q.startsWith(prefix + "/")) return true;
+  }
+  if (DOC_APPEND_DENYLIST_EXACT.includes(q)) return true;
+  if (q.endsWith(".lock")) return true;
+  return false;
+}
+async function appendDocumentationPaths(repoRoot, buildMdPath) {
+  let text;
+  try {
+    text = await readFile11(buildMdPath, "utf8");
+  } catch {
+    return;
+  }
+  const lines = text.split("\n");
+  const headerIdx = lines.findIndex((l) => l.trim() === "## Touched Files");
+  if (headerIdx === -1) return;
+  const touchedSet = /* @__PURE__ */ new Set();
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    if (lines[i].startsWith("##")) break;
+    const m = /^\s*-\s+(.+)/.exec(lines[i]);
+    if (m) touchedSet.add(m[1].trim());
+  }
+  const result = spawnSync2("git", ["status", "--porcelain"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    shell: false
+  });
+  const toAppend = [];
+  for (const raw of (result.stdout ?? "").split("\n")) {
+    if (!raw) continue;
+    const xy = raw.slice(0, 2);
+    if (xy === "??") continue;
+    let p = raw.slice(3);
+    if (xy[0] === "R" || xy[0] === "C") {
+      const arrow = p.lastIndexOf(" -> ");
+      if (arrow !== -1) p = p.slice(arrow + 4);
+    }
+    p = p.replace(/^"/, "").replace(/"$/, "");
+    if (isDocAppendDenied(p)) continue;
+    if (!touchedSet.has(p)) toAppend.push(p);
+  }
+  if (toAppend.length === 0) return;
+  let insertIdx = lines.length;
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    if (lines[i].startsWith("##")) {
+      insertIdx = i;
+      break;
+    }
+  }
+  while (insertIdx > headerIdx + 1 && lines[insertIdx - 1].trim() === "") {
+    insertIdx--;
+  }
+  lines.splice(insertIdx, 0, ...toAppend.map((p) => `- ${p}`));
+  await writeFile7(buildMdPath, lines.join("\n"), "utf8");
+}
 async function shouldSkipForArtifact(artifactDir, stepName) {
   if (!SKIP_ELIGIBLE_STEPS.has(stepName)) return { skip: false };
-  const artifactPath = join20(artifactDir, `${stepName.toUpperCase()}.md`);
+  const artifactPath = join18(artifactDir, `${stepName.toUpperCase()}.md`);
   try {
     const st = await stat4(artifactPath);
     if (st.isFile() && st.size > 0) return { skip: true, artifactPath };
@@ -9186,10 +9166,16 @@ async function shouldSkipForArtifact(artifactDir, stepName) {
 function formatSpecGuardError(path, bytes, threshold) {
   return `spec post-condition failed: ${path} is ${bytes} bytes (< ${threshold})`;
 }
+function formatFixGuardError(fixPath, mustFixPath, count) {
+  return `fix step produced empty FIX.md while MUST-FIX.md has ${count} task(s) [fix: ${fixPath}, must-fix: ${mustFixPath}]`;
+}
+function formatEmptyDiffGuardError(stepName) {
+  return `${stepName} post-condition failed: no src/ changes detected (step reported ok but git diff HEAD -- src/ is empty)`;
+}
 async function findPriorStepHeadSha(repoRoot, cycleId, stepName) {
   let text;
   try {
-    text = await readFile13(join20(repoRoot, ".cycle", "log.jsonl"), "utf8");
+    text = await readFile11(join18(repoRoot, ".cycle", "log.jsonl"), "utf8");
   } catch {
     return null;
   }
@@ -9268,7 +9254,7 @@ async function runCycle(repoRoot, opts) {
         }
       }
       if (step.skip_unless) {
-        const guardPath = join20(artifactDir, step.skip_unless);
+        const guardPath = join18(artifactDir, step.skip_unless);
         let present = false;
         try {
           const st = await stat4(guardPath);
@@ -9328,7 +9314,7 @@ async function runCycle(repoRoot, opts) {
         }
         if (r.status === "ok" && step.name) {
           const sanitized = sanitizeArtifactStdout(r.stdout);
-          const artifactPath = join20(artifactDir, `${step.name.toUpperCase()}.md`);
+          const artifactPath = join18(artifactDir, `${step.name.toUpperCase()}.md`);
           await writeFile7(artifactPath, sanitized, "utf8");
           if (step.name === "spec") {
             const bytes = Buffer.byteLength(sanitized, "utf8");
@@ -9338,9 +9324,41 @@ async function runCycle(repoRoot, opts) {
               r.stderr = formatSpecGuardError(artifactPath, bytes, SPEC_MIN_BYTES);
             }
           }
+          if (r.status === "ok" && step.name === "fix") {
+            const mustFixPath = join18(artifactDir, "MUST-FIX.md");
+            let mustFixContent = "";
+            try {
+              mustFixContent = await readFile11(mustFixPath, "utf8");
+            } catch {
+            }
+            const taskCount = mustFixContent.split("\n").filter((l) => /^\s*[-*]\s*\[/.test(l)).length;
+            if (taskCount >= 1 && sanitized.trim().length === 0) {
+              r.status = "failed";
+              r.exitCode = r.exitCode || 1;
+              r.stderr = formatFixGuardError(artifactPath, mustFixPath, taskCount);
+            }
+          }
+          if (r.status === "ok" && (step.name === "build" || step.name === "fix")) {
+            const diff = spawnSync2("git", ["diff", "HEAD", "--", "src/"], {
+              cwd: repoRoot,
+              encoding: "utf8",
+              shell: false
+            });
+            if (!diff.stdout) {
+              r.status = "failed";
+              r.exitCode = r.exitCode || 1;
+              r.stderr = formatEmptyDiffGuardError(step.name);
+            }
+          }
         }
         if (r.status === "ok" && step.name === "reflection") {
           await ingestReflection(repoRoot, cycleId, slug, r.stdout, log2);
+        }
+        if (r.status === "ok" && step.name === "documentation") {
+          try {
+            await appendDocumentationPaths(repoRoot, join18(artifactDir, "BUILD.md"));
+          } catch {
+          }
         }
       }
       await log2.emit("step.end", {
@@ -9392,7 +9410,7 @@ async function runCycle(repoRoot, opts) {
     }
   }
 }
-var RESET_ELIGIBLE_STEPS, SKIP_ELIGIBLE_STEPS, SPEC_MIN_BYTES, MAX_STEP_END_STDERR;
+var RESET_ELIGIBLE_STEPS, SKIP_ELIGIBLE_STEPS, DOC_APPEND_DENYLIST_PREFIXES, DOC_APPEND_DENYLIST_EXACT, SPEC_MIN_BYTES, MAX_STEP_END_STDERR;
 var init_run_cycle = __esm({
   "src/engine/run-cycle.ts"() {
     "use strict";
@@ -9408,6 +9426,8 @@ var init_run_cycle = __esm({
     init_log_fmt();
     RESET_ELIGIBLE_STEPS = /* @__PURE__ */ new Set(["build", "fix"]);
     SKIP_ELIGIBLE_STEPS = /* @__PURE__ */ new Set(["spec", "research", "plan"]);
+    DOC_APPEND_DENYLIST_PREFIXES = [".claude", "dist", "node_modules"];
+    DOC_APPEND_DENYLIST_EXACT = [".cycle/cycle.pid"];
     SPEC_MIN_BYTES = 200;
     MAX_STEP_END_STDERR = 2e3;
   }
@@ -9508,8 +9528,8 @@ __export(cleanup_exports, {
   runCliCleanup: () => runCliCleanup,
   runCliCleanupWithDeps: () => runCliCleanupWithDeps
 });
-import { readFile as readFile14 } from "node:fs/promises";
-import { join as join21 } from "node:path";
+import { readFile as readFile12 } from "node:fs/promises";
+import { join as join19 } from "node:path";
 async function resolveBranchName(root, rowId, rowTitle, readTodoFile) {
   for (const dir of ISSUE_DIRS) {
     const body = await readTodoFile(root, dir + "/" + rowId);
@@ -9596,7 +9616,7 @@ async function runCliCleanup(repoRoot, argv2) {
     readQueue,
     readTodoFile: async (root, relId) => {
       try {
-        return await readFile14(join21(root, "docs/cycle/issues", relId + ".md"), "utf8");
+        return await readFile12(join19(root, "docs/cycle/issues", relId + ".md"), "utf8");
       } catch {
         return null;
       }
@@ -9625,9 +9645,9 @@ var init_cleanup = __esm({
 
 // src/cli.ts
 init_child_env();
-import { readFile as readFile15, readdir as readdir5, rename as rename7, mkdir as mkdir8 } from "node:fs/promises";
-import { join as join22 } from "node:path";
-import { spawn as spawn6 } from "node:child_process";
+import { readFile as readFile13, readdir as readdir5, rename as rename7, mkdir as mkdir8 } from "node:fs/promises";
+import { join as join20 } from "node:path";
+import { spawn as spawn4 } from "node:child_process";
 
 // src/version.ts
 import { readFile } from "node:fs/promises";
@@ -9667,7 +9687,7 @@ function parseArgs(argv2) {
       const n = Number(raw);
       if (!/^-?\d+$/.test(raw) || !Number.isInteger(n) || n < 1 || n > 10) {
         throw new Error(
-          `drop: --priority must be an integer 1..10 (got "${raw}"); usage: cycle drop "<text>" [--priority N]`
+          `drop: --priority must be an integer 1..10 (got "${raw}"); usage: cycle drop "<text>" [--priority N]  (N is an integer 1..10, default 3)`
         );
       }
       priority = n;
@@ -9736,8 +9756,8 @@ init_branch();
 init_child_env();
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile as readFile11, readdir as readdir2 } from "node:fs/promises";
-import { join as join12 } from "node:path";
+import { readFile as readFile9, readdir as readdir2 } from "node:fs/promises";
+import { join as join10 } from "node:path";
 var DENYLIST_PREFIXES = [".claude", "dist", "node_modules"];
 var DENYLIST_EXACT = [".cycle/cycle.pid"];
 function isDenied(p) {
@@ -9752,7 +9772,7 @@ function isDenied(p) {
 async function parseTouchedFiles(buildMdPath) {
   let text;
   try {
-    text = await readFile11(buildMdPath, "utf8");
+    text = await readFile9(buildMdPath, "utf8");
   } catch {
     return null;
   }
@@ -9771,9 +9791,9 @@ async function parseTouchedFiles(buildMdPath) {
 async function scopeGuard(repoRoot, cycleId, envExtra) {
   let buildMdPath = null;
   try {
-    const entries = await readdir2(join12(repoRoot, "docs/cycle"));
+    const entries = await readdir2(join10(repoRoot, "docs/cycle"));
     const match = entries.find((e) => e.startsWith(`${cycleId}-`));
-    if (match) buildMdPath = join12(repoRoot, "docs/cycle", match, "BUILD.md");
+    if (match) buildMdPath = join10(repoRoot, "docs/cycle", match, "BUILD.md");
   } catch {
   }
   if (!buildMdPath) return [];
@@ -9785,7 +9805,7 @@ async function scopeGuard(repoRoot, cycleId, envExtra) {
   for (const raw of gitStatus.stdout.split("\n")) {
     if (!raw) continue;
     const xy = raw.slice(0, 2);
-    if (xy === "??") continue;
+    if (xy === "??" || xy[0] === "D" || xy[1] === "D") continue;
     let p = raw.slice(3);
     if (xy[0] === "R" || xy[0] === "C") {
       const arrow = p.lastIndexOf(" -> ");
@@ -9793,6 +9813,7 @@ async function scopeGuard(repoRoot, cycleId, envExtra) {
     }
     p = p.replace(/^"/, "").replace(/"$/, "");
     if (isDenied(p)) continue;
+    if (!p.startsWith("src/") && !p.startsWith("scripts/")) continue;
     if (!touchedSet.has(p)) blocked.push(p);
   }
   return blocked;
@@ -9833,7 +9854,7 @@ async function stageFiles(repoRoot, envExtra) {
     }
     p = p.replace(/^"/, "").replace(/"$/, "");
     if (isDenied(p) || gitlinkPaths.has(p.replace(/\/$/, ""))) continue;
-    const full = join12(repoRoot, p);
+    const full = join10(repoRoot, p);
     if (!existsSync(full)) {
       if (xy[0] === "D") continue;
       spawnSync("git", ["add", "-u", "--", p], { cwd: repoRoot, shell: false, env });
@@ -9846,10 +9867,10 @@ async function stageFiles(repoRoot, envExtra) {
 }
 async function buildClosesBlock(issueId, repoRoot, envExtra) {
   if (!issueId) return "";
-  const issuePath = join12(repoRoot, "docs/cycle/issues/todo", `${issueId}.md`);
+  const issuePath = join10(repoRoot, "docs/cycle/issues/todo", `${issueId}.md`);
   let body;
   try {
-    body = await readFile11(issuePath, "utf8");
+    body = await readFile9(issuePath, "utf8");
   } catch {
     return "";
   }
@@ -9902,17 +9923,17 @@ async function commitCycle(repoRoot, opts) {
 // src/engine/issue-lifecycle.ts
 init_frontmatter();
 init_queue();
-import { readFile as readFile12, rename as rename5, writeFile as writeFile5, unlink as unlink2 } from "node:fs/promises";
-import { join as join14 } from "node:path";
+import { readFile as readFile10, rename as rename5, writeFile as writeFile5, unlink as unlink2 } from "node:fs/promises";
+import { join as join12 } from "node:path";
 
 // src/engine/blocked.ts
 init_queue();
 init_frontmatter();
 import { rename as rename4 } from "node:fs/promises";
-import { join as join13 } from "node:path";
+import { join as join11 } from "node:path";
 async function propagateBlocked(repoRoot, failedId, log2) {
-  const todoDir2 = join13(repoRoot, "docs/cycle/issues/todo");
-  const blockedDir = join13(repoRoot, "docs/cycle/issues/blocked");
+  const todoDir2 = join11(repoRoot, "docs/cycle/issues/todo");
+  const blockedDir = join11(repoRoot, "docs/cycle/issues/blocked");
   const rows = await readQueue(repoRoot);
   const visited = /* @__PURE__ */ new Set([failedId]);
   const orderedMoves = [];
@@ -9933,8 +9954,8 @@ async function propagateBlocked(repoRoot, failedId, log2) {
   const rollback = [];
   try {
     for (const { row, predecessors } of orderedMoves) {
-      const src = join13(todoDir2, `${row.id}.md`);
-      const dst = join13(blockedDir, `${row.id}.md`);
+      const src = join11(todoDir2, `${row.id}.md`);
+      const dst = join11(blockedDir, `${row.id}.md`);
       await mutateFrontmatter(src, (fm) => ({
         ...fm,
         blocked_at: (/* @__PURE__ */ new Date()).toISOString(),
@@ -9980,11 +10001,11 @@ async function terminalDrain(cwd2, log2, todoPath, failedDir2, cycleId, issueId,
   } catch (e) {
     mutateErr = e;
   }
-  const failedPath = join14(failedDir2, `${issueId}.md`);
+  const failedPath = join12(failedDir2, `${issueId}.md`);
   if (mutateErr) {
     let originalBody = "";
     try {
-      originalBody = await readFile12(todoPath, "utf8");
+      originalBody = await readFile10(todoPath, "utf8");
     } catch (e) {
       if (e.code !== "ENOENT") throw e;
     }
@@ -10033,9 +10054,9 @@ async function terminalDrain(cwd2, log2, todoPath, failedDir2, cycleId, issueId,
 
 // src/engine/stale-dist.ts
 import { stat as stat2 } from "node:fs/promises";
-import { join as join15 } from "node:path";
+import { join as join13 } from "node:path";
 async function emitStaleDistWarning(log2, processStart2, cwd2, statFn = stat2) {
-  const distPath = join15(cwd2, "dist", "cycle.js");
+  const distPath = join13(cwd2, "dist", "cycle.js");
   let mtimeMs;
   try {
     const s = await statFn(distPath);
@@ -10098,22 +10119,42 @@ if (args.command === "drop") {
   console.log(JSON.stringify({ event: "issue.dropped", issue_id: id, path }));
   process.exit(0);
 }
-var log = await createLogger(cwd);
 if (args.text) {
   await materializeFreeformIssue(args.text, cwd);
 }
-var todoDir = join22(cwd, "docs/cycle/issues/todo");
-var doneDir = join22(cwd, "docs/cycle/issues/done");
-var failedDir = join22(cwd, "docs/cycle/issues/failed");
-var rawDir = join22(cwd, "docs/cycle/issues/raw");
+if (args.dryRun) {
+  const rows = await readQueue(cwd);
+  for (const row of rows) {
+    if (row.status !== "pending") continue;
+    console.log(JSON.stringify({
+      ts: (/* @__PURE__ */ new Date()).toISOString(),
+      event: "issue.ingested",
+      issue_id: row.id,
+      path: join20(cwd, "docs/cycle/issues/todo", `${row.id}.md`)
+    }));
+  }
+  console.log(JSON.stringify({
+    ts: (/* @__PURE__ */ new Date()).toISOString(),
+    event: "engine.stop",
+    status: "ok",
+    dry_run: true,
+    cycles_processed: 0
+  }));
+  process.exit(0);
+}
+var log = await createLogger(cwd);
+var todoDir = join20(cwd, "docs/cycle/issues/todo");
+var doneDir = join20(cwd, "docs/cycle/issues/done");
+var failedDir = join20(cwd, "docs/cycle/issues/failed");
+var rawDir = join20(cwd, "docs/cycle/issues/raw");
 await mkdir8(doneDir, { recursive: true });
 await mkdir8(failedDir, { recursive: true });
 if (args.trunk) process.env.CYCLE_TRUNK_BASED = "1";
-var cfg = args.dryRun ? null : await loadConfig(cwd);
+var cfg = await loadConfig(cwd);
 var skipCompletedOnRetry = args.noSkipCompleted ? false : cfg?.engine?.skip_completed_on_retry ?? true;
 await emitStaleDistWarning(log, processStart, cwd);
 await log.emit("engine.start", { skip_completed_on_retry: skipCompletedOnRetry });
-if (!args.dryRun && cfg) {
+if (cfg) {
   const triageResult = await runTriage(cwd, cfg, log);
   if (triageResult.status === "paused") {
     await log.emit("engine.stop", {
@@ -10143,7 +10184,7 @@ var maxConsecutiveFailures = cfg?.engine?.max_consecutive_failures ?? 2;
 async function drainSuccess(cwd2, log2, todoPath, doneDir2, cycleId, issueId) {
   await drainOk(cwd2, issueId);
   try {
-    await rename7(todoPath, join22(doneDir2, `${issueId}.md`));
+    await rename7(todoPath, join20(doneDir2, `${issueId}.md`));
   } catch {
   }
   await log2.emit("queue.drained", { cycle_id: cycleId, issue_id: issueId, outcome: "ok" });
@@ -10171,7 +10212,7 @@ function spawnRunOne(params) {
   if (params.resumeFromStep !== void 0)
     args2.push("--resume-from-step", String(params.resumeFromStep));
   return new Promise((resolve2, reject) => {
-    const child = spawn6(
+    const child = spawn4(
       process.execPath,
       [process.argv[1], "run-one", ...args2],
       { env: buildChildEnv({}), stdio: "inherit", shell: false }
@@ -10182,7 +10223,7 @@ function spawnRunOne(params) {
 }
 async function readCycleEndFailingStep(repoRoot, cycleId) {
   try {
-    const text = await readFile15(join22(repoRoot, ".cycle", "log.jsonl"), "utf8");
+    const text = await readFile13(join20(repoRoot, ".cycle", "log.jsonl"), "utf8");
     const lines = text.split("\n");
     for (let i = lines.length - 1; i >= 0; i--) {
       const line = lines[i].trim();
@@ -10202,7 +10243,7 @@ async function readCycleEndFailingStep(repoRoot, cycleId) {
 async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, failedDir2) {
   let fmBaseBranch;
   try {
-    const body = await readFile15(join22(todoDir2, `${tail.issueId}.md`), "utf8");
+    const body = await readFile13(join20(todoDir2, `${tail.issueId}.md`), "utf8");
     const { fm } = parseFrontmatter(body);
     fmBaseBranch = typeof fm.base_branch === "string" && fm.base_branch.length > 0 ? fm.base_branch : void 0;
   } catch {
@@ -10235,7 +10276,7 @@ async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, 
   if (!baseOk) return { processed: 0, outcome: "skipped" };
   let workflowName = tail.workflow || args2.workflow;
   try {
-    const body = await readFile15(join22(todoDir2, `${tail.issueId}.md`), "utf8");
+    const body = await readFile13(join20(todoDir2, `${tail.issueId}.md`), "utf8");
     const { fm } = parseFrontmatter(body);
     if (typeof fm.workflow === "string" && fm.workflow.length > 0) {
       workflowName = fm.workflow;
@@ -10277,7 +10318,7 @@ async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, 
     resumeFromStep: startStepIndex
   });
   const failingStep = exitCode !== 0 ? await readCycleEndFailingStep(cwd2, tail.cycleId) : void 0;
-  const todoPath = join22(todoDir2, `${tail.issueId}.md`);
+  const todoPath = join20(todoDir2, `${tail.issueId}.md`);
   if (exitCode === 0) {
     const cr = await commitCycle(cwd2, {
       cycleId: tail.cycleId,
@@ -10304,7 +10345,7 @@ async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, 
   await terminalDrain(cwd2, log2, todoPath, failedDir2, tail.cycleId, tail.issueId, failingStep, row.attempt + 1);
   return { processed: 0, outcome: "terminal", issueId: tail.issueId, failingStep };
 }
-if (!args.dryRun && cfg) {
+if (cfg) {
   const tail = await readLogTail(cwd);
   if (tail) {
     const result = await runResumeOnce(cwd, log, cfg, args, tail, todoDir, doneDir, failedDir);
@@ -10324,20 +10365,6 @@ if (!args.dryRun && cfg) {
     }
   }
 }
-if (args.dryRun) {
-  const rows = await readQueue(cwd);
-  for (const row of rows) {
-    if (row.status !== "pending") continue;
-    const todoPath = join22(todoDir, `${row.id}.md`);
-    await log.emit("issue.ingested", { issue_id: row.id, path: todoPath });
-  }
-  await log.emit("engine.stop", {
-    status: "ok",
-    dry_run: true,
-    cycles_processed: 0
-  });
-  process.exit(0);
-}
 while (!halted) {
   if (cfg && await rawHasFiles()) {
     const r = await runTriage(cwd, cfg, log);
@@ -10350,12 +10377,12 @@ while (!halted) {
   }
   const row = await popNextPending(cwd);
   if (!row) break;
-  const todoPath = join22(todoDir, `${row.id}.md`);
+  const todoPath = join20(todoDir, `${row.id}.md`);
   await log.emit("issue.ingested", { issue_id: row.id, path: todoPath });
   let workflowName = args.workflow;
   let fmBaseBranch;
   try {
-    const body = await readFile15(todoPath, "utf8");
+    const body = await readFile13(todoPath, "utf8");
     const { fm } = parseFrontmatter(body);
     if (typeof fm.workflow === "string" && fm.workflow.length > 0) {
       workflowName = fm.workflow;
@@ -10431,8 +10458,8 @@ if (halted && haltReason === "max_consecutive_failures" && failedCycles.length >
   });
 }
 await log.emit("engine.stop", {
-  status: args.dryRun ? "ok" : halted ? "halted" : "ok",
-  dry_run: args.dryRun,
+  status: halted ? "halted" : "ok",
+  dry_run: false,
   cycles_processed: cyclesProcessed,
   ...halted && haltReason === "triage_failed" ? { reason: "triage_failed" } : {},
   ...halted && lastHaltContext ? { halted_at_issue: lastHaltContext.issueId, failing_step: lastHaltContext.failingStep } : {}

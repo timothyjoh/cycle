@@ -493,11 +493,11 @@ Lightweight fix path.
 ### `feature`
 
 ```
-spec → research → plan → build → review → fix → verify → commit → pr
+spec → research → plan → build → review → fix → verify → documentation → reflection → commit → pr
 ```
 
 Full SDLC pass. `fix` is conditional — only runs if `review` produced
-must-fixes.
+must-fixes. `documentation` and `reflection` are non-fatal terminal steps — failure emits a skipped event but does not flip `cycle.end` to failed.
 
 > **There is no separate `epic` workflow.** An issue that needs multiple
 > cycles is simply one whose triage returned multiple queue entries, each
@@ -660,7 +660,7 @@ Example: parent agent invokes cycle with 7 Jira issues, 3 of them big.
    - `docs/cycle/0042-feature-safari-login/` gets its workflow
      artifacts.
    - Workflow steps run:
-     `spec → research → plan → build → review → fix → verify → commit → pr`.
+     `spec → research → plan → build → review → fix → verify → documentation → reflection → commit → pr`.
      Each emits `step.start` / `step.end`.
    - PR opened; `gh pr merge --squash --auto` enabled.
    - Engine polls until the PR lands on `main`. Emits `pr.merged` and

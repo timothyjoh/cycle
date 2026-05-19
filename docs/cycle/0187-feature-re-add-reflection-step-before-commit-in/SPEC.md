@@ -1,0 +1,1 @@
+SPEC written to `docs/cycle/0187-feature-re-add-reflection-step-before-commit-in/SPEC.md`. Three deliverables: add `reflection` as last step in both workflow files, propagate via `sync-defaults`, update step-count assertions in two test files (8→9).

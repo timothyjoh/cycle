@@ -64,6 +64,15 @@ async function setupGitRepo(root: string): Promise<void> {
   git(root, ["commit", "--allow-empty", "-m", "init"]);
 }
 
+async function setupGitRepoWithReadme(root: string): Promise<void> {
+  git(root, ["init", "-b", "main"]);
+  git(root, ["config", "user.email", "t@t"]);
+  git(root, ["config", "user.name", "t"]);
+  await writeFile(join(root, "README.md"), "# README\n", "utf8");
+  git(root, ["add", "README.md"]);
+  git(root, ["commit", "-m", "init"]);
+}
+
 test("runCycle: documentation step success writes DOCUMENTATION.md verbatim", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-doc-rc-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-doc-bin-"));
@@ -234,6 +243,263 @@ test("runCycle: documentation step exec-failure in no_branch workflow emits docu
     const artifactDir = join(root, "docs/cycle", r.cycleId + "-feature-doc-no-branch-fail");
     const docFile = join(artifactDir, "DOCUMENTATION.md");
     assert.equal(await fileExists(docFile), false, "DOCUMENTATION.md must not be written on failure");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+// Helper: write a two-step build→documentation workflow and dispatcher claude binary.
+// The build fake stages src/dummy.ts (satisfying the empty-diff guard) and emits buildTouchedFiles.
+// The doc fake appends to README.md.
+async function setupBuildDocWorkflow(
+  root: string,
+  bin: string,
+  buildTouchedFiles: string,
+): Promise<void> {
+  await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+  await writeFile(join(root, ".cycle/prompts/build.md"), "BUILD_STEP_PROMPT", "utf8");
+  await writeFile(join(root, ".cycle/prompts/documentation.md"), "DOCUMENTATION_STEP_PROMPT", "utf8");
+  await writeFile(
+    join(root, ".cycle/workflows.yml"),
+    workflowYml(
+      `      - name: build\n        agent: claudecode\n        prompt: prompts/build.md\n` +
+      `      - name: documentation\n        agent: claudecode\n        prompt: prompts/documentation.md\n`,
+    ),
+    "utf8",
+  );
+
+  const fakeBuild = join(bin, "claude-build");
+  await writeFile(
+    fakeBuild,
+    `#!/bin/bash\nmkdir -p "${root}/src"\necho '// marker' > "${root}/src/dummy.ts"\ngit -C "${root}" add src/dummy.ts\nprintf '${buildTouchedFiles}'`,
+    "utf8",
+  );
+  await chmod(fakeBuild, 0o755);
+
+  const fakeDoc = join(bin, "claude-doc");
+  await writeFile(
+    fakeDoc,
+    `#!/bin/bash\necho 'Updated.' >> "${root}/README.md"\nprintf 'Updated README.md'`,
+    "utf8",
+  );
+  await chmod(fakeDoc, 0o755);
+
+  // Dispatch on $3 (the prompt content passed as argv by exec-claudecode)
+  const fakeWrapper = join(bin, "claude");
+  await writeFile(
+    fakeWrapper,
+    `#!/bin/bash\nif [[ "$3" == *DOCUMENTATION_STEP_PROMPT* ]]; then exec "${fakeDoc}" "$@"; fi\nexec "${fakeBuild}" "$@"\n`,
+    "utf8",
+  );
+  await chmod(fakeWrapper, 0o755);
+}
+
+test("runCycle: documentation step appends modified tracked file absent from BUILD.md Touched Files", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-doc-append-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-doc-append-bin-"));
+  try {
+    await setupGitRepoWithReadme(root);
+    await setupBuildDocWorkflow(root, bin, "## Touched Files\\n- src/dummy.ts\\n");
+
+    const r = await runCycle(root, {
+      issueId: "APPEND-1",
+      title: "doc append new",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const buildMd = join(root, "docs/cycle", `${r.cycleId}-feature-doc-append-new`, "BUILD.md");
+    const content = await readFile(buildMd, "utf8");
+    assert.match(content, /## Touched Files/);
+    assert.match(content, /- README\.md/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("runCycle: documentation step does not duplicate path already listed in BUILD.md Touched Files", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-doc-dup-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-doc-dup-bin-"));
+  try {
+    await setupGitRepoWithReadme(root);
+    await setupBuildDocWorkflow(root, bin, "## Touched Files\\n- src/dummy.ts\\n- README.md\\n");
+
+    const r = await runCycle(root, {
+      issueId: "APPEND-2",
+      title: "doc append dup",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const buildMd = join(root, "docs/cycle", `${r.cycleId}-feature-doc-append-dup`, "BUILD.md");
+    const content = await readFile(buildMd, "utf8");
+    const occurrences = content.match(/- README\.md/g);
+    assert.equal(occurrences?.length ?? 0, 1, "README.md must appear exactly once in Touched Files");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("runCycle: workflow without documentation step leaves BUILD.md unchanged", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-doc-nostep-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-doc-nostep-bin-"));
+  try {
+    await setupGitRepoWithReadme(root);
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/prompts/build.md"), "BUILD_STEP_PROMPT", "utf8");
+    await writeFile(
+      join(root, ".cycle/workflows.yml"),
+      workflowYml("      - name: build\n        agent: claudecode\n        prompt: prompts/build.md\n"),
+      "utf8",
+    );
+
+    const fake = join(bin, "claude");
+    await writeFile(
+      fake,
+      `#!/bin/bash\nmkdir -p "${root}/src"\necho '// marker' > "${root}/src/dummy.ts"\ngit -C "${root}" add src/dummy.ts\nprintf '## Touched Files\\n- src/dummy.ts\\n'`,
+      "utf8",
+    );
+    await chmod(fake, 0o755);
+
+    const r = await runCycle(root, {
+      issueId: "APPEND-3",
+      title: "doc no step",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const buildMd = join(root, "docs/cycle", `${r.cycleId}-feature-doc-no-step`, "BUILD.md");
+    const content = await readFile(buildMd, "utf8");
+    assert.doesNotMatch(content, /- README\.md/, "README.md must not appear — no documentation step ran");
+    assert.match(content, /- src\/dummy\.ts/, "src/dummy.ts must still be present");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("runCycle: documentation step appends rename destination from R-prefix porcelain line", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-doc-rename-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-doc-rename-bin-"));
+  try {
+    await setupGitRepoWithReadme(root);
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/prompts/build.md"), "BUILD_STEP_PROMPT", "utf8");
+    await writeFile(join(root, ".cycle/prompts/documentation.md"), "DOCUMENTATION_STEP_PROMPT", "utf8");
+    await writeFile(
+      join(root, ".cycle/workflows.yml"),
+      workflowYml(
+        `      - name: build\n        agent: claudecode\n        prompt: prompts/build.md\n` +
+        `      - name: documentation\n        agent: claudecode\n        prompt: prompts/documentation.md\n`,
+      ),
+      "utf8",
+    );
+
+    const fakeBuild = join(bin, "claude-build");
+    await writeFile(
+      fakeBuild,
+      `#!/bin/bash\nmkdir -p "${root}/src"\necho '// marker' > "${root}/src/dummy.ts"\ngit -C "${root}" add src/dummy.ts\nprintf '## Touched Files\\n- src/dummy.ts\\n'`,
+      "utf8",
+    );
+    await chmod(fakeBuild, 0o755);
+
+    const fakeDoc = join(bin, "claude-doc");
+    await writeFile(
+      fakeDoc,
+      `#!/bin/bash\ngit -C "${root}" mv README.md RENAMED.md\nprintf 'Renamed README.md to RENAMED.md'`,
+      "utf8",
+    );
+    await chmod(fakeDoc, 0o755);
+
+    const fakeWrapper = join(bin, "claude");
+    await writeFile(
+      fakeWrapper,
+      `#!/bin/bash\nif [[ "$3" == *DOCUMENTATION_STEP_PROMPT* ]]; then exec "${fakeDoc}" "$@"; fi\nexec "${fakeBuild}" "$@"\n`,
+      "utf8",
+    );
+    await chmod(fakeWrapper, 0o755);
+
+    const r = await runCycle(root, {
+      issueId: "RENAME-1",
+      title: "doc rename porcelain",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const buildMd = join(root, "docs/cycle", `${r.cycleId}-feature-doc-rename-porcelain`, "BUILD.md");
+    const content = await readFile(buildMd, "utf8");
+    assert.match(content, /## Touched Files/);
+    assert.match(content, /- RENAMED\.md/, "RENAMED.md must appear as the rename destination");
+    assert.doesNotMatch(content, /- README\.md/, "README.md must not appear — it is the rename source, not destination");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("runCycle: documentation step with BUILD.md having no Touched Files section does not throw", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-doc-notf-"));
+  const bin  = await mkdtemp(join(tmpdir(), "cycle-doc-notf-bin-"));
+  try {
+    await setupGitRepoWithReadme(root);
+    await setupBuildDocWorkflow(root, bin, "Build complete. No section here.\\n");
+    const r = await runCycle(root, {
+      issueId: "NOTF-1",
+      title: "doc no touched files section",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const events = parseLog(log);
+    const cycleEnd = expectExactlyOne(events, "cycle.end");
+    assert.equal(cycleEnd.status, "ok");
+
+    const buildMd = join(root, "docs/cycle", `${r.cycleId}-feature-doc-no-touched-files-section`, "BUILD.md");
+    const content = await readFile(buildMd, "utf8");
+    assert.doesNotMatch(content, /- README\.md/, "README.md must not appear — append skipped when no Touched Files section");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin,  { recursive: true, force: true });
+  }
+});
+
+test("runCycle: documentation step with no BUILD.md present does not throw; cycle.end ok", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-doc-nobuildmd-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-doc-nobuildmd-bin-"));
+  try {
+    await setupGitRepo(root);
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(
+      join(root, ".cycle/workflows.yml"),
+      workflowYml("      - name: documentation\n        agent: claudecode\n        prompt: prompts/documentation.md\n"),
+      "utf8",
+    );
+    await writeFile(join(root, ".cycle/prompts/documentation.md"), "DOCUMENTATION_STEP_PROMPT", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\nprintf 'Updated docs'\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await runCycle(root, {
+      issueId: "APPEND-4",
+      title: "doc no build md",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const events = parseLog(log);
+    const cycleEnd = expectExactlyOne(events, "cycle.end");
+    assert.equal(cycleEnd.status, "ok");
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(bin, { recursive: true, force: true });

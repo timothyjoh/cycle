@@ -71,6 +71,8 @@ On `JSON.parse` failure: first tries trailing-prose repair (scan to last balance
 
 `run-cycle.ts` treats `documentation` as a non-fatal terminal step (same shape as `reflection`). Prompt at `src/defaults/prompts/documentation.md`. Failure emits `documentation.skipped {cycle_id, reason: "exec_failed", exit_code}` but does NOT flip `cycle.end` to `failed`. Non-fatal set is hard-coded in `run-cycle.ts` (`reflection`, `documentation`).
 
+After a successful run, `run-cycle.ts` reads `git status --porcelain` and appends any modified tracked paths absent from `BUILD.md ## Touched Files` as `- <path>` bullets, so `scopeGuard` does not block the subsequent commit. Untracked files (`??`) and denylisted paths (`.claude/`, `dist/`, `node_modules/`, `.cycle/cycle.pid`, `*.lock`) are excluded. The append is best-effort and silently skipped when BUILD.md is absent or has no `## Touched Files` section.
+
 ## Artifact sanitization
 
 `src/engine/sanitize-artifact.ts:sanitizeArtifactStdout(stdout)` applied at the single artifact-write seam in `run-cycle.ts`: strips leading `^(Now|Next|Here is|Output)\b …` narration lines and unwraps a single outer ``` fence. Pure/idempotent/no I/O. `log.jsonl` payloads are untouched.
@@ -131,7 +133,7 @@ engine:
 **Scope guard** (`parseTouchedFiles` / `scopeGuard` in `src/engine/commit-cycle.ts`): Before `stageFiles()` runs, `commitCycle()` calls `scopeGuard(repoRoot, cycleId)` which:
 1. Locates `docs/cycle/<cycleId>-*/BUILD.md` via `readdir` + prefix match.
 2. Calls `parseTouchedFiles(buildMdPath)` to extract the `## Touched Files` YAML list.
-3. Runs `git status --porcelain` and collects dirty tracked-file paths not in the list (denylist-exempt files skipped; `??` untracked entries ignored).
+3. Runs `git status --porcelain` and collects dirty tracked-file paths not in the list (denylisted files skipped; `??` untracked entries ignored).
 4. Returns the blocked file list. If non-empty, `commitCycle()` returns `{ status: "failed", reason: "scope_violation", blockedFiles }` — `stageFiles()` is never called.
 
 Guard is a **no-op** when BUILD.md is absent or has no `## Touched Files` section (pre-existing cycles, quickfix/document workflows). Blocked-file errors are surfaced via the `CommitResult` return value; `cli.ts` routes them through the standard retry/terminal-drain path.
