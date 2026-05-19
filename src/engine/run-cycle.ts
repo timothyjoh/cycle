@@ -21,6 +21,7 @@ import { slugify } from "../issue/id.ts";
 import { writeFile, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { truncateHeadCapped } from "./log-fmt.ts";
+import { spawnSync } from "node:child_process";
 
 const RESET_ELIGIBLE_STEPS = new Set(["build", "fix"]);
 
@@ -50,6 +51,14 @@ export const SPEC_MIN_BYTES = 200;
 export const MAX_STEP_END_STDERR = 2000;
 export function formatSpecGuardError(path: string, bytes: number, threshold: number): string {
   return `spec post-condition failed: ${path} is ${bytes} bytes (< ${threshold})`;
+}
+
+export function formatFixGuardError(fixPath: string, mustFixPath: string, count: number): string {
+  return `fix step produced empty FIX.md while MUST-FIX.md has ${count} task(s) [fix: ${fixPath}, must-fix: ${mustFixPath}]`;
+}
+
+export function formatEmptyDiffGuardError(stepName: string): string {
+  return `${stepName} post-condition failed: no src/ changes detected (step reported ok but git diff HEAD -- src/ is empty)`;
 }
 
 export async function findPriorStepHeadSha(
@@ -227,6 +236,29 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
               r.status = "failed";
               r.exitCode = r.exitCode || 1;
               r.stderr = formatSpecGuardError(artifactPath, bytes, SPEC_MIN_BYTES);
+            }
+          }
+          if (r.status === "ok" && step.name === "fix") {
+            const mustFixPath = join(artifactDir, "MUST-FIX.md");
+            let mustFixContent = "";
+            try { mustFixContent = await readFile(mustFixPath, "utf8"); } catch { /* absent */ }
+            const taskCount = mustFixContent.split("\n").filter(l => /^\s*[-*]\s*\[/.test(l)).length;
+            if (taskCount >= 1 && sanitized.trim().length === 0) {
+              r.status = "failed";
+              r.exitCode = r.exitCode || 1;
+              r.stderr = formatFixGuardError(artifactPath, mustFixPath, taskCount);
+            }
+          }
+          if (r.status === "ok" && (step.name === "build" || step.name === "fix")) {
+            const diff = spawnSync("git", ["diff", "HEAD", "--", "src/"], {
+              cwd: repoRoot,
+              encoding: "utf8",
+              shell: false,
+            });
+            if (!diff.stdout) {
+              r.status = "failed";
+              r.exitCode = r.exitCode || 1;
+              r.stderr = formatEmptyDiffGuardError(step.name);
             }
           }
         }

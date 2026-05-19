@@ -39,7 +39,10 @@ test("runCycle dispatches agent:codex through resolveAgent, step.end status:ok",
     git(root, ["init", "-b", "main"]);
     git(root, ["config", "user.email", "t@t"]);
     git(root, ["config", "user.name", "t"]);
-    git(root, ["commit", "--allow-empty", "-m", "init"]);
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/stub.ts"), "export {};\n", "utf8");
+    git(root, ["add", "src/stub.ts"]);
+    git(root, ["commit", "-m", "init"]);
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(
@@ -51,7 +54,7 @@ test("runCycle dispatches agent:codex through resolveAgent, step.end status:ok",
 
     // codex uses promptDelivery:"stdin"; cat reads stdin -> stdout, exits 0
     const fake = join(bin, "codex");
-    await writeFile(fake, "#!/bin/bash\ncat\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\ncat\nprintf 'fix\\n' >> src/stub.ts\n", "utf8");
     await chmod(fake, 0o755);
 
     const r = await runCycle(root, {
@@ -78,7 +81,10 @@ test("runCycle dispatches agent:gemini through resolveAgent, step.end status:ok"
     git(root, ["init", "-b", "main"]);
     git(root, ["config", "user.email", "t@t"]);
     git(root, ["config", "user.name", "t"]);
-    git(root, ["commit", "--allow-empty", "-m", "init"]);
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/stub.ts"), "export {};\n", "utf8");
+    git(root, ["add", "src/stub.ts"]);
+    git(root, ["commit", "-m", "init"]);
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(
@@ -90,7 +96,7 @@ test("runCycle dispatches agent:gemini through resolveAgent, step.end status:ok"
 
     // gemini uses promptDelivery:"stdin"; cat reads stdin -> stdout, exits 0
     const fake = join(bin, "gemini");
-    await writeFile(fake, "#!/bin/bash\ncat\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\ncat\nprintf 'fix\\n' >> src/stub.ts\n", "utf8");
     await chmod(fake, 0o755);
 
     const r = await runCycle(root, {

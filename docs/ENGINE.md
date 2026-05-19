@@ -79,13 +79,25 @@ On `JSON.parse` failure: first tries trailing-prose repair (scan to last balance
 
 `SPEC_MIN_BYTES` (currently 200) gates the `spec` step. After artifact write, engine measures `Buffer.byteLength(sanitizeArtifactStdout(stdout), "utf8")` — if `< SPEC_MIN_BYTES`, mutates `r.status = "failed"` with stderr from `formatSpecGuardError`. Falls through standard `cycle.end status:"failed" failing_step:"spec"` branch. Bash `spec` steps bypass the guard.
 
+## Fix post-condition
+
+After the `fix` step exits `status:ok` and `FIX.md` is written, the engine reads `MUST-FIX.md` from the same `artifactDir`. Any line matching `/^\s*[-*]\s*\[/` (checkbox bullet) counts as a task line. If MUST-FIX.md is absent or has zero task lines, the check is skipped entirely. If MUST-FIX.md has ≥1 task lines and `FIX.md` is empty (zero non-whitespace bytes after sanitization), engine mutates `r.status = "failed"` with stderr from `formatFixGuardError(fixPath, mustFixPath, count)` — message format: `fix step produced empty FIX.md while MUST-FIX.md has N task(s) [fix: <path>, must-fix: <path>]`. Falls through standard `cycle.end status:"failed" failing_step:"fix"` machinery. The `skip_unless: MUST-FIX.md` gate on the fix step guarantees MUST-FIX.md is present when the fix agent executes, but the guard still handles the absent-MUST-FIX case defensively.
+
+## Empty-diff post-condition
+
+After a `build` or `fix` step exits `status:ok` and its artifact is written, the engine runs `git diff HEAD -- src/` (array args, `cwd: repoRoot`, no shell). If stdout is empty — meaning no tracked files under `src/` changed relative to HEAD — the engine mutates `r.status = "failed"` with stderr from `formatEmptyDiffGuardError(stepName)` — message format: `<step> post-condition failed: no src/ changes detected (step reported ok but git diff HEAD -- src/ is empty)`. Falls through standard `cycle.end status:"failed" failing_step:"<step>"` machinery. Bash steps and all other step names (`spec`, `review`, `plan`, `research`, `reflection`, `documentation`) bypass this guard entirely.
+
 ## Failed step.end stderr
 
-Failed `step.end` events carry a head-capped `stderr` field (2000-char, via `MAX_STEP_END_STDERR` + `truncateStepEndStderr` in `run-cycle.ts`). Successful events omit the field. Gate is `r.status === "failed"` across all agents, not `r.stderr` truthiness. Three emission sites set `r.stderr` before the gate fires: (1) `UnknownAgentError` during dispatch (`run-cycle.ts:~219`) — error message verbatim; (2) spec post-condition guard (`run-cycle.ts:~231`) — `formatSpecGuardError(path, bytes, SPEC_MIN_BYTES)`; (3) provider-module non-zero exit in `exec-claudecode.ts`, `exec-codex.ts`, `exec-gemini.ts` — captured stderr stream, head-capped at 2000 chars.
+Failed `step.end` events carry a head-capped `stderr` field (2000-char, via `MAX_STEP_END_STDERR` + `truncateHeadCapped` in `run-cycle.ts`). Successful events omit the field. Gate is `r.status === "failed"` across all agents, not `r.stderr` truthiness. Five emission sites set `r.stderr` before the gate fires: (1) `UnknownAgentError` during dispatch (`run-cycle.ts:~219`) — error message verbatim; (2) spec post-condition guard (`run-cycle.ts:~231`) — `formatSpecGuardError(path, bytes, SPEC_MIN_BYTES)`; (3) fix post-condition guard (`run-cycle.ts:~244`) — `formatFixGuardError(fixPath, mustFixPath, count)`; (4) empty-diff post-condition guard (`run-cycle.ts:~261`) — `formatEmptyDiffGuardError(stepName)`; (5) provider-module non-zero exit in `exec-claudecode.ts`, `exec-codex.ts`, `exec-gemini.ts` — captured stderr stream, head-capped at 2000 chars.
 
 ## Review step Pass 3
 
 `src/defaults/prompts/review.md` carries `## Pass 3: Doc-vs-Code Claim Verification` — enumerates command/flag/path/event/frontmatter/behavioral claims in `README.md`, `CLAUDE.md`, `AGENTS.md`, `docs/**/*.md` (excluding `docs/cycle/*`), pairs each with a `file:line` reference, treats unbacked claims as NEEDS-FIX. Dogfood mirror `.cycle/prompts/review.md` is byte-identical (pinned by `tests/defaults/review-prompt-doc-claim-pass.test.ts`).
+
+## Review step Pass 4
+
+`src/defaults/prompts/review.md` carries `## Pass 4: Inherited AC Verification` — greps source `todo/<issue_id>.md` for `- [ ]` bullets, verifies each appears in `## Inherited Acceptance Criteria` in SPEC.md, treats silent drops or insufficient `dropped-with-rationale` entries as MUST-FIX. Pinned by `tests/defaults/review-prompt-inherited-ac.test.ts`.
 
 ## SPEC→PLAN traceability
 
@@ -146,3 +158,24 @@ At engine start, before emitting `engine.start`, the engine compares the mtime o
 
 **No warning** is emitted when `dist/cycle.js` does not exist (ENOENT) or when its mtime ≤ process start. The engine continues regardless.
 
+## PID File Lifecycle (`cycle run --detach`)
+
+When `--detach` is passed, the CLI parent process:
+1. Reads `.cycle/cycle.pid`; if the stored PID is live (`process.kill(pid, 0)` succeeds or throws `EPERM`), exits 1 with a message referencing `cycle attach` and `cycle stop`.
+2. Reconstructs the `run` argv (minus `--detach`) and spawns `node dist/cycle.js run [flags]` with `detached: true`, `stdio: "ignore"`, and `CYCLE_DAEMON=1` in the environment via `buildChildEnv`.
+3. Writes the child PID to `.cycle/cycle.pid` via `src/engine/pid.ts:writePid`.
+4. Calls `child.unref()` and exits 0 immediately — the terminal is released.
+
+A stale PID file (process dead, `ESRCH`) does not block a new `--detach` run — the file is overwritten.
+
+The daemon child (carrying `CYCLE_DAEMON=1`) registers SIGTERM, SIGINT, and SIGUSR2 handlers on startup.
+
+**On graceful stop (`cycle stop`):** The caller sends SIGUSR2 to the daemon PID. The daemon sets a `gracefulStop` flag; the drain loop checks the flag at the top of each iteration and breaks when set. The engine then emits `engine.stop { status: "stopped" }` and calls `removePid` before exiting 0.
+
+**On forced stop (`cycle stop --force`):** The caller sends SIGTERM. The daemon's SIGTERM handler calls `removePid` then `process.exit(0)` immediately — no drain-loop iteration completes after the signal arrives. SIGINT behaves identically.
+
+On clean completion (queue exhausted, no halt), the `engine.stop` emission path calls `removePid(cwd)` before `process.exit`.
+
+`.cycle/cycle.pid` is in the commit denylist (`DENYLIST_EXACT` in `src/engine/commit-cycle.ts`) — it is never staged.
+
+PID file helpers live in `src/engine/pid.ts`: `writePid`, `readPid`, `removePid`, `isAlive`.

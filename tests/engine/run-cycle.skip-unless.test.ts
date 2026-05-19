@@ -16,7 +16,7 @@ function git(cwd: string, args: string[]) {
 const SLUG = "skip-unless-test";
 const TITLE = "skip unless test";
 const CYCLE_ID = "0001";
-const FAKE_CLAUDE_OK = "#!/bin/bash\necho done\n";
+const FAKE_CLAUDE_OK = "#!/bin/bash\nprintf 'fix\\n' >> src/stub.ts\necho done\n";
 
 const WORKFLOW_YML = [
   "engine:",
@@ -49,7 +49,10 @@ async function setupRepo() {
   git(root, ["init", "-b", "main"]);
   git(root, ["config", "user.email", "t@t"]);
   git(root, ["config", "user.name", "t"]);
-  git(root, ["commit", "--allow-empty", "-m", "init"]);
+  await mkdir(join(root, "src"), { recursive: true });
+  await writeFile(join(root, "src/stub.ts"), "export {};\n", "utf8");
+  git(root, ["add", "src/stub.ts"]);
+  git(root, ["commit", "-m", "init"]);
   await mkdir(join(root, ".cycle/prompts"), { recursive: true });
   await writeFile(join(root, ".cycle/workflows.yml"), WORKFLOW_YML, "utf8");
   await writeFile(join(root, ".cycle/prompts/build.md"), "noop", "utf8");

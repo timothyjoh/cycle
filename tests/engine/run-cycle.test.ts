@@ -785,7 +785,10 @@ test("fresh build step.start records head_sha; non-build step.start does not", a
     git(root, ["init", "-b", "main"]);
     git(root, ["config", "user.email", "t@t"]);
     git(root, ["config", "user.name", "t"]);
-    git(root, ["commit", "--allow-empty", "-m", "init"]);
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/stub.ts"), "export {};\n", "utf8");
+    git(root, ["add", "src/stub.ts"]);
+    git(root, ["commit", "-m", "init"]);
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
@@ -800,7 +803,7 @@ test("fresh build step.start records head_sha; non-build step.start does not", a
     await writeFile(join(root, ".cycle/prompts/build.md"), "build body", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nprintf 'fix\\n' >> src/stub.ts\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const baseSha = git(root, ["rev-parse", "HEAD"]).trim();
@@ -913,7 +916,10 @@ test("fresh fix step.start records head_sha; spec/review step.start does not", a
     git(root, ["init", "-b", "main"]);
     git(root, ["config", "user.email", "t@t"]);
     git(root, ["config", "user.name", "t"]);
-    git(root, ["commit", "--allow-empty", "-m", "init"]);
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/stub.ts"), "export {};\n", "utf8");
+    git(root, ["add", "src/stub.ts"]);
+    git(root, ["commit", "-m", "init"]);
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
@@ -932,7 +938,7 @@ test("fresh fix step.start records head_sha; spec/review step.start does not", a
     await writeFile(join(root, ".cycle/prompts/fix.md"), "fix body", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nprintf 'fix\\n' >> src/stub.ts\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     const baseSha = git(root, ["rev-parse", "HEAD"]).trim();
@@ -1043,6 +1049,8 @@ test("resume at build hard-resets to prior step.start head_sha", async () => {
     git(root, ["init", "-b", "main"]);
     git(root, ["config", "user.email", "t@t"]);
     git(root, ["config", "user.name", "t"]);
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/stub.ts"), "export {};\n", "utf8");
     await writeFile(join(root, ".gitignore"), ".cycle/\n", "utf8");
     await writeFile(join(root, "tracked.txt"), "v1", "utf8");
     git(root, ["add", "."]);
@@ -1092,7 +1100,7 @@ test("resume at build hard-resets to prior step.start head_sha", async () => {
 
     const statusFile = join(bin, "status.txt");
     const fake = join(bin, "claude");
-    await writeFile(fake, `#!/bin/bash\ngit -C "${root}" status --porcelain > "${statusFile}"\nyes FAKED | head -50\n`, "utf8");
+    await writeFile(fake, `#!/bin/bash\ngit -C "${root}" status --porcelain > "${statusFile}"\nprintf 'fix\\n' >> src/stub.ts\nyes FAKED | head -50\n`, "utf8");
     await chmod(fake, 0o755);
 
     git(root, ["checkout", "main"]);
@@ -1156,8 +1164,10 @@ test("resume at build with no prior head_sha emits build_pre_sha_missing and ski
     await writeFile(join(root, ".cycle/prompts/build.md"), "build body", "utf8");
 
     git(root, ["checkout", "-b", "cycle/feature/legacy-log"]);
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/stub.ts"), "export {};\n", "utf8");
     await writeFile(join(root, "tracked.txt"), "v2-partial", "utf8");
-    git(root, ["add", "tracked.txt"]);
+    git(root, ["add", "src/stub.ts", "tracked.txt"]);
     git(root, ["commit", "-m", "partial"]);
     const dirtyHead = git(root, ["rev-parse", "HEAD"]).trim();
 
@@ -1170,7 +1180,7 @@ test("resume at build with no prior head_sha emits build_pre_sha_missing and ski
     await writeFile(join(root, ".cycle/log.jsonl"), seedLines.join("\n") + "\n", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nprintf 'fix\\n' >> src/stub.ts\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     git(root, ["checkout", "main"]);
@@ -1223,8 +1233,10 @@ test("resume at build with unreachable head_sha emits build_pre_sha_unreachable 
     await writeFile(join(root, ".cycle/prompts/build.md"), "build body", "utf8");
 
     git(root, ["checkout", "-b", "cycle/feature/lost-sha"]);
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/stub.ts"), "export {};\n", "utf8");
     await writeFile(join(root, "tracked.txt"), "v2-partial", "utf8");
-    git(root, ["add", "tracked.txt"]);
+    git(root, ["add", "src/stub.ts", "tracked.txt"]);
     git(root, ["commit", "-m", "partial"]);
     const dirtyHead = git(root, ["rev-parse", "HEAD"]).trim();
 
@@ -1238,7 +1250,7 @@ test("resume at build with unreachable head_sha emits build_pre_sha_unreachable 
     await writeFile(join(root, ".cycle/log.jsonl"), seedLines.join("\n") + "\n", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nprintf 'fix\\n' >> src/stub.ts\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     git(root, ["checkout", "main"]);
@@ -1274,6 +1286,8 @@ test("resume at fix hard-resets to prior step.start head_sha", async () => {
     git(root, ["init", "-b", "main"]);
     git(root, ["config", "user.email", "t@t"]);
     git(root, ["config", "user.name", "t"]);
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/stub.ts"), "export {};\n", "utf8");
     await writeFile(join(root, "tracked.txt"), "v1", "utf8");
     await writeFile(join(root, ".gitignore"), ".cycle/\n", "utf8");
     git(root, ["add", "."]);
@@ -1337,7 +1351,7 @@ test("resume at fix hard-resets to prior step.start head_sha", async () => {
 
     const statusFile = join(bin, "status.txt");
     const fake = join(bin, "claude");
-    await writeFile(fake, `#!/bin/bash\ngit -C "${root}" status --porcelain > "${statusFile}"\nyes FAKED | head -50\n`, "utf8");
+    await writeFile(fake, `#!/bin/bash\ngit -C "${root}" status --porcelain > "${statusFile}"\nprintf 'fix\\n' >> src/stub.ts\nyes FAKED | head -50\n`, "utf8");
     await chmod(fake, 0o755);
 
     git(root, ["checkout", "main"]);
@@ -1383,8 +1397,10 @@ test("resume at fix with no prior head_sha emits fix_pre_sha_missing and skips r
     git(root, ["init", "-b", "main"]);
     git(root, ["config", "user.email", "t@t"]);
     git(root, ["config", "user.name", "t"]);
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/stub.ts"), "export {};\n", "utf8");
     await writeFile(join(root, "tracked.txt"), "v1", "utf8");
-    git(root, ["add", "tracked.txt"]);
+    git(root, ["add", "src/stub.ts", "tracked.txt"]);
     git(root, ["commit", "-m", "init"]);
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
@@ -1435,7 +1451,7 @@ test("resume at fix with no prior head_sha emits fix_pre_sha_missing and skips r
     await writeFile(join(root, ".cycle/log.jsonl"), seedLines.join("\n") + "\n", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nprintf 'fix\\n' >> src/stub.ts\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     git(root, ["checkout", "main"]);
@@ -1501,8 +1517,10 @@ test("resume at fix with unreachable head_sha emits fix_pre_sha_unreachable and 
     }
 
     git(root, ["checkout", "-b", "cycle/feature/lost-fix-sha"]);
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/stub.ts"), "export {};\n", "utf8");
     await writeFile(join(root, "tracked.txt"), "v2-partial", "utf8");
-    git(root, ["add", "tracked.txt"]);
+    git(root, ["add", "src/stub.ts", "tracked.txt"]);
     git(root, ["commit", "-m", "partial"]);
     const dirtyHead = git(root, ["rev-parse", "HEAD"]).trim();
 
@@ -1524,7 +1542,7 @@ test("resume at fix with unreachable head_sha emits fix_pre_sha_unreachable and 
     await writeFile(join(root, ".cycle/log.jsonl"), seedLines.join("\n") + "\n", "utf8");
 
     const fake = join(bin, "claude");
-    await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\nprintf 'fix\\n' >> src/stub.ts\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
     git(root, ["checkout", "main"]);
