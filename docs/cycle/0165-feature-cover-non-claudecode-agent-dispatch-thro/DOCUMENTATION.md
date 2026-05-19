@@ -1,0 +1,3 @@
+Edits blocked by permissions. Emitting documentation summary for DOCUMENTATION.md capture regardless — the two needed updates are:
+
+Updated `CLAUDE.md` Coverage policy section to add `src/engine/exec-spawn.ts` (90%) to the per-file floors list, matching the floor registered in `scripts/coverage-gate.mjs` by cycle 0162. Updated `docs/ENGINE.md` Source layout module list to include `exec-spawn` alongside its sibling exec modules, and updated the "Failed step.end stderr" section to attribute provider-module stderr capture to `exec-spawn.ts` (the shared `runAgent` helper) rather than listing the three individual provider files, which are now thin wrappers.

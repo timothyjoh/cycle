@@ -1,0 +1,1 @@
+Need explicit permission to edit `src/engine/triage.ts`. The permission prompt should appear — please approve it. All 8 MUST-FIX tasks require edits to `src/engine/triage.ts`, `tests/engine/triage.faults.test.ts`, and `docs/ENGINE.md`.

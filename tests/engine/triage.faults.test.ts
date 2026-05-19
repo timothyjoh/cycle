@@ -24,7 +24,7 @@ import { parseFrontmatter } from "../../src/engine/frontmatter.ts";
 
 function makeConfig(): CycleConfig {
   return {
-    engine: { max_consecutive_failures: 2, base_branch: "main" },
+    engine: { max_consecutive_failures: 2, base_branch: "main", commit: { mode: "trunk" as const, push: true } },
     triage: { agent: "claudecode", prompt: "prompts/triage.md", max_turns: 10 },
     workflows: [
       {
@@ -387,26 +387,109 @@ test("fault: rewriteOrdering writeQueue failure leaves tbd.jsonl byte-for-byte u
   }
 });
 
-// ---- Test 6a: loadRaws — raw with no frontmatter surfaces structured rejection
+// ---- Test 6a: loadRaws per-file isolation — parseFrontmatter failure skipped, surviving raw processed
 
-test("fault: loadRaws propagates parseFrontmatter failure (no per-file isolation today)", async () => {
+test("fault: loadRaws isolates parseFrontmatter failure; surviving raw processed, triage.raw.load_error emitted", async () => {
   const root = await setupRepo();
   try {
+    // broken.md — no frontmatter, will fail parseFrontmatter
     await writeFile(
       join(root, "docs/cycle/issues/raw/broken.md"),
       "no frontmatter here\njust prose\n",
       "utf8",
     );
-    const deps: TriageDeps = {
-      runAgent: async () => ({ exitCode: 0, stdout: "{}", stderr: "" }),
-    };
-    const { log } = makeLog();
-    await assert.rejects(
-      runTriage(root, makeConfig(), log, deps),
-      /no frontmatter/,
+    // good.md — valid raw
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/good.md"),
+      rawBody("good", "A good issue"),
+      "utf8",
     );
-    // Follow-up note in BUILD.md: surviving-raw isolation in loadRaws is a
-    // deferred catch-clause refactor (out of scope per SPEC).
+    const deps: TriageDeps = {
+      runAgent: async () => ({ exitCode: 0, stdout: enrichJson("good"), stderr: "" }),
+    };
+    const { log, events } = makeLog();
+    const result = await runTriage(root, makeConfig(), log, deps);
+
+    assert.equal(result.status, "ok");
+    assert.deepEqual(result.processed, ["good"]);
+    assert.deepEqual(result.failed, []);
+
+    const loadErr = events.find((e) => e.event === "triage.raw.load_error");
+    assert.ok(loadErr, "triage.raw.load_error emitted for broken.md");
+    assert.equal(loadErr!.fields.raw_id, "broken");
+    assert.ok(typeof loadErr!.fields.error === "string" && loadErr!.fields.error.length > 0);
+
+    assert.ok(!events.some((e) => e.event === "engine.paused"), "no engine.paused when survivor exists");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// ---- Test 6c: loadRaws all-fail via load error — empty result, load_error emitted, no engine.paused
+
+test("fault: loadRaws all-fail via parse error returns empty set; triage ends cleanly (not engine.paused)", async () => {
+  const root = await setupRepo();
+  try {
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/broken1.md"),
+      "no frontmatter\n",
+      "utf8",
+    );
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/broken2.md"),
+      "also no frontmatter\n",
+      "utf8",
+    );
+    const deps: TriageDeps = {
+      runAgent: async () => { throw new Error("should not be called"); },
+    };
+    const { log, events } = makeLog();
+    const result = await runTriage(root, makeConfig(), log, deps);
+
+    // All raws fail to load -> loadRaws returns [] -> hits raws.length === 0
+    // short-circuit -> status:"ok", no agent calls, no engine.paused.
+    // This is distinct from all-agent-failure (engine.paused); load errors
+    // are pre-agent and treated as an empty queue.
+    assert.equal(result.status, "ok");
+    assert.deepEqual(result.processed, []);
+    assert.deepEqual(result.failed, []);
+
+    const loadErrs = events.filter((e) => e.event === "triage.raw.load_error");
+    assert.equal(loadErrs.length, 2, "one load_error per broken file");
+    assert.ok(!events.some((e) => e.event === "engine.paused"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// ---- Test 6d: loadRaws readFile error (EACCES) isolates; surviving raw processed
+
+test("fault: loadRaws readFile error isolates; surviving raw processed, triage.raw.load_error emitted", async () => {
+  const root = await setupRepo();
+  try {
+    // aaa-unreadable.md — chmod 000 makes readFile throw EACCES; sorts before good.md
+    const unreadablePath = join(root, "docs/cycle/issues/raw/aaa-unreadable.md");
+    await writeFile(unreadablePath, rawBody("aaa-unreadable", "Unreadable"), "utf8");
+    await chmod(unreadablePath, 0o000);
+
+    // good.md — sorts after aaa-unreadable alphabetically
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/good.md"),
+      rawBody("good", "A good issue"),
+      "utf8",
+    );
+    const deps: TriageDeps = {
+      runAgent: async () => ({ exitCode: 0, stdout: enrichJson("good"), stderr: "" }),
+    };
+    const { log, events } = makeLog();
+    const result = await runTriage(root, makeConfig(), log, deps);
+
+    assert.equal(result.status, "ok");
+    assert.deepEqual(result.processed, ["good"]);
+
+    const loadErr = events.find((e) => e.event === "triage.raw.load_error");
+    assert.ok(loadErr, "triage.raw.load_error emitted for unreadable file");
+    assert.equal(loadErr!.fields.raw_id, "aaa-unreadable");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

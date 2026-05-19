@@ -12,10 +12,31 @@ function git(cwd: string, args: string[]) {
   return r.stdout;
 }
 
+function workflowYmlBranch(stepsBody: string): string {
+  return `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+  commit:
+    mode: worktree-pr
+    push: false
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+${stepsBody}`;
+}
+
 function workflowYml(stepsBody: string): string {
   return `engine:
   max_consecutive_failures: 2
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md
@@ -88,7 +109,7 @@ test("checks out base branch after successful cycle", async () => {
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
 
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
 `), "utf8");
@@ -136,7 +157,7 @@ test("checks out base branch after failed cycle", async () => {
     await mkdir(join(root, ".cycle/scripts"), { recursive: true });
 
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: boom
@@ -258,7 +279,7 @@ test("logs cycle.checkout status=failed when base branch does not exist", async 
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
 `), "utf8");
@@ -308,7 +329,7 @@ test("pulls origin/<CYCLE_BASE> between cycles so second cycle branches off refr
 
     await mkdir(join(workRoot, ".cycle/prompts"), { recursive: true });
     await writeFile(join(workRoot, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
 `), "utf8");
@@ -365,7 +386,7 @@ test("logs cycle.base_pull status=failed when origin remote is missing", async (
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
 `), "utf8");
@@ -517,7 +538,7 @@ test("resume mode fails cleanly when cycle branch is missing (no cycle.end emitt
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
 `), "utf8");
@@ -610,7 +631,7 @@ test("logs cycle.base_pull status=skipped when prior checkout failed", async () 
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
 `), "utf8");
@@ -768,7 +789,7 @@ test("fresh build step.start records head_sha; non-build step.start does not", a
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: build
@@ -817,6 +838,9 @@ test("no_branch workflow: build step.start omits head_sha (fresh + resume)", asy
     const trunkWorkflow = `engine:
   max_consecutive_failures: 2
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md
@@ -893,7 +917,7 @@ test("fresh fix step.start records head_sha; spec/review step.start does not", a
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: review
@@ -948,6 +972,9 @@ test("no_branch workflow: fix step.start omits head_sha (fresh + resume)", async
     const trunkWorkflow = `engine:
   max_consecutive_failures: 2
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md
@@ -1016,14 +1043,15 @@ test("resume at build hard-resets to prior step.start head_sha", async () => {
     git(root, ["init", "-b", "main"]);
     git(root, ["config", "user.email", "t@t"]);
     git(root, ["config", "user.name", "t"]);
+    await writeFile(join(root, ".gitignore"), ".cycle/\n", "utf8");
     await writeFile(join(root, "tracked.txt"), "v1", "utf8");
-    git(root, ["add", "tracked.txt"]);
+    git(root, ["add", "."]);
     git(root, ["commit", "-m", "init"]);
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await mkdir(join(root, ".cycle/scripts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: build
@@ -1040,6 +1068,10 @@ test("resume at build hard-resets to prior step.start head_sha", async () => {
     await chmod(verifyScript, 0o755);
 
     git(root, ["checkout", "-b", "cycle/feature/resume-build"]);
+    await mkdir(join(root, "docs", "cycle", "0042-feature-resume-build"), { recursive: true });
+    await writeFile(join(root, "docs", "cycle", "0042-feature-resume-build", ".gitkeep"), "", "utf8");
+    git(root, ["add", "docs"]);
+    git(root, ["commit", "-m", "cycle artifact dir"]);
     const shaBuildStart = git(root, ["rev-parse", "HEAD"]).trim();
 
     const seedLines = [
@@ -1081,6 +1113,8 @@ test("resume at build hard-resets to prior step.start head_sha", async () => {
     assert.equal(tracked, "v1");
     const partialGone = await stat(join(root, "partial.txt")).then(() => false, () => true);
     assert.equal(partialGone, true);
+    const untrackedGone = await stat(join(root, "untracked.txt")).then(() => false, () => true);
+    assert.equal(untrackedGone, true, "untracked file removed by git clean -fd after build reset");
 
     const observed = await readFile(statusFile, "utf8");
     assert.doesNotMatch(observed, /^.M tracked\.txt/m);
@@ -1104,13 +1138,14 @@ test("resume at build with no prior head_sha emits build_pre_sha_missing and ski
     git(root, ["init", "-b", "main"]);
     git(root, ["config", "user.email", "t@t"]);
     git(root, ["config", "user.name", "t"]);
+    await writeFile(join(root, ".gitignore"), ".cycle/\n", "utf8");
     await writeFile(join(root, "tracked.txt"), "v1", "utf8");
-    git(root, ["add", "tracked.txt"]);
+    git(root, ["add", "."]);
     git(root, ["commit", "-m", "init"]);
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: build
@@ -1177,7 +1212,7 @@ test("resume at build with unreachable head_sha emits build_pre_sha_unreachable 
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: build
@@ -1240,12 +1275,13 @@ test("resume at fix hard-resets to prior step.start head_sha", async () => {
     git(root, ["config", "user.email", "t@t"]);
     git(root, ["config", "user.name", "t"]);
     await writeFile(join(root, "tracked.txt"), "v1", "utf8");
-    git(root, ["add", "tracked.txt"]);
+    await writeFile(join(root, ".gitignore"), ".cycle/\n", "utf8");
+    git(root, ["add", "."]);
     git(root, ["commit", "-m", "init"]);
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: research
@@ -1269,6 +1305,10 @@ test("resume at fix hard-resets to prior step.start head_sha", async () => {
     }
 
     git(root, ["checkout", "-b", "cycle/feature/resume-fix"]);
+    await mkdir(join(root, "docs", "cycle", "0042-feature-resume-fix"), { recursive: true });
+    await writeFile(join(root, "docs", "cycle", "0042-feature-resume-fix", ".gitkeep"), "", "utf8");
+    git(root, ["add", "docs"]);
+    git(root, ["commit", "-m", "cycle artifact dir"]);
     const shaFixStart = git(root, ["rev-parse", "HEAD"]).trim();
 
     const seedLines = [
@@ -1318,6 +1358,8 @@ test("resume at fix hard-resets to prior step.start head_sha", async () => {
     assert.equal(tracked, "v1");
     const partialGone = await stat(join(root, "partial.txt")).then(() => false, () => true);
     assert.equal(partialGone, true);
+    const untrackedGone = await stat(join(root, "untracked.txt")).then(() => false, () => true);
+    assert.equal(untrackedGone, true, "untracked file removed by git clean -fd after fix reset");
 
     const observed = await readFile(statusFile, "utf8");
     assert.doesNotMatch(observed, /^.M tracked\.txt/m);
@@ -1347,7 +1389,7 @@ test("resume at fix with no prior head_sha emits fix_pre_sha_missing and skips r
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: research
@@ -1435,7 +1477,7 @@ test("resume at fix with unreachable head_sha emits fix_pre_sha_unreachable and 
 
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"),
-      workflowYml(`      - name: spec
+      workflowYmlBranch(`      - name: spec
         agent: claudecode
         prompt: prompts/spec.md
       - name: research
@@ -1508,6 +1550,23 @@ test("resume at fix with unreachable head_sha emits fix_pre_sha_unreachable and 
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("findPriorBuildHeadSha returns newer sha when two build step.start rows exist for same cycle", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await mkdir(join(root, ".cycle"), { recursive: true });
+    const lines = [
+      JSON.stringify({ event: "step.start", step: "build", cycle_id: "0099", head_sha: "OLD_SHA" }),
+      JSON.stringify({ event: "step.warning", step: "build", cycle_id: "0099", reason: "build_pre_sha_missing" }),
+      JSON.stringify({ event: "step.start", step: "build", cycle_id: "0099", head_sha: "NEW_SHA" }),
+    ];
+    await writeFile(join(root, ".cycle/log.jsonl"), lines.join("\n") + "\n", "utf8");
+    const got = await findPriorBuildHeadSha(root, "0099");
+    assert.equal(got, "NEW_SHA");
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });
 

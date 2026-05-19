@@ -4,12 +4,12 @@ import { parseArgs } from "../../src/cli/parse-args.ts";
 
 test("parses 'run <text>' freeform task", () => {
   const r = parseArgs(["run", "fix the login bug"]);
-  assert.deepEqual(r, { command: "run", text: "fix the login bug", workflow: "feature", dryRun: false, noSkipCompleted: false });
+  assert.deepEqual(r, { command: "run", text: "fix the login bug", workflow: "feature", dryRun: false, noSkipCompleted: false, trunk: false });
 });
 
 test("parses 'run' with no text — drain-only mode", () => {
   const r = parseArgs(["run"]);
-  assert.deepEqual(r, { command: "run", text: null, workflow: "feature", dryRun: false, noSkipCompleted: false });
+  assert.deepEqual(r, { command: "run", text: null, workflow: "feature", dryRun: false, noSkipCompleted: false, trunk: false });
 });
 
 test("parses --no-skip-completed flag", () => {
@@ -74,6 +74,16 @@ test("rejects priority 0", () => {
   );
 });
 
+test("range-rejection error mentions default 3", () => {
+  assert.throws(
+    () => parseArgs(["drop", "foo", "--priority", "0"]),
+    (err: unknown) => {
+      assert.match((err as Error).message, /default 3/);
+      return true;
+    },
+  );
+});
+
 test("rejects priority 11", () => {
   assert.throws(
     () => parseArgs(["drop", "foo", "--priority", "11"]),
@@ -96,12 +106,25 @@ test("rejects non-numeric priority", () => {
 });
 
 test("rejects --priority with no value", () => {
+  // Pins to node:util missing-argument path, not the "drop requires task text" path
   assert.throws(
     () => parseArgs(["drop", "foo", "--priority"]),
-    /drop:/,
+    /Option '--priority.* argument missing/i,
   );
 });
 
 test("rejects unknown command", () => {
   assert.throws(() => parseArgs(["wat"]), /unknown command/);
+});
+
+test("parses --trunk flag", () => {
+  const r = parseArgs(["run", "--trunk"]);
+  assert.equal(r.command, "run");
+  if (r.command === "run") assert.equal(r.trunk, true);
+});
+
+test("--trunk defaults to false", () => {
+  const r = parseArgs(["run", "fix it"]);
+  assert.equal(r.command, "run");
+  if (r.command === "run") assert.equal(r.trunk, false);
 });

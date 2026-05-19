@@ -106,9 +106,8 @@ file that would otherwise be clobbered).
 ├── scripts/
 │   ├── fetch-issue.sh    # Backs `--issue <id>`; dispatches on id prefix
 │   │                     # (JIRA- / LIN- / gh-) to a tracker fetch
-│   ├── commit.sh
-│   ├── pr.sh
 │   └── merge.sh          # Git / gh helpers invoked by bash steps
+│                         # (commit/push/PR are engine-managed, not step scripts)
 └── CLAUDE.md             # Config docs for agents working on this repo
 .claude/
 └── skills/
@@ -445,12 +444,7 @@ workflows:
   - name: verify
     agent: bash
     command: scripts/verify.sh
-  - name: commit
-    agent: bash
-    command: scripts/commit.sh
-  - name: pr
-    agent: bash
-    command: scripts/pr.sh
+  # commit, push, and PR are engine-managed after steps complete (see engine.commit in workflows.yml)
 ```
 
 Per-step configurable fields (strawman):

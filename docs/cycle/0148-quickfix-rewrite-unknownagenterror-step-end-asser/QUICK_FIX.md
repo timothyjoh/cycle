@@ -1,0 +1,1 @@
+The permission prompt isn't surfacing in your UI. Add `tests/engine/run-cycle.test.ts` to your allowed edits, then I can proceed. Alternatively, approve when prompted, or run `/permissions` to check your settings.

@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
+import { expectExactlyOne } from "../helpers.ts";
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, chmod, appendFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -45,13 +46,19 @@ test("'run' lists pending rows in dry-run mode", async () => {
     const r = spawnSync("node", [distPath, "run", "--dry-run"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `cycle run exit: ${r.status}\nstderr: ${r.stderr}`);
 
-    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
-    const events = log.trim().split("\n").map(l => JSON.parse(l));
-    const ingested = events.filter(e => e.event === "issue.ingested");
+    const events = r.stdout.trim().split("\n").map((l: string) => JSON.parse(l));
+    const ingested = events.filter((e: { event: string }) => e.event === "issue.ingested");
     assert.equal(ingested.length, 2);
 
-    const stop = events.findLast((e: { event: string }) => e.event === "engine.stop");
+    const stop = expectExactlyOne(events, "engine.stop");
     assert.equal(stop.dry_run, true);
+
+    try {
+      await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+      assert.fail("run --dry-run should not write log.jsonl");
+    } catch (e: unknown) {
+      assert.equal((e as NodeJS.ErrnoException).code, "ENOENT");
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -78,6 +85,9 @@ test("'run' halts on cycle failure and leaves remaining queue intact", async () 
       `engine:
   max_consecutive_failures: 1
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md
@@ -184,14 +194,61 @@ test("'run \"<text>\" --dry-run' pins raw frontmatter byte-shape (priority: 3 de
       `${addedAtMatch[0]}\n` +
       "triage_attempts: 0\n" +
       "priority: 3\n" +
-      "---\n";
+      "---\n\n";
     assert.ok(
       body.startsWith(expectedFrontmatter),
       `frontmatter mismatch:\n${body}`,
     );
 
     assert.match(body, /\npark this too\n$/);
+
+    try {
+      await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+      assert.fail("run '<text>' --dry-run should not write log.jsonl");
+    } catch (e: unknown) {
+      assert.equal((e as NodeJS.ErrnoException).code, "ENOENT");
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("'drop' and 'run \"<text>\"' produce byte-equal frontmatter after normalizing id and added_at", async () => {
+  const rootA = await mkdtemp(join(tmpdir(), "cycle-drop-"));
+  const rootB = await mkdtemp(join(tmpdir(), "cycle-run-"));
+  try {
+    const distPath = await ensureDist();
+    const text = "shared equivalence probe";
+
+    // drop: stdout is a single JSON object with { path }
+    const dropResult = spawnSync("node", [distPath, "drop", text], { cwd: rootA, encoding: "utf8" });
+    assert.equal(dropResult.status, 0, `cycle drop exit: ${dropResult.status}\nstderr: ${dropResult.stderr}`);
+    const dropOut = JSON.parse(dropResult.stdout.trim());
+    const bodyA = await readFile(dropOut.path, "utf8");
+
+    // run --dry-run: stdout is NDJSON events; locate raw file via readdir
+    const runResult = spawnSync("node", [distPath, "run", text, "--dry-run"], { cwd: rootB, encoding: "utf8" });
+    assert.equal(runResult.status, 0, `cycle run exit: ${runResult.status}\nstderr: ${runResult.stderr}`);
+    const rawDir = join(rootB, "docs/cycle/issues/raw");
+    const entries = (await readdir(rawDir)).filter((f) => f.endsWith(".md"));
+    assert.equal(entries.length, 1, `expected exactly one raw .md, got: ${entries.join(", ")}`);
+    const bodyB = await readFile(join(rawDir, entries[0]), "utf8");
+
+    const normalize = (s: string) =>
+      s
+        .replace(/^id: .+$/m, "id: <ID>")
+        .replace(/^added_at: .+$/m, "added_at: <TS>");
+
+    const normA = normalize(bodyA);
+    const normB = normalize(bodyB);
+
+    assert.strictEqual(
+      normA,
+      normB,
+      `frontmatter diverged:\n--- drop ---\n${normA}\n--- run --dry-run ---\n${normB}`,
+    );
+  } finally {
+    await rm(rootA, { recursive: true, force: true });
+    await rm(rootB, { recursive: true, force: true });
   }
 });

@@ -6,10 +6,11 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
   runCycle,
-  truncateStepEndStderr,
   MAX_STEP_END_STDERR,
+  SPEC_MIN_BYTES,
 } from "../../src/engine/run-cycle.ts";
 import { resolveAgent, UnknownAgentError } from "../../src/engine/exec.ts";
+import { truncateHeadCapped } from "../../src/engine/log-fmt.ts";
 
 function git(cwd: string, args: string[]) {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -21,6 +22,9 @@ function workflowYml(stepsBody: string): string {
   return `engine:
   max_consecutive_failures: 2
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md
@@ -130,22 +134,117 @@ test("successful agent step.end omits stderr key", async () => {
   }
 });
 
-test("truncateStepEndStderr head-caps at MAX_STEP_END_STDERR with trailing ellipsis", () => {
+test("spec post-condition guard failure emits stderr from formatSpecGuardError", async () => {
+  const root = await setupRepo(
+    `      - name: spec\n        agent: claudecode\n        prompt: prompts/spec.md\n`,
+  );
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/prompts/spec.md"), "noop", "utf8");
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho 'hi'\nexit 0\n", "utf8");
+    await chmod(fake, 0o755);
+    const r = await runCycle(root, {
+      issueId: "SE-SPEC-GUARD",
+      title: "spec guard test",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "failed");
+    assert.equal(r.failingStep, "spec");
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const parsed = findStepEnd(log, "spec");
+    assert.equal(parsed.status, "failed");
+    assert.ok("stderr" in parsed, "spec guard step.end must carry stderr");
+    assert.ok(typeof parsed.stderr === "string" && parsed.stderr.length > 0, "stderr must be non-empty");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("provider non-zero exit carries verbatim stderr on step.end", async () => {
+  const root = await setupRepo(
+    `      - name: build\n        agent: claudecode\n        prompt: prompts/build.md\n`,
+  );
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/prompts/build.md"), "noop", "utf8");
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\nprintf 'agent failed: detail\\n' >&2\nexit 1\n", "utf8");
+    await chmod(fake, 0o755);
+    const r = await runCycle(root, {
+      issueId: "SE-NONZERO",
+      title: "provider nonzero test",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "failed");
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const parsed = findStepEnd(log, "build");
+    assert.equal(parsed.status, "failed");
+    assert.equal(parsed.stderr, "agent failed: detail\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("over-2000-byte agent stderr is head-capped at MAX_STEP_END_STDERR with trailing ellipsis", async () => {
+  const root = await setupRepo(
+    `      - name: flood\n        agent: claudecode\n        prompt: prompts/flood.md\n`,
+  );
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/prompts/flood.md"), "noop", "utf8");
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\nprintf '%2500s' | tr ' ' 'x' >&2\nexit 1\n", "utf8");
+    await chmod(fake, 0o755);
+    const r = await runCycle(root, {
+      issueId: "SE-FLOOD",
+      title: "agent flood test",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "failed");
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const parsed = findStepEnd(log, "flood");
+    assert.equal(parsed.status, "failed");
+    assert.ok("stderr" in parsed, "flood step.end must carry stderr");
+    assert.equal((parsed.stderr as string).length, MAX_STEP_END_STDERR);
+    assert.ok((parsed.stderr as string).endsWith("…"), "truncated stderr must end with ellipsis");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("truncateHeadCapped head-caps at max with trailing ellipsis", () => {
   const input = "x".repeat(2500);
-  const out = truncateStepEndStderr(input);
+  const out = truncateHeadCapped(input, MAX_STEP_END_STDERR);
   assert.equal(out.length, MAX_STEP_END_STDERR);
   assert.equal(MAX_STEP_END_STDERR, 2000);
   assert.ok(out.endsWith("…"));
   assert.equal(out.slice(0, MAX_STEP_END_STDERR - 1), "x".repeat(MAX_STEP_END_STDERR - 1));
 });
 
-test("truncateStepEndStderr passes through short input unchanged", () => {
+test("truncateHeadCapped passes through short input unchanged", () => {
   const input = "agent \"bogus\" is not registered; known agents: claudecode, codex, gemini";
-  assert.equal(truncateStepEndStderr(input), input);
+  assert.equal(truncateHeadCapped(input, MAX_STEP_END_STDERR), input);
 });
 
-test("truncateStepEndStderr boundary: exact MAX is unchanged", () => {
+test("truncateHeadCapped boundary: exact max is unchanged", () => {
   const input = "y".repeat(MAX_STEP_END_STDERR);
-  assert.equal(truncateStepEndStderr(input), input);
-  assert.equal(truncateStepEndStderr(input).length, MAX_STEP_END_STDERR);
+  assert.equal(truncateHeadCapped(input, MAX_STEP_END_STDERR), input);
+  assert.equal(truncateHeadCapped(input, MAX_STEP_END_STDERR).length, MAX_STEP_END_STDERR);
+});
+
+test("truncateHeadCapped boundary: max+1 truncates to max with ellipsis", () => {
+  const input = "a".repeat(MAX_STEP_END_STDERR + 1);
+  const out = truncateHeadCapped(input, MAX_STEP_END_STDERR);
+  assert.equal(out.length, MAX_STEP_END_STDERR);
+  assert.ok(out.endsWith("…"));
 });

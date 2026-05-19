@@ -1,0 +1,1 @@
+Need write permission for CLAUDE.md and git add for the test file. Both are blocked. Please approve the pending permission prompts — one for `git add tests/scripts/coverage-gate.test.ts` and one for editing `CLAUDE.md`.

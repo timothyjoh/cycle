@@ -1,0 +1,1 @@
+Added `commit-cycle` and `issue-lifecycle` to the engine module inventory in `docs/ENGINE.md` (source layout list) and `CLAUDE.md` (Architecture key modules list); both lists were missing these two modules introduced in cycles 0112 and 0113 respectively.

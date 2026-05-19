@@ -6,6 +6,7 @@ export type RunArgs = {
   workflow: string;
   dryRun: boolean;
   noSkipCompleted: boolean;
+  trunk: boolean;
 };
 
 export type DropArgs = {
@@ -43,7 +44,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
       const n = Number(raw);
       if (!/^-?\d+$/.test(raw) || !Number.isInteger(n) || n < 1 || n > 10) {
         throw new Error(
-          `drop: --priority must be an integer 1..10 (got "${raw}"); usage: cycle drop "<text>" [--priority N]`,
+          `drop: --priority must be an integer 1..10 (got "${raw}"); usage: cycle drop "<text>" [--priority N]  (N is an integer 1..10, default 3)`,
         );
       }
       priority = n;
@@ -60,6 +61,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
       workflow: { type: "string", default: "feature" },
       "dry-run": { type: "boolean", default: false },
       "no-skip-completed": { type: "boolean", default: false },
+      trunk: { type: "boolean", default: false },
     },
     allowPositionals: true,
   });
@@ -72,5 +74,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
     workflow: String(values.workflow),
     dryRun: Boolean(values["dry-run"]),
     noSkipCompleted: Boolean(values["no-skip-completed"]),
+    trunk: Boolean(values.trunk),
   };
 }

@@ -11,6 +11,15 @@ import { relative, isAbsolute } from "node:path";
 
 const FLOORS = {
   "src/engine/triage.ts": 95,
+  "src/engine/issue-lifecycle.ts": 95,
+  "src/engine/commit-cycle.ts": 95,
+  "src/engine/branch.ts": 90,
+  "src/engine/stale-dist.ts": 95,
+  "src/cli/run-one.ts": 70,
+  "scripts/sync-defaults.mjs": 90,
+  "scripts/structural-invariants.mjs": 90,
+  "src/cli/cleanup.ts": 70,
+  "src/engine/exec-spawn.ts": 90,
 };
 
 const LCOV_PATH = process.argv[2] ?? ".cycle/coverage.lcov";

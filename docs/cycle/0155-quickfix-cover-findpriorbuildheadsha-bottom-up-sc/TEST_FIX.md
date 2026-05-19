@@ -1,0 +1,3 @@
+All green. 503/503 pass, all per-file floors met, coverage held at line 98.41% / branch 91.43% / func 92.83%.
+
+Test `"findPriorBuildHeadSha returns newer sha when two build step.start rows exist for same cycle"` was already in place and passes. It writes a three-line fixture log (two `build` `step.start` rows for `cycle_id` "0099" with `OLD_SHA` / interleaved `step.warning` / `NEW_SHA`) to a tmp dir and asserts `findPriorBuildHeadSha` returns `"NEW_SHA"`, pinning the bottom-up scan behaviour. Suite: 503/503 pass, 0 fail. Coverage unchanged vs baseline: line 98.41% (≥95%), branch 91.43% (≥75%), func 92.83% (≥90%); all per-file floors satisfied.

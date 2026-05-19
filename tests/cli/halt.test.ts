@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, readdir, appendFile } f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { expectExactlyOne } from "../helpers.ts";
 
 const REPO = process.cwd();
 
@@ -72,6 +73,9 @@ function workflowYml(maxConsecutive: number, maxCycleAttempts: number): string {
   return `engine:
   max_consecutive_failures: ${maxConsecutive}
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md
@@ -116,8 +120,7 @@ test("halt: two consecutive terminal failures emit engine.halted and exit 1", as
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
-    const halted = events.find((e) => e.event === "engine.halted") as Record<string, unknown>;
-    assert.ok(halted, "engine.halted emitted");
+    const halted = expectExactlyOne(events, "engine.halted");
     assert.equal(halted.reason, "max_consecutive_failures");
     assert.equal(halted.threshold, 2);
     const failedCycles = halted.failed_cycles as string[];
@@ -184,8 +187,7 @@ test("halt: threshold 1 halts after one terminal failure", async () => {
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}`);
 
     const events = await readEvents(root);
-    const halted = events.find((e) => e.event === "engine.halted") as Record<string, unknown>;
-    assert.ok(halted);
+    const halted = expectExactlyOne(events, "engine.halted");
     assert.equal(halted.threshold, 1);
     assert.equal((halted.failed_cycles as string[]).length, 1);
     const cycleStarts = events.filter((e) => e.event === "cycle.start");

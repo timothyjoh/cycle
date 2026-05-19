@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { runCycle } from "../../src/engine/run-cycle.ts";
+import { expectExactlyOne } from "../helpers.ts";
 
 function git(cwd: string, args: string[]) {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -16,6 +17,9 @@ function workflowYml(stepsBody: string): string {
   return `engine:
   max_consecutive_failures: 2
   base_branch: main
+  commit:
+    mode: trunk
+    push: false
 triage:
   agent: claudecode
   prompt: prompts/triage.md
@@ -25,6 +29,28 @@ workflows:
     max_cycle_attempts: 3
     steps:
 ${stepsBody}`;
+}
+function workflowYmlNoBranch(stepsBody: string): string {
+  return `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+  commit:
+    mode: trunk
+    push: false
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    no_branch: true
+    max_cycle_attempts: 3
+    steps:
+${stepsBody}`;
+}
+
+function parseLog(logStr: string): Record<string, unknown>[] {
+  return logStr.trim().split('\n').map((l) => JSON.parse(l));
 }
 
 async function fileExists(p: string): Promise<boolean> {
@@ -114,6 +140,98 @@ test("runCycle: documentation step exit-non-zero is non-fatal; cycle.end ok; doc
     assert.match(log, /"event":"cycle.end","cycle_id":"\d+","status":"ok"/);
 
     const artifactDir = join(root, "docs/cycle", `${r.cycleId}-feature-doc-fail`);
+    const docFile = join(artifactDir, "DOCUMENTATION.md");
+    assert.equal(await fileExists(docFile), false, "DOCUMENTATION.md must not be written on failure");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("runCycle: documentation step success in no_branch workflow writes DOCUMENTATION.md; step.start has no head_sha", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-doc-nb-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-doc-nb-bin-"));
+  try {
+    await setupGitRepo(root);
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(
+      join(root, ".cycle/workflows.yml"),
+      workflowYmlNoBranch("      - name: documentation\n        agent: claudecode\n        prompt: prompts/documentation.md\n"),
+      "utf8",
+    );
+    await writeFile(join(root, ".cycle/prompts/documentation.md"), "noop", "utf8");
+
+    const summary = "Documented the no_branch workflow path.";
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\nprintf '%s' '" + summary + "'\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await runCycle(root, {
+      issueId: "DOC-NB-1",
+      title: "doc no branch happy",
+      workflow: "feature",
+      env: { PATH: bin + ":" + process.env.PATH, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const artifactDir = join(root, "docs/cycle", r.cycleId + "-feature-doc-no-branch-happy");
+    const docFile = join(artifactDir, "DOCUMENTATION.md");
+    assert.ok(await fileExists(docFile), "expected " + docFile);
+    assert.equal(await readFile(docFile, "utf8"), summary + "\n");
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const events = parseLog(log);
+
+    const stepStart = expectExactlyOne(events, "step.start");
+    assert.equal(stepStart.head_sha, undefined, "documentation step.start must not carry head_sha");
+
+    const stepEnd = expectExactlyOne(events, "step.end");
+    assert.equal(stepEnd.status, "ok");
+
+    const cycleEnd = expectExactlyOne(events, "cycle.end");
+    assert.equal(cycleEnd.status, "ok");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("runCycle: documentation step exec-failure in no_branch workflow emits documentation.skipped; cycle.end ok", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-doc-nb-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-doc-nb-bin-"));
+  try {
+    await setupGitRepo(root);
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(
+      join(root, ".cycle/workflows.yml"),
+      workflowYmlNoBranch("      - name: documentation\n        agent: claudecode\n        prompt: prompts/documentation.md\n"),
+      "utf8",
+    );
+    await writeFile(join(root, ".cycle/prompts/documentation.md"), "boom", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho boom 1>&2\nexit 2\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await runCycle(root, {
+      issueId: "DOC-NB-2",
+      title: "doc no branch fail",
+      workflow: "feature",
+      env: { PATH: bin + ":" + process.env.PATH, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const events = parseLog(log);
+
+    const skipped = expectExactlyOne(events, "documentation.skipped");
+    assert.equal(skipped.reason, "exec_failed");
+    assert.equal(skipped.exit_code, 2);
+
+    const cycleEnd = expectExactlyOne(events, "cycle.end");
+    assert.equal(cycleEnd.status, "ok");
+
+    const artifactDir = join(root, "docs/cycle", r.cycleId + "-feature-doc-no-branch-fail");
     const docFile = join(artifactDir, "DOCUMENTATION.md");
     assert.equal(await fileExists(docFile), false, "DOCUMENTATION.md must not be written on failure");
   } finally {

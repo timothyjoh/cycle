@@ -4,7 +4,7 @@ Detailed notes on each engine subsystem. For high-level architecture see [`docs/
 
 ## Source layout
 
-- Engine modules: `src/engine/` — run-cycle, scan, log, log-tail, branch, exec, exec-bash, exec-claudecode, exec-codex, exec-gemini, child-env, workflow, cycle-id, queue, frontmatter, blocked, reflection, sanitize-artifact
+- Engine modules: `src/engine/` — run-cycle, scan, log, log-tail, branch, exec, exec-bash, exec-claudecode, exec-codex, exec-gemini, child-env, workflow, cycle-id, queue, frontmatter, blocked, reflection, sanitize-artifact, commit-cycle, issue-lifecycle
 - CLI: `src/cli.ts`, `src/cli/{parse-args,init}.ts`
 - Defaults (shipped into consumer repos): `src/defaults/` — single `workflows.yml`, `prompts/`, `scripts/`
 
@@ -14,9 +14,11 @@ Agent dispatch: the per-step `agent:` field in `workflows.yml` resolves through 
 
 `src/engine/triage.ts` is the only writer that moves files out of `raw/`. It spawns the configured agent, parses+validates JSON output (`children[]`, `ordering[]`, `decomposed_parents[]`), and applies queue mutations atomically (writes `todo/<id>.md` via tmp-rename, appends `tbd.jsonl` rows, moves `raw/<id>.md → done/<id>_raw.md`). One agent call per raw; cross-raw batching is deferred. Per-raw retry up to 3 attempts with prior validator error fed back.
 
+Per-file load isolation: `loadRaws` catches per-file errors (`readFile` or `parseFrontmatter` failure) rather than aborting the entire pass. A failing file emits `triage.raw.load_error { raw_id, error }` (error capped at 2000 chars via `truncateHeadCapped`) and is skipped; surviving raws continue through the agent loop normally. All-load-failure (all files malformed) yields `status:"ok"` with empty processed/failed — distinct from all-agent-failure which produces `engine.paused { reason: "all_triage_failed" }`.
+
 Whole-pass failure: emits `engine.paused { reason: "all_triage_failed", raw_ids, last_errors }` with errors capped at 2000 chars, exits non-zero. Raws stay in `raw/` (no rename) so `cycle triage --dry-run` can re-evaluate after operator edits. Partial failure moves the failed subset to `failed/<id>.md` with `failed_step: "triage"`.
 
-`cli.ts` runs triage at `engine.start` and again before each pop when `raw/` is non-empty. `--dry-run` skips triage.
+`cli.ts` runs triage at `engine.start` and again before each pop when `raw/` is non-empty. `--dry-run` short-circuits before `createLogger` — no `.cycle/log.jsonl` is written — and skips triage.
 
 ## Queue
 
@@ -43,13 +45,15 @@ The CLI loop tracks a non-persistent `consecutive_failures` counter and `failed_
 
 `src/engine/log-tail.ts` (`readLogTail` / `parseLogTail`) scans `.cycle/log.jsonl` backwards. At `engine.start`, if the most-recent `cycle.start` has no matching `cycle.end`, the CLI refetches base branch (git fetch + ff merge), validates the `tbd.jsonl` row is still `in_progress` for the same `cycle_id`, then calls `runCycle({ resume: { startStepIndex } })`.
 
-`startStepIndex` = first step whose name doesn't appear in `step.end status:ok` events after the in-flight `cycle.start`. Resume emits `engine.resume` (CLI) and `cycle.resume` (runCycle). Mismatches or base-refresh failures emit `engine.warning` and fall through to normal flow. `runCycle`'s `resume` swaps `createCycleBranch` for `checkoutCycleBranch`. `pr.sh` is restart-tolerant via `gh pr list --head`. `--dry-run` skips resume.
+`startStepIndex` = first step whose name doesn't appear in `step.end status:ok` events after the in-flight `cycle.start`. Resume emits `engine.resume` (CLI) and `cycle.resume` (runCycle). Mismatches or base-refresh failures emit `engine.warning` and fall through to normal flow. `runCycle`'s `resume` swaps `createCycleBranch` for `checkoutCycleBranch`. `--dry-run` skips resume.
 
 ## Restart policy (build/fix hard reset)
 
 On fresh `step.start` for `{build, fix}` on branch-based workflows, engine records `head_sha = git rev-parse HEAD`. On resume entry to either step, engine calls `findPriorStepHeadSha` and `git reset --hard`s via `resetCycleBranchTo` (refuses unless HEAD is on a `cycle/` branch).
 
-Self-healing warnings: `step.warning {reason: "build_pre_sha_missing"}` / `fix_pre_sha_missing` (no prior row or missing `head_sha`); `step.warning {reason: "build_pre_sha_unreachable", sha}` (SHA GC'd/force-pushed). All four warning paths skip the reset and re-emit `step.start` with `head_sha = currentHead`. Workflows with `no_branch: true` skip this entirely.
+After the hard reset, `resetCycleBranchTo` also runs `git clean -fd` to remove untracked files left by the aborted attempt. This ensures the working tree is byte-equivalent to a fresh checkout at the captured SHA. `-fd` is used deliberately — **not** `-fdx` — so that gitignored paths (`dist/`, `node_modules/`, `.cycle/`) which represent engine working state are preserved across the restart. A non-zero exit from `git clean` surfaces as a `step.warning` with `reason: "clean_failed"` and does not abort the retry.
+
+Self-healing warnings: `step.warning {reason: "build_pre_sha_missing"}` / `fix_pre_sha_missing` (no prior row or missing `head_sha`); `step.warning {reason: "build_pre_sha_unreachable", sha}` (SHA GC'd/force-pushed). All four warning paths skip the reset and re-emit `step.start` with `head_sha = currentHead`. Workflows using `trunk` or `local-only` commit mode skip this entirely (controlled by `cfg.engine.commit.mode`).
 
 ## Retry skip policy (pre-build steps)
 
@@ -77,7 +81,7 @@ On `JSON.parse` failure: first tries trailing-prose repair (scan to last balance
 
 ## Failed step.end stderr
 
-Failed `step.end` events carry a head-capped `stderr` field (2000-char, via `MAX_STEP_END_STDERR` + `truncateStepEndStderr` in `run-cycle.ts`). Successful events omit the field. Gate is `r.status === "failed"`, not `r.stderr` truthiness.
+Failed `step.end` events carry a head-capped `stderr` field (2000-char, via `MAX_STEP_END_STDERR` + `truncateStepEndStderr` in `run-cycle.ts`). Successful events omit the field. Gate is `r.status === "failed"` across all agents, not `r.stderr` truthiness. Three emission sites set `r.stderr` before the gate fires: (1) `UnknownAgentError` during dispatch (`run-cycle.ts:~219`) — error message verbatim; (2) spec post-condition guard (`run-cycle.ts:~231`) — `formatSpecGuardError(path, bytes, SPEC_MIN_BYTES)`; (3) provider-module non-zero exit in `exec-claudecode.ts`, `exec-codex.ts`, `exec-gemini.ts` — captured stderr stream, head-capped at 2000 chars.
 
 ## Review step Pass 3
 
@@ -86,3 +90,59 @@ Failed `step.end` events carry a head-capped `stderr` field (2000-char, via `MAX
 ## SPEC→PLAN traceability
 
 `src/defaults/prompts/plan.md` requires PLAN.md to carry `## SPEC Acceptance Traceability` re-quoting every SPEC `## Acceptance Criteria` bullet verbatim paired with a covering plan-task id or `WAIVED — <rationale>`. Review Pass 1 makes a missing or incomplete section a NEEDS-FIX trigger. Dogfood mirrors `.cycle/prompts/{plan,review}.md` are byte-identical (pinned by `tests/defaults/plan-prompt-spec-traceability.test.ts`).
+
+## Engine-managed commit lifecycle
+
+The engine (not workflow steps) owns all git operations after a cycle completes. Configured via `engine.commit` in `workflows.yml`:
+
+```yaml
+engine:
+  commit:
+    mode: trunk | local-only | worktree-pr
+    push: true | false
+```
+
+`mode: trunk` (default) — no cycle branches; `prepareTrunkArtifactDir` creates a local artifact dir at `docs/cycle/<cycleId>-<workflow>-<slug>`. After `cycle.end status:ok`, `cli.ts` calls `commitCycle()` which: stages all non-denied files, commits with subject `cycle <id>: <title>`, optionally appends a `Closes #N` body from the issue file, then pushes with 3× backoff retry (1s/2s/4s delays) when `push: true`.
+
+`mode: local-only` — same as trunk but `push` is forced false regardless of config.
+
+`mode: worktree-pr` — enables cycle branches (`createCycleBranch`/`checkoutCycleBranch`), head-SHA capture in `step.start`, and SHA-based hard-reset on resume. Push behavior follows `config.push` (same as `trunk`); PR creation is a future concern.
+
+**Staging denylist** (`src/engine/commit-cycle.ts`): `DENYLIST_PREFIXES = [".claude", "dist", "node_modules"]`, `DENYLIST_EXACT = [".cycle/cycle.pid"]`, plus any `*.lock` file and git submodule entries (mode `160000` in `git ls-files --stage`).
+
+**Closes block**: `buildClosesBlock(issueId, repoRoot)` reads `docs/cycle/issues/todo/<issueId>.md`, extracts `https://github.com/<owner>/<repo>/issues/<N>` URLs matching the repo slug from `gh repo view`, and emits `Closes #N` lines as commit body. Silently skipped when the file is absent or `gh` fails.
+
+**Commit failure handling** (in `cli.ts`): `commit_failed` → treated as a non-terminal cycle failure, drains retry path. `push_failed` (after 3 attempts) → same. `skipped` (nothing staged) → cycle counted as complete without a commit.
+
+**Branch checkout skipping**: Trunk/local-only cycles emit `cycle.checkout status:skipped reason:"trunk"` (no checkout needed — never left base branch). `worktree-pr` mode emits `cycle.checkout status:ok` after `checkoutBase()`. `cycle.base_pull` is emitted in all modes when checkout succeeds (trunk always succeeds); it is emitted `status:skipped` only when the checkout itself failed.
+
+**Scope guard** (`parseTouchedFiles` / `scopeGuard` in `src/engine/commit-cycle.ts`): Before `stageFiles()` runs, `commitCycle()` calls `scopeGuard(repoRoot, cycleId)` which:
+1. Locates `docs/cycle/<cycleId>-*/BUILD.md` via `readdir` + prefix match.
+2. Calls `parseTouchedFiles(buildMdPath)` to extract the `## Touched Files` YAML list.
+3. Runs `git status --porcelain` and collects dirty tracked-file paths not in the list (denylist-exempt files skipped; `??` untracked entries ignored).
+4. Returns the blocked file list. If non-empty, `commitCycle()` returns `{ status: "failed", reason: "scope_violation", blockedFiles }` — `stageFiles()` is never called.
+
+Guard is a **no-op** when BUILD.md is absent or has no `## Touched Files` section (pre-existing cycles, quickfix/document workflows). Blocked-file errors are surfaced via the `CommitResult` return value; `cli.ts` routes them through the standard retry/terminal-drain path.
+
+**BUILD.md contract**: Build agents must append a `## Touched Files` YAML list (exact repo-relative paths, no globs) to their stdout output. The engine writes this to `docs/cycle/<cycleId>-*/BUILD.md`. The scope guard reads it at commit time.
+## Stale-dist warning
+
+At engine start, before emitting `engine.start`, the engine compares the mtime of `dist/cycle.js` against the instant the process launched (`processStart = Date.now()` captured before any `await` in `cli.ts`). If `dist/cycle.js` is newer, the engine emits one `engine.warning`:
+
+```json
+{
+  "event": "engine.warning",
+  "reason": "stale_dist",
+  "dist_mtime": 1234567890123,
+  "process_start": 1234567890000,
+  "dist_path": "/path/to/repo/dist/cycle.js",
+  "message": "dist/cycle.js (...) is newer than this process (...); restart the engine to pick up the latest build"
+}
+```
+
+**What it means:** The engine was rebuilt (`npm run build`) after this process started. The running module graph is behind the artifact on disk.
+
+**Operator action:** Stop the engine and restart it — `dist/cycle.js` will be loaded fresh.
+
+**No warning** is emitted when `dist/cycle.js` does not exist (ENOENT) or when its mtime ≤ process start. The engine continues regardless.
+

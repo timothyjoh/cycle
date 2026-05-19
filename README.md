@@ -38,7 +38,7 @@ It gives a parent agent a single subprocess to hand work to, while cycle handles
 
 - **Intake:** normalize freeform tasks, tracker issues, and raw markdown drops into one inbox.
 - **Triage:** inspect the repo, select a workflow, and split oversized asks into smaller cycles.
-- **Execution:** run `spec → research → plan → build → review → fix → verify → commit → pr` style workflows.
+- **Execution:** run `spec → research → plan → build → review → fix → verify` style workflows; commit, push, and PR are engine-managed after steps complete.
 - **Quality gates:** run verification before commit / PR, lean on branch protection, and retry failed cycles from a clean slate. On retry, the engine skips pre-build steps (`spec`, `research`, `plan`) whose artifact files already exist non-empty; pass `--no-skip-completed` to force re-derivation.
 - **State:** keep a live drain queue plus an append-only JSONL audit log.
 - **Recovery:** resume in-flight work after a crash, pause safely when triage fails, and block only dependent work after terminal failures.
@@ -78,7 +78,7 @@ So cycle makes repo context and artifacts first-class. Each cycle writes durable
 - `.cycle/bin/cycle.js` — the bundled engine
 - `.cycle/workflows.yml` — engine, triage, and workflow configuration
 - `.cycle/prompts/` — prompts for spec, research, plan, build, review, fix, verify, reflection, and triage
-- `.cycle/scripts/` — git / GitHub helpers such as `commit.sh` and `pr.sh`
+- `.cycle/scripts/` — git / GitHub helpers
 - `docs/cycle/issues/` — raw / todo / done / failed / blocked issue folders
 - optional `.claude/skills/cycle.md` — a Claude Code skill that teaches a parent agent how to invoke cycle
 
@@ -121,9 +121,7 @@ Re-run triage diagnostics without mutating engine state:
 
 ## Current behavior
 
-- `commit.sh` selectively stages the cycle's intended change surface and honors a hard denylist for `.claude`, `dist`, `node_modules`, `*.lock`, and submodule gitlinks.
-- `pr.sh` opens the PR with `--squash --auto` and falls back to a synchronous squash merge when the repo has auto-merge disabled, deleting the orphaned remote branch afterward.
-- `commit.sh` and `pr.sh` append `Closes #N` lines for any `https://github.com/<owner>/<repo>/issues/<N>` URL found in the cycle's issue body, scoped to the current repo, so merged PRs auto-close the referenced issues.
+- After all workflow steps complete with `status: ok`, the engine calls `commitCycle()` which stages non-denied files, commits with subject `cycle <id>: <title>`, appends `Closes #N` lines from the issue body, and pushes with 3× backoff retry. Commit and push behavior is controlled by `engine.commit` in `workflows.yml` (`mode: trunk | local-only | worktree-pr`, `push: true | false`).
 - The feature workflow is the main dogfooded path today; the docs describe the broader workflow library and factory model the engine is growing toward.
 
 ## Design docs
@@ -136,7 +134,7 @@ Re-run triage diagnostics without mutating engine state:
 
 ## Recovering from engine.paused
 
-When every raw issue fails triage in a single pass, the engine emits `engine.paused {reason: "all_triage_failed", raw_ids, last_errors}` and exits non-zero. Each failed raw stays in `docs/cycle/issues/raw/<id>.md` with `triage_attempts: 3` stamped into its frontmatter; `failed/` is untouched on this path. `tbd.jsonl` is untouched and no cycle was started, so the work queue is intact and the engine is safe to re-fire once the underlying problem is fixed.
+When every raw issue fails triage in a single pass, the engine emits `engine.paused {reason: "all_triage_failed", raw_ids, last_errors}` and exits non-zero. Each failed raw stays in `docs/cycle/issues/raw/<id>.md` with `triage_attempts: 0` stamped into its frontmatter (the engine resets the counter at the pause boundary so re-triage is not a no-op); `failed/` is untouched on this path. `tbd.jsonl` is untouched and no cycle was started, so the work queue is intact and the engine is safe to re-fire once the underlying problem is fixed.
 
 (Partial-failure paths — where at least one raw decomposes cleanly while others fail — continue to move the failed subset to `docs/cycle/issues/failed/<id>.md` with `failed_step: "triage"` and `failed_at` stamped, as before.)
 
@@ -166,7 +164,7 @@ The `raw_ids` array lists every raw that was attempted; `last_errors` carries th
 ls docs/cycle/issues/raw/
 ```
 
-Each raw's frontmatter carries `triage_attempts: 3` after the paused pass (organic from per-attempt `bumpAttempts`); no `failed_at` or `failed_step` stamps are written on the all-fail path. Note: the audit log also contains one `triage.raw.failed` event per attempt per raw preceding the final `engine.paused`.
+Each raw's frontmatter carries `triage_attempts: 0` after the paused pass (the engine resets the counter at the pause boundary after the per-attempt `bumpAttempts` calls); no `failed_at` or `failed_step` stamps are written on the all-fail path. Note: the audit log also contains one `triage.raw.failed` event per attempt per raw preceding the final `engine.paused`.
 
 Most pauses point at one of:
 
@@ -196,7 +194,7 @@ An empty `raw/` also exits `0`, so the exit code is meaningful only when at leas
 
 For each entry in `last_errors`, choose one path:
 
-- **Edit `docs/cycle/issues/raw/<id>.md`** if the issue is real but its content tripped the prompt (typo, missing context, ambiguous title, malformed frontmatter). Re-run `cycle triage --dry-run` until it passes. To restore a fresh 3-attempt budget on real-engine re-fire, also reset `triage_attempts` in the frontmatter (otherwise the next engine invocation will immediately re-pause without invoking the agent).
+- **Edit `docs/cycle/issues/raw/<id>.md`** if the issue is real but its content tripped the prompt (typo, missing context, ambiguous title, malformed frontmatter). Re-run `cycle triage --dry-run` until it passes.
 - **Delete the file** (`rm docs/cycle/issues/raw/<id>.md`) if the issue should not have been queued at all — a duplicate, an obsolete reflection finding, or anything the human queue manager would have rejected in review.
 
 If the failure mode is a broken prompt rather than bad raws, edit the configured triage prompt instead (and `npm run sync-defaults` if you changed `src/defaults/`) and re-run `cycle triage --dry-run`.
@@ -207,4 +205,4 @@ Once `cycle triage --dry-run` exits `0` with the restored raws reported as passi
 
 ### Safety guarantee
 
-The paused pass started no cycle, pushed no branch, opened no PR, and made no change to `tbd.jsonl` or `done/`. The only on-disk side effects on the all-fail path are per-attempt `triage_attempts` bumps on each raw's frontmatter, the `engine.paused` line, and preceding `triage.raw.failed` events in `.cycle/log.jsonl`. Re-firing therefore picks up cleanly: triage runs again from scratch on whatever raws now sit in `raw/`, and the queue resumes as if the failed pass had never started.
+The paused pass started no cycle, pushed no branch, opened no PR, and made no change to `tbd.jsonl` or `done/`. The only on-disk side effects on the all-fail path are per-attempt `triage_attempts` bumps followed by a final reset to `0` on each raw's frontmatter, the `engine.paused` line, and preceding `triage.raw.failed` events in `.cycle/log.jsonl`. Re-firing therefore picks up cleanly: triage runs again from scratch on whatever raws now sit in `raw/`, and the queue resumes as if the failed pass had never started.

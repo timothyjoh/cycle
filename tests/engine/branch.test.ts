@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
-import { createCycleBranch, checkoutCycleBranch, checkoutBase, pullBase, prepareTrunkArtifactDir, currentBranchName, revParseHead, resetCycleBranchTo, shaExists } from "../../src/engine/branch.ts";
+import { createCycleBranch, checkoutCycleBranch, checkoutBase, pullBase, prepareTrunkArtifactDir, currentBranchName, revParseHead, resetCycleBranchTo, shaExists, resolveBaseBranch, listCycleBranches, deleteBranch, isWorkingTreeDirty } from "../../src/engine/branch.ts";
 
 function git(cwd: string, args: string[]) {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -283,7 +283,7 @@ test("resetCycleBranchTo discards staged + unstaged + untracked changes back to 
     const tracked = await readFile(join(root, "tracked.txt"), "utf8");
     assert.equal(tracked, "v1");
     const stillThere = await stat(join(root, "untracked.txt")).then(() => true, () => false);
-    assert.equal(stillThere, true, "git reset --hard does not remove untracked files");
+    assert.equal(stillThere, false, "git clean -fd removes untracked files after reset");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -296,6 +296,7 @@ test("resetCycleBranchTo refuses to run outside a cycle/ branch", async () => {
     git(root, ["config", "user.email", "t@t"]);
     git(root, ["config", "user.name", "t"]);
     git(root, ["commit", "--allow-empty", "-m", "init"]);
+    await writeFile(join(root, "untracked-sentinel.txt"), "guard-sentinel", "utf8");
 
     const sha = git(root, ["rev-parse", "HEAD"]).trim();
     await assert.rejects(
@@ -303,6 +304,8 @@ test("resetCycleBranchTo refuses to run outside a cycle/ branch", async () => {
       (err: Error) => /resetCycleBranchTo refuses to reset outside a cycle branch/.test(err.message)
         && /HEAD=main/.test(err.message),
     );
+    const sentinelStillThere = await stat(join(root, "untracked-sentinel.txt")).then(() => true, () => false);
+    assert.equal(sentinelStillThere, true, "branch guard throws before clean; untracked file untouched");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -327,6 +330,31 @@ test("resetCycleBranchTo refuses when cwd does not exist (spawn error path)", as
   );
 });
 
+test("resetCycleBranchTo: gitignored file survives -fd clean", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    await writeFile(join(root, ".gitignore"), "dist/\n", "utf8");
+    git(root, ["add", ".gitignore"]);
+    git(root, ["commit", "-m", "init"]);
+
+    await createCycleBranch(root, { cycleId: "0119", workflow: "feature", slug: "clean-test" });
+    const sha = git(root, ["rev-parse", "HEAD"]).trim();
+
+    await mkdir(join(root, "dist"), { recursive: true });
+    await writeFile(join(root, "dist", "foo.js"), "engine artifact", "utf8");
+
+    await resetCycleBranchTo(root, sha);
+
+    const survived = await stat(join(root, "dist", "foo.js")).then(() => true, () => false);
+    assert.equal(survived, true, "gitignored dist/foo.js survives -fd (not -fdx)");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("shaExists is true for HEAD and false for a synthetic 40-char sha", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
@@ -348,6 +376,24 @@ test("shaExists returns false when cwd does not exist (spawn error path)", async
   assert.equal(got, false);
 });
 
+test("resolveBaseBranch: returns configBase when no frontmatter override", () => {
+  assert.equal(resolveBaseBranch("master"), "master");
+  assert.equal(resolveBaseBranch("master", undefined), "master");
+});
+
+test("resolveBaseBranch: returns frontmatterBase when non-empty string provided", () => {
+  assert.equal(resolveBaseBranch("master", "release-x"), "release-x");
+});
+
+test("resolveBaseBranch: ignores empty string frontmatterBase, falls back to configBase", () => {
+  assert.equal(resolveBaseBranch("master", ""), "master");
+});
+
+test("resolveBaseBranch: preserves configBase exactly (no silent main injection)", () => {
+  assert.equal(resolveBaseBranch("develop", "feature/x"), "feature/x");
+  assert.equal(resolveBaseBranch("develop"), "develop");
+});
+
 test("prepareTrunkArtifactDir: creates artifact dir without branching", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
@@ -364,6 +410,105 @@ test("prepareTrunkArtifactDir: creates artifact dir without branching", async ()
     // artifact dir actually exists
     const s = await stat(r.artifactDir);
     assert.ok(s.isDirectory());
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("listCycleBranches: returns cycle/* branches with sha and subject", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    git(root, ["checkout", "-b", "cycle/feature/one"]);
+    git(root, ["commit", "--allow-empty", "-m", "work on one"]);
+    git(root, ["checkout", "-b", "cycle/feature/two"]);
+    git(root, ["commit", "--allow-empty", "-m", "work on two"]);
+    git(root, ["checkout", "main"]);
+
+    const branches = await listCycleBranches(root);
+    const names = branches.map(b => b.branch).sort();
+    assert.deepEqual(names, ["cycle/feature/one", "cycle/feature/two"]);
+    for (const b of branches) {
+      assert.ok(b.head_sha.length > 0, "head_sha populated");
+      assert.ok(typeof b.last_commit_subject === "string", "subject is string");
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("listCycleBranches: returns empty array when no cycle/* branches exist", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    const branches = await listCycleBranches(root);
+    assert.deepEqual(branches, []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("deleteBranch: removes a local branch", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+    git(root, ["checkout", "-b", "cycle/feature/to-delete"]);
+    git(root, ["commit", "--allow-empty", "-m", "to-delete commit"]);
+    git(root, ["checkout", "main"]);
+
+    await deleteBranch(root, "cycle/feature/to-delete");
+
+    const r = spawnSync("git", ["rev-parse", "--verify", "refs/heads/cycle/feature/to-delete"], { cwd: root });
+    assert.notEqual(r.status, 0, "branch should no longer exist");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("isWorkingTreeDirty: false on clean tree, true with untracked file", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    assert.equal(await isWorkingTreeDirty(root), false);
+
+    await writeFile(join(root, "untracked.txt"), "dirty", "utf8");
+    assert.equal(await isWorkingTreeDirty(root), true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("createCycleBranch reuses existing branch without error (retry-drain path)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    git(root, ["commit", "--allow-empty", "-m", "init"]);
+
+    git(root, ["checkout", "-b", "cycle/feature/retry-slug"]);
+    const existingSha = git(root, ["rev-parse", "HEAD"]).trim();
+    git(root, ["checkout", "main"]);
+
+    await createCycleBranch(root, { cycleId: "0099", workflow: "feature", slug: "retry-slug" });
+
+    assert.equal(await currentBranchName(root), "cycle/feature/retry-slug");
+    assert.equal(await revParseHead(root), existingSha);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

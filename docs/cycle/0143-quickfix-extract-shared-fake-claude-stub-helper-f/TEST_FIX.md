@@ -1,0 +1,1 @@
+Need write permission for new files in `tests/engine/_helpers/`. Please approve the write to `/Users/timothyjohnson/wrk/cycle/tests/engine/_helpers/fake-claude.ts` — it's a new test helper file the fix requires.

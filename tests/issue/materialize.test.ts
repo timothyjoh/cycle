@@ -26,7 +26,7 @@ test("writes a markdown file with frontmatter to raw/", async () => {
       "added_at: 2026-05-12T10:30:00.000Z\n" +
       "triage_attempts: 0\n" +
       "priority: 3\n" +
-      "---\n";
+      "---\n\n";
     assert.ok(
       body.startsWith(expectedFrontmatter),
       `frontmatter mismatch:\n${body}`,

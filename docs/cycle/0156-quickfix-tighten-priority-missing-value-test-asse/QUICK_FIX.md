@@ -1,0 +1,3 @@
+Typecheck clean.
+
+In `tests/cli/parse-args.test.ts` line 101, replaced the tautological `/drop:/` regex with `/Option '--priority'.*(missing|requires).*argument/i`. The old pattern matched any thrown error containing `drop:` — which includes the unrelated "drop requires task text" path — so it could never distinguish the missing-argument error from other failures. The new regex pins the assertion specifically to the Node.js `nodeParseArgs` missing-argument error message that gets re-wrapped in `src/cli/parse-args.ts:32–35`, and an inline comment documents why this regex (and not the broader one) is correct. No production code changed.

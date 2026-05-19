@@ -199,6 +199,84 @@ test("loadConfig throws when a workflow entry is missing name or steps", async (
   }
 });
 
+test("engine.commit absent — defaults to mode:trunk push:true", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await writeConfig(root,
+      `${ENGINE_TRIAGE}workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`);
+    const cfg = await loadConfig(root);
+    assert.equal(cfg.engine.commit.mode, "trunk");
+    assert.equal(cfg.engine.commit.push, true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("engine.commit present — parsed correctly", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await writeConfig(root,
+      `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+  commit:
+    mode: local-only
+    push: false
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`);
+    const cfg = await loadConfig(root);
+    assert.equal(cfg.engine.commit.mode, "local-only");
+    assert.equal(cfg.engine.commit.push, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("engine.commit unknown mode — throws at parse time", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await writeConfig(root,
+      `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+  commit:
+    mode: banana
+    push: true
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`);
+    await assert.rejects(() => loadConfig(root), /engine\.commit\.mode/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("loadWorkflow throws on unknown workflow name", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
@@ -213,6 +291,105 @@ test("loadWorkflow throws on unknown workflow name", async () => {
 `);
     await assert.rejects(() => loadWorkflow(root, "nope"), /unknown workflow: nope/);
   } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("CYCLE_TRUNK_BASED=1 overrides worktree-pr YAML to trunk", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const prev = process.env.CYCLE_TRUNK_BASED;
+  try {
+    await writeConfig(root,
+      `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+  commit:
+    mode: worktree-pr
+    push: true
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`);
+    process.env.CYCLE_TRUNK_BASED = "1";
+    const cfg = await loadConfig(root);
+    assert.equal(cfg.engine.commit.mode, "trunk");
+  } finally {
+    if (prev === undefined) delete process.env.CYCLE_TRUNK_BASED;
+    else process.env.CYCLE_TRUNK_BASED = prev;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("no CYCLE_TRUNK_BASED — mode is worktree-pr from YAML", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const prev = process.env.CYCLE_TRUNK_BASED;
+  try {
+    delete process.env.CYCLE_TRUNK_BASED;
+    await writeConfig(root,
+      `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+  commit:
+    mode: worktree-pr
+    push: true
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`);
+    const cfg = await loadConfig(root);
+    assert.equal(cfg.engine.commit.mode, "worktree-pr");
+  } finally {
+    if (prev === undefined) delete process.env.CYCLE_TRUNK_BASED;
+    else process.env.CYCLE_TRUNK_BASED = prev;
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("CYCLE_TRUNK_BASED=0 does not override mode", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const prev = process.env.CYCLE_TRUNK_BASED;
+  try {
+    await writeConfig(root,
+      `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+  commit:
+    mode: worktree-pr
+    push: true
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`);
+    process.env.CYCLE_TRUNK_BASED = "0";
+    const cfg = await loadConfig(root);
+    assert.equal(cfg.engine.commit.mode, "worktree-pr");
+  } finally {
+    if (prev === undefined) delete process.env.CYCLE_TRUNK_BASED;
+    else process.env.CYCLE_TRUNK_BASED = prev;
     await rm(root, { recursive: true, force: true });
   }
 });

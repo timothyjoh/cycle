@@ -1,0 +1,1 @@
+The write tools and bash file-writes are all requiring approval. Please approve file writes for this session — I need to edit `src/engine/run-cycle.ts`, `src/engine/log-tail.ts`, add `tests/engine/run-cycle.skip-unless.test.ts`, and extend `tests/engine/log-tail.test.ts`.
