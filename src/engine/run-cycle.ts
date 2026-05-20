@@ -44,7 +44,7 @@ function isDocAppendDenied(p: string): boolean {
   return false;
 }
 
-async function appendDocumentationPaths(repoRoot: string, buildMdPath: string, log: Logger, cycleId: string): Promise<void> {
+async function appendDocumentationPaths(repoRoot: string, buildMdPath: string, log: Logger, cycleId: string, preSnapshot: string): Promise<void> {
   let text: string;
   try {
     text = await readFile(buildMdPath, "utf8");
@@ -61,6 +61,20 @@ async function appendDocumentationPaths(repoRoot: string, buildMdPath: string, l
     if (lines[i].startsWith("##")) break;
     const m = /^\s*-\s+(.+)/.exec(lines[i]);
     if (m) touchedSet.add(m[1].trim());
+  }
+
+  const prePaths = new Set<string>();
+  for (const raw of preSnapshot.split("\n")) {
+    if (!raw) continue;
+    const xy = raw.slice(0, 2);
+    if (xy === "??") continue;
+    let p = raw.slice(3);
+    if (xy[0] === "R" || xy[0] === "C") {
+      const arrow = p.lastIndexOf(" -> ");
+      if (arrow !== -1) p = p.slice(arrow + 4);
+    }
+    p = p.replace(/^"/, "").replace(/"$/, "");
+    prePaths.add(p);
   }
 
   const result = spawnSync("git", ["status", "--porcelain"], {
@@ -81,6 +95,7 @@ async function appendDocumentationPaths(repoRoot: string, buildMdPath: string, l
     }
     p = p.replace(/^"/, "").replace(/"$/, "");
     if (isDocAppendDenied(p)) continue;
+    if (prePaths.has(p)) continue;
     if (!touchedSet.has(p)) toAppend.push(p);
   }
 
@@ -280,6 +295,11 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         agent: step.agent,
         ...(headSha ? { head_sha: headSha } : {}),
       });
+      let preSnapshot = "";
+      if (step.name === "documentation") {
+        const snap = spawnSync("git", ["status", "--porcelain"], { cwd: repoRoot, encoding: "utf8", shell: false });
+        preSnapshot = snap.stdout ?? "";
+      }
       let r: StepResult;
       if (step.agent === "bash") {
         r = await execBashStep(repoRoot, step.command!, cycleEnv);
@@ -335,7 +355,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         }
         if (r.status === "ok" && step.name === "documentation") {
           try {
-            await appendDocumentationPaths(repoRoot, join(artifactDir, "BUILD.md"), log, cycleId);
+            await appendDocumentationPaths(repoRoot, join(artifactDir, "BUILD.md"), log, cycleId, preSnapshot);
           } catch { /* best-effort append; never fail the cycle */ }
         }
       }

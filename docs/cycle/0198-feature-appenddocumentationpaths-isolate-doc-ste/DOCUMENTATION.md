@@ -1,0 +1,1 @@
+Updated docs/ENGINE.md documentation step section with a caveat about the untracked-to-staged edge case surfaced by REFLECTION.md: pre-existing untracked files that the doc step stages will bypass the pre-snapshot filter and be incorrectly appended as doc-step artifacts.

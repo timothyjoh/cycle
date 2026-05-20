@@ -515,6 +515,7 @@ test("documentation.paths_appended emitted when paths are appended", async () =>
 
     const r = await runCycle(root, {
       issueId: "PATHS-APPENDED-1",
+      cycleId: "PATHS-APPENDED-1",
       title: "emit test",
       workflow: "feature",
       env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
@@ -524,6 +525,7 @@ test("documentation.paths_appended emitted when paths are appended", async () =>
     const rawLog = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
     const events = parseLog(rawLog);
     const ev = expectExactlyOne(events, "documentation.paths_appended");
+    assert.equal(ev.cycle_id, "PATHS-APPENDED-1");
     assert.ok(Array.isArray(ev.appended));
     assert.ok((ev.appended as string[]).includes("README.md"));
   } finally {
@@ -551,6 +553,73 @@ test("documentation.paths_appended not emitted when toAppend is empty", async ()
     const events = parseLog(rawLog);
     const absent = events.filter((e: { event?: string }) => e.event === "documentation.paths_appended");
     assert.equal(absent.length, 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("runCycle: documentation step excludes pre-existing dirty paths staged by prior steps", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-doc-pre-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-doc-pre-bin-"));
+  try {
+    await setupGitRepoWithReadme(root);
+
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/prompts/build.md"), "BUILD_STEP_PROMPT", "utf8");
+    await writeFile(join(root, ".cycle/prompts/documentation.md"), "DOCUMENTATION_STEP_PROMPT", "utf8");
+    await writeFile(
+      join(root, ".cycle/workflows.yml"),
+      workflowYml(
+        `      - name: build\n        agent: claudecode\n        prompt: prompts/build.md\n` +
+        `      - name: documentation\n        agent: claudecode\n        prompt: prompts/documentation.md\n`,
+      ),
+      "utf8",
+    );
+
+    // Build fake: stages src/dummy.ts (declared) AND docs/extra.md (undeclared, simulating prior-step dirty file)
+    const fakeBuild = join(bin, "claude-build");
+    await writeFile(
+      fakeBuild,
+      `#!/bin/bash\n` +
+      `mkdir -p "${root}/src" "${root}/docs"\n` +
+      `echo '// marker' > "${root}/src/dummy.ts"\n` +
+      `echo 'extra' > "${root}/docs/extra.md"\n` +
+      `git -C "${root}" add src/dummy.ts docs/extra.md\n` +
+      `printf '## Touched Files\\n- src/dummy.ts\\n'`,
+      "utf8",
+    );
+    await chmod(fakeBuild, 0o755);
+
+    // Doc fake: modifies only README.md
+    const fakeDoc = join(bin, "claude-doc");
+    await writeFile(
+      fakeDoc,
+      `#!/bin/bash\necho 'Updated.' >> "${root}/README.md"\nprintf 'Updated README.md'`,
+      "utf8",
+    );
+    await chmod(fakeDoc, 0o755);
+
+    const fakeWrapper = join(bin, "claude");
+    await writeFile(
+      fakeWrapper,
+      `#!/bin/bash\nif [[ "$3" == *DOCUMENTATION_STEP_PROMPT* ]]; then exec "${fakeDoc}" "$@"; fi\nexec "${fakeBuild}" "$@"\n`,
+      "utf8",
+    );
+    await chmod(fakeWrapper, 0o755);
+
+    const r = await runCycle(root, {
+      issueId: "PRE-SNAP-1",
+      title: "pre snap exclude",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const buildMd = join(root, "docs/cycle", `${r.cycleId}-feature-pre-snap-exclude`, "BUILD.md");
+    const content = await readFile(buildMd, "utf8");
+    assert.match(content, /- README\.md/, "doc-step file must be appended");
+    assert.doesNotMatch(content, /- docs\/extra\.md/, "pre-existing staged file must not be appended");
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(bin, { recursive: true, force: true });
