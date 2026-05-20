@@ -505,3 +505,54 @@ test("runCycle: documentation step with no BUILD.md present does not throw; cycl
     await rm(bin, { recursive: true, force: true });
   }
 });
+
+test("documentation.paths_appended emitted when paths are appended", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-doc-pa-emit-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-doc-pa-emit-bin-"));
+  try {
+    await setupGitRepoWithReadme(root);
+    await setupBuildDocWorkflow(root, bin, "## Touched Files\\n- src/dummy.ts\\n");
+
+    const r = await runCycle(root, {
+      issueId: "PATHS-APPENDED-1",
+      title: "emit test",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const rawLog = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const events = parseLog(rawLog);
+    const ev = expectExactlyOne(events, "documentation.paths_appended");
+    assert.ok(Array.isArray(ev.appended));
+    assert.ok((ev.appended as string[]).includes("README.md"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("documentation.paths_appended not emitted when toAppend is empty", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-doc-pa-noop-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-doc-pa-noop-bin-"));
+  try {
+    await setupGitRepoWithReadme(root);
+    await setupBuildDocWorkflow(root, bin, "## Touched Files\\n- src/dummy.ts\\n- README.md\\n");
+
+    const r = await runCycle(root, {
+      issueId: "PATHS-APPENDED-2",
+      title: "no-op test",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const rawLog = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const events = parseLog(rawLog);
+    const absent = events.filter((e: { event?: string }) => e.event === "documentation.paths_appended");
+    assert.equal(absent.length, 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});

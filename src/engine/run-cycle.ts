@@ -1,6 +1,6 @@
 import { allocateCycleId } from "./cycle-id.ts";
 import { loadConfig } from "./workflow.ts";
-import { createLogger } from "./log.ts";
+import { createLogger, type Logger } from "./log.ts";
 import { execBashStep, type StepResult } from "./exec-bash.ts";
 import { resolveAgent, UnknownAgentError } from "./exec.ts";
 import {
@@ -44,7 +44,7 @@ function isDocAppendDenied(p: string): boolean {
   return false;
 }
 
-async function appendDocumentationPaths(repoRoot: string, buildMdPath: string): Promise<void> {
+async function appendDocumentationPaths(repoRoot: string, buildMdPath: string, log: Logger, cycleId: string): Promise<void> {
   let text: string;
   try {
     text = await readFile(buildMdPath, "utf8");
@@ -96,6 +96,7 @@ async function appendDocumentationPaths(repoRoot: string, buildMdPath: string): 
 
   lines.splice(insertIdx, 0, ...toAppend.map((p) => `- ${p}`));
   await writeFile(buildMdPath, lines.join("\n"), "utf8");
+  await log.emit("documentation.paths_appended", { cycle_id: cycleId, appended: toAppend });
 }
 
 export async function shouldSkipForArtifact(
@@ -334,7 +335,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         }
         if (r.status === "ok" && step.name === "documentation") {
           try {
-            await appendDocumentationPaths(repoRoot, join(artifactDir, "BUILD.md"));
+            await appendDocumentationPaths(repoRoot, join(artifactDir, "BUILD.md"), log, cycleId);
           } catch { /* best-effort append; never fail the cycle */ }
         }
       }
