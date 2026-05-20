@@ -452,11 +452,11 @@ Per-step configurable fields (strawman):
 | Field | Meaning |
 |---|---|
 | `name` | Step identifier (also referenced by skip conditions) |
-| `agent` | One of `claudecode`, `codex`, `gemini`, `auggie`, `bash` |
+| `agent` | One of `claudecode`, `codex`, `gemini`, `auggie`, `opencode`, `bash` |
 | `prompt` | Path (relative to `.cycle/`) to the prompt (AI agents) |
 | `command` | Shell command (for `bash` agent) |
-| `model` | Override model for this step (codex/auggie: passed as `--model`) |
-| `thinking` | Thinking level for this step (codex/auggie: passed as `--thinking`) |
+| `model` | Override model for this step (codex/auggie/opencode: passed as `--model`) |
+| `thinking` | Thinking level for this step (codex/auggie/opencode: passed as `--thinking`) |
 | `skip_unless` | Only run if the named artifact exists |
 | `timeout` | Per-step inactivity / wall-clock cap |
 | `on_fail` | `exit` (default) \| `continue` \| `retry:N` |
@@ -469,6 +469,7 @@ Per-step configurable fields (strawman):
 | `codex` | `codex` subprocess (stdin prompt delivery; optional `--model`/`--thinking` flags) | Alternative for build / fix / review |
 | `gemini` | `gemini` subprocess (stdin prompt delivery) | Alternative AI agent |
 | `auggie` | `auggie` subprocess (stdin prompt delivery; optional `--model`/`--thinking` flags) | Alternative for build / fix / review |
+| `opencode` | `opencode` subprocess (stdin prompt delivery; optional `--model`/`--thinking` flags) | Alternative for build / fix / review |
 | `bash` | Direct shell | `verify`, `commit`, `pr`, `merge`, scripts |
 
 New agent types require a rebuild of `cycle.js` — explicitly out of scope

@@ -3,6 +3,7 @@ import { auggieExec } from "./exec-auggie.ts";
 import { claudecodeExec } from "./exec-claudecode.ts";
 import { codexExec } from "./exec-codex.ts";
 import { geminiExec } from "./exec-gemini.ts";
+import { opencodeExec } from "./exec-opencode.ts";
 
 export interface ExecModule {
   runStep(args: {
@@ -27,6 +28,7 @@ const REGISTRY: Record<string, ExecModule> = {
   claudecode: claudecodeExec,
   codex: codexExec,
   gemini: geminiExec,
+  opencode: opencodeExec,
 };
 
 export function resolveAgent(name: string): ExecModule {

@@ -407,6 +407,27 @@ test("parses a workflow step with agent: auggie", async () => {
   }
 });
 
+test("parses a workflow step with agent: opencode", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await writeConfig(root,
+      `${ENGINE_TRIAGE}workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: impl
+        agent: opencode
+        prompt: prompts/impl.md
+`);
+    const cfg = await loadConfig(root);
+    const step = cfg.workflows[0].steps[0];
+    assert.equal(step.agent, "opencode");
+    assert.equal(step.prompt, "prompts/impl.md");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("CYCLE_TRUNK_BASED=0 does not override mode", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   const prev = process.env.CYCLE_TRUNK_BASED;

@@ -4,7 +4,7 @@ import YAML from "yaml";
 
 export type Step = {
   name: string;
-  agent: "claudecode" | "bash" | "codex" | "gemini" | "auggie";
+  agent: "claudecode" | "bash" | "codex" | "gemini" | "auggie" | "opencode";
   prompt?: string;
   command?: string;
   skip_unless?: string;
