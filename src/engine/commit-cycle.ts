@@ -4,25 +4,13 @@ import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { buildChildEnv } from "./child-env.ts";
 import type { CommitConfig } from "./workflow.ts";
+import { isDenied } from "./path-utils.ts";
 
 export type CommitResult =
   | { status: "ok"; sha: string }
   | { status: "skipped"; reason: "nothing_to_commit" }
   | { status: "failed"; reason: "commit_failed" | "push_failed"; attempt?: number }
   | { status: "failed"; reason: "scope_violation"; blockedFiles: string[] };
-
-const DENYLIST_PREFIXES = [".claude", "dist", "node_modules"];
-const DENYLIST_EXACT = [".cycle/cycle.pid"];
-
-function isDenied(p: string): boolean {
-  const q = p.replace(/\/$/, "");
-  for (const prefix of DENYLIST_PREFIXES) {
-    if (q === prefix || q.startsWith(prefix + "/")) return true;
-  }
-  if (DENYLIST_EXACT.includes(q)) return true;
-  if (q.endsWith(".lock")) return true;
-  return false;
-}
 
 export async function parseTouchedFiles(buildMdPath: string): Promise<string[] | null> {
   let text: string;

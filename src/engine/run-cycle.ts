@@ -22,6 +22,7 @@ import { writeFile, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { truncateHeadCapped } from "./log-fmt.ts";
 import { spawnSync } from "node:child_process";
+import { isDenied } from "./path-utils.ts";
 
 const RESET_ELIGIBLE_STEPS = new Set(["build", "fix"]);
 
@@ -30,19 +31,6 @@ const RESET_ELIGIBLE_STEPS = new Set(["build", "fix"]);
 // artifact-producing steps (spec, research, plan) only write
 // <artifactDir>/<STEP>.md from agent stdout, so the artifact IS the work.
 const SKIP_ELIGIBLE_STEPS = new Set(["spec", "research", "plan"]);
-
-const DOC_APPEND_DENYLIST_PREFIXES = [".claude", "dist", "node_modules"];
-const DOC_APPEND_DENYLIST_EXACT = [".cycle/cycle.pid"];
-
-function isDocAppendDenied(p: string): boolean {
-  const q = p.replace(/\/$/, "");
-  for (const prefix of DOC_APPEND_DENYLIST_PREFIXES) {
-    if (q === prefix || q.startsWith(prefix + "/")) return true;
-  }
-  if (DOC_APPEND_DENYLIST_EXACT.includes(q)) return true;
-  if (q.endsWith(".lock")) return true;
-  return false;
-}
 
 async function appendDocumentationPaths(repoRoot: string, buildMdPath: string, log: Logger, cycleId: string, preSnapshot: string): Promise<void> {
   let text: string;
@@ -94,7 +82,7 @@ async function appendDocumentationPaths(repoRoot: string, buildMdPath: string, l
       if (arrow !== -1) p = p.slice(arrow + 4);
     }
     p = p.replace(/^"/, "").replace(/"$/, "");
-    if (isDocAppendDenied(p)) continue;
+    if (isDenied(p)) continue;
     if (prePaths.has(p)) continue;
     if (!touchedSet.has(p)) toAppend.push(p);
   }

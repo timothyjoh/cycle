@@ -124,7 +124,7 @@ engine:
 
 `mode: worktree-pr` — enables cycle branches (`createCycleBranch`/`checkoutCycleBranch`), head-SHA capture in `step.start`, and SHA-based hard-reset on resume. Push behavior follows `config.push` (same as `trunk`); PR creation is a future concern.
 
-**Staging denylist** (`src/engine/commit-cycle.ts`): `DENYLIST_PREFIXES = [".claude", "dist", "node_modules"]`, `DENYLIST_EXACT = [".cycle/cycle.pid"]`, plus any `*.lock` file and git submodule entries (mode `160000` in `git ls-files --stage`).
+**Staging denylist** (`src/engine/path-utils.ts`): `DENYLIST_PREFIXES = [".claude", "dist", "node_modules"]`, `DENYLIST_EXACT = [".cycle/cycle.pid"]`, plus any `*.lock` file and git submodule entries (mode `160000` in `git ls-files --stage`). The shared `isDenied(p)` helper is imported by both `commit-cycle.ts` and `run-cycle.ts`.
 
 **Closes block**: `buildClosesBlock(issueId, repoRoot)` reads `docs/cycle/issues/todo/<issueId>.md`, extracts `https://github.com/<owner>/<repo>/issues/<N>` URLs matching the repo slug from `gh repo view`, and emits `Closes #N` lines as commit body. Silently skipped when the file is absent or `gh` fails.
 
@@ -180,6 +180,6 @@ The daemon child (carrying `CYCLE_DAEMON=1`) registers SIGTERM, SIGINT, and SIGU
 
 On clean completion (queue exhausted, no halt), the `engine.stop` emission path calls `removePid(cwd)` before `process.exit`.
 
-`.cycle/cycle.pid` is in the commit denylist (`DENYLIST_EXACT` in `src/engine/commit-cycle.ts`) — it is never staged.
+`.cycle/cycle.pid` is in the commit denylist (`DENYLIST_EXACT` in `src/engine/path-utils.ts`) — it is never staged.
 
 PID file helpers live in `src/engine/pid.ts`: `writePid`, `readPid`, `removePid`, `isAlive`.

@@ -27,6 +27,7 @@ const ALL_PASSING = makeLcov({
   "scripts/structural-invariants.mjs": { lf: 100, lh: 100 },
   "src/cli/cleanup.ts": { lf: 100, lh: 100 },
   "src/engine/exec-spawn.ts": { lf: 100, lh: 100 },
+  "src/engine/path-utils.ts": { lf: 100, lh: 100 },
 });
 
 function runGate(cwd: string) {
@@ -73,6 +74,7 @@ test("coverage-gate: triage.ts below floor → exit 1, stderr names file and per
         "scripts/structural-invariants.mjs": { lf: 100, lh: 100 },
         "src/cli/cleanup.ts": { lf: 100, lh: 100 },
         "src/engine/exec-spawn.ts": { lf: 100, lh: 100 },
+        "src/engine/path-utils.ts": { lf: 100, lh: 100 },
       }),
     );
     const result = runGate(root);
@@ -129,6 +131,7 @@ test("coverage-gate: absolute SF: paths normalized via relative() → exit 0", a
       "scripts/structural-invariants.mjs",
       "src/cli/cleanup.ts",
       "src/engine/exec-spawn.ts",
+      "src/engine/path-utils.ts",
     ]) {
       files[`${realRoot}/${rel}`] = { lf: 100, lh: 100 };
     }

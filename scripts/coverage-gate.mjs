@@ -20,6 +20,7 @@ const FLOORS = {
   "scripts/structural-invariants.mjs": 90,
   "src/cli/cleanup.ts": 70,
   "src/engine/exec-spawn.ts": 90,
+  "src/engine/path-utils.ts": 100,
 };
 
 const LCOV_PATH = process.argv[2] ?? ".cycle/coverage.lcov";
