@@ -41,6 +41,8 @@ Engine reads `workflow:` from the popped todo's frontmatter; falls back to CLI d
 
 The CLI loop tracks a non-persistent `consecutive_failures` counter and `failed_cycles` list. Successful cycles reset both; retry-drain leaves them untouched. Terminal failure increments the counter. When it reaches `engine.max_consecutive_failures` (default 2), engine emits `engine.halted {failed_cycles, reason: "max_consecutive_failures", threshold}`, then `engine.stop {status: "halted"}`, exits non-zero.
 
+**Commit-scope-guard-loop pause.** The CLI also tracks a non-persistent `Map<cycleId, number>` (`scopeGuardViolations`) counting consecutive `scope_violation` results from `commitCycle` per cycle. On the 2nd consecutive `scope_violation` for the same `cycle_id`, the engine emits `engine.paused { reason: "commit-scope-guard-loop", cycle_id, violations }` and halts instead of retrying. A successful commit deletes the entry for that `cycle_id`. The first rejection still allows one retry (threshold is ≥ 2, not ≥ 1). `engine.halted` is NOT emitted for this pause reason.
+
 ## Resume from log tail
 
 `src/engine/log-tail.ts` (`readLogTail` / `parseLogTail`) scans `.cycle/log.jsonl` backwards. At `engine.start`, if the most-recent `cycle.start` has no matching `cycle.end`, the CLI refetches base branch (git fetch + ff merge), validates the `tbd.jsonl` row is still `in_progress` for the same `cycle_id`, then calls `runCycle({ resume: { startStepIndex } })`.

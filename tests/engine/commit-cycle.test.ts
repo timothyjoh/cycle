@@ -530,11 +530,11 @@ test("scopeGuard — dirty file outside touched list returned as blocked", async
       "- src/foo.ts",
     ].join("\n"), "utf8");
     await writeFakeBin(binDir, "git", `
-if [ "$1" = "status" ]; then printf " M README.md\n"; exit 0; fi
+if [ "$1" = "status" ]; then printf " M src/bar.ts\n"; exit 0; fi
 exec /usr/bin/git "$@"
 `);
     const result = await scopeGuard(root, "0099", fakeEnv(binDir));
-    assert.deepEqual(result, ["README.md"]);
+    assert.deepEqual(result, ["src/bar.ts"]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -551,11 +551,11 @@ test("scopeGuard — renamed file outside touched list returned as blocked (dest
       "- src/foo.ts",
     ].join("\n"), "utf8");
     await writeFakeBin(binDir, "git", `
-if [ "$1" = "status" ]; then printf "R  old.ts -> README-renamed.md\n"; exit 0; fi
+if [ "$1" = "status" ]; then printf "R  old.ts -> src/bar-renamed.ts\n"; exit 0; fi
 exec /usr/bin/git "$@"
 `);
     const result = await scopeGuard(root, "0099", fakeEnv(binDir));
-    assert.deepEqual(result, ["README-renamed.md"]);
+    assert.deepEqual(result, ["src/bar-renamed.ts"]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -579,7 +579,7 @@ test("commitCycle — scope_violation: stageFiles never called", async () => {
     await writeFakeBin(binDir, "git", `
 echo "$@" >> "${callLog}"
 if [ "$1" = "status" ] && [ "$2" = "--porcelain" ] && [ "$3" != "--untracked-files=all" ]; then
-  printf " M README.md\n"; exit 0
+  printf " M src/bar.ts\n"; exit 0
 fi
 exec /usr/bin/git "$@"
 `);
@@ -594,7 +594,7 @@ exec /usr/bin/git "$@"
     });
     assert.equal(result.status, "failed");
     assert.equal((result as { reason: string }).reason, "scope_violation");
-    assert.deepEqual((result as { blockedFiles: string[] }).blockedFiles, ["README.md"]);
+    assert.deepEqual((result as { blockedFiles: string[] }).blockedFiles, ["src/bar.ts"]);
 
     const calls = await readFile(callLog, "utf8").catch(() => "");
     assert.ok(!calls.includes("add"), "git add must NOT be called when scope_violation");
@@ -641,16 +641,16 @@ exec /usr/bin/git "$@"
 
 // --- Regression test: real git repo, no fake bins ---
 
-test("regression — BUILD.md touches src/foo.ts, README.md dirty → scope_violation", async () => {
+test("regression — BUILD.md touches src/foo.ts, src/bar.ts dirty → scope_violation", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-regression-test-"));
   try {
-    // set up real git repo with two tracked files
+    // set up real git repo with two tracked src files
     spawnSync("git", ["init", "--initial-branch=master"], { cwd: root, shell: false });
     spawnSync("git", ["config", "user.email", "test@test.com"], { cwd: root, shell: false });
     spawnSync("git", ["config", "user.name", "Test"], { cwd: root, shell: false });
     await mkdir(join(root, "src"), { recursive: true });
     await writeFile(join(root, "src/foo.ts"), "export const x = 1;\n", "utf8");
-    await writeFile(join(root, "README.md"), "# readme\n", "utf8");
+    await writeFile(join(root, "src/bar.ts"), "export const y = 2;\n", "utf8");
     await mkdir(join(root, ".cycle"), { recursive: true });
     await writeFile(join(root, ".cycle/workflows.yml"), WORKFLOWS_YML, "utf8");
     spawnSync("git", ["add", "-A"], { cwd: root, shell: false });
@@ -663,8 +663,8 @@ test("regression — BUILD.md touches src/foo.ts, README.md dirty → scope_viol
       "- src/foo.ts",
     ].join("\n"), "utf8");
 
-    // dirty README.md (tracked, outside touched list)
-    await writeFile(join(root, "README.md"), "# readme\nchanged\n", "utf8");
+    // dirty src/bar.ts (tracked src file, outside touched list)
+    await writeFile(join(root, "src/bar.ts"), "export const y = 99;\n", "utf8");
 
     const result = await commitCycle(root, {
       cycleId: "0099",
@@ -674,13 +674,13 @@ test("regression — BUILD.md touches src/foo.ts, README.md dirty → scope_viol
     });
     assert.equal(result.status, "failed");
     assert.equal((result as { reason: string }).reason, "scope_violation");
-    assert.deepEqual((result as { blockedFiles: string[] }).blockedFiles, ["README.md"]);
+    assert.deepEqual((result as { blockedFiles: string[] }).blockedFiles, ["src/bar.ts"]);
 
-    // README.md must not be staged — working tree still dirty
+    // src/bar.ts must not be staged — working tree still dirty
     const status = spawnSync("git", ["status", "--porcelain"], {
       cwd: root, shell: false, encoding: "utf8",
     });
-    assert.ok(status.stdout.includes("README.md"), "README.md must remain unstaged after scope_violation");
+    assert.ok(status.stdout.includes("src/bar.ts"), "src/bar.ts must remain unstaged after scope_violation");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

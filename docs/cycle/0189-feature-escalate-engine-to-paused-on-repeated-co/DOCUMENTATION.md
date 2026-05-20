@@ -1,0 +1,3 @@
+`docs/ENGINE.md` already carries the required commit-scope-guard-loop paragraph (added in the working-tree diff for this cycle) under the Halt policy section, describing the `scopeGuardViolations` Map, the ≥2 threshold, the `engine.paused { reason: "commit-scope-guard-loop", cycle_id, violations }` payload, the successful-commit reset, and the absence of `engine.halted`. No other docs reference the halt pause reasons exhaustively or describe the scope-guard counter mechanism. No further edits required.
+
+Updated docs/ENGINE.md Halt policy section with the commit-scope-guard-loop pause description covering the per-cycle-id counter mechanism, threshold, emitted event shape, and reset-on-success behavior.
