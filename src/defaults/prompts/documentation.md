@@ -14,6 +14,9 @@ whichever of these files exist:
 - `BUILD.md` — what was actually built.
 - `REVIEW.md` — review findings.
 - `FIX.md` (may be absent) — fixes applied after review.
+- `REFLECTION.md` (may be absent) — end-of-cycle reflection emitted as JSON:
+  `{"sharp_edges":[{"title":"…","body":"…","priority_hint":N}]}`. Each `body` is
+  markdown prose. Surfaced by the reflection agent.
 
 Then inspect the shipped diff and current doc set:
 
@@ -33,7 +36,18 @@ Update docs that the diff has made stale or incomplete. Examples:
 - An invariant changed → update the paragraph that asserted the old one.
 - A file path moved → update references.
 
-Discipline:
+Also consult REFLECTION.md when present. It is a JSON object with a `sharp_edges`
+array; each entry has `title`, `body` (markdown prose), and `priority_hint` (integer,
+higher = more urgent). Map `body` content to the appropriate product-doc location:
+
+- High-priority findings describing limitations or sharp edges → add a warning note near
+  the affected command, flag, or behavior in README.md or docs/*.md.
+- Deferred items or acknowledged trade-offs → add to a Known Limitations / Future Work
+  section, or append a brief caveat to the relevant feature description.
+
+Do not dump the full REFLECTION.md text; synthesize and place findings surgically.
+
+### Edit constraints
 
 - Prefer `Edit` over `Write`. Do NOT create new doc files unless
   absolutely necessary.
