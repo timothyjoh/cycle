@@ -3,7 +3,7 @@ id: refl-0192-model-and-thinking-fields-silently-ignor
 source: reflection
 title: model and thinking fields silently ignored on non-codex agents
 added_at: "2026-05-20T02:43:45.409Z"
-triage_attempts: 0
+triage_attempts: 1
 priority_hint: 5
 origin_cycle_id: "0192"
 ---

@@ -1,0 +1,3 @@
+Both CLAUDE.md and docs/ARCHITECTURE.md were already updated by the implementation step and are current. No additional changes are needed.
+
+Updated CLAUDE.md Architecture section to document `auggie` as a first-class registered step agent with optional `--model`/`--thinking` flag forwarding, matching the codex description pattern. Updated `docs/ARCHITECTURE.md` Step field table to include `gemini` and `auggie` in the `agent` field enumeration, corrected `model` and `thinking` field descriptions from "codex" to "codex/auggie", and added `gemini` and `auggie` rows to the agent registry table with their stdin prompt delivery model and use-case descriptions.

@@ -1,4 +1,5 @@
 import type { StepResult } from "./exec-bash.ts";
+import { auggieExec } from "./exec-auggie.ts";
 import { claudecodeExec } from "./exec-claudecode.ts";
 import { codexExec } from "./exec-codex.ts";
 import { geminiExec } from "./exec-gemini.ts";
@@ -22,6 +23,7 @@ export class UnknownAgentError extends Error {
 }
 
 const REGISTRY: Record<string, ExecModule> = {
+  auggie: auggieExec,
   claudecode: claudecodeExec,
   codex: codexExec,
   gemini: geminiExec,
