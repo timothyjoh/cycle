@@ -127,7 +127,7 @@ not by `init`.
   (`--experimental-strip-types` on 22.6+; default on 23.6+).
 - **`claude` CLI** — for the `claudecode` agent
 - **git** and **`gh`** — branches, commits, PRs, auto-merge
-- Optional: **`codex`** — if a workflow routes a step through Codex
+- Optional: **`codex`**, **`auggie`**, **`opencode`**, **`pi`** — if a workflow routes a step through one of these alternative agents
 - Optional: **tracker API access** (Jira / Linear / GitHub) — only when
   `--issue` needs a remote fetch
 
@@ -452,11 +452,11 @@ Per-step configurable fields (strawman):
 | Field | Meaning |
 |---|---|
 | `name` | Step identifier (also referenced by skip conditions) |
-| `agent` | One of `claudecode`, `codex`, `gemini`, `auggie`, `opencode`, `bash` |
+| `agent` | One of `claudecode`, `codex`, `gemini`, `auggie`, `opencode`, `pi`, `bash` |
 | `prompt` | Path (relative to `.cycle/`) to the prompt (AI agents) |
 | `command` | Shell command (for `bash` agent) |
-| `model` | Override model for this step (codex/auggie/opencode: passed as `--model`) |
-| `thinking` | Thinking level for this step (codex/auggie/opencode: passed as `--thinking`) |
+| `model` | Override model for this step (codex/auggie/opencode/pi: passed as `--model`) |
+| `thinking` | Thinking level for this step (codex/auggie/opencode/pi: passed as `--thinking`) |
 | `skip_unless` | Only run if the named artifact exists |
 | `timeout` | Per-step inactivity / wall-clock cap |
 | `on_fail` | `exit` (default) \| `continue` \| `retry:N` |
@@ -470,7 +470,10 @@ Per-step configurable fields (strawman):
 | `gemini` | `gemini` subprocess (stdin prompt delivery) | Alternative AI agent |
 | `auggie` | `auggie` subprocess (stdin prompt delivery; optional `--model`/`--thinking` flags) | Alternative for build / fix / review |
 | `opencode` | `opencode` subprocess (stdin prompt delivery; optional `--model`/`--thinking` flags) | Alternative for build / fix / review |
+| `pi` | `pi` subprocess (stdin prompt delivery; optional `--model`/`--thinking` flags) | Alternative for build / fix / review |
 | `bash` | Direct shell | `verify`, `commit`, `pr`, `merge`, scripts |
+
+> **Note:** `--model` and `--thinking` flag names for `codex`, `auggie`, `opencode`, and `pi` are forwarded by convention from the codex pattern. They have not been verified against each binary's live `--help` output — if a binary uses different flag names the forwarding silently does nothing.
 
 New agent types require a rebuild of `cycle.js` — explicitly out of scope
 for MVP.
