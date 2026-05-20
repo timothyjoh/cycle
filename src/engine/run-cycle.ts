@@ -285,7 +285,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
       } else {
         try {
           const mod = resolveAgent(step.agent);
-          r = await mod.runStep({ repoRoot, promptPath: step.prompt!, env: cycleEnv });
+          r = await mod.runStep({ repoRoot, promptPath: step.prompt!, env: cycleEnv, model: step.model, thinking: step.thinking });
         } catch (err) {
           if (err instanceof UnknownAgentError) {
             r = { status: "failed", exitCode: -1, stdout: "", stderr: err.message };

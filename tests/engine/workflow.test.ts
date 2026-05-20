@@ -361,6 +361,31 @@ workflows:
   }
 });
 
+test("parses a codex step with model and thinking fields", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await writeConfig(root,
+      `${ENGINE_TRIAGE}workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: build
+        agent: codex
+        model: o4-mini
+        thinking: medium
+        prompt: prompts/build.md
+`);
+    const w = await loadWorkflow(root, "feature");
+    assert.equal(w.steps.length, 1);
+    assert.equal(w.steps[0].agent, "codex");
+    assert.equal(w.steps[0].model, "o4-mini");
+    assert.equal(w.steps[0].thinking, "medium");
+    assert.equal(w.steps[0].prompt, "prompts/build.md");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("CYCLE_TRUNK_BASED=0 does not override mode", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   const prev = process.env.CYCLE_TRUNK_BASED;

@@ -4,10 +4,12 @@ import YAML from "yaml";
 
 export type Step = {
   name: string;
-  agent: "claudecode" | "bash";
+  agent: "claudecode" | "bash" | "codex";
   prompt?: string;
   command?: string;
   skip_unless?: string;
+  model?: string;
+  thinking?: string;
 };
 
 export type CommitConfig = {

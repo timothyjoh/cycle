@@ -455,7 +455,8 @@ Per-step configurable fields (strawman):
 | `agent` | One of `claudecode`, `codex`, `bash` |
 | `prompt` | Path (relative to `.cycle/`) to the prompt (AI agents) |
 | `command` | Shell command (for `bash` agent) |
-| `model` | Override model for this step |
+| `model` | Override model for this step (codex: passed as `--model`) |
+| `thinking` | Thinking level for this step (codex: passed as `--thinking`) |
 | `skip_unless` | Only run if the named artifact exists |
 | `timeout` | Per-step inactivity / wall-clock cap |
 | `on_fail` | `exit` (default) \| `continue` \| `retry:N` |
@@ -465,7 +466,7 @@ Per-step configurable fields (strawman):
 | Agent | Execution | Use for |
 |---|---|---|
 | `claudecode` | Claude Agent SDK (in-process) or `claude -p` (piped) | All AI steps by default |
-| `codex` | `codex exec --yolo` subprocess | Alternative for build / fix / review |
+| `codex` | `codex` subprocess (stdin prompt delivery; optional `--model`/`--thinking` flags) | Alternative for build / fix / review |
 | `bash` | Direct shell | `verify`, `commit`, `pr`, `merge`, scripts |
 
 New agent types require a rebuild of `cycle.js` — explicitly out of scope

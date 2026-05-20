@@ -8,7 +8,7 @@ Detailed notes on each engine subsystem. For high-level architecture see [`docs/
 - CLI: `src/cli.ts`, `src/cli/{parse-args,init}.ts`
 - Defaults (shipped into consumer repos): `src/defaults/` — single `workflows.yml`, `prompts/`, `scripts/`
 
-Agent dispatch: the per-step `agent:` field in `workflows.yml` resolves through `resolveAgent(name)` in `exec.ts`. Unknown names throw `UnknownAgentError` → `step.end status:failed`. Registered agents: `claudecode`, `codex`, `gemini`.
+Agent dispatch: the per-step `agent:` field in `workflows.yml` resolves through `resolveAgent(name)` in `exec.ts`. Unknown names throw `UnknownAgentError` → `step.end status:failed`. Registered agents: `claudecode`, `codex`, `gemini`. The `codex` agent accepts optional `model` and `thinking` step fields; when present, they are prepended to the spawn argv as `--model <value>` and `--thinking <value>` (model first). Neither field affects `claudecode` or `gemini` dispatch.
 
 ## Triage subroutine
 

@@ -8,6 +8,8 @@ export interface ExecModule {
     repoRoot: string;
     promptPath: string;
     env?: Record<string, string>;
+    model?: string;
+    thinking?: string;
   }): Promise<StepResult>;
 }
 
