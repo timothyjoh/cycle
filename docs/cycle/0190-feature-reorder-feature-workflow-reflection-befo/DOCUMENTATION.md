@@ -1,0 +1,3 @@
+No stale references remain. The `docs/ENGINE.md:74` match is not an ordering claim — it lists `reflection` and `documentation` as the non-fatal step set (unordered context), which remains accurate.
+
+Updated `docs/ARCHITECTURE.md` lines 496 and 663 from `verify → documentation → reflection → commit → pr` to `verify → reflection → documentation → commit → pr`. Updated `README.md` line 41 (execution workflow description) and line 80 (prompts enumeration) to reflect the new `reflection → documentation` order. The `src/defaults/workflows.yml` and `.cycle/workflows.yml` step swap is the canonical source; all prose references now agree with it.

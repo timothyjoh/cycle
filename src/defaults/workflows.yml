@@ -24,8 +24,8 @@ workflows:
       - { name: review,   agent: claudecode, prompt: prompts/review.md }
       - { name: fix,      agent: claudecode, prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
       - { name: verify,   agent: bash,       command: scripts/verify.sh }
-      - { name: documentation, agent: claudecode, prompt: prompts/documentation.md }
       - { name: reflection,    agent: claudecode, prompt: prompts/reflection.md }
+      - { name: documentation, agent: claudecode, prompt: prompts/documentation.md }
 
   - name: document
     description: Documentation- and prompt-only edits. No code, no tests, no reflection.

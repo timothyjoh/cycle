@@ -493,7 +493,7 @@ Lightweight fix path.
 ### `feature`
 
 ```
-spec → research → plan → build → review → fix → verify → documentation → reflection → commit → pr
+spec → research → plan → build → review → fix → verify → reflection → documentation → commit → pr
 ```
 
 Full SDLC pass. `fix` is conditional — only runs if `review` produced
@@ -660,7 +660,7 @@ Example: parent agent invokes cycle with 7 Jira issues, 3 of them big.
    - `docs/cycle/0042-feature-safari-login/` gets its workflow
      artifacts.
    - Workflow steps run:
-     `spec → research → plan → build → review → fix → verify → documentation → reflection → commit → pr`.
+     `spec → research → plan → build → review → fix → verify → reflection → documentation → commit → pr`.
      Each emits `step.start` / `step.end`.
    - PR opened; `gh pr merge --squash --auto` enabled.
    - Engine polls until the PR lands on `main`. Emits `pr.merged` and

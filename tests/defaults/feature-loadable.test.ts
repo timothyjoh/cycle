@@ -14,9 +14,9 @@ test("default workflows.yml loads via the engine", async () => {
     assert.equal(w.steps.length, 9);
     assert.equal(w.steps[0].agent, "claudecode");
     assert.equal(w.steps[6].agent, "bash");
-    assert.equal(w.steps[7].name, "documentation");
+    assert.equal(w.steps[7].name, "reflection");
     assert.equal(w.steps[7].agent, "claudecode");
-    assert.equal(w.steps[8].name, "reflection");
+    assert.equal(w.steps[8].name, "documentation");
     assert.equal(w.steps[8].agent, "claudecode");
   } finally {
     await rm(root, { recursive: true, force: true });

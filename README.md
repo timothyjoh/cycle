@@ -38,7 +38,7 @@ It gives a parent agent a single subprocess to hand work to, while cycle handles
 
 - **Intake:** normalize freeform tasks, tracker issues, and raw markdown drops into one inbox.
 - **Triage:** inspect the repo, select a workflow, and split oversized asks into smaller cycles.
-- **Execution:** run `spec → research → plan → build → review → fix → verify → documentation → reflection` style workflows; commit, push, and PR are engine-managed after steps complete.
+- **Execution:** run `spec → research → plan → build → review → fix → verify → reflection → documentation` style workflows; commit, push, and PR are engine-managed after steps complete.
 - **Quality gates:** run verification before commit / PR, lean on branch protection, and retry failed cycles from a clean slate. On retry, the engine skips pre-build steps (`spec`, `research`, `plan`) whose artifact files already exist non-empty; pass `--no-skip-completed` to force re-derivation.
 - **State:** keep a live drain queue plus an append-only JSONL audit log.
 - **Recovery:** resume in-flight work after a crash, pause safely when triage fails, and block only dependent work after terminal failures.
@@ -77,7 +77,7 @@ So cycle makes repo context and artifacts first-class. Each cycle writes durable
 
 - `.cycle/bin/cycle.js` — the bundled engine
 - `.cycle/workflows.yml` — engine, triage, and workflow configuration
-- `.cycle/prompts/` — prompts for spec, research, plan, build, review, fix, verify, documentation, reflection, and triage
+- `.cycle/prompts/` — prompts for spec, research, plan, build, review, fix, verify, reflection, documentation, and triage
 - `.cycle/scripts/` — git / GitHub helpers
 - `docs/cycle/issues/` — raw / todo / done / failed / blocked issue folders
 - optional `.claude/skills/cycle.md` — a Claude Code skill that teaches a parent agent how to invoke cycle

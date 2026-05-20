@@ -3,7 +3,7 @@ id: refl-0189-scopeguard-enforces-only-src-and-scripts
 source: reflection
 title: scopeGuard enforces only src/ and scripts/ — docs and test violations undetected
 added_at: "2026-05-20T01:31:29.267Z"
-triage_attempts: 0
+triage_attempts: 1
 priority_hint: 7
 origin_cycle_id: "0189"
 ---

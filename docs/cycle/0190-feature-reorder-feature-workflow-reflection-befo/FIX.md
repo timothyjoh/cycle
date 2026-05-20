@@ -1,0 +1,1 @@
+All fixes complete. Task 1 (the only task): updated README.md lines 41 and 80 to swap `documentation → reflection` → `reflection → documentation`, matching the shipped `src/defaults/workflows.yml` order. Both verify greps pass. Full suite: 531/531 pass, 0 fail. Coverage Line 98.54% / Branch 91.69% / Function 93.18% — identical to BUILD.md baseline, no regression.
