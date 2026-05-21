@@ -30,6 +30,42 @@ test("buildChildEnv overlays caller-supplied env over process.env", () => {
   assert.equal(env.CUSTOM_KEY, "from-caller");
 });
 
+test("buildChildEnv strips all CYCLE_* vars from process.env", () => {
+  const saved = {
+    CYCLE_TRUNK_BASED: process.env.CYCLE_TRUNK_BASED,
+    CYCLE_ID: process.env.CYCLE_ID,
+    CYCLE_TITLE: process.env.CYCLE_TITLE,
+  };
+  try {
+    process.env.CYCLE_TRUNK_BASED = "1";
+    process.env.CYCLE_ID = "0042";
+    process.env.CYCLE_TITLE = "test-title";
+    const env = buildChildEnv({});
+    assert.equal(env.CYCLE_TRUNK_BASED, undefined);
+    assert.equal(env.CYCLE_ID, undefined);
+    assert.equal(env.CYCLE_TITLE, undefined);
+  } finally {
+    if (saved.CYCLE_TRUNK_BASED === undefined) delete process.env.CYCLE_TRUNK_BASED;
+    else process.env.CYCLE_TRUNK_BASED = saved.CYCLE_TRUNK_BASED;
+    if (saved.CYCLE_ID === undefined) delete process.env.CYCLE_ID;
+    else process.env.CYCLE_ID = saved.CYCLE_ID;
+    if (saved.CYCLE_TITLE === undefined) delete process.env.CYCLE_TITLE;
+    else process.env.CYCLE_TITLE = saved.CYCLE_TITLE;
+  }
+});
+
+test("buildChildEnv preserves explicitly-injected CYCLE_* entries from extra", () => {
+  const saved = { CYCLE_ID: process.env.CYCLE_ID };
+  try {
+    process.env.CYCLE_ID = "from-env";
+    const env = buildChildEnv({ CYCLE_ID: "from-extra" });
+    assert.equal(env.CYCLE_ID, "from-extra");
+  } finally {
+    if (saved.CYCLE_ID === undefined) delete process.env.CYCLE_ID;
+    else process.env.CYCLE_ID = saved.CYCLE_ID;
+  }
+});
+
 test("bash step sees the same Node binary that's running cycle", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {

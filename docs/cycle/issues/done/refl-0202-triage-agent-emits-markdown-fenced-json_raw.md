@@ -3,7 +3,7 @@ id: refl-0202-triage-agent-emits-markdown-fenced-json
 source: reflection
 title: Triage agent emits markdown-fenced JSON in ~8% of calls; redesign-06 stranded in raw/
 added_at: "2026-05-21T04:49:53.793Z"
-triage_attempts: 0
+triage_attempts: 1
 priority_hint: 7
 origin_cycle_id: "0202"
 ---

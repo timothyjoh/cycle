@@ -1,0 +1,1 @@
+Updated CLAUDE.md with a `child-env.ts` Architecture entry describing the `buildChildEnv` contract and added a Subprocess discipline note about the `CYCLE_*` re-injection requirement for new exec wrappers. Updated docs/ENGINE.md Spec post-condition section with a known-limitation note about the `artifact_present` retry skip bypassing post-condition re-validation.

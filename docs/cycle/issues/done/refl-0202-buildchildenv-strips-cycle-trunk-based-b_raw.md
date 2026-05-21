@@ -3,7 +3,7 @@ id: refl-0202-buildchildenv-strips-cycle-trunk-based-b
 source: reflection
 title: buildChildEnv strips CYCLE_TRUNK_BASED by name only; other CYCLE_* vars still leak
 added_at: "2026-05-21T04:49:53.793Z"
-triage_attempts: 0
+triage_attempts: 1
 priority_hint: 6
 origin_cycle_id: "0202"
 ---

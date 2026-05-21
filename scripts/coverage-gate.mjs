@@ -22,6 +22,7 @@ const FLOORS = {
   "src/engine/exec-spawn.ts": 90,
   "src/engine/path-utils.ts": 100,
   "src/engine/engine-lock.ts": 100,
+  "src/engine/child-env.ts": 100,
 };
 
 const LCOV_PATH = process.argv[2] ?? ".cycle/coverage.lcov";
