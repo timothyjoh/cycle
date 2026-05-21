@@ -300,13 +300,22 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
       } else {
         try {
           const mod = resolveAgent(step.agent);
+          const appendSP = ARTIFACT_STEPS.has(step.name ?? "") ? ARTIFACT_SUPPRESS_PROMPT : undefined;
+          if (appendSP !== undefined && step.agent !== "claudecode") {
+            await log.emit("step.warning", {
+              cycle_id: cycleId,
+              step: step.name,
+              reason: "append_system_prompt_ignored",
+              agent: step.agent,
+            });
+          }
           r = await mod.runStep({
             repoRoot,
             promptPath: step.prompt!,
             env: cycleEnv,
             model: step.model,
             thinking: step.thinking,
-            appendSystemPrompt: ARTIFACT_STEPS.has(step.name ?? "") ? ARTIFACT_SUPPRESS_PROMPT : undefined,
+            appendSystemPrompt: appendSP,
           });
         } catch (err) {
           if (err instanceof UnknownAgentError) {
