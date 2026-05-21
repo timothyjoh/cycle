@@ -45,6 +45,22 @@ test("spec prompt File Artifact Mode prohibits insight blocks and star-marker co
   );
 });
 
+test("spec prompt File Artifact Mode prohibits confirmation sentences", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("confirmation sentences"),
+    "missing prohibition on confirmation sentences",
+  );
+});
+
+test("spec prompt File Artifact Mode includes concrete 'SPEC.md written to' negative example", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("SPEC.md written to"),
+    "missing concrete negative example of 'SPEC.md written to' contamination pattern",
+  );
+});
+
 test("dogfood spec prompt is byte-identical to default", async () => {
   const [src, dog] = await Promise.all([readFile(SRC), readFile(DOG)]);
   assert.equal(

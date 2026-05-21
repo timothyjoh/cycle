@@ -83,7 +83,7 @@ After a successful run, `run-cycle.ts` diffs a pre-step `git status --porcelain`
 
 ## Artifact sanitization
 
-`src/engine/sanitize-artifact.ts:sanitizeArtifactStdout(stdout)` applied at the single artifact-write seam in `run-cycle.ts`: strips leading `^(Now|Next|Here is|Output)\b …` narration lines and unwraps a single outer ``` fence. Pure/idempotent/no I/O. `log.jsonl` payloads are untouched.
+`src/engine/sanitize-artifact.ts:sanitizeArtifactStdout(stdout)` applied at the single artifact-write seam in `run-cycle.ts`: strips leading narration and confirmation lines matching `^(?:(?:Now|Next|Here is|Output)\b|[A-Za-z0-9_.]+\.md written to|Single deliverable:)…`, then unwraps a single outer ``` fence. Pure/idempotent/no I/O. `log.jsonl` payloads are untouched.
 
 ## Spec post-condition
 
@@ -132,6 +132,8 @@ Cycle 0216 added equivalent `## File Artifact Mode` sections to `src/defaults/pr
 **Known limitation:** The review step Pass 1 checklist enforces SPEC.md `## Acceptance Criteria` presence as a hard NEEDS-FIX, but does not check PLAN.md artifact cleanliness. A plan agent that ignores the `## File Artifact Mode` guardrail can emit insight blocks or star-marker commentary into PLAN.md and the review step passes it silently. Adding a PLAN.md cleanliness check (flag insight blocks, star-marker commentary, confirmation sentences as NEEDS-FIX) to review Pass 1 is deferred work.
 
 **Known limitation:** `## File Artifact Mode` guardrails now cover all artifact-producing prompts (cycle 0216), but prompt text alone is insufficient to prevent contamination when the agent session carries competing learning-mode framing at invocation time. Cycle 0216's REVIEW.md opened with a confirmation sentence despite the guardrail added in cycle 0214 — the same contamination class recurs in SPEC.md across multiple cycles. The fix needs to act at the invocation layer: strip learning-mode system context before artifact-writing steps, or add negative output examples that explicitly model the contamination pattern. Tracked in `docs/cycle/issues/todo/refl-0214-spec-md-contamination-recurs-across-thre-fix-spec-step-learning-mode-conflict.md`.
+
+**Known limitation:** Cycle 0217 adds engine-level sanitization to strip the `SPEC.md written to \`path\`.` and `Single deliverable:` confirmation lines at the artifact-write seam, and adds a concrete negative example to `spec.md`'s `## File Artifact Mode` guardrail. This reduces contamination severity (downstream agents see clean Markdown instead of the preamble) but does not eliminate the root cause: the model can still produce structurally incomplete artifacts (no `## Acceptance Criteria`, no `## Objective`) that pass the `SPEC_MIN_BYTES` gate. The negative example in `spec.md` embeds a literal cycle-0217 path; this will stale as cycles accumulate — the path should be replaced with a generic placeholder such as `docs/cycle/NNNN-feature-<title>/SPEC.md`. Tracked as `docs/cycle/issues/raw/refl-0217-spec-md-negative-example-hardcodes-cycle.md`.
 
 **Known limitation:** `.cycle/scripts/verify.sh` contains NVM v22 path injection lines absent from `src/defaults/scripts/verify.sh`. This causes `npm run sync-defaults` to exit 2 on every run, masking real sync failures. Resolution paths: back-port the NVM injection to `src/defaults/scripts/verify.sh` (if needed for portability on nvm-only machines), or add a `.cycle/.syncignore` mechanism to skip intentional local overrides.
 

@@ -62,3 +62,26 @@ test("sanitize: empty and whitespace-only inputs return ''", () => {
   assert.equal(sanitizeArtifactStdout(""), "");
   assert.equal(sanitizeArtifactStdout("   \n\n\t\n"), "");
 });
+
+test("sanitize: strips 'SPEC.md written to ...' leading confirmation line", () => {
+  const input = "SPEC.md written to `docs/cycle/0217-feature-fix-spec-step/SPEC.md`.\n\n# SPEC\nbody.\n";
+  assert.equal(sanitizeArtifactStdout(input), "# SPEC\nbody.\n");
+});
+
+test("sanitize: strips 'Single deliverable:' leading line", () => {
+  const input = "Single deliverable: SPEC.md\n\n# SPEC\nbody.\n";
+  assert.equal(sanitizeArtifactStdout(input), "# SPEC\nbody.\n");
+});
+
+test("sanitize: strips combined confirmation + blank + single-deliverable sequence", () => {
+  const input =
+    "SPEC.md written to `docs/cycle/0217-feature-fix-spec-step/SPEC.md`.\n\n" +
+    "Single deliverable: fix sanitizer.\n\n" +
+    "# SPEC\nbody.\n";
+  assert.equal(sanitizeArtifactStdout(input), "# SPEC\nbody.\n");
+});
+
+test("sanitize: mid-document 'SPEC.md written to' line preserved", () => {
+  const input = "# Real Content\n\nSPEC.md written to `some/path`.\n";
+  assert.equal(sanitizeArtifactStdout(input), "# Real Content\n\nSPEC.md written to `some/path`.\n");
+});

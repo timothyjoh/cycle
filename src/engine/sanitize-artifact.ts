@@ -1,4 +1,4 @@
-const NARRATION_LINE = /^(Now|Next|Here is|Output)\b[^\n]*(?:\n|$)/;
+const NARRATION_LINE = /^(?:(?:Now|Next|Here is|Output)\b|[A-Za-z0-9_.]+\.md written to|Single deliverable:)[^\n]*(?:\n|$)/;
 const BLANK_LINE = /^[^\S\n]*\n/;
 const OUTER_FENCE = /^```(?:\w+)?\n([\s\S]*)\n```\s*$/;
 

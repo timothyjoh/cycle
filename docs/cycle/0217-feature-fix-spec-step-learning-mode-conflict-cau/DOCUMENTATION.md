@@ -1,0 +1,1 @@
+Updated `docs/ENGINE.md` known-limitation paragraph for cycle 0217 to note that the concrete negative example in `spec.md` embeds a hardcoded cycle-0217 path that will stale as cycles accumulate, and references the tracking issue.

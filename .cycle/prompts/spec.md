@@ -123,8 +123,14 @@ emit becomes the file.
 **Do not include any of the following:**
 - insight blocks or star-marker commentary (styled callout blocks with
   decorative headers, regardless of the marker character used)
-- confirmation sentences ("Spec written to…", "I have written the spec",
-  "Here is the spec")
+- confirmation sentences — including the exact pattern that has recurred across
+  multiple cycles:
+  ```
+  SPEC.md written to `docs/cycle/0217-feature-fix-spec-step-learning-mode-conflict-cau/SPEC.md`.
+
+  Scope: extend `sanitizeArtifactStdout`…
+  ```
+  Other examples: "Spec written to…", "I have written the spec", "Here is the spec"
 - informal single-sentence section substitutes ("The goal is X" instead
   of a proper `## Objective` paragraph)
 
