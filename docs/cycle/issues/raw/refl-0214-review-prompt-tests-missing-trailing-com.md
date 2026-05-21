@@ -1,14 +1,10 @@
 ---
 id: refl-0214-review-prompt-tests-missing-trailing-com
+source: text
 title: Add missing trailing-commentary prohibition assertion to review-prompt tests
-workflow: feature
-depends_on: []
-triaged_at: "2026-05-21T09:04:09.589Z"
-source: triage
-failed_at: "2026-05-21T09:13:16.943Z"
-failed_step: build
-failed_attempts: 3
-last_cycle_id: "0215"
+added_at: "2026-05-21T23:15:32Z"
+triage_attempts: 1
+priority: medium
 ---
 ## Problem
 

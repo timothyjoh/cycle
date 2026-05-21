@@ -680,6 +680,7 @@ async function dryRunTriage(repoRoot, cfg2, deps = {}) {
   }
   const reports = [];
   for (const raw of raws) {
+    if (raw.fm.priority === "discuss") continue;
     const outcome = await processRawWithRetry(
       { ...raw, attempts: 0 },
       {
@@ -1029,7 +1030,8 @@ async function parkForDiscussion(repoRoot, raw, log2) {
   let renamed = true;
   try {
     await rename3(raw.srcPath, destPath);
-  } catch {
+  } catch (e) {
+    await log2.emit("issue.park_failed", { id: raw.id, error: String(e) });
     renamed = false;
   }
   if (renamed) {
@@ -9397,7 +9399,11 @@ function parseSnapshotPaths(snapshot) {
   for (const raw of snapshot.split("\n")) {
     if (!raw) continue;
     const xy = raw.slice(0, 2);
-    if (xy === "??") continue;
+    if (xy === "??") {
+      const p2 = raw.slice(3).replace(/^"/, "").replace(/"$/, "");
+      if (p2.startsWith("src/") || p2.startsWith("scripts/")) paths.add(p2);
+      continue;
+    }
     let p = raw.slice(3);
     if (xy[0] === "R" || xy[0] === "C") {
       const arrow = p.lastIndexOf(" -> ");
@@ -10187,7 +10193,7 @@ async function commitCycle(repoRoot, opts) {
   for (const raw of statusOut.stdout.split("\n")) {
     if (!raw) continue;
     const xy = raw.slice(0, 2);
-    if (xy === "??" || xy[0] === "D" || xy[1] === "D") continue;
+    if (xy[0] === "D" || xy[1] === "D") continue;
     let p = raw.slice(3);
     if (xy[0] === "R" || xy[0] === "C") {
       const arrow = p.lastIndexOf(" -> ");
@@ -10596,11 +10602,12 @@ function spawnRunOne(params) {
   if (params.baseBranch !== void 0) args2.push("--base-branch", params.baseBranch);
   if (params.resumeFromStep !== void 0)
     args2.push("--resume-from-step", String(params.resumeFromStep));
+  const extra = process.env.CYCLE_TRUNK_BASED === "1" ? { CYCLE_TRUNK_BASED: "1" } : {};
   return new Promise((resolve2, reject) => {
     const child = spawn4(
       process.execPath,
       [process.argv[1], "run-one", ...args2],
-      { env: buildChildEnv({}), stdio: "inherit", shell: false }
+      { env: buildChildEnv(extra), stdio: "inherit", shell: false }
     );
     child.on("close", (code) => resolve2(code ?? 1));
     child.on("error", reject);

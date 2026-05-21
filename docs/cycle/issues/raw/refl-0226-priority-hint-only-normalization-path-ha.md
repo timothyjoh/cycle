@@ -1,14 +1,10 @@
 ---
 id: refl-0226-priority-hint-only-normalization-path-ha
+source: text
 title: Add test for priority_hint-only normalization path in readQueue
-workflow: feature
-depends_on: []
-triaged_at: "2026-05-21T13:56:23.837Z"
-source: triage
-failed_at: "2026-05-21T18:54:53.484Z"
-failed_step: build
-failed_attempts: 3
-last_cycle_id: "0235"
+added_at: "2026-05-21T23:15:32Z"
+triage_attempts: 0
+priority: medium
 ---
 ## Objective
 

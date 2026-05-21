@@ -1,14 +1,10 @@
 ---
 id: refl-0219-step-warning-emission-tested-for-codex-o
+source: text
 title: Pin step.warning cardinality for all four non-claudecode agents (gemini, auggie, opencode, pi)
-workflow: feature
-depends_on: []
-triaged_at: "2026-05-21T11:13:08.819Z"
-source: triage
-failed_at: "2026-05-21T11:25:28.084Z"
-failed_step: build
-failed_attempts: 3
-last_cycle_id: "0220"
+added_at: "2026-05-21T23:15:32Z"
+triage_attempts: 0
+priority: medium
 ---
 ## Problem
 

@@ -1,14 +1,10 @@
 ---
 id: refl-0227-flaky-sigterm-engine-lock-cleanup-test-c
+source: text
 title: Fix flaky SIGTERM engine-lock cleanup test with deterministic handshake
-workflow: feature
-depends_on: []
-triaged_at: "2026-05-21T15:10:05.163Z"
-source: triage
-failed_at: "2026-05-21T20:58:25.007Z"
-failed_step: build
-failed_attempts: 3
-last_cycle_id: "0240"
+added_at: "2026-05-21T23:15:32Z"
+triage_attempts: 0
+priority: high
 ---
 ## Context
 

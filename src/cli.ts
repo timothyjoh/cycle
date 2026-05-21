@@ -229,11 +229,16 @@ function spawnRunOne(params: RunOneParams): Promise<number> {
   if (params.resumeFromStep !== undefined)
     args.push("--resume-from-step", String(params.resumeFromStep));
 
+  // buildChildEnv strips all CYCLE_* vars; CYCLE_TRUNK_BASED must be re-injected
+  // because the run-one child's loadConfig reads it to force trunk mode. Without
+  // this, --trunk and .cycle/.env silently fail to reach the child and every
+  // cycle falls back to the worktree-pr default.
+  const extra = process.env.CYCLE_TRUNK_BASED === "1" ? { CYCLE_TRUNK_BASED: "1" } : {};
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
       [process.argv[1], "run-one", ...args],
-      { env: buildChildEnv({}), stdio: "inherit", shell: false },
+      { env: buildChildEnv(extra), stdio: "inherit", shell: false },
     );
     child.on("close", (code) => resolve(code ?? 1));
     child.on("error", reject);
