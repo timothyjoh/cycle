@@ -364,3 +364,10 @@ test("validateOutput: recovers fenced JSON output (```json wrapper)", () => {
   const r = validateOutput(fenced, fakeRaws as never, [], cfg, new Set());
   assert.equal(r.ok, true, `validator should accept fenced output; reason: ${r.ok ? "" : r.reason}`);
 });
+
+test("validateOutput: recovers fenced JSON with leading prose", () => {
+  const inner = validChildR1Json();
+  const rawStdout = "Here is the output:\n```json\n" + JSON.stringify(inner) + "\n```";
+  const r = validateOutput(rawStdout, fakeRaws as never, [], cfg, new Set());
+  assert.equal(r.ok, true, `validator should accept prose+fenced output; reason: ${r.ok ? "" : r.reason}`);
+});

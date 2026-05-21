@@ -6,6 +6,10 @@ depends_on: [refl-0202-triage-agent-emits-markdown-fenced-json-prompt-fix]
 triaged_at: "2026-05-21T04:55:25.342Z"
 source: triage
 parent: refl-0202-triage-agent-emits-markdown-fenced-json
+failed_at: "2026-05-21T07:30:39.149Z"
+failed_step: build
+failed_attempts: 3
+last_cycle_id: "0210"
 ---
 ## Problem
 

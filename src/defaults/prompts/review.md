@@ -41,6 +41,11 @@ Check:
   and pairs it with a covering plan-task id or an explicit
   `WAIVED — <rationale>`? A missing or incomplete traceability
   section is a NEEDS-FIX trigger.
+- **SPEC AC coverage** — does SPEC.md include a `## Acceptance Criteria`
+  section with at least one testable bullet? Flag a missing or empty section
+  as a SPEC defect, not a PLAN gap. Do not accept PLAN-inferred criteria as a
+  substitute for SPEC-stated AC bullets. Verify each SPEC AC bullet
+  one-for-one against the implementation.
 - **Code quality** — clean, readable, follows existing patterns from
   RESEARCH.md?
 - **Error handling** — edge cases covered? Failures handled gracefully?
@@ -114,7 +119,8 @@ writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/REVIEW.md`.
 
 NEEDS-FIX triggers: code-quality findings, missing tests, coverage
 regressions, missing SPEC requirements, any unbacked doc-vs-code
-claim from Pass 3, OR a missing or incomplete SPEC→PLAN traceability
+claim from Pass 3, a missing or empty `## Acceptance Criteria` section
+in SPEC.md, OR a missing or incomplete SPEC→PLAN traceability
 section in PLAN.md.
 
 ## Code Quality Review

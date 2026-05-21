@@ -5,6 +5,8 @@ workflow: feature
 depends_on: [refl-0202-triage-agent-emits-markdown-fenced-json-fence-strip]
 triaged_at: "2026-05-21T06:49:15.274Z"
 source: triage
+blocked_at: "2026-05-21T07:30:39.153Z"
+blocked_by: [refl-0202-triage-agent-emits-markdown-fenced-json-fence-strip]
 ---
 ## Problem
 

@@ -69,6 +69,15 @@ Documentation is part of "done" — code without updated docs is incomplete.
 - [External services / env vars required]
 ```
 
+## Required Sections
+
+The `## Acceptance Criteria` section is **required** in every SPEC.md you
+write. Include at least one bullet that states an observable outcome —
+something verifiable by running a test, reading a file, or executing a
+command. Vague assertions ("the code is improved", "the feature works") are
+not acceptable. If you cannot write a testable bullet, narrow the scope until
+you can. Each bullet must use checkbox format: `- [ ] <observable condition>`.
+
 ## Cycle Sizing — Read This Carefully
 
 A cycle should be **small enough that a single agent can finish it
