@@ -67,6 +67,11 @@ test("includes --append-system-prompt in argv when appendSystemPrompt is provide
     assert.equal(r.status, "ok");
     assert.ok(r.stdout.includes("--append-system-prompt"), "expected --append-system-prompt in argv");
     assert.ok(r.stdout.includes("suppress-learning-mode"), "expected suppression text in argv");
+    const argv = r.stdout.trim().split(/\s+/);
+    assert.ok(
+      argv.indexOf("--append-system-prompt") < argv.indexOf("-p"),
+      "--append-system-prompt must precede -p in argv"
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(bin, { recursive: true, force: true });

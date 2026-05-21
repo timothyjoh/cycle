@@ -128,7 +128,7 @@ emit becomes the file.
 - confirmation sentences — including the exact pattern that has recurred across
   multiple cycles:
   ```
-  SPEC.md written to `docs/cycle/0217-feature-fix-spec-step-learning-mode-conflict-cau/SPEC.md`.
+  SPEC.md written to `docs/cycle/NNNN-feature-<title>/SPEC.md`.
 
   Scope: extend `sanitizeArtifactStdout`…
   ```
