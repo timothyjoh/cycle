@@ -1,0 +1,1 @@
+SPEC.md written to `docs/cycle/0220-feature-pin-step-warning-cardinality-for-all-fou/SPEC.md`. Scopes the cycle to extending the existing warning test with a parametrized loop over all five non-claudecode agents — no production code changes needed.

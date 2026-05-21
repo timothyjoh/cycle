@@ -48,6 +48,14 @@ test("build prompt File Artifact Mode includes concrete negative example", async
   assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in build.md FAM section");
 });
 
+test("build prompt contains inline FILE ARTIFACT MODE directive", async () => {
+  const body = await readFile(BUILD_SRC, "utf8");
+  assert.ok(
+    body.includes("FILE ARTIFACT MODE: Output only the document contents requested"),
+    "missing inline FILE ARTIFACT MODE directive in build.md",
+  );
+});
+
 test("dogfood build prompt is byte-identical to default", async () => {
   const [src, dog] = await Promise.all([readFile(BUILD_SRC), readFile(BUILD_DOG)]);
   assert.equal(
@@ -92,6 +100,14 @@ test("research prompt File Artifact Mode prohibits trailing commentary", async (
 test("research prompt File Artifact Mode includes concrete negative example", async () => {
   const body = await readFile(RESEARCH_SRC, "utf8");
   assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in research.md FAM section");
+});
+
+test("research prompt contains inline FILE ARTIFACT MODE directive", async () => {
+  const body = await readFile(RESEARCH_SRC, "utf8");
+  assert.ok(
+    body.includes("FILE ARTIFACT MODE: Output only the document contents requested"),
+    "missing inline FILE ARTIFACT MODE directive in research.md",
+  );
 });
 
 test("dogfood research prompt is byte-identical to default", async () => {
@@ -140,6 +156,14 @@ test("fix prompt File Artifact Mode includes concrete negative example", async (
   assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in fix.md FAM section");
 });
 
+test("fix prompt contains inline FILE ARTIFACT MODE directive", async () => {
+  const body = await readFile(FIX_SRC, "utf8");
+  assert.ok(
+    body.includes("FILE ARTIFACT MODE: Output only the document contents requested"),
+    "missing inline FILE ARTIFACT MODE directive in fix.md",
+  );
+});
+
 test("dogfood fix prompt is byte-identical to default", async () => {
   const [src, dog] = await Promise.all([readFile(FIX_SRC), readFile(FIX_DOG)]);
   assert.equal(
@@ -184,6 +208,14 @@ test("documentation prompt File Artifact Mode prohibits trailing commentary", as
 test("documentation prompt File Artifact Mode includes concrete negative example", async () => {
   const body = await readFile(DOC_SRC, "utf8");
   assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in documentation.md FAM section");
+});
+
+test("documentation prompt contains inline FILE ARTIFACT MODE directive", async () => {
+  const body = await readFile(DOC_SRC, "utf8");
+  assert.ok(
+    body.includes("FILE ARTIFACT MODE: Output only the document contents requested"),
+    "missing inline FILE ARTIFACT MODE directive in documentation.md",
+  );
 });
 
 test("dogfood documentation prompt is byte-identical to default", async () => {

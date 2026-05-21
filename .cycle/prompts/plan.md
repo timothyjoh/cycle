@@ -1,3 +1,5 @@
+FILE ARTIFACT MODE: Output only the document contents requested. No narration, no progress commentary, no statements about what you wrote or why. The response IS the file.
+
 # Create Implementation Plan for Cycle
 
 You are tasked with creating a detailed, actionable implementation plan

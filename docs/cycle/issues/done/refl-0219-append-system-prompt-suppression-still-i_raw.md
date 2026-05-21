@@ -3,7 +3,7 @@ id: refl-0219-append-system-prompt-suppression-still-i
 source: reflection
 title: "--append-system-prompt suppression still ineffective: SPEC.md contaminated in cycle 0219 after cycle 0218 fix"
 added_at: "2026-05-21T11:08:41.968Z"
-triage_attempts: 0
+triage_attempts: 1
 priority_hint: 8
 origin_cycle_id: "0219"
 ---

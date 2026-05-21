@@ -61,6 +61,14 @@ test("spec prompt File Artifact Mode includes concrete 'SPEC.md written to' nega
   );
 });
 
+test("spec prompt contains inline FILE ARTIFACT MODE directive", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("FILE ARTIFACT MODE: Output only the document contents requested"),
+    "missing inline FILE ARTIFACT MODE directive in spec.md",
+  );
+});
+
 test("dogfood spec prompt is byte-identical to default", async () => {
   const [src, dog] = await Promise.all([readFile(SRC), readFile(DOG)]);
   assert.equal(

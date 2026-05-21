@@ -92,6 +92,22 @@ test("review prompt File Artifact Mode includes concrete negative example", asyn
   assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in review.md FAM section");
 });
 
+test("plan prompt contains inline FILE ARTIFACT MODE directive", async () => {
+  const body = await readFile(PLAN_SRC, "utf8");
+  assert.ok(
+    body.includes("FILE ARTIFACT MODE: Output only the document contents requested"),
+    "missing inline FILE ARTIFACT MODE directive in plan.md",
+  );
+});
+
+test("review prompt contains inline FILE ARTIFACT MODE directive", async () => {
+  const body = await readFile(REVIEW_SRC, "utf8");
+  assert.ok(
+    body.includes("FILE ARTIFACT MODE: Output only the document contents requested"),
+    "missing inline FILE ARTIFACT MODE directive in review.md",
+  );
+});
+
 test("dogfood plan prompt is byte-identical to default", async () => {
   const [src, dog] = await Promise.all([readFile(PLAN_SRC), readFile(PLAN_DOG)]);
   assert.equal(

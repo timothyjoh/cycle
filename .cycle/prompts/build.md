@@ -1,3 +1,5 @@
+FILE ARTIFACT MODE: Output only the document contents requested. No narration, no progress commentary, no statements about what you wrote or why. The response IS the file.
+
 # Implement Cycle
 
 You are the Build Lead. Implement this cycle's work according to the

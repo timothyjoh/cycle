@@ -32,53 +32,55 @@ function workflowYml(stepsBody: string): string {
   );
 }
 
-test("runCycle emits step.warning when appendSystemPrompt set for non-claudecode agent (codex, build step)", async () => {
-  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
-  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
-  try {
-    git(root, ["init", "-b", "main"]);
-    git(root, ["config", "user.email", "t@t"]);
-    git(root, ["config", "user.name", "t"]);
-    await mkdir(join(root, "src"), { recursive: true });
-    await writeFile(join(root, "src/stub.ts"), "export {};\n", "utf8");
-    git(root, ["add", "src/stub.ts"]);
-    git(root, ["commit", "-m", "init"]);
+for (const agentName of ["codex", "gemini", "auggie", "opencode", "pi"]) {
+  test(`runCycle emits step.warning when appendSystemPrompt set for non-claudecode agent (${agentName}, build step)`, async () => {
+    const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+    const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+    try {
+      git(root, ["init", "-b", "main"]);
+      git(root, ["config", "user.email", "t@t"]);
+      git(root, ["config", "user.name", "t"]);
+      await mkdir(join(root, "src"), { recursive: true });
+      await writeFile(join(root, "src/stub.ts"), "export {};\n", "utf8");
+      git(root, ["add", "src/stub.ts"]);
+      git(root, ["commit", "-m", "init"]);
 
-    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
-    await writeFile(
-      join(root, ".cycle/workflows.yml"),
-      workflowYml("      - name: build\n        agent: codex\n        prompt: prompts/build.md\n"),
-      "utf8"
-    );
-    await writeFile(join(root, ".cycle/prompts/build.md"), "BUILD-SENTINEL", "utf8");
-
-    const fake = join(bin, "codex");
-    await writeFile(fake, "#!/bin/bash\ncat\nprintf 'fix\\n' >> src/stub.ts\n", "utf8");
-    await chmod(fake, 0o755);
-
-    await runCycle(root, {
-      issueId: "TEST-WARN",
-      title: "warning test",
-      workflow: "feature",
-      env: { PATH: bin + ":" + (process.env.PATH ?? ""), CYCLE_BASE: "main" },
-    });
-
-    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
-    const warnings = log
-      .split("\n")
-      .filter(
-        l =>
-          l.includes('"event":"step.warning"') &&
-          l.includes('"reason":"append_system_prompt_ignored"') &&
-          l.includes('"agent":"codex"'),
+      await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+      await writeFile(
+        join(root, ".cycle/workflows.yml"),
+        workflowYml(`      - name: build\n        agent: ${agentName}\n        prompt: prompts/build.md\n`),
+        "utf8"
       );
-    assert.equal(
-      warnings.length,
-      1,
-      "exactly one step.warning with reason:append_system_prompt_ignored and agent:codex must appear in log",
-    );
-  } finally {
-    await rm(root, { recursive: true, force: true });
-    await rm(bin, { recursive: true, force: true });
-  }
-});
+      await writeFile(join(root, ".cycle/prompts/build.md"), "BUILD-SENTINEL", "utf8");
+
+      const fake = join(bin, agentName);
+      await writeFile(fake, "#!/bin/bash\ncat\nprintf 'fix\\n' >> src/stub.ts\n", "utf8");
+      await chmod(fake, 0o755);
+
+      await runCycle(root, {
+        issueId: "TEST-WARN",
+        title: "warning test",
+        workflow: "feature",
+        env: { PATH: bin + ":" + (process.env.PATH ?? ""), CYCLE_BASE: "main" },
+      });
+
+      const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+      const warnings = log
+        .split("\n")
+        .filter(
+          l =>
+            l.includes('"event":"step.warning"') &&
+            l.includes('"reason":"append_system_prompt_ignored"') &&
+            l.includes(`"agent":"${agentName}"`),
+        );
+      assert.equal(
+        warnings.length,
+        1,
+        `exactly one step.warning with reason:append_system_prompt_ignored and agent:${agentName} must appear in log`,
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(bin, { recursive: true, force: true });
+    }
+  });
+}

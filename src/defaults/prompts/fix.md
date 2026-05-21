@@ -1,3 +1,5 @@
+FILE ARTIFACT MODE: Output only the document contents requested. No narration, no progress commentary, no statements about what you wrote or why. The response IS the file.
+
 # Fix Cycle — Address Review Findings
 
 You are the fix agent. A staff engineer has reviewed this cycle's work
