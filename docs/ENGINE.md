@@ -156,6 +156,10 @@ engine:
     push: true | false
 ```
 
+**Bootstrap precedence**: At engine startup, `loadDotEnv(.cycle/.env)` runs after the `--trunk` flag check and before `loadConfig()`. It sets `process.env` keys only when not already defined (real-env-wins). Precedence order: shell env overrides `.cycle/.env`; `--trunk` overrides `.cycle/.env` (because it sets `CYCLE_TRUNK_BASED` before `loadDotEnv` runs); `.cycle/.env` overrides the shipped `worktree-pr` default.
+
+**Known limitation:** `loadDotEnv` swallows only `ENOENT` (missing file). Any other `readFileSync` error — `EACCES`, `EISDIR`, etc. — propagates as an unhandled exception and crashes the engine at bootstrap before any user-facing error handling runs. The test suite does not exercise this path, so the raw Node.js stack trace is the only diagnostic. Operator fix: ensure `.cycle/.env` is a readable file or absent entirely.
+
 `mode: trunk` (default) — no cycle branches; `prepareTrunkArtifactDir` creates a local artifact dir at `docs/cycle/<cycleId>-<workflow>-<slug>`. After `cycle.end status:ok`, `cli.ts` calls `commitCycle()` which: stages all non-denied files, commits with subject `cycle <id>: <title>`, optionally appends a `Closes #N` body from the issue file, then pushes with 3× backoff retry (1s/2s/4s delays) when `push: true`.
 
 `mode: local-only` — same as trunk but `push` is forced false regardless of config.

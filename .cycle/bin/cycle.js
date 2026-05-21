@@ -46,7 +46,10 @@ function buildChildEnv(extra) {
   const nodeBinDir = dirname(process.execPath);
   const basePath = extra.PATH ?? process.env.PATH ?? "";
   const path = basePath ? `${nodeBinDir}${delimiter}${basePath}` : nodeBinDir;
-  return { ...process.env, ...extra, PATH: path };
+  const stripped = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !k.startsWith("CYCLE_"))
+  );
+  return { ...stripped, ...extra, PATH: path };
 }
 var init_child_env = __esm({
   "src/engine/child-env.ts"() {
@@ -334,6 +337,23 @@ var init_exec_spawn = __esm({
   }
 });
 
+// src/engine/exec-auggie.ts
+var auggieExec;
+var init_exec_auggie = __esm({
+  "src/engine/exec-auggie.ts"() {
+    "use strict";
+    init_exec_spawn();
+    auggieExec = {
+      runStep({ model, thinking, ...args2 }) {
+        const argv2 = [];
+        if (model) argv2.push("--model", model);
+        if (thinking) argv2.push("--thinking", thinking);
+        return runAgent({ binary: "auggie", argv: argv2, promptDelivery: "stdin", ...args2 });
+      }
+    };
+  }
+});
+
 // src/engine/exec-claudecode.ts
 var claudecodeExec;
 var init_exec_claudecode = __esm({
@@ -341,8 +361,11 @@ var init_exec_claudecode = __esm({
     "use strict";
     init_exec_spawn();
     claudecodeExec = {
-      runStep(args2) {
-        return runAgent({ binary: "claude", argv: ["--dangerously-skip-permissions", "-p"], promptDelivery: "argv", ...args2 });
+      runStep({ appendSystemPrompt, ...args2 }) {
+        const argv2 = ["--dangerously-skip-permissions"];
+        if (appendSystemPrompt) argv2.push("--append-system-prompt", appendSystemPrompt);
+        argv2.push("-p");
+        return runAgent({ binary: "claude", argv: argv2, promptDelivery: "argv", ...args2 });
       }
     };
   }
@@ -355,8 +378,11 @@ var init_exec_codex = __esm({
     "use strict";
     init_exec_spawn();
     codexExec = {
-      runStep(args2) {
-        return runAgent({ binary: "codex", argv: [], promptDelivery: "stdin", ...args2 });
+      runStep({ model, thinking, ...args2 }) {
+        const argv2 = [];
+        if (model) argv2.push("--model", model);
+        if (thinking) argv2.push("--thinking", thinking);
+        return runAgent({ binary: "codex", argv: argv2, promptDelivery: "stdin", ...args2 });
       }
     };
   }
@@ -376,6 +402,40 @@ var init_exec_gemini = __esm({
   }
 });
 
+// src/engine/exec-opencode.ts
+var opencodeExec;
+var init_exec_opencode = __esm({
+  "src/engine/exec-opencode.ts"() {
+    "use strict";
+    init_exec_spawn();
+    opencodeExec = {
+      runStep({ model, thinking, ...args2 }) {
+        const argv2 = [];
+        if (model) argv2.push("--model", model);
+        if (thinking) argv2.push("--thinking", thinking);
+        return runAgent({ binary: "opencode", argv: argv2, promptDelivery: "stdin", ...args2 });
+      }
+    };
+  }
+});
+
+// src/engine/exec-pi.ts
+var piExec;
+var init_exec_pi = __esm({
+  "src/engine/exec-pi.ts"() {
+    "use strict";
+    init_exec_spawn();
+    piExec = {
+      runStep({ model, thinking, ...args2 }) {
+        const argv2 = [];
+        if (model) argv2.push("--model", model);
+        if (thinking) argv2.push("--thinking", thinking);
+        return runAgent({ binary: "pi", argv: argv2, promptDelivery: "stdin", ...args2 });
+      }
+    };
+  }
+});
+
 // src/engine/exec.ts
 function resolveAgent(name) {
   const mod = REGISTRY[name];
@@ -386,9 +446,12 @@ var UnknownAgentError, REGISTRY;
 var init_exec = __esm({
   "src/engine/exec.ts"() {
     "use strict";
+    init_exec_auggie();
     init_exec_claudecode();
     init_exec_codex();
     init_exec_gemini();
+    init_exec_opencode();
+    init_exec_pi();
     UnknownAgentError = class extends Error {
       constructor(name, known) {
         const list = [...known].sort().join(", ");
@@ -397,9 +460,12 @@ var init_exec = __esm({
       }
     };
     REGISTRY = {
+      auggie: auggieExec,
       claudecode: claudecodeExec,
       codex: codexExec,
-      gemini: geminiExec
+      gemini: geminiExec,
+      opencode: opencodeExec,
+      pi: piExec
     };
   }
 });
@@ -407,6 +473,10 @@ var init_exec = __esm({
 // src/engine/log-fmt.ts
 function truncateHeadCapped(s, max) {
   return s.length > max ? s.slice(0, max - 1) + "\u2026" : s;
+}
+function stripFences(s) {
+  const m = s.trim().match(/```(?:\w+)?\r?\n([\s\S]*?)\r?\n```/);
+  return m ? m[1] : s;
 }
 var init_log_fmt = __esm({
   "src/engine/log-fmt.ts"() {
@@ -645,7 +715,7 @@ ${fmSerialized}`;
 function validateOutput(rawStdout, raws, queueRows, cfg2, todoIds = /* @__PURE__ */ new Set()) {
   let parsed;
   try {
-    parsed = JSON.parse(rawStdout);
+    parsed = JSON.parse(stripFences(rawStdout));
   } catch (e) {
     return { ok: false, reason: `stdout is not valid JSON: ${e.message}` };
   }
@@ -8332,7 +8402,7 @@ var require_dist = __commonJS({
 // src/engine/workflow.ts
 import { readFile as readFile7 } from "node:fs/promises";
 import { join as join7 } from "node:path";
-async function loadConfig(repoRoot) {
+async function loadConfig(repoRoot, env = process.env) {
   const path = join7(repoRoot, ".cycle/workflows.yml");
   let body;
   try {
@@ -8372,7 +8442,7 @@ async function loadConfig(repoRoot) {
     }
     commitConfig = { mode, push: rawCommit.push !== false };
   }
-  if (process.env.CYCLE_TRUNK_BASED === "1") {
+  if (env.CYCLE_TRUNK_BASED === "1") {
     commitConfig.mode = "trunk";
   }
   parsed.engine.commit = commitConfig;
@@ -8637,6 +8707,25 @@ async function isWorkingTreeDirty(repoRoot) {
 var init_branch = __esm({
   "src/engine/branch.ts"() {
     "use strict";
+  }
+});
+
+// src/engine/path-utils.ts
+function isDenied(p) {
+  const q = p.replace(/\/$/, "");
+  for (const prefix of DENYLIST_PREFIXES) {
+    if (q === prefix || q.startsWith(prefix + "/")) return true;
+  }
+  if (DENYLIST_EXACT.includes(q)) return true;
+  if (q.endsWith(".lock")) return true;
+  return false;
+}
+var DENYLIST_PREFIXES, DENYLIST_EXACT;
+var init_path_utils = __esm({
+  "src/engine/path-utils.ts"() {
+    "use strict";
+    DENYLIST_PREFIXES = [".claude", "dist", "node_modules"];
+    DENYLIST_EXACT = [".cycle/cycle.pid"];
   }
 });
 
@@ -8952,21 +9041,25 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2) {
   return { written, skipped };
 }
 function parseWithRepair(s) {
+  s = stripFences(s);
   try {
     return { ok: true, value: JSON.parse(s) };
   } catch (e1) {
-    const repaired = trimToLastBalancedClose(s);
-    if (repaired === null) return { ok: false, message: e1.message };
-    try {
-      return { ok: true, value: JSON.parse(repaired) };
-    } catch (e2) {
-      return { ok: false, message: e2.message };
+    let offset = 0;
+    while (true) {
+      const repaired = trimToLastBalancedClose(s, offset);
+      if (repaired === null) return { ok: false, message: e1.message };
+      try {
+        return { ok: true, value: JSON.parse(repaired.slice) };
+      } catch {
+        offset = repaired.start + 1;
+      }
     }
   }
 }
-function trimToLastBalancedClose(s) {
+function trimToLastBalancedClose(s, startOffset = 0) {
   let start = -1;
-  for (let i = 0; i < s.length; i++) {
+  for (let i = startOffset; i < s.length; i++) {
     const c = s.charCodeAt(i);
     if (c === 123 || c === 91) {
       start = i;
@@ -9002,7 +9095,7 @@ function trimToLastBalancedClose(s) {
     }
   }
   if (lastIdx < 0) return null;
-  return s.slice(start, lastIdx + 1);
+  return { slice: s.slice(start, lastIdx + 1), start };
 }
 function truncateUtf8(s, budget = TRUNC_BUDGET, marker = TRUNC_MARKER) {
   if (Buffer.byteLength(s, "utf8") <= budget) return s;
@@ -9063,6 +9156,7 @@ var init_reflection = __esm({
     "use strict";
     init_id();
     init_frontmatter();
+    init_log_fmt();
     FENCE_RE = /^```(?:json)?\s*\n([\s\S]*?)\n```\s*$/;
     TRUNC_BUDGET = 8192;
     TRUNC_MARKER = "\n\u2026\n";
@@ -9085,7 +9179,7 @@ var NARRATION_LINE, BLANK_LINE, OUTER_FENCE;
 var init_sanitize_artifact = __esm({
   "src/engine/sanitize-artifact.ts"() {
     "use strict";
-    NARRATION_LINE = /^(Now|Next|Here is|Output)\b[^\n]*(?:\n|$)/;
+    NARRATION_LINE = /^(?:(?:Now|Next|Here is|Output)\b|[A-Za-z0-9_.]+\.md written to|Single deliverable:)[^\n]*(?:\n|$)/;
     BLANK_LINE = /^[^\S\n]*\n/;
     OUTER_FENCE = /^```(?:\w+)?\n([\s\S]*)\n```\s*$/;
   }
@@ -9095,16 +9189,7 @@ var init_sanitize_artifact = __esm({
 import { writeFile as writeFile7, readFile as readFile11, stat as stat4 } from "node:fs/promises";
 import { join as join18 } from "node:path";
 import { spawnSync as spawnSync2 } from "node:child_process";
-function isDocAppendDenied(p) {
-  const q = p.replace(/\/$/, "");
-  for (const prefix of DOC_APPEND_DENYLIST_PREFIXES) {
-    if (q === prefix || q.startsWith(prefix + "/")) return true;
-  }
-  if (DOC_APPEND_DENYLIST_EXACT.includes(q)) return true;
-  if (q.endsWith(".lock")) return true;
-  return false;
-}
-async function appendDocumentationPaths(repoRoot, buildMdPath) {
+async function appendDocumentationPaths(repoRoot, buildMdPath, log2, cycleId, preSnapshot) {
   let text;
   try {
     text = await readFile11(buildMdPath, "utf8");
@@ -9119,6 +9204,19 @@ async function appendDocumentationPaths(repoRoot, buildMdPath) {
     if (lines[i].startsWith("##")) break;
     const m = /^\s*-\s+(.+)/.exec(lines[i]);
     if (m) touchedSet.add(m[1].trim());
+  }
+  const prePaths = /* @__PURE__ */ new Set();
+  for (const raw of preSnapshot.split("\n")) {
+    if (!raw) continue;
+    const xy = raw.slice(0, 2);
+    if (xy === "??") continue;
+    let p = raw.slice(3);
+    if (xy[0] === "R" || xy[0] === "C") {
+      const arrow = p.lastIndexOf(" -> ");
+      if (arrow !== -1) p = p.slice(arrow + 4);
+    }
+    p = p.replace(/^"/, "").replace(/"$/, "");
+    prePaths.add(p);
   }
   const result = spawnSync2("git", ["status", "--porcelain"], {
     cwd: repoRoot,
@@ -9136,7 +9234,8 @@ async function appendDocumentationPaths(repoRoot, buildMdPath) {
       if (arrow !== -1) p = p.slice(arrow + 4);
     }
     p = p.replace(/^"/, "").replace(/"$/, "");
-    if (isDocAppendDenied(p)) continue;
+    if (isDenied(p)) continue;
+    if (prePaths.has(p)) continue;
     if (!touchedSet.has(p)) toAppend.push(p);
   }
   if (toAppend.length === 0) return;
@@ -9152,6 +9251,7 @@ async function appendDocumentationPaths(repoRoot, buildMdPath) {
   }
   lines.splice(insertIdx, 0, ...toAppend.map((p) => `- ${p}`));
   await writeFile7(buildMdPath, lines.join("\n"), "utf8");
+  await log2.emit("documentation.paths_appended", { cycle_id: cycleId, appended: toAppend });
 }
 async function shouldSkipForArtifact(artifactDir, stepName) {
   if (!SKIP_ELIGIBLE_STEPS.has(stepName)) return { skip: false };
@@ -9200,7 +9300,8 @@ async function runCycle(repoRoot, opts) {
   const cycleId = opts.cycleId ?? await allocateCycleId(repoRoot);
   const log2 = await createLogger(repoRoot);
   const slug = slugify(opts.title);
-  const cfg2 = await loadConfig(repoRoot);
+  const mergedEnv = opts.env ? { ...process.env, ...opts.env } : void 0;
+  const cfg2 = await loadConfig(repoRoot, mergedEnv);
   const wf = cfg2.workflows.find((w) => w.name === opts.workflow);
   if (!wf) throw new Error(`unknown workflow: ${opts.workflow}`);
   let artifactDir;
@@ -9298,13 +9399,34 @@ async function runCycle(repoRoot, opts) {
         agent: step.agent,
         ...headSha ? { head_sha: headSha } : {}
       });
+      let preSnapshot = "";
+      if (step.name === "documentation") {
+        const snap = spawnSync2("git", ["status", "--porcelain"], { cwd: repoRoot, encoding: "utf8", shell: false });
+        preSnapshot = snap.stdout ?? "";
+      }
       let r;
       if (step.agent === "bash") {
         r = await execBashStep(repoRoot, step.command, cycleEnv);
       } else {
         try {
           const mod = resolveAgent(step.agent);
-          r = await mod.runStep({ repoRoot, promptPath: step.prompt, env: cycleEnv });
+          const appendSP = ARTIFACT_STEPS.has(step.name ?? "") ? ARTIFACT_SUPPRESS_PROMPT : void 0;
+          if (appendSP !== void 0 && step.agent !== "claudecode") {
+            await log2.emit("step.warning", {
+              cycle_id: cycleId,
+              step: step.name,
+              reason: "append_system_prompt_ignored",
+              agent: step.agent
+            });
+          }
+          r = await mod.runStep({
+            repoRoot,
+            promptPath: step.prompt,
+            env: cycleEnv,
+            model: step.model,
+            thinking: step.thinking,
+            appendSystemPrompt: appendSP
+          });
         } catch (err) {
           if (err instanceof UnknownAgentError) {
             r = { status: "failed", exitCode: -1, stdout: "", stderr: err.message };
@@ -9356,7 +9478,7 @@ async function runCycle(repoRoot, opts) {
         }
         if (r.status === "ok" && step.name === "documentation") {
           try {
-            await appendDocumentationPaths(repoRoot, join18(artifactDir, "BUILD.md"));
+            await appendDocumentationPaths(repoRoot, join18(artifactDir, "BUILD.md"), log2, cycleId, preSnapshot);
           } catch {
           }
         }
@@ -9410,7 +9532,7 @@ async function runCycle(repoRoot, opts) {
     }
   }
 }
-var RESET_ELIGIBLE_STEPS, SKIP_ELIGIBLE_STEPS, DOC_APPEND_DENYLIST_PREFIXES, DOC_APPEND_DENYLIST_EXACT, SPEC_MIN_BYTES, MAX_STEP_END_STDERR;
+var RESET_ELIGIBLE_STEPS, SKIP_ELIGIBLE_STEPS, ARTIFACT_STEPS, ARTIFACT_SUPPRESS_PROMPT, SPEC_MIN_BYTES, MAX_STEP_END_STDERR;
 var init_run_cycle = __esm({
   "src/engine/run-cycle.ts"() {
     "use strict";
@@ -9424,10 +9546,11 @@ var init_run_cycle = __esm({
     init_sanitize_artifact();
     init_id();
     init_log_fmt();
+    init_path_utils();
     RESET_ELIGIBLE_STEPS = /* @__PURE__ */ new Set(["build", "fix"]);
     SKIP_ELIGIBLE_STEPS = /* @__PURE__ */ new Set(["spec", "research", "plan"]);
-    DOC_APPEND_DENYLIST_PREFIXES = [".claude", "dist", "node_modules"];
-    DOC_APPEND_DENYLIST_EXACT = [".cycle/cycle.pid"];
+    ARTIFACT_STEPS = /* @__PURE__ */ new Set(["spec", "research", "plan", "build", "review", "fix", "documentation"]);
+    ARTIFACT_SUPPRESS_PROMPT = "You are in File Artifact Mode for this invocation. Output only the requested document content as clean structured Markdown. Do not include insight blocks, star-marker commentary, educational explanations, contribution requests, confirmation sentences, narration, or trailing commentary. Produce the file \u2014 nothing else.";
     SPEC_MIN_BYTES = 200;
     MAX_STEP_END_STDERR = 2e3;
   }
@@ -9754,21 +9877,11 @@ init_branch();
 
 // src/engine/commit-cycle.ts
 init_child_env();
+init_path_utils();
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile as readFile9, readdir as readdir2 } from "node:fs/promises";
 import { join as join10 } from "node:path";
-var DENYLIST_PREFIXES = [".claude", "dist", "node_modules"];
-var DENYLIST_EXACT = [".cycle/cycle.pid"];
-function isDenied(p) {
-  const q = p.replace(/\/$/, "");
-  for (const prefix of DENYLIST_PREFIXES) {
-    if (q === prefix || q.startsWith(prefix + "/")) return true;
-  }
-  if (DENYLIST_EXACT.includes(q)) return true;
-  if (q.endsWith(".lock")) return true;
-  return false;
-}
 async function parseTouchedFiles(buildMdPath) {
   let text;
   try {
@@ -10075,6 +10188,48 @@ async function emitStaleDistWarning(log2, processStart2, cwd2, statFn = stat2) {
   });
 }
 
+// src/engine/engine-lock.ts
+import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
+var defaultDeps = {
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+  kill: (pid, sig) => process.kill(pid, sig)
+};
+function acquireLock(lockPath2, deps = defaultDeps) {
+  try {
+    const raw = deps.readFileSync(lockPath2, "utf8").trim();
+    const pid = parseInt(raw, 10);
+    if (!Number.isNaN(pid)) {
+      try {
+        deps.kill(pid, 0);
+        throw new Error(`engine already running, pid ${pid}`);
+      } catch (e) {
+        const err = e;
+        if (err.code === "ESRCH") {
+        } else if (err.code === "EPERM") {
+          throw new Error(`engine already running, pid ${pid}`);
+        } else {
+          throw e;
+        }
+      }
+    }
+  } catch (e) {
+    const err = e;
+    if (err.code !== "ENOENT") throw e;
+  }
+  deps.writeFileSync(lockPath2, String(process.pid), "utf8");
+}
+function releaseLock(lockPath2, deps = defaultDeps) {
+  try {
+    const raw = deps.readFileSync(lockPath2, "utf8").trim();
+    if (raw === String(process.pid)) {
+      deps.unlinkSync(lockPath2);
+    }
+  } catch {
+  }
+}
+
 // src/cli.ts
 var processStart = Date.now();
 var argv = process.argv.slice(2);
@@ -10142,6 +10297,16 @@ if (args.dryRun) {
   }));
   process.exit(0);
 }
+var lockPath = join20(cwd, ".cycle", "engine.lock");
+try {
+  acquireLock(lockPath);
+} catch (err) {
+  console.error(err.message);
+  process.exit(1);
+}
+process.on("exit", () => releaseLock(lockPath));
+process.on("SIGINT", () => process.exit(130));
+process.on("SIGTERM", () => process.exit(143));
 var log = await createLogger(cwd);
 var todoDir = join20(cwd, "docs/cycle/issues/todo");
 var doneDir = join20(cwd, "docs/cycle/issues/done");
@@ -10181,6 +10346,7 @@ var halted = false;
 var haltReason = null;
 var lastHaltContext;
 var maxConsecutiveFailures = cfg?.engine?.max_consecutive_failures ?? 2;
+var scopeGuardViolations = /* @__PURE__ */ new Map();
 async function drainSuccess(cwd2, log2, todoPath, doneDir2, cycleId, issueId) {
   await drainOk(cwd2, issueId);
   try {
@@ -10327,6 +10493,18 @@ async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, 
       config: cfg2.engine.commit,
       baseBranch: cfg2.engine.base_branch
     });
+    if (cr.status === "failed" && cr.reason === "scope_violation") {
+      const count = (scopeGuardViolations.get(tail.cycleId) ?? 0) + 1;
+      scopeGuardViolations.set(tail.cycleId, count);
+      if (count >= 2) {
+        await log2.emit("engine.paused", {
+          reason: "commit-scope-guard-loop",
+          cycle_id: tail.cycleId,
+          violations: cr.blockedFiles
+        });
+        return { processed: 0, outcome: "scope-guard-loop" };
+      }
+    }
     if (cr.status === "failed") {
       if (row.attempt + 1 < maxAttempts) {
         await drainRetry(cwd2, log2, tail.cycleId, tail.issueId, "commit");
@@ -10336,6 +10514,7 @@ async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, 
       return { processed: 0, outcome: "terminal", issueId: tail.issueId, failingStep: "commit" };
     }
     await drainSuccess(cwd2, log2, todoPath, doneDir2, tail.cycleId, tail.issueId);
+    scopeGuardViolations.delete(tail.cycleId);
     return { processed: 1, outcome: "ok" };
   }
   if (row.attempt + 1 < maxAttempts) {
@@ -10362,6 +10541,8 @@ if (cfg) {
         halted = true;
         haltReason = "max_consecutive_failures";
       }
+    } else if (result.outcome === "scope-guard-loop") {
+      halted = true;
     }
   }
 }
@@ -10415,6 +10596,19 @@ while (!halted) {
       config: cfg.engine.commit,
       baseBranch: cfg.engine.base_branch
     });
+    if (cr.status === "failed" && cr.reason === "scope_violation") {
+      const count = (scopeGuardViolations.get(cycleId) ?? 0) + 1;
+      scopeGuardViolations.set(cycleId, count);
+      if (count >= 2) {
+        await log.emit("engine.paused", {
+          reason: "commit-scope-guard-loop",
+          cycle_id: cycleId,
+          violations: cr.blockedFiles
+        });
+        halted = true;
+        break;
+      }
+    }
     if (cr.status === "failed") {
       if (row.attempt + 1 < maxAttempts) {
         await drainRetry(cwd, log, cycleId, row.id, "commit");
@@ -10431,6 +10625,7 @@ while (!halted) {
       }
     } else {
       await drainSuccess(cwd, log, todoPath, doneDir, cycleId, row.id);
+      scopeGuardViolations.delete(cycleId);
       cyclesProcessed++;
       consecutiveFailures = 0;
       failedCycles = [];

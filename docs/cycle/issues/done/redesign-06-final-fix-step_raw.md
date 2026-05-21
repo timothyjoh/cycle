@@ -3,10 +3,8 @@ id: redesign-06-final-fix-step
 source: text
 title: Add final_fix + final_verify steps to the feature workflow for in-cycle remediation
 added_at: "2026-05-21T02:42:44Z"
-triage_attempts: 3
+triage_attempts: 0
 priority: high
-failed_at: "2026-05-21T03:26:14.329Z"
-failed_step: triage
 ---
 
 See [RFC-003](../../../RFC-003-in-cycle-remediation-and-priority-routing.md) §2. **Prerequisite: redesign-04 (touched.json + scope-guard demote) must land first** — otherwise final_fix's src/ edits get blocked at commit.

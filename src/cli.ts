@@ -25,6 +25,7 @@ import { commitCycle } from "./engine/commit-cycle.ts";
 import { terminalDrain } from "./engine/issue-lifecycle.ts";
 import { emitStaleDistWarning } from "./engine/stale-dist.ts";
 import { acquireLock, releaseLock } from "./engine/engine-lock.ts";
+import { loadDotEnv } from "./engine/dot-env.ts";
 import type { Logger } from "./engine/log.ts";
 import type { RunArgs } from "./cli/parse-args.ts";
 
@@ -135,7 +136,7 @@ await mkdir(doneDir, { recursive: true });
 await mkdir(failedDir, { recursive: true });
 
 if (args.trunk) process.env.CYCLE_TRUNK_BASED = "1";
-
+loadDotEnv(join(cwd, ".cycle", ".env"));
 const cfg = await loadConfig(cwd);
 
 const skipCompletedOnRetry =

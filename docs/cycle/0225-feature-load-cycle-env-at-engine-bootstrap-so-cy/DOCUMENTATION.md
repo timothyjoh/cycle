@@ -1,0 +1,1 @@
+Updated `CLAUDE.md` to add `src/engine/dot-env.ts` (100%) to the per-file coverage floors list. Updated `docs/ENGINE.md` to add a known-limitation note under the bootstrap precedence entry warning that non-ENOENT `readFileSync` errors in `loadDotEnv` crash the engine at bootstrap with a raw stack trace.
