@@ -356,3 +356,11 @@ test("decomposed parent's raw id in depends_on is rejected as dangling", () => {
     assert.match(r.reason, /R1/);
   }
 });
+
+test("validateOutput: recovers fenced JSON output (```json wrapper)", () => {
+  // mirrors refl-0205 observed failure mode: triage agent wraps JSON in ```json
+  const inner = validChildR1Json();
+  const fenced = "```json\n" + JSON.stringify(inner) + "\n```";
+  const r = validateOutput(fenced, fakeRaws as never, [], cfg, new Set());
+  assert.equal(r.ok, true, `validator should accept fenced output; reason: ${r.ok ? "" : r.reason}`);
+});

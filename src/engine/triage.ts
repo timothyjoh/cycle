@@ -17,7 +17,7 @@ import {
 import { resolveAgent } from "./exec.ts";
 import type { CycleConfig, TriageConfig } from "./workflow.ts";
 import type { Logger } from "./log.ts";
-import { truncateHeadCapped } from './log-fmt.ts';
+import { truncateHeadCapped, stripFences } from './log-fmt.ts';
 
 export type TriageAgentResult = { exitCode: number; stdout: string; stderr: string };
 
@@ -391,7 +391,7 @@ export function validateOutput(
 ): { ok: true; parsed: TriageOutput } | { ok: false; reason: string } {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(rawStdout);
+    parsed = JSON.parse(stripFences(rawStdout));
   } catch (e) {
     return { ok: false, reason: `stdout is not valid JSON: ${(e as Error).message}` };
   }

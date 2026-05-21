@@ -1,0 +1,3 @@
+REVIEW.md and MUST-FIX.md written to `docs/cycle/0206-feature-add-stripfences-helper-to-triage-parse-p/`.
+
+**Verdict: NEEDS-FIX** — implementation is correct and complete (586/586 tests, all coverage floors pass, all SPEC criteria met, all ENGINE.md claims backed by code), but one minor omission: `src/engine/log-fmt.ts` has no per-file coverage floor registered. By project convention (established when cycle 0204 fixed the same omission for `engine-lock.ts`), every shared engine utility on the critical path gets a floor. The fix is two lines: one in `scripts/coverage-gate.mjs` and one in `CLAUDE.md`.

@@ -14,7 +14,9 @@ Agent dispatch: the per-step `agent:` field in `workflows.yml` resolves through 
 
 `src/engine/triage.ts` is the only writer that moves files out of `raw/`. It spawns the configured agent, parses+validates JSON output (`children[]`, `ordering[]`, `decomposed_parents[]`), and applies queue mutations atomically (writes `todo/<id>.md` via tmp-rename, appends `tbd.jsonl` rows, moves `raw/<id>.md → done/<id>_raw.md`). One agent call per raw; cross-raw batching is deferred. Per-raw retry up to 3 attempts with prior validator error fed back.
 
-**Known limitation:** The parse path calls `JSON.parse(rawStdout)` with no pre-processing. The triage prompt instructs the agent not to wrap output in markdown code fences, but this is a probabilistic defense — the model occasionally ignores it. Fence-wrapped output causes a `JSON.parse` failure that burns a retry attempt rather than recovering trivially. A code-side `stripFences` pass before `JSON.parse` would eliminate this failure class entirely; that is deferred work.
+**Fence handling:** The triage prompt instructs the agent not to wrap output in markdown code fences (cycle 0205). As a deterministic code-side fallback, `stripFences(rawStdout)` is applied unconditionally before `JSON.parse` in `validateOutput` (cycle 0206) — strips leading ` ```json ` or bare ` ``` ` opener and trailing ` ``` ` closer, passes through unfenced input unchanged.
+
+**Known limitation:** `stripFences` matches ` ```json ` or bare ` ``` ` openers via `/^```(?:json)?\r?\n/`. Other language tags emitted by LLMs (` ```javascript `, ` ```text `, ` ```JSON ` — case-sensitive mismatch, ` ```jsonc `) pass through unstripped and still cause `JSON.parse` to fail despite the fallback. Fix: widen the opener pattern to any optional word tag (`/^```(?:\w+)?\r?\n/`) with case-insensitive matching.
 
 Per-file load isolation: `loadRaws` catches per-file errors (`readFile` or `parseFrontmatter` failure) rather than aborting the entire pass. A failing file emits `triage.raw.load_error { raw_id, error }` (error capped at 2000 chars via `truncateHeadCapped`) and is skipped; surviving raws continue through the agent loop normally. All-load-failure (all files malformed) yields `status:"ok"` with empty processed/failed — distinct from all-agent-failure which produces `engine.paused { reason: "all_triage_failed" }`.
 
@@ -70,6 +72,8 @@ Opt-out: `cycle run --no-skip-completed` or `engine.skip_completed_on_retry: fal
 `src/engine/reflection.ts:ingestReflection(repoRoot, cycleId, slug, stdout, log)` runs after a successful `reflection` terminal step. Parses stdout as `{sharp_edges:[{title, body, priority_hint}]}`, materializes each as `docs/cycle/issues/raw/refl-<cycleId>-<slug>.md`. Parse/schema/exec failures emit `reflection.skipped` but do NOT flip `cycle.end` to failed. Idempotent on resume (unlinks prior `refl-<cycleId>-*.md` files). Slug collisions get numeric suffix (`-2`, `-3`, …).
 
 On `JSON.parse` failure: first tries trailing-prose repair (scan to last balanced `}`/`]`, re-parse). On continued failure: escalates truncated stdout to `raw/refl-<cycleId>-parse-error.md` and still emits both `reflection.skipped {reason: parse_error}` and `reflection.summary`.
+
+**Known limitation:** `parseWithRepair` has no explicit `stripFences` call — it relies on `trimToLastBalancedClose` scanning forward to the first `{` or `[`, which incidentally skips fence prefixes. This is fragile: prose containing a `{` before the JSON payload (e.g. `Error in step {build}:…`) causes `trimToLastBalancedClose` to latch onto the wrong position. A future fix should add `s = stripFences(s)` at the top of `parseWithRepair`, matching the explicit pattern used in triage's `validateOutput`.
 
 ## Documentation step
 
