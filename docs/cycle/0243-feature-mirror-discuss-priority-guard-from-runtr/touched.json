@@ -1,0 +1,7 @@
+{
+  "files": [
+    "docs/ENGINE.md",
+    "src/engine/triage.ts",
+    "tests/engine/triage-dry-run.test.ts"
+  ]
+}

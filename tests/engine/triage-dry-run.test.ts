@@ -50,19 +50,18 @@ async function setupRepo(): Promise<string> {
   return root;
 }
 
-function rawBody(id: string, title: string, attempts = 0): string {
-  return [
+function rawBody(id: string, title: string, attempts = 0, priority?: string): string {
+  const lines = [
     "---",
     `id: ${id}`,
     "source: text",
     `title: "${title}"`,
     "added_at: 2026-05-13T00:00:00Z",
     `triage_attempts: ${attempts}`,
-    "---",
-    "",
-    title,
-    "",
-  ].join("\n");
+  ];
+  if (priority !== undefined) lines.push(`priority: ${priority}`);
+  lines.push("---", "", title, "");
+  return lines.join("\n");
 }
 
 function decomposeJson(rawId: string): string {
@@ -556,6 +555,59 @@ test("dry-run after all-fail pause sees the same raws without manual mv", async 
     assert.equal(report[0].raw_id, "p");
     assert.equal(report[0].status, "failed");
     assert.equal(report[0].attempts, 3);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("dryRun skips discuss-priority raw: returns empty reports, no agent call", async () => {
+  const root = await setupRepo();
+  try {
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/disc1.md"),
+      rawBody("disc1", "discuss raw", 0, "discuss"),
+      "utf8",
+    );
+    let calls = 0;
+    const deps: TriageDeps = {
+      runAgent: async (): Promise<TriageAgentResult> => {
+        calls++;
+        return { exitCode: 0, stdout: decomposeJson("disc1"), stderr: "" };
+      },
+    };
+    const reports = await dryRunTriage(root, makeConfig(), deps);
+    assert.equal(reports.length, 0);
+    assert.equal(calls, 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("dryRun mixed batch: discuss skipped, normal raw processed once", async () => {
+  const root = await setupRepo();
+  try {
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/disc2.md"),
+      rawBody("disc2", "discuss raw", 0, "discuss"),
+      "utf8",
+    );
+    await writeFile(
+      join(root, "docs/cycle/issues/raw/norm1.md"),
+      rawBody("norm1", "normal raw"),
+      "utf8",
+    );
+    let calls = 0;
+    const deps: TriageDeps = {
+      runAgent: async (): Promise<TriageAgentResult> => {
+        calls++;
+        return { exitCode: 0, stdout: decomposeJson("norm1"), stderr: "" };
+      },
+    };
+    const reports = await dryRunTriage(root, makeConfig(), deps);
+    assert.equal(reports.length, 1);
+    assert.equal(reports[0].raw_id, "norm1");
+    assert.equal(reports[0].status, "ok");
+    assert.equal(calls, 1);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

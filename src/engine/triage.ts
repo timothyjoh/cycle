@@ -297,6 +297,7 @@ export async function dryRunTriage(
 
   const reports: DryRunReport[] = [];
   for (const raw of raws) {
+    if (raw.fm.priority === "discuss") continue;
     // Dry-run reports the agent invocation count for THIS pass; on-disk
     // triage_attempts (from prior real runs) must not shrink the retry
     // budget. Clone with attempts: 0 to count from scratch.
