@@ -1,13 +1,26 @@
 ---
 id: refl-0218-argv-order-for-append-system-prompt-unas
-source: reflection
-title: argv-order for --append-system-prompt unasserted — flag presence tested but not position relative to -p
-added_at: "2026-05-21T10:40:38.491Z"
+source: text
+title: Assert --append-system-prompt precedes -p in argv in exec-claudecode tests
+added_at: "2026-05-21T23:15:32Z"
 triage_attempts: 0
-priority_hint: 5
-origin_cycle_id: "0218"
+priority: medium
 ---
+## Problem
 
-The two new tests in `exec-claudecode.test.ts` verify that `--append-system-prompt` and its value appear somewhere in argv, but do not assert their position relative to `-p`. The claude CLI may require `--append-system-prompt <value>` to precede `-p <prompt>` to be parsed correctly. If a future refactor reorders argv construction, the tests stay green while the flag silently stops working.
+The two argv-assertion tests added in cycle 0218 (`exec-claudecode.test.ts`) verify that `--append-system-prompt` and its value appear somewhere in argv, but do not assert their position relative to `-p`. The claude CLI may require `--append-system-prompt <value>` to precede `-p <prompt>` to be parsed correctly. A future refactor that reorders argv construction would leave these tests green while the flag silently stops working.
 
-Add an assertion that checks the index of `--append-system-prompt` is strictly less than the index of `-p`, e.g. `expect(argv.indexOf('--append-system-prompt')).toBeLessThan(argv.indexOf('-p'))`.
+## Acceptance Criteria
+
+- Each test that asserts `--append-system-prompt` presence also asserts its index is strictly less than the index of `-p`:
+  ```ts
+  expect(argv.indexOf('--append-system-prompt')).toBeLessThan(argv.indexOf('-p'));
+  ```
+- All existing tests continue to pass (`npm test`).
+- No coverage regression (`npm run test:coverage`).
+
+## Implementation Notes
+
+- Grep for `--append-system-prompt` in `tests/` to locate the exact test blocks from cycle 0218.
+- The fix is purely additive — one `expect` line per affected test.
+- No changes to production code; test file only.

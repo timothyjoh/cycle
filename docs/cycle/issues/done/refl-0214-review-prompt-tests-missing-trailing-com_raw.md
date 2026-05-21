@@ -1,15 +1,37 @@
 ---
 id: refl-0214-review-prompt-tests-missing-trailing-com
-source: reflection
-title: review-prompt tests missing trailing-commentary prohibition assertion
-added_at: "2026-05-21T09:00:46.167Z"
-triage_attempts: 0
-priority_hint: 6
-origin_cycle_id: "0214"
+source: text
+title: Add missing trailing-commentary prohibition assertion to review-prompt tests
+added_at: "2026-05-21T23:15:32Z"
+triage_attempts: 1
+priority: medium
 ---
+## Problem
 
-The three new tests added in cycle 0214 (`tests/defaults/review-prompt-spec-ac.test.ts`) cover: the guardrail header sentence, the insight-blocks/star-marker prohibition, and the confirmation-sentences prohibition. The **third prohibition bullet** — "trailing commentary addressed to the reader" — has no corresponding test assertion.
+`tests/defaults/review-prompt-spec-ac.test.ts` was added in cycle 0214 with three assertions covering the File Artifact Mode guardrail in `src/defaults/prompts/review.md`. The guardrail lists four prohibition bullets:
 
-If that text is ever accidentally removed, renamed, or reworded, no test will catch the regression. The plan explicitly named all three prohibition bullets as testable strings; one was omitted in the implementation.
+1. Insight blocks / star-marker commentary — **covered**
+2. Confirmation sentences — **covered**
+3. Guardrail header sentence — **covered**
+4. Trailing commentary addressed to the reader — **NOT covered**
 
-Fix: add a fourth test asserting `body.includes("trailing commentary")` (or the exact phrase used in the prompt) to `tests/defaults/review-prompt-spec-ac.test.ts`.
+If the trailing-commentary bullet is accidentally removed, renamed, or reworded in the prompt, no test will catch the regression.
+
+## Fix
+
+Add a fourth `it()` assertion to the File Artifact Mode guardrail describe block in `tests/defaults/review-prompt-spec-ac.test.ts`:
+
+```ts
+it('prohibits trailing commentary addressed to the reader', () => {
+  expect(body).toContain('trailing commentary');
+});
+```
+
+Adjust the substring to match the exact phrase used in `src/defaults/prompts/review.md`'s guardrail section before implementing.
+
+## Acceptance Criteria
+
+- [ ] A fourth assertion exists in `tests/defaults/review-prompt-spec-ac.test.ts` checking for the trailing-commentary prohibition text
+- [ ] The substring matches the exact phrase from the guardrail section in `src/defaults/prompts/review.md`
+- [ ] `npm test` passes with no regressions
+- [ ] Coverage gates hold (Line ≥ 95%, Branch ≥ 75%, Function ≥ 90%)

@@ -1,14 +1,15 @@
 ---
 id: refl-0226-priority-hint-only-normalization-path-ha
-source: text
 title: Add test for priority_hint-only normalization path in readQueue
-added_at: "2026-05-21T23:15:32Z"
-triage_attempts: 0
+workflow: feature
+depends_on: []
+triaged_at: "2026-05-21T23:28:55.142Z"
+source: triage
 priority: medium
 ---
 ## Objective
 
-Close a test coverage gap on the `priority_hint`-only normalization branch inside `readQueue` (`src/engine/queue.ts`).
+Add a test that exercises the `priority_hint`-only normalization branch in `readQueue` (`src/engine/queue.ts`), closing the coverage gap identified in cycle 0226's review.
 
 ## Background
 
@@ -18,7 +19,7 @@ The normalization pre-pass in `readQueue` resolves a row's priority via:
 o.priority ?? o.priority_hint
 ```
 
-before passing the value to `normalizePriority`. This correctly handles legacy queue rows that carry `priority_hint` but no `priority` field (old format). However, cycle 0226's REVIEW confirmed no test covers this branch — only the case where both fields are present is exercised (see `tests/engine/queue.test.ts:351`). A future change to the normalization logic could silently regress the `priority_hint`-only path.
+before passing the value to `normalizePriority`. This handles legacy queue rows that carry `priority_hint` but no `priority` field (old format). Cycle 0226's REVIEW confirmed no test covers this branch — only the case where both fields are present is exercised (see `tests/engine/queue.test.ts:351`). A future change to the normalization logic could silently regress the `priority_hint`-only path.
 
 ## Work Required
 

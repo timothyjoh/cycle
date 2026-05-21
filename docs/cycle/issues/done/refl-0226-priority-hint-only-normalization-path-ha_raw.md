@@ -1,15 +1,37 @@
 ---
 id: refl-0226-priority-hint-only-normalization-path-ha
-source: reflection
-title: priority_hint-only normalization path has no test coverage
-added_at: "2026-05-21T13:51:32.736Z"
+source: text
+title: Add test for priority_hint-only normalization path in readQueue
+added_at: "2026-05-21T23:15:32Z"
 triage_attempts: 0
-priority_hint: 5
-origin_cycle_id: "0226"
+priority: medium
 ---
+## Objective
 
-The normalization pre-pass in `readQueue` uses `o.priority ?? o.priority_hint` before calling `normalizePriority`. This correctly handles queue rows that have `priority_hint` but no `priority` field (old format). However, the REVIEW confirmed no test covers this branch — only the case where both fields are present is tested (`tests/engine/queue.test.ts:351`).
+Close a test coverage gap on the `priority_hint`-only normalization branch inside `readQueue` (`src/engine/queue.ts`).
 
-If the normalization logic changes in a future cycle, a regression on the `priority_hint`-only path would not be caught by the test suite.
+## Background
 
-Suggested direction: Add a test in `tests/engine/queue.test.ts` that writes a queue row with `priority_hint: 'high'` and no `priority` field, then calls `readQueue` and asserts the returned row has `priority: 'high'`.
+The normalization pre-pass in `readQueue` resolves a row's priority via:
+
+```typescript
+o.priority ?? o.priority_hint
+```
+
+before passing the value to `normalizePriority`. This correctly handles legacy queue rows that carry `priority_hint` but no `priority` field (old format). However, cycle 0226's REVIEW confirmed no test covers this branch — only the case where both fields are present is exercised (see `tests/engine/queue.test.ts:351`). A future change to the normalization logic could silently regress the `priority_hint`-only path.
+
+## Work Required
+
+In `tests/engine/queue.test.ts`, add a test case that:
+
+1. Writes a `tbd.jsonl` row containing `priority_hint: 'high'` and **no** `priority` field.
+2. Calls `readQueue()` on that queue file.
+3. Asserts the returned row has `priority: 'high'`.
+
+Place the new test alongside the existing priority-normalization tests (around line 351).
+
+## Acceptance Criteria
+
+- New test passes and exercises the `priority_hint`-only code path.
+- `npm test` passes with no regressions.
+- Coverage gate passes: `src/engine/queue.ts` line coverage remains ≥ 90%.

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile, readFile, mkdir, chmod, appendFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, readFile, mkdir, chmod, appendFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync, spawn } from "node:child_process";
@@ -168,6 +168,25 @@ async function waitForLock(lockPath: string, timeoutMs = 10_000): Promise<void> 
   }
 }
 
+async function waitForAbsence(
+  filePath: string,
+  { timeout = 2_000, interval = 50 }: { timeout?: number; interval?: number } = {},
+): Promise<void> {
+  let waited = 0;
+  while (waited < timeout) {
+    try {
+      await stat(filePath);
+    } catch (e) {
+      const err = e as NodeJS.ErrnoException;
+      if (err.code === "ENOENT") return;
+      throw e;
+    }
+    await new Promise((r) => setTimeout(r, interval));
+    waited += interval;
+  }
+  throw new Error(`waitForAbsence: ${filePath} still present after ${timeout} ms`);
+}
+
 test("SIGINT → supervisor exits, lock cleaned up", async () => {
   const dist = await ensureDist();
   const root = await mkdtemp(join(tmpdir(), "cycle-lock-sigint-"));
@@ -232,13 +251,7 @@ test("SIGTERM → supervisor exits, lock cleaned up", async () => {
       ),
     ]);
 
-    let lockExists = true;
-    try {
-      await readFile(lockPath, "utf8");
-    } catch {
-      lockExists = false;
-    }
-    assert.equal(lockExists, false, "lock should be absent after SIGTERM");
+    await waitForAbsence(lockPath);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

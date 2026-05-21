@@ -1,9 +1,10 @@
 ---
 id: refl-0218-argv-order-for-append-system-prompt-unas
-source: text
 title: Assert --append-system-prompt precedes -p in argv in exec-claudecode tests
-added_at: "2026-05-21T23:15:32Z"
-triage_attempts: 0
+workflow: feature
+depends_on: []
+triaged_at: "2026-05-21T23:26:26.451Z"
+source: triage
 priority: medium
 ---
 ## Problem
