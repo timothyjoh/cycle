@@ -60,3 +60,11 @@ test("review prompt File Artifact Mode prohibits confirmation sentences", async 
     "missing confirmation sentences prohibition",
   );
 });
+
+test("review prompt File Artifact Mode prohibits trailing commentary", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("trailing commentary"),
+    "missing trailing commentary prohibition in File Artifact Mode guardrail",
+  );
+});

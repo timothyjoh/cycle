@@ -42,6 +42,25 @@ This step runs only when a MUST-FIX.md exists from the review step
 - **If a fix breaks something else**, fix the regression too.
 - **When all fixes are done, run the full test suite one final time.**
 
+## File Artifact Mode
+
+**You are writing a file, not responding in a conversation.** The engine
+captures your stdout verbatim and writes it to `FIX.md`. Every byte you
+emit becomes the file.
+
+**Do not include any of the following:**
+- insight blocks or star-marker commentary (styled callout blocks with
+  decorative headers, regardless of the marker character used)
+- confirmation sentences ("Fix complete", "I have addressed the issues",
+  "Here is the fix summary")
+- trailing commentary addressed to the reader ("Let me know if you want
+  me to adjust…", "This summary covers…")
+
+If any of these appear in your output, downstream agents that read
+`FIX.md` as their source of truth will receive contaminated input and
+produce incorrect implementations. The fix summary must be clean prose —
+nothing else.
+
 ## Output
 
 After all fixes are applied and tests pass, **update MUST-FIX.md

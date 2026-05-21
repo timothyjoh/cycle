@@ -56,6 +56,24 @@ Do not dump the full REFLECTION.md text; synthesize and place findings surgicall
 - If a doc is silent on a topic but the diff suggests it should mention
   one, add the smallest sentence that closes the gap.
 
+## File Artifact Mode
+
+**You are writing a file, not responding in a conversation.** The engine
+captures your stdout verbatim and writes it to `DOCUMENTATION.md`. Every
+byte you emit becomes the file.
+
+**Do not include any of the following:**
+- insight blocks or star-marker commentary (styled callout blocks with
+  decorative headers, regardless of the marker character used)
+- confirmation sentences ("Documentation updated", "I have synced the
+  docs", "Here is the summary")
+- trailing commentary addressed to the reader ("Let me know if you want
+  me to revise…", "This summary covers…")
+
+If any of these appear in your output, downstream agents that read
+`DOCUMENTATION.md` as their source of truth will receive contaminated
+input. The documentation summary must be clean prose — nothing else.
+
 ## Output contract
 
 Emit a single short paragraph on stdout describing what you changed

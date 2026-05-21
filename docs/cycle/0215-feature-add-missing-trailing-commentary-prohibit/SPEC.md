@@ -1,0 +1,1 @@
+SPEC written to `docs/cycle/0215-feature-add-missing-trailing-commentary-prohibit/SPEC.md`. Single deliverable: add one test asserting `trailing commentary` substring in `review.md`'s guardrail section.
