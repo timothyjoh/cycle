@@ -26,6 +26,7 @@ import { terminalDrain } from "./engine/issue-lifecycle.ts";
 import { emitStaleDistWarning } from "./engine/stale-dist.ts";
 import { acquireLock, releaseLock } from "./engine/engine-lock.ts";
 import { loadDotEnv } from "./engine/dot-env.ts";
+import { slugify } from "./issue/id.ts";
 import type { Logger } from "./engine/log.ts";
 import type { RunArgs } from "./cli/parse-args.ts";
 
@@ -369,6 +370,7 @@ async function runResumeOnce(
 
   const todoPath = join(todoDir, `${tail.issueId}.md`);
   if (exitCode === 0) {
+    const artifactDir = join(cwd, "docs", "cycle", `${tail.cycleId}-${workflowName}-${slugify(tail.title)}`);
     const cr = await commitCycle(cwd, {
       cycleId: tail.cycleId,
       title: tail.title,
@@ -376,6 +378,7 @@ async function runResumeOnce(
       config: cfg.engine.commit,
       baseBranch: cfg.engine.base_branch,
       log,
+      artifactDir,
     });
     if (cr.status === "failed") {
       if (row!.attempt + 1 < maxAttempts) {
@@ -471,6 +474,7 @@ while (!halted) {
     : undefined;
 
   if (exitCode === 0) {
+    const artifactDir = join(cwd, "docs", "cycle", `${cycleId}-${workflowName}-${slugify(row.title)}`);
     const cr = await commitCycle(cwd, {
       cycleId,
       title: row.title,
@@ -478,6 +482,7 @@ while (!halted) {
       config: cfg!.engine.commit,
       baseBranch: cfg!.engine.base_branch,
       log,
+      artifactDir,
     });
     if (cr.status === "failed") {
       if (row.attempt + 1 < maxAttempts) {

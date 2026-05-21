@@ -520,6 +520,7 @@ test("commitCycle — in-footprint: no commit.scope_warning emitted", async () =
       config: { mode: "trunk", push: false },
       baseBranch: "master",
       log,
+      artifactDir: join(root, "docs/cycle/0099-feature-test"),
     });
 
     let events: Record<string, unknown>[] = [];
@@ -558,6 +559,36 @@ test("commitCycle — no touched.json: emits commit.scope_warning for staged src
     const events = body.trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
     const warn = expectExactlyOne(events, "commit.scope_warning");
     assert.ok(Array.isArray(warn.files) && (warn.files as string[]).includes("src/bar.ts"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("commitCycle — artifactDir supplied, docs/cycle absent: no commit.scope_warning, result skipped", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-sw-nodir-"));
+  try {
+    await setupRepo(root);
+    // Provide a real artifactDir (no touched.json inside) but no docs/cycle/ dir at all
+    const artifactDir = join(root, "artifact-dir");
+    await mkdir(artifactDir, { recursive: true });
+    // Stage nothing — result should be "skipped"
+    const log = await createLogger(root, () => {});
+    const result = await commitCycle(root, {
+      cycleId: "0099",
+      title: "no docs cycle dir",
+      config: { mode: "trunk", push: false },
+      baseBranch: "master",
+      log,
+      artifactDir,
+    });
+    assert.equal(result.status, "skipped");
+    let events: Record<string, unknown>[] = [];
+    try {
+      const body = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+      events = body.trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
+    } catch { /* no log written */ }
+    const warnings = events.filter((e) => e.event === "commit.scope_warning");
+    assert.equal(warnings.length, 0, "no commit.scope_warning when nothing staged");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

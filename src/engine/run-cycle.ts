@@ -416,12 +416,12 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           continue;
         }
         await log.emit("cycle.end", { cycle_id: cycleId, status: "failed", failing_step: step.name });
-        return { cycleId, status: "failed" as const, failingStep: step.name };
+        return { cycleId, artifactDir, status: "failed" as const, failingStep: step.name };
       }
     }
 
     await log.emit("cycle.end", { cycle_id: cycleId, status: "ok" });
-    return { cycleId, status: "ok" as const };
+    return { cycleId, artifactDir, status: "ok" as const };
   } finally {
     const headBefore = await currentBranchName(repoRoot);
     let checkoutOk = false;

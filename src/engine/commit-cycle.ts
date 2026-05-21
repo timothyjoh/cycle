@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildChildEnv } from "./child-env.ts";
 import type { CommitConfig } from "./workflow.ts";
@@ -133,21 +133,20 @@ export async function commitCycle(
     baseBranch: string;
     envExtra?: Record<string, string>;
     log?: Logger;
+    artifactDir?: string;
   },
 ): Promise<CommitResult> {
   const { envExtra } = opts;
 
-  // Read touched.json from cycle artifact dir (fallback: empty set if absent)
+  // Read touched.json from cycle artifact dir (fallback: empty set if absent or artifactDir not provided)
   let touchedFiles = new Set<string>();
-  try {
-    const entries = await readdir(join(repoRoot, "docs/cycle"));
-    const match = entries.find((e) => e.startsWith(`${opts.cycleId}-`));
-    if (match) {
-      const raw = await readFile(join(repoRoot, "docs/cycle", match, "touched.json"), "utf8");
+  if (opts.artifactDir) {
+    try {
+      const raw = await readFile(join(opts.artifactDir, "touched.json"), "utf8");
       const parsed = JSON.parse(raw) as { files?: unknown };
       if (Array.isArray(parsed.files)) touchedFiles = new Set(parsed.files as string[]);
-    }
-  } catch { /* docs/cycle absent, touched.json absent, or corrupt */ }
+    } catch { /* touched.json absent or corrupt */ }
+  }
 
   // Warn (non-blocking) about src/ and scripts/ files absent from touched.json
   const statusOut = spawnGit(["status", "--porcelain"], repoRoot, envExtra);

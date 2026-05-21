@@ -418,6 +418,28 @@ test("readQueue: row missing priority gets normalized to medium", async () => {
   }
 });
 
+test("readQueue: priority_hint-only row is normalized to priority field", async () => {
+  const root = await setupRoot();
+  try {
+    const line = JSON.stringify({
+      id: "Z",
+      title: "Z title",
+      status: "pending",
+      attempt: 0,
+      depends_on: [],
+      triaged_at: "2026-05-13T10:00:00Z",
+      priority_hint: "high",
+    });
+    await writeFile(join(root, ".cycle/tbd.jsonl"), line + "\n", "utf8");
+    const rows = await readQueue(root);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].priority, "high");
+    assert.ok(!("priority_hint" in rows[0]), "priority_hint should be stripped");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 // popNextPending priority sort tests
 test("popNextPending: returns critical before high before medium before low", async () => {
   const root = await setupRoot();
