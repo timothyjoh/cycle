@@ -143,6 +143,16 @@ var init_frontmatter = __esm({
 // src/engine/queue.ts
 import { readFile as readFile3, writeFile as writeFile3, rename as rename2, appendFile, mkdir as mkdir2, stat } from "node:fs/promises";
 import { join as join2 } from "node:path";
+function normalizePriority(raw) {
+  if (raw === "low" || raw === "medium" || raw === "high" || raw === "critical" || raw === "discuss") return raw;
+  if (typeof raw === "number") {
+    if (raw >= 7) return "critical";
+    if (raw >= 5) return "high";
+    if (raw >= 3) return "medium";
+    return "low";
+  }
+  return "medium";
+}
 function queuePath(repoRoot) {
   return join2(repoRoot, ".cycle", "tbd.jsonl");
 }
@@ -164,6 +174,7 @@ function isQueueRow(parsed) {
   if (typeof obj.attempt !== "number") return false;
   if (!Array.isArray(obj.depends_on)) return false;
   if (typeof obj.triaged_at !== "string") return false;
+  if (obj.priority !== "low" && obj.priority !== "medium" && obj.priority !== "high" && obj.priority !== "critical" && obj.priority !== "discuss") return false;
   return true;
 }
 async function readQueue(repoRoot) {
@@ -183,6 +194,11 @@ async function readQueue(repoRoot) {
       parsed = JSON.parse(line);
     } catch {
       continue;
+    }
+    if (parsed && typeof parsed === "object") {
+      const o = parsed;
+      o.priority = normalizePriority(o.priority ?? o.priority_hint);
+      delete o.priority_hint;
     }
     if (!isQueueRow(parsed)) continue;
     rows.push(parsed);
@@ -243,13 +259,23 @@ async function bootstrapArchiveIfLegacy(repoRoot) {
   }
   if (!hasLegacy) return false;
   const archive = await pickArchivePath(repoRoot);
-  await rename2(path, archive);
+  try {
+    await rename2(path, archive);
+  } catch (e) {
+    throw Object.assign(
+      new Error(`bootstrapArchiveIfLegacy: rename failed: ${e.message}`),
+      { code: e.code }
+    );
+  }
   return true;
 }
 async function popNextPending(repoRoot) {
   const rows = await readQueue(repoRoot);
-  for (const row of rows) {
-    if (row.status === "pending") return row;
+  const allIds = new Set(rows.map((r) => r.id));
+  const pending = rows.filter((r) => r.status === "pending" && r.priority !== "discuss").sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+  for (const row of pending) {
+    const blocked = row.depends_on.some((dep) => allIds.has(dep) && dep !== row.id);
+    if (!blocked) return row;
   }
   return null;
 }
@@ -290,9 +316,17 @@ async function drainFailedTerminal(repoRoot, id) {
   const next = rows.filter((r) => r.id !== id);
   await writeQueue(repoRoot, next);
 }
+var PRIORITY_ORDER;
 var init_queue = __esm({
   "src/engine/queue.ts"() {
     "use strict";
+    PRIORITY_ORDER = {
+      critical: 0,
+      high: 1,
+      medium: 2,
+      low: 3,
+      discuss: 4
+    };
   }
 });
 
@@ -564,6 +598,10 @@ async function runTriage(repoRoot, cfg2, log2, deps = {}) {
   const failedRaws = [];
   let lastOrdering = null;
   for (const raw of raws) {
+    if (raw.fm.priority === "discuss") {
+      await parkForDiscussion(repoRoot, raw, log2);
+      continue;
+    }
     const outcome = await processRawWithRetry(raw, {
       repoRoot,
       cfg: cfg2,
@@ -595,7 +633,8 @@ async function runTriage(repoRoot, cfg2, log2, deps = {}) {
   if (lastOrdering) {
     await rewriteOrdering(repoRoot, lastOrdering, log2);
   }
-  if (failed.length === raws.length) {
+  const actionableCount = raws.filter((r) => r.fm.priority !== "discuss").length;
+  if (actionableCount > 0 && failed.length === actionableCount) {
     for (const raw of failedRaws) {
       try {
         await mutateFrontmatter(raw.srcPath, (fm) => ({ ...fm, triage_attempts: 0 }));
@@ -892,6 +931,7 @@ async function applyRaw(repoRoot, raw, parsed) {
   await mkdir3(todoDir2, { recursive: true });
   try {
     const triagedAt = (/* @__PURE__ */ new Date()).toISOString();
+    const priority = normalizePriority(raw.fm.priority);
     for (const child of children) {
       const todoPath = join4(todoDir2, `${child.id}.md`);
       const fm = {
@@ -900,7 +940,8 @@ async function applyRaw(repoRoot, raw, parsed) {
         workflow: child.workflow,
         depends_on: child.depends_on,
         triaged_at: triagedAt,
-        source: "triage"
+        source: "triage",
+        priority
       };
       if (child.id !== raw.id) fm.parent = raw.id;
       const bodyTail = child.body.endsWith("\n") ? child.body : child.body + "\n";
@@ -913,7 +954,8 @@ async function applyRaw(repoRoot, raw, parsed) {
         status: "pending",
         attempt: 0,
         depends_on: child.depends_on,
-        triaged_at: triagedAt
+        triaged_at: triagedAt,
+        priority
       };
       if (child.id !== raw.id) row.parent = raw.id;
       await appendRow(repoRoot, row);
@@ -978,6 +1020,24 @@ async function moveToFailed(repoRoot, raw) {
   try {
     await rename3(raw.srcPath, join4(failedDir2, `${raw.id}.md`));
   } catch {
+  }
+}
+async function parkForDiscussion(repoRoot, raw, log2) {
+  const discussDir = join4(repoRoot, "docs/cycle/issues/discuss");
+  await mkdir3(discussDir, { recursive: true });
+  const destPath = join4(discussDir, `${raw.id}.md`);
+  let renamed = true;
+  try {
+    await rename3(raw.srcPath, destPath);
+  } catch {
+    renamed = false;
+  }
+  if (renamed) {
+    await log2.emit("issue.parked_for_discussion", {
+      id: raw.id,
+      priority: "discuss",
+      path: destPath
+    });
   }
 }
 async function rewriteOrdering(repoRoot, ordering, log2) {
@@ -8801,11 +8861,11 @@ __export(status_exports, {
   ISSUE_FOLDERS: () => ISSUE_FOLDERS,
   runStatus: () => runStatus
 });
-import { readdir as readdir3 } from "node:fs/promises";
+import { readdir as readdir2 } from "node:fs/promises";
 import { join as join15 } from "node:path";
 async function countMd(dir) {
   try {
-    const entries = await readdir3(dir);
+    const entries = await readdir2(dir);
     return entries.filter((f) => f.endsWith(".md")).length;
   } catch (e) {
     if (e.code === "ENOENT") return 0;
@@ -8941,12 +9001,14 @@ var init_exec_bash = __esm({
 });
 
 // src/engine/reflection.ts
-import { mkdir as mkdir7, readdir as readdir4, rename as rename6, unlink as unlink3, writeFile as writeFile6 } from "node:fs/promises";
+import { mkdir as mkdir7, readdir as readdir3, readFile as readFile11, rename as rename6, unlink as unlink3, writeFile as writeFile6 } from "node:fs/promises";
 import { dirname as dirname5, join as join17 } from "node:path";
-async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2) {
+async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2, artifactDir, touchedJsonPath) {
   const rawDir2 = join17(repoRoot, "docs/cycle/issues/raw");
+  const todoDir2 = join17(repoRoot, "docs/cycle/issues/todo");
+  const discussDir = join17(repoRoot, "docs/cycle/issues/discuss");
   await mkdir7(rawDir2, { recursive: true });
-  const existing = await readdir4(rawDir2);
+  const existing = await readdir3(rawDir2);
   const re = new RegExp(`^refl-${cycleId}-.+\\.md$`);
   for (const name of existing) {
     if (re.test(name)) {
@@ -8956,12 +9018,9 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2) {
       }
     }
   }
-  let stripped = stdout.trim();
-  const fence = stripped.match(FENCE_RE);
-  if (fence) stripped = fence[1].trim();
-  const parseRes = parseWithRepair(stripped);
+  const parseRes = parseWithRepair(stdout.trim());
   if (!parseRes.ok) {
-    const path = await writeParseError(rawDir2, cycleId, stdout);
+    const id = await writeParseError(rawDir2, cycleId, stdout);
     await log2.emit("reflection.skipped", {
       cycle_id: cycleId,
       reason: "parse_error",
@@ -8972,7 +9031,7 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2) {
       count: 0,
       skipped: 1
     });
-    return { written: [path], skipped: 1 };
+    return { written: [id], skipped: 1, fixNow: 0 };
   }
   const parsed = parseRes.value;
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || !Array.isArray(parsed.sharp_edges)) {
@@ -8981,15 +9040,37 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2) {
       reason: "parse_error",
       message: "missing sharp_edges array"
     });
-    return { written: [], skipped: 0 };
+    return { written: [], skipped: 0, fixNow: 0 };
   }
   const entries = parsed.sharp_edges;
+  let touchedFiles = [];
+  try {
+    const tj = JSON.parse(await readFile11(touchedJsonPath, "utf8"));
+    if (Array.isArray(tj.files)) touchedFiles = tj.files;
+  } catch {
+  }
+  const logPath = join17(repoRoot, ".cycle", "log.jsonl");
+  const scopeWarnings = await readScopeWarnings(logPath, cycleId);
+  const syntheticEntries = scopeWarnings.map((files) => ({
+    title: `scope-warning cleanup: ${files.slice(0, 3).join(", ")}${files.length > 3 ? " \u2026" : ""}`,
+    body: `Files committed outside the cycle footprint: ${files.join(", ")}. These files were not tracked in touched.json. Investigate whether touched.json accumulation needs updating or whether the commit included unintended changes.`,
+    bucket: "defer",
+    priority: "low"
+  }));
+  const dedupeMap = await buildDedupeMap(rawDir2, todoDir2, discussDir);
   const written = [];
   let skipped = 0;
+  let fixNow = 0;
+  let deferredCount = 0;
+  let capDropped = 0;
+  let dedupSkipped = 0;
+  let validationSkipped = 0;
   const usedSlugs = /* @__PURE__ */ new Set();
   const nowIso = (/* @__PURE__ */ new Date()).toISOString();
-  for (let i = 0; i < entries.length; i++) {
-    const raw = entries[i];
+  const fixNowItems = [];
+  const allEntries = [...entries, ...syntheticEntries];
+  for (let i = 0; i < allEntries.length; i++) {
+    const raw = allEntries[i];
     const invalid = validateEntry(raw);
     if (invalid) {
       await log2.emit("reflection.skipped", {
@@ -8999,9 +9080,20 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2) {
         field: invalid
       });
       skipped++;
+      validationSkipped++;
       continue;
     }
     const e = raw;
+    if (e.bucket === "fix_now") {
+      fixNowItems.push(e);
+      fixNow++;
+      await log2.emit("reflection.fix_now_written", {
+        cycle_id: cycleId,
+        title: e.title,
+        index: fixNowItems.length - 1
+      });
+      continue;
+    }
     let slug = slugify(e.title);
     if (slug === "") slug = "entry";
     let unique = slug;
@@ -9012,6 +9104,27 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2) {
     }
     usedSlugs.add(unique);
     const id = `refl-${cycleId}-${unique}`;
+    const existingIn = dedupeMap.get(id);
+    if (existingIn !== void 0) {
+      await log2.emit("reflection.dedup_skipped", {
+        cycle_id: cycleId,
+        id,
+        existing_in: existingIn
+      });
+      dedupSkipped++;
+      continue;
+    }
+    if (deferredCount >= DEFERRED_CAP) {
+      capDropped++;
+      await log2.emit("reflection.cap_reached", {
+        cycle_id: cycleId,
+        title: e.title,
+        bucket: e.bucket,
+        dropped_count: capDropped
+      });
+      continue;
+    }
+    const priority = e.bucket === "discuss" ? "discuss" : e.priority ?? "medium";
     const content = serializeFrontmatter(
       {
         id,
@@ -9019,26 +9132,111 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2) {
         title: e.title,
         added_at: nowIso,
         triage_attempts: 0,
-        priority_hint: e.priority_hint,
+        priority,
         origin_cycle_id: cycleId
       },
       "\n" + e.body + "\n"
     );
     await atomicWrite2(join17(rawDir2, `${id}.md`), content);
     written.push(id);
-    await log2.emit("reflection.surfaced", {
+    deferredCount++;
+    await log2.emit("reflection.deferred_issue_written", {
       cycle_id: cycleId,
       raw_id: id,
       title: e.title,
-      priority_hint: e.priority_hint
+      bucket: e.bucket,
+      priority
     });
   }
+  if (fixNowItems.length > 0) {
+    const content = buildFinalFixesContent(cycleId, fixNowItems, touchedFiles);
+    await atomicWrite2(join17(artifactDir, "FINAL_FIXES.md"), content);
+  }
+  const reflContent = buildReflectionContent(cycleId, allEntries.length, {
+    fixNow,
+    deferred: deferredCount,
+    dedupSkipped,
+    capDropped,
+    validationSkipped
+  });
+  await atomicWrite2(join17(artifactDir, "REFLECTION.md"), reflContent);
   await log2.emit("reflection.summary", {
     cycle_id: cycleId,
     count: written.length,
-    skipped
+    skipped,
+    fix_now: fixNow,
+    cap_dropped: capDropped,
+    dedup_skipped: dedupSkipped
   });
-  return { written, skipped };
+  return { written, skipped, fixNow };
+}
+async function readScopeWarnings(logPath, cycleId) {
+  try {
+    const text = await readFile11(logPath, "utf8");
+    const results = [];
+    for (const line of text.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const ev = JSON.parse(line);
+        if (ev.event === "commit.scope_warning" && ev.cycle_id === cycleId && Array.isArray(ev.files)) {
+          results.push(ev.files);
+        }
+      } catch {
+      }
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+async function buildDedupeMap(rawDir2, todoDir2, discussDir) {
+  const map = /* @__PURE__ */ new Map();
+  for (const [dir, label] of [
+    [rawDir2, "raw"],
+    [todoDir2, "todo"],
+    [discussDir, "discuss"]
+  ]) {
+    try {
+      const entries = await readdir3(dir, { withFileTypes: true });
+      for (const ent of entries) {
+        if (ent.isFile() && ent.name.endsWith(".md")) {
+          map.set(ent.name.slice(0, -3), label);
+        }
+      }
+    } catch {
+    }
+  }
+  return map;
+}
+function buildFinalFixesContent(cycleId, fixes, touchedFiles) {
+  const header = touchedFiles.length > 0 ? `> Footprint: ${touchedFiles.join(", ")}` : `> Footprint: unknown \u2014 touched.json absent`;
+  const items = fixes.map((f, i) => `## Fix ${i + 1}: ${f.title}
+
+${f.body}`).join("\n\n---\n\n");
+  return `# Final Fixes \u2014 Cycle ${cycleId}
+
+${header}
+
+${items}
+`;
+}
+function buildReflectionContent(cycleId, edgeCount, routing) {
+  return [
+    `# Reflection \u2014 Cycle ${cycleId}`,
+    "",
+    `Sharp edges surfaced: ${edgeCount}`,
+    "",
+    "## Routing Summary",
+    "",
+    "| Category | Count |",
+    "|---|---|",
+    `| fix_now | ${routing.fixNow} |`,
+    `| deferred to raw/ | ${routing.deferred} |`,
+    `| dedup skipped | ${routing.dedupSkipped} |`,
+    `| cap dropped | ${routing.capDropped} |`,
+    `| validation skipped | ${routing.validationSkipped} |`,
+    ""
+  ].join("\n");
 }
 function parseWithRepair(s) {
   s = stripFences(s);
@@ -9121,7 +9319,7 @@ async function writeParseError(rawDir2, cycleId, stdout) {
       title: "reflection stdout failed to parse",
       added_at: (/* @__PURE__ */ new Date()).toISOString(),
       triage_attempts: 0,
-      priority_hint: 7,
+      priority: "high",
       origin_cycle_id: cycleId
     },
     "\n" + body + "\n"
@@ -9133,7 +9331,10 @@ function validateEntry(e) {
   if (!e || typeof e !== "object") return "entry";
   if (typeof e.title !== "string" || e.title.trim() === "") return "title";
   if (typeof e.body !== "string" || e.body.trim() === "") return "body";
-  if (typeof e.priority_hint !== "number" || !Number.isFinite(e.priority_hint)) return "priority_hint";
+  if (typeof e.bucket !== "string" || !VALID_BUCKETS.has(e.bucket)) return "bucket";
+  if (e.bucket === "defer") {
+    if (typeof e.priority !== "string" || !VALID_PRIORITIES.has(e.priority)) return "priority";
+  }
   return null;
 }
 async function atomicWrite2(path, content) {
@@ -9150,16 +9351,18 @@ async function atomicWrite2(path, content) {
     throw e;
   }
 }
-var FENCE_RE, TRUNC_BUDGET, TRUNC_MARKER;
+var TRUNC_BUDGET, TRUNC_MARKER, VALID_BUCKETS, VALID_PRIORITIES, DEFERRED_CAP;
 var init_reflection = __esm({
   "src/engine/reflection.ts"() {
     "use strict";
     init_id();
     init_frontmatter();
     init_log_fmt();
-    FENCE_RE = /^```(?:json)?\s*\n([\s\S]*?)\n```\s*$/;
     TRUNC_BUDGET = 8192;
     TRUNC_MARKER = "\n\u2026\n";
+    VALID_BUCKETS = /* @__PURE__ */ new Set(["fix_now", "defer", "discuss"]);
+    VALID_PRIORITIES = /* @__PURE__ */ new Set(["low", "medium", "high", "critical"]);
+    DEFERRED_CAP = 2;
   }
 });
 
@@ -9186,13 +9389,29 @@ var init_sanitize_artifact = __esm({
 });
 
 // src/engine/run-cycle.ts
-import { writeFile as writeFile7, readFile as readFile11, stat as stat4 } from "node:fs/promises";
+import { writeFile as writeFile7, readFile as readFile12, stat as stat4 } from "node:fs/promises";
 import { join as join18 } from "node:path";
 import { spawnSync as spawnSync2 } from "node:child_process";
+function parseSnapshotPaths(snapshot) {
+  const paths = /* @__PURE__ */ new Set();
+  for (const raw of snapshot.split("\n")) {
+    if (!raw) continue;
+    const xy = raw.slice(0, 2);
+    if (xy === "??") continue;
+    let p = raw.slice(3);
+    if (xy[0] === "R" || xy[0] === "C") {
+      const arrow = p.lastIndexOf(" -> ");
+      if (arrow !== -1) p = p.slice(arrow + 4);
+    }
+    p = p.replace(/^"/, "").replace(/"$/, "");
+    paths.add(p);
+  }
+  return paths;
+}
 async function appendDocumentationPaths(repoRoot, buildMdPath, log2, cycleId, preSnapshot) {
   let text;
   try {
-    text = await readFile11(buildMdPath, "utf8");
+    text = await readFile12(buildMdPath, "utf8");
   } catch {
     return;
   }
@@ -9205,39 +9424,13 @@ async function appendDocumentationPaths(repoRoot, buildMdPath, log2, cycleId, pr
     const m = /^\s*-\s+(.+)/.exec(lines[i]);
     if (m) touchedSet.add(m[1].trim());
   }
-  const prePaths = /* @__PURE__ */ new Set();
-  for (const raw of preSnapshot.split("\n")) {
-    if (!raw) continue;
-    const xy = raw.slice(0, 2);
-    if (xy === "??") continue;
-    let p = raw.slice(3);
-    if (xy[0] === "R" || xy[0] === "C") {
-      const arrow = p.lastIndexOf(" -> ");
-      if (arrow !== -1) p = p.slice(arrow + 4);
-    }
-    p = p.replace(/^"/, "").replace(/"$/, "");
-    prePaths.add(p);
-  }
+  const prePaths = parseSnapshotPaths(preSnapshot);
   const result = spawnSync2("git", ["status", "--porcelain"], {
     cwd: repoRoot,
     encoding: "utf8",
     shell: false
   });
-  const toAppend = [];
-  for (const raw of (result.stdout ?? "").split("\n")) {
-    if (!raw) continue;
-    const xy = raw.slice(0, 2);
-    if (xy === "??") continue;
-    let p = raw.slice(3);
-    if (xy[0] === "R" || xy[0] === "C") {
-      const arrow = p.lastIndexOf(" -> ");
-      if (arrow !== -1) p = p.slice(arrow + 4);
-    }
-    p = p.replace(/^"/, "").replace(/"$/, "");
-    if (isDenied(p)) continue;
-    if (prePaths.has(p)) continue;
-    if (!touchedSet.has(p)) toAppend.push(p);
-  }
+  const toAppend = Array.from(parseSnapshotPaths(result.stdout ?? "")).filter((p) => !isDenied(p) && !prePaths.has(p) && !touchedSet.has(p));
   if (toAppend.length === 0) return;
   let insertIdx = lines.length;
   for (let i = headerIdx + 1; i < lines.length; i++) {
@@ -9252,6 +9445,25 @@ async function appendDocumentationPaths(repoRoot, buildMdPath, log2, cycleId, pr
   lines.splice(insertIdx, 0, ...toAppend.map((p) => `- ${p}`));
   await writeFile7(buildMdPath, lines.join("\n"), "utf8");
   await log2.emit("documentation.paths_appended", { cycle_id: cycleId, appended: toAppend });
+}
+async function accumulateTouchedFiles(repoRoot, artifactDir, preSnapshot) {
+  const prePaths = parseSnapshotPaths(preSnapshot);
+  const post = spawnSync2("git", ["status", "--porcelain"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    shell: false
+  });
+  const newFiles = Array.from(parseSnapshotPaths(post.stdout ?? "")).filter((p) => !isDenied(p) && !prePaths.has(p));
+  const touchedPath = join18(artifactDir, "touched.json");
+  let existing = [];
+  try {
+    const raw = await readFile12(touchedPath, "utf8");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed.files)) existing = parsed.files;
+  } catch {
+  }
+  const merged = Array.from(/* @__PURE__ */ new Set([...existing, ...newFiles])).sort();
+  await writeFile7(touchedPath, JSON.stringify({ files: merged }, null, 2) + "\n", "utf8");
 }
 async function shouldSkipForArtifact(artifactDir, stepName) {
   if (!SKIP_ELIGIBLE_STEPS.has(stepName)) return { skip: false };
@@ -9270,12 +9482,12 @@ function formatFixGuardError(fixPath, mustFixPath, count) {
   return `fix step produced empty FIX.md while MUST-FIX.md has ${count} task(s) [fix: ${fixPath}, must-fix: ${mustFixPath}]`;
 }
 function formatEmptyDiffGuardError(stepName) {
-  return `${stepName} post-condition failed: no src/ changes detected (step reported ok but git diff HEAD -- src/ is empty)`;
+  return `${stepName} post-condition failed: no code changes detected (step reported ok but git status --porcelain -- src scripts tests is empty)`;
 }
 async function findPriorStepHeadSha(repoRoot, cycleId, stepName) {
   let text;
   try {
-    text = await readFile11(join18(repoRoot, ".cycle", "log.jsonl"), "utf8");
+    text = await readFile12(join18(repoRoot, ".cycle", "log.jsonl"), "utf8");
   } catch {
     return null;
   }
@@ -9400,7 +9612,7 @@ async function runCycle(repoRoot, opts) {
         ...headSha ? { head_sha: headSha } : {}
       });
       let preSnapshot = "";
-      if (step.name === "documentation") {
+      if (step.name === "documentation" || RESET_ELIGIBLE_STEPS.has(step.name)) {
         const snap = spawnSync2("git", ["status", "--porcelain"], { cwd: repoRoot, encoding: "utf8", shell: false });
         preSnapshot = snap.stdout ?? "";
       }
@@ -9450,7 +9662,7 @@ async function runCycle(repoRoot, opts) {
             const mustFixPath = join18(artifactDir, "MUST-FIX.md");
             let mustFixContent = "";
             try {
-              mustFixContent = await readFile11(mustFixPath, "utf8");
+              mustFixContent = await readFile12(mustFixPath, "utf8");
             } catch {
             }
             const taskCount = mustFixContent.split("\n").filter((l) => /^\s*[-*]\s*\[/.test(l)).length;
@@ -9461,12 +9673,12 @@ async function runCycle(repoRoot, opts) {
             }
           }
           if (r.status === "ok" && (step.name === "build" || step.name === "fix")) {
-            const diff = spawnSync2("git", ["diff", "HEAD", "--", "src/"], {
+            const changed = spawnSync2("git", ["status", "--porcelain", "--", "src", "scripts", "tests"], {
               cwd: repoRoot,
               encoding: "utf8",
               shell: false
             });
-            if (!diff.stdout) {
+            if (!changed.stdout || !changed.stdout.trim()) {
               r.status = "failed";
               r.exitCode = r.exitCode || 1;
               r.stderr = formatEmptyDiffGuardError(step.name);
@@ -9474,11 +9686,25 @@ async function runCycle(repoRoot, opts) {
           }
         }
         if (r.status === "ok" && step.name === "reflection") {
-          await ingestReflection(repoRoot, cycleId, slug, r.stdout, log2);
+          await ingestReflection(
+            repoRoot,
+            cycleId,
+            slug,
+            r.stdout,
+            log2,
+            artifactDir,
+            join18(artifactDir, "touched.json")
+          );
         }
         if (r.status === "ok" && step.name === "documentation") {
           try {
             await appendDocumentationPaths(repoRoot, join18(artifactDir, "BUILD.md"), log2, cycleId, preSnapshot);
+          } catch {
+          }
+        }
+        if (r.status === "ok" && RESET_ELIGIBLE_STEPS.has(step.name)) {
+          try {
+            await accumulateTouchedFiles(repoRoot, artifactDir, preSnapshot);
           } catch {
           }
         }
@@ -9500,11 +9726,11 @@ async function runCycle(repoRoot, opts) {
           continue;
         }
         await log2.emit("cycle.end", { cycle_id: cycleId, status: "failed", failing_step: step.name });
-        return { cycleId, status: "failed", failingStep: step.name };
+        return { cycleId, artifactDir, status: "failed", failingStep: step.name };
       }
     }
     await log2.emit("cycle.end", { cycle_id: cycleId, status: "ok" });
-    return { cycleId, status: "ok" };
+    return { cycleId, artifactDir, status: "ok" };
   } finally {
     const headBefore = await currentBranchName(repoRoot);
     let checkoutOk = false;
@@ -9547,9 +9773,9 @@ var init_run_cycle = __esm({
     init_id();
     init_log_fmt();
     init_path_utils();
-    RESET_ELIGIBLE_STEPS = /* @__PURE__ */ new Set(["build", "fix"]);
+    RESET_ELIGIBLE_STEPS = /* @__PURE__ */ new Set(["build", "fix", "final_fix", "quick_fix", "test_fix", "test_build"]);
     SKIP_ELIGIBLE_STEPS = /* @__PURE__ */ new Set(["spec", "research", "plan"]);
-    ARTIFACT_STEPS = /* @__PURE__ */ new Set(["spec", "research", "plan", "build", "review", "fix", "documentation"]);
+    ARTIFACT_STEPS = /* @__PURE__ */ new Set(["spec", "research", "plan", "build", "review", "fix", "final_fix", "documentation"]);
     ARTIFACT_SUPPRESS_PROMPT = "You are in File Artifact Mode for this invocation. Output only the requested document content as clean structured Markdown. Do not include insight blocks, star-marker commentary, educational explanations, contribution requests, confirmation sentences, narration, or trailing commentary. Produce the file \u2014 nothing else.";
     SPEC_MIN_BYTES = 200;
     MAX_STEP_END_STDERR = 2e3;
@@ -9651,7 +9877,7 @@ __export(cleanup_exports, {
   runCliCleanup: () => runCliCleanup,
   runCliCleanupWithDeps: () => runCliCleanupWithDeps
 });
-import { readFile as readFile12 } from "node:fs/promises";
+import { readFile as readFile13 } from "node:fs/promises";
 import { join as join19 } from "node:path";
 async function resolveBranchName(root, rowId, rowTitle, readTodoFile) {
   for (const dir of ISSUE_DIRS) {
@@ -9739,7 +9965,7 @@ async function runCliCleanup(repoRoot, argv2) {
     readQueue,
     readTodoFile: async (root, relId) => {
       try {
-        return await readFile12(join19(root, "docs/cycle/issues", relId + ".md"), "utf8");
+        return await readFile13(join19(root, "docs/cycle/issues", relId + ".md"), "utf8");
       } catch {
         return null;
       }
@@ -9768,7 +9994,7 @@ var init_cleanup = __esm({
 
 // src/cli.ts
 init_child_env();
-import { readFile as readFile13, readdir as readdir5, rename as rename7, mkdir as mkdir8 } from "node:fs/promises";
+import { readFile as readFile14, readdir as readdir4, rename as rename7, mkdir as mkdir8 } from "node:fs/promises";
 import { join as join20 } from "node:path";
 import { spawn as spawn4 } from "node:child_process";
 
@@ -9787,35 +10013,21 @@ async function getVersion() {
 import { parseArgs as nodeParseArgs } from "node:util";
 function parseArgs(argv2) {
   if (argv2[0] === "drop") {
-    let values2;
     let positionals2;
     try {
-      ({ values: values2, positionals: positionals2 } = nodeParseArgs({
+      ({ positionals: positionals2 } = nodeParseArgs({
         args: argv2.slice(1),
-        options: {
-          priority: { type: "string" }
-        },
+        options: {},
         allowPositionals: true
       }));
     } catch (err) {
       throw new Error(
-        `drop: ${err.message} (usage: cycle drop "<text>" [--priority N]; N is an integer 1..10, default 3)`
+        `drop: ${err.message} (usage: cycle drop "<text>")`
       );
     }
     const text2 = positionals2.join(" ").trim();
     if (!text2) throw new Error("drop requires task text");
-    let priority = 3;
-    if (values2.priority !== void 0) {
-      const raw = String(values2.priority);
-      const n = Number(raw);
-      if (!/^-?\d+$/.test(raw) || !Number.isInteger(n) || n < 1 || n > 10) {
-        throw new Error(
-          `drop: --priority must be an integer 1..10 (got "${raw}"); usage: cycle drop "<text>" [--priority N]  (N is an integer 1..10, default 3)`
-        );
-      }
-      priority = n;
-    }
-    return { command: "drop", text: text2, priority };
+    return { command: "drop", text: text2 };
   }
   if (argv2[0] !== "run") throw new Error(`unknown command: ${argv2[0] ?? "(none)"}`);
   const { values, positionals } = nodeParseArgs({
@@ -9843,7 +10055,7 @@ function parseArgs(argv2) {
 init_id();
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-async function materializeFreeformIssue(text, repoRoot, now = /* @__PURE__ */ new Date(), priority = 3) {
+async function materializeFreeformIssue(text, repoRoot, now = /* @__PURE__ */ new Date()) {
   const id = freeformId(text, now);
   const dir = join(repoRoot, "docs", "cycle", "issues", "raw");
   await mkdir(dir, { recursive: true });
@@ -9855,7 +10067,7 @@ async function materializeFreeformIssue(text, repoRoot, now = /* @__PURE__ */ ne
     `title: "${text.replace(/"/g, '\\"')}"`,
     `added_at: ${now.toISOString()}`,
     "triage_attempts: 0",
-    `priority: ${priority}`,
+    "priority: medium",
     "---",
     "",
     text,
@@ -9880,57 +10092,8 @@ init_child_env();
 init_path_utils();
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile as readFile9, readdir as readdir2 } from "node:fs/promises";
+import { readFile as readFile9 } from "node:fs/promises";
 import { join as join10 } from "node:path";
-async function parseTouchedFiles(buildMdPath) {
-  let text;
-  try {
-    text = await readFile9(buildMdPath, "utf8");
-  } catch {
-    return null;
-  }
-  const lines = text.split("\n");
-  const headerIdx = lines.findIndex((l) => l.trim() === "## Touched Files");
-  if (headerIdx === -1) return null;
-  const files = [];
-  for (let i = headerIdx + 1; i < lines.length; i++) {
-    const l = lines[i];
-    if (l.startsWith("##")) break;
-    const m = /^\s*-\s+(.+)/.exec(l);
-    if (m) files.push(m[1].trim());
-  }
-  return files;
-}
-async function scopeGuard(repoRoot, cycleId, envExtra) {
-  let buildMdPath = null;
-  try {
-    const entries = await readdir2(join10(repoRoot, "docs/cycle"));
-    const match = entries.find((e) => e.startsWith(`${cycleId}-`));
-    if (match) buildMdPath = join10(repoRoot, "docs/cycle", match, "BUILD.md");
-  } catch {
-  }
-  if (!buildMdPath) return [];
-  const touched = await parseTouchedFiles(buildMdPath);
-  if (touched === null) return [];
-  const touchedSet = new Set(touched);
-  const gitStatus = spawnGit(["status", "--porcelain"], repoRoot, envExtra);
-  const blocked = [];
-  for (const raw of gitStatus.stdout.split("\n")) {
-    if (!raw) continue;
-    const xy = raw.slice(0, 2);
-    if (xy === "??" || xy[0] === "D" || xy[1] === "D") continue;
-    let p = raw.slice(3);
-    if (xy[0] === "R" || xy[0] === "C") {
-      const arrow = p.lastIndexOf(" -> ");
-      if (arrow !== -1) p = p.slice(arrow + 4);
-    }
-    p = p.replace(/^"/, "").replace(/"$/, "");
-    if (isDenied(p)) continue;
-    if (!p.startsWith("src/") && !p.startsWith("scripts/")) continue;
-    if (!touchedSet.has(p)) blocked.push(p);
-  }
-  return blocked;
-}
 function spawnGit(args2, cwd2, envExtra) {
   const env = buildChildEnv(envExtra ?? {});
   const r = spawnSync("git", args2, { cwd: cwd2, shell: false, encoding: "utf8", env });
@@ -10010,8 +10173,34 @@ async function buildClosesBlock(issueId, repoRoot, envExtra) {
 }
 async function commitCycle(repoRoot, opts) {
   const { envExtra } = opts;
-  const blockedFiles = await scopeGuard(repoRoot, opts.cycleId, envExtra);
-  if (blockedFiles.length > 0) return { status: "failed", reason: "scope_violation", blockedFiles };
+  let touchedFiles = /* @__PURE__ */ new Set();
+  if (opts.artifactDir) {
+    try {
+      const raw = await readFile9(join10(opts.artifactDir, "touched.json"), "utf8");
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.files)) touchedFiles = new Set(parsed.files);
+    } catch {
+    }
+  }
+  const statusOut = spawnGit(["status", "--porcelain"], repoRoot, envExtra);
+  const warnFiles = [];
+  for (const raw of statusOut.stdout.split("\n")) {
+    if (!raw) continue;
+    const xy = raw.slice(0, 2);
+    if (xy === "??" || xy[0] === "D" || xy[1] === "D") continue;
+    let p = raw.slice(3);
+    if (xy[0] === "R" || xy[0] === "C") {
+      const arrow = p.lastIndexOf(" -> ");
+      if (arrow !== -1) p = p.slice(arrow + 4);
+    }
+    p = p.replace(/^"/, "").replace(/"$/, "");
+    if (isDenied(p)) continue;
+    if (!p.startsWith("src/") && !p.startsWith("scripts/")) continue;
+    if (!touchedFiles.has(p)) warnFiles.push(p);
+  }
+  if (warnFiles.length > 0) {
+    await opts.log?.emit("commit.scope_warning", { cycle_id: opts.cycleId, files: warnFiles });
+  }
   const hasChanges = await stageFiles(repoRoot, envExtra);
   if (!hasChanges) return { status: "skipped", reason: "nothing_to_commit" };
   const closes = await buildClosesBlock(opts.issueId, repoRoot, envExtra);
@@ -10230,7 +10419,37 @@ function releaseLock(lockPath2, deps = defaultDeps) {
   }
 }
 
+// src/engine/dot-env.ts
+import { readFileSync as readFileSync2 } from "node:fs";
+function loadDotEnv(filePath) {
+  let content;
+  try {
+    content = readFileSync2(filePath, "utf8");
+  } catch (e) {
+    const err = e;
+    if (err.code !== "ENOENT") {
+      throw Object.assign(
+        new Error(`Cannot read .env file at ${filePath}: ${err.message}`),
+        { code: err.code }
+      );
+    }
+    return;
+  }
+  for (const line of content.split("\n")) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine || trimmedLine.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq === -1) continue;
+    const key = line.slice(0, eq).trim();
+    const value = line.slice(eq + 1).trim();
+    if (process.env[key] === void 0) {
+      process.env[key] = value;
+    }
+  }
+}
+
 // src/cli.ts
+init_id();
 var processStart = Date.now();
 var argv = process.argv.slice(2);
 if (argv[0] === "--version") {
@@ -10270,7 +10489,7 @@ if (argv[0] === "cleanup") {
 var args = parseArgs(argv);
 var cwd = process.cwd();
 if (args.command === "drop") {
-  const { id, path } = await materializeFreeformIssue(args.text, cwd, /* @__PURE__ */ new Date(), args.priority);
+  const { id, path } = await materializeFreeformIssue(args.text, cwd, /* @__PURE__ */ new Date());
   console.log(JSON.stringify({ event: "issue.dropped", issue_id: id, path }));
   process.exit(0);
 }
@@ -10315,6 +10534,7 @@ var rawDir = join20(cwd, "docs/cycle/issues/raw");
 await mkdir8(doneDir, { recursive: true });
 await mkdir8(failedDir, { recursive: true });
 if (args.trunk) process.env.CYCLE_TRUNK_BASED = "1";
+loadDotEnv(join20(cwd, ".cycle", ".env"));
 var cfg = await loadConfig(cwd);
 var skipCompletedOnRetry = args.noSkipCompleted ? false : cfg?.engine?.skip_completed_on_retry ?? true;
 await emitStaleDistWarning(log, processStart, cwd);
@@ -10333,7 +10553,7 @@ if (cfg) {
 }
 async function rawHasFiles() {
   try {
-    const entries = await readdir5(rawDir);
+    const entries = await readdir4(rawDir);
     return entries.some((f) => f.endsWith(".md"));
   } catch {
     return false;
@@ -10346,7 +10566,6 @@ var halted = false;
 var haltReason = null;
 var lastHaltContext;
 var maxConsecutiveFailures = cfg?.engine?.max_consecutive_failures ?? 2;
-var scopeGuardViolations = /* @__PURE__ */ new Map();
 async function drainSuccess(cwd2, log2, todoPath, doneDir2, cycleId, issueId) {
   await drainOk(cwd2, issueId);
   try {
@@ -10389,7 +10608,7 @@ function spawnRunOne(params) {
 }
 async function readCycleEndFailingStep(repoRoot, cycleId) {
   try {
-    const text = await readFile13(join20(repoRoot, ".cycle", "log.jsonl"), "utf8");
+    const text = await readFile14(join20(repoRoot, ".cycle", "log.jsonl"), "utf8");
     const lines = text.split("\n");
     for (let i = lines.length - 1; i >= 0; i--) {
       const line = lines[i].trim();
@@ -10409,7 +10628,7 @@ async function readCycleEndFailingStep(repoRoot, cycleId) {
 async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, failedDir2) {
   let fmBaseBranch;
   try {
-    const body = await readFile13(join20(todoDir2, `${tail.issueId}.md`), "utf8");
+    const body = await readFile14(join20(todoDir2, `${tail.issueId}.md`), "utf8");
     const { fm } = parseFrontmatter(body);
     fmBaseBranch = typeof fm.base_branch === "string" && fm.base_branch.length > 0 ? fm.base_branch : void 0;
   } catch {
@@ -10442,7 +10661,7 @@ async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, 
   if (!baseOk) return { processed: 0, outcome: "skipped" };
   let workflowName = tail.workflow || args2.workflow;
   try {
-    const body = await readFile13(join20(todoDir2, `${tail.issueId}.md`), "utf8");
+    const body = await readFile14(join20(todoDir2, `${tail.issueId}.md`), "utf8");
     const { fm } = parseFrontmatter(body);
     if (typeof fm.workflow === "string" && fm.workflow.length > 0) {
       workflowName = fm.workflow;
@@ -10486,25 +10705,16 @@ async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, 
   const failingStep = exitCode !== 0 ? await readCycleEndFailingStep(cwd2, tail.cycleId) : void 0;
   const todoPath = join20(todoDir2, `${tail.issueId}.md`);
   if (exitCode === 0) {
+    const artifactDir = join20(cwd2, "docs", "cycle", `${tail.cycleId}-${workflowName}-${slugify(tail.title)}`);
     const cr = await commitCycle(cwd2, {
       cycleId: tail.cycleId,
       title: tail.title,
       issueId: tail.issueId,
       config: cfg2.engine.commit,
-      baseBranch: cfg2.engine.base_branch
+      baseBranch: cfg2.engine.base_branch,
+      log: log2,
+      artifactDir
     });
-    if (cr.status === "failed" && cr.reason === "scope_violation") {
-      const count = (scopeGuardViolations.get(tail.cycleId) ?? 0) + 1;
-      scopeGuardViolations.set(tail.cycleId, count);
-      if (count >= 2) {
-        await log2.emit("engine.paused", {
-          reason: "commit-scope-guard-loop",
-          cycle_id: tail.cycleId,
-          violations: cr.blockedFiles
-        });
-        return { processed: 0, outcome: "scope-guard-loop" };
-      }
-    }
     if (cr.status === "failed") {
       if (row.attempt + 1 < maxAttempts) {
         await drainRetry(cwd2, log2, tail.cycleId, tail.issueId, "commit");
@@ -10514,7 +10724,6 @@ async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, 
       return { processed: 0, outcome: "terminal", issueId: tail.issueId, failingStep: "commit" };
     }
     await drainSuccess(cwd2, log2, todoPath, doneDir2, tail.cycleId, tail.issueId);
-    scopeGuardViolations.delete(tail.cycleId);
     return { processed: 1, outcome: "ok" };
   }
   if (row.attempt + 1 < maxAttempts) {
@@ -10541,8 +10750,6 @@ if (cfg) {
         halted = true;
         haltReason = "max_consecutive_failures";
       }
-    } else if (result.outcome === "scope-guard-loop") {
-      halted = true;
     }
   }
 }
@@ -10563,7 +10770,7 @@ while (!halted) {
   let workflowName = args.workflow;
   let fmBaseBranch;
   try {
-    const body = await readFile13(todoPath, "utf8");
+    const body = await readFile14(todoPath, "utf8");
     const { fm } = parseFrontmatter(body);
     if (typeof fm.workflow === "string" && fm.workflow.length > 0) {
       workflowName = fm.workflow;
@@ -10589,26 +10796,16 @@ while (!halted) {
   });
   const failingStep = exitCode !== 0 ? await readCycleEndFailingStep(cwd, cycleId) : void 0;
   if (exitCode === 0) {
+    const artifactDir = join20(cwd, "docs", "cycle", `${cycleId}-${workflowName}-${slugify(row.title)}`);
     const cr = await commitCycle(cwd, {
       cycleId,
       title: row.title,
       issueId: row.id,
       config: cfg.engine.commit,
-      baseBranch: cfg.engine.base_branch
+      baseBranch: cfg.engine.base_branch,
+      log,
+      artifactDir
     });
-    if (cr.status === "failed" && cr.reason === "scope_violation") {
-      const count = (scopeGuardViolations.get(cycleId) ?? 0) + 1;
-      scopeGuardViolations.set(cycleId, count);
-      if (count >= 2) {
-        await log.emit("engine.paused", {
-          reason: "commit-scope-guard-loop",
-          cycle_id: cycleId,
-          violations: cr.blockedFiles
-        });
-        halted = true;
-        break;
-      }
-    }
     if (cr.status === "failed") {
       if (row.attempt + 1 < maxAttempts) {
         await drainRetry(cwd, log, cycleId, row.id, "commit");
@@ -10625,7 +10822,6 @@ while (!halted) {
       }
     } else {
       await drainSuccess(cwd, log, todoPath, doneDir, cycleId, row.id);
-      scopeGuardViolations.delete(cycleId);
       cyclesProcessed++;
       consecutiveFailures = 0;
       failedCycles = [];
