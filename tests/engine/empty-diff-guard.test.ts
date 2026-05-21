@@ -181,11 +181,34 @@ test("empty-diff-guard: spec step unaffected (no src/ changes still ok)", async 
   }
 });
 
+test("empty-diff-guard: build step with tests-only changes -> ok", async () => {
+  // fake claude modifies only a pre-committed tests/ file (no src/ change).
+  // A test-only fix is a legitimate build outcome and must NOT trip the guard.
+  const fakeBody = [SHEBANG, 'printf "change" >> tests/foo.test.ts', 'printf "## Touched Files\\n- tests/foo.test.ts\\n"', ""].join("\n");
+  const { root, bin } = await setupRepo(fakeBody, "build");
+  try {
+    await mkdir(join(root, "tests"), { recursive: true });
+    await writeFile(join(root, "tests/foo.test.ts"), "original\n", "utf8");
+    git(root, ["add", "tests/foo.test.ts"]);
+    git(root, ["commit", "-m", "add tests/foo.test.ts"]);
+
+    const r = await runCycle(root, {
+      issueId: "EDG-BUILD-TESTS-ONLY",
+      title: "empty diff guard build tests-only",
+      workflow: "feature",
+      env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+  } finally {
+    await cleanup(root, bin);
+  }
+});
+
 test("formatEmptyDiffGuardError: stable shape", () => {
   const out = formatEmptyDiffGuardError("build");
   assert.match(out, /build post-condition failed/);
-  assert.match(out, /src\//);
-  assert.match(out, /git diff HEAD/);
+  assert.match(out, /no code changes/);
+  assert.match(out, /src scripts tests/);
 
   const out2 = formatEmptyDiffGuardError("fix");
   assert.match(out2, /fix post-condition failed/);

@@ -153,7 +153,7 @@ export function formatFixGuardError(fixPath: string, mustFixPath: string, count:
 }
 
 export function formatEmptyDiffGuardError(stepName: string): string {
-  return `${stepName} post-condition failed: no src/ changes detected (step reported ok but git diff HEAD -- src/ is empty)`;
+  return `${stepName} post-condition failed: no code changes detected (step reported ok but git status --porcelain -- src scripts tests is empty)`;
 }
 
 export async function findPriorStepHeadSha(
@@ -367,12 +367,16 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
             }
           }
           if (r.status === "ok" && (step.name === "build" || step.name === "fix")) {
-            const diff = spawnSync("git", ["diff", "HEAD", "--", "src/"], {
+            // Accept any change under src/, scripts/, or tests/ — test-only and
+            // scripts-only fixes are legitimate build/fix outcomes. Use `git
+            // status --porcelain` (not `git diff HEAD`) so newly-created
+            // untracked files (e.g. a new test fixture) count as a change.
+            const changed = spawnSync("git", ["status", "--porcelain", "--", "src", "scripts", "tests"], {
               cwd: repoRoot,
               encoding: "utf8",
               shell: false,
             });
-            if (!diff.stdout) {
+            if (!changed.stdout || !changed.stdout.trim()) {
               r.status = "failed";
               r.exitCode = r.exitCode || 1;
               r.stderr = formatEmptyDiffGuardError(step.name);
