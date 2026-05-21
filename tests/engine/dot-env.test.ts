@@ -1,7 +1,8 @@
-import { test } from "node:test";
+import { test, mock } from "node:test";
 import { strict as assert } from "node:assert";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
-import { writeFileSync } from "node:fs";
+import { writeFileSync, chmodSync, rmSync } from "node:fs";
+import * as nodefs from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadDotEnv } from "../../src/engine/dot-env.ts";
@@ -92,6 +93,46 @@ test("real-env-wins — existing env var takes precedence over file", () => {
   } finally {
     if (prev === undefined) delete process.env.CYCLE_TEST_PREEXISTING;
     else process.env.CYCLE_TEST_PREEXISTING = prev;
+  }
+});
+
+test("non-ENOENT error (EACCES) is re-thrown with actionable message", () => {
+  const fakeErr = Object.assign(new Error("EACCES"), { code: "EACCES" });
+
+  if (process.getuid?.() === 0) {
+    const m = mock.method(nodefs, "readFileSync", () => { throw fakeErr; });
+    try {
+      assert.throws(
+        () => loadDotEnv("any.env"),
+        (err: unknown) => {
+          assert.ok(err instanceof Error);
+          assert.equal((err as NodeJS.ErrnoException).code, "EACCES");
+          assert.ok((err as Error).message.includes("Cannot read .env file"));
+          return true;
+        }
+      );
+    } finally {
+      m.mock.restore();
+    }
+    return;
+  }
+
+  const filePath = join(tmpdir(), `cycle-dot-env-eacces-${Date.now()}.env`);
+  writeFileSync(filePath, "KEY=value\n", "utf8");
+  chmodSync(filePath, 0o000);
+  try {
+    assert.throws(
+      () => loadDotEnv(filePath),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.equal((err as NodeJS.ErrnoException).code, "EACCES");
+        assert.ok((err as Error).message.includes("Cannot read .env file"));
+        return true;
+      }
+    );
+  } finally {
+    chmodSync(filePath, 0o644);
+    rmSync(filePath);
   }
 });
 

@@ -6,7 +6,12 @@ export function loadDotEnv(filePath: string): void {
     content = readFileSync(filePath, "utf8");
   } catch (e) {
     const err = e as NodeJS.ErrnoException;
-    if (err.code !== "ENOENT") throw e;
+    if (err.code !== "ENOENT") {
+      throw Object.assign(
+        new Error(`Cannot read .env file at ${filePath}: ${err.message}`),
+        { code: err.code }
+      );
+    }
     return;
   }
   for (const line of content.split("\n")) {
