@@ -1,0 +1,3 @@
+`docs/ENGINE.md` was already updated by the build step — the footprint description now correctly states that `??`-status paths under `src/` and `scripts/` are included, and the "Known limitation" paragraph for the `??` exclusion gap was removed. No further doc edits are warranted; `CLAUDE.md` and `README.md` are unaffected per SPEC scope.
+
+Updated `docs/ENGINE.md`: replaced the footprint schema sentence to state that newly-created untracked files (`??`) under `src/` and `scripts/` are now included while untracked paths outside those directories remain excluded; removed the "Known limitation" paragraph that documented the former `??` exclusion gap in `parseSnapshotPaths` and `commitCycle`.

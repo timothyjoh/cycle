@@ -37,12 +37,16 @@ const ARTIFACT_STEPS = new Set(["spec", "research", "plan", "build", "review", "
 const ARTIFACT_SUPPRESS_PROMPT =
   "You are in File Artifact Mode for this invocation. Output only the requested document content as clean structured Markdown. Do not include insight blocks, star-marker commentary, educational explanations, contribution requests, confirmation sentences, narration, or trailing commentary. Produce the file — nothing else.";
 
-function parseSnapshotPaths(snapshot: string): Set<string> {
+export function parseSnapshotPaths(snapshot: string): Set<string> {
   const paths = new Set<string>();
   for (const raw of snapshot.split("\n")) {
     if (!raw) continue;
     const xy = raw.slice(0, 2);
-    if (xy === "??") continue;
+    if (xy === "??") {
+      const p = raw.slice(3).replace(/^"/, "").replace(/"$/, "");
+      if (p.startsWith("src/") || p.startsWith("scripts/")) paths.add(p);
+      continue;
+    }
     let p = raw.slice(3);
     if (xy[0] === "R" || xy[0] === "C") {
       const arrow = p.lastIndexOf(" -> ");

@@ -90,6 +90,45 @@ test("runCycle touched.json: single build step accumulates dirtied files, exclud
   }
 });
 
+test("runCycle touched.json: untracked ?? src/ file included when not staged by agent", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-touch-untracked-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-touch-untracked-bin-"));
+  try {
+    await setupGitRepo(root);
+
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/prompts/build.md"), "BUILD_STEP_PROMPT", "utf8");
+    await writeFile(
+      join(root, ".cycle/workflows.yml"),
+      workflowYml("      - name: build\n        agent: claudecode\n        prompt: prompts/build.md\n"),
+      "utf8",
+    );
+
+    const fakeClaude = join(bin, "claude");
+    // Creates src/untracked.ts but does NOT git add — file stays ?? in git status
+    await writeFile(
+      fakeClaude,
+      `#!/bin/bash\nmkdir -p "${root}/src"\necho '// untracked' > "${root}/src/untracked.ts"\nprintf '## Summary\\nBuild done.\\n\\n## Touched Files\\n- src/untracked.ts\\n'`,
+      "utf8",
+    );
+    await chmod(fakeClaude, 0o755);
+
+    const r = await runCycle(root, {
+      issueId: "TOUCH-UT",
+      title: "untracked file in touched.json",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const content = await findTouchedJson(root, r.cycleId);
+    assert.ok(content.files.includes("src/untracked.ts"), "untracked src/ file must appear in touched.json");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
 test("runCycle touched.json: two sequential build+fix steps produce sorted union", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-touch-two-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-touch-two-bin-"));

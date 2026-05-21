@@ -553,6 +553,119 @@ test("commitCycle — artifactDir supplied, docs/cycle absent: no commit.scope_w
   }
 });
 
+test("commitCycle — untracked ?? src/ file not in touched.json: emits commit.scope_warning", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-sw-untracked-src-"));
+  try {
+    await setupRepo(root);
+    // Commit an existing file so git tracks src/ as a directory; new files then show as ?? src/file, not ?? src/
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/existing.ts"), "export const e = 0;\n", "utf8");
+    spawnSync("git", ["add", "src/existing.ts"], { cwd: root, shell: false });
+    spawnSync("git", ["commit", "-m", "add src"], { cwd: root, shell: false });
+
+    await mkdir(join(root, "docs/cycle/0099-feature-test"), { recursive: true });
+    await writeFile(
+      join(root, "docs/cycle/0099-feature-test/touched.json"),
+      JSON.stringify({ files: [] }) + "\n",
+      "utf8",
+    );
+    // Write untracked file — no git add, stays as ?? in git status
+    await writeFile(join(root, "src/brand-new.ts"), "export const x = 1;\n", "utf8");
+
+    const log = await createLogger(root, () => {});
+    const result = await commitCycle(root, {
+      cycleId: "0099",
+      title: "untracked src scope warning",
+      config: { mode: "trunk", push: false },
+      baseBranch: "master",
+      log,
+      artifactDir: join(root, "docs/cycle/0099-feature-test"),
+    });
+    assert.ok(result.status === "ok" || result.status === "skipped");
+
+    const body = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const events = body.trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
+    const warn = expectExactlyOne(events, "commit.scope_warning");
+    assert.ok(Array.isArray(warn.files) && (warn.files as string[]).includes("src/brand-new.ts"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("commitCycle — untracked ?? path outside src/scripts: no commit.scope_warning", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-sw-untracked-other-"));
+  try {
+    await setupRepo(root);
+    await mkdir(join(root, "docs/cycle/0099-feature-test"), { recursive: true });
+    await writeFile(
+      join(root, "docs/cycle/0099-feature-test/touched.json"),
+      JSON.stringify({ files: [] }) + "\n",
+      "utf8",
+    );
+    // Untracked file outside src/ — should NOT trigger warning
+    await mkdir(join(root, "config"), { recursive: true });
+    await writeFile(join(root, "config/settings.json"), "{}\n", "utf8");
+
+    const log = await createLogger(root, () => {});
+    await commitCycle(root, {
+      cycleId: "0099",
+      title: "untracked non-src no warning",
+      config: { mode: "trunk", push: false },
+      baseBranch: "master",
+      log,
+      artifactDir: join(root, "docs/cycle/0099-feature-test"),
+    });
+
+    let events: Record<string, unknown>[] = [];
+    try {
+      const body = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+      events = body.trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
+    } catch { /* no log = no warnings */ }
+    const warnings = events.filter((e) => e.event === "commit.scope_warning");
+    assert.equal(warnings.length, 0, "untracked path outside src/scripts must not trigger warning");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("commitCycle — untracked ?? scripts/ file not in touched.json: emits commit.scope_warning", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-sw-untracked-scripts-"));
+  try {
+    await setupRepo(root);
+    // Commit an existing file so git tracks scripts/ as a directory
+    await mkdir(join(root, "scripts"), { recursive: true });
+    await writeFile(join(root, "scripts/existing.mjs"), "// existing\n", "utf8");
+    spawnSync("git", ["add", "scripts/existing.mjs"], { cwd: root, shell: false });
+    spawnSync("git", ["commit", "-m", "add scripts"], { cwd: root, shell: false });
+
+    await mkdir(join(root, "docs/cycle/0099-feature-test"), { recursive: true });
+    await writeFile(
+      join(root, "docs/cycle/0099-feature-test/touched.json"),
+      JSON.stringify({ files: [] }) + "\n",
+      "utf8",
+    );
+    await writeFile(join(root, "scripts/new-tool.mjs"), "#!/usr/bin/env node\n", "utf8");
+
+    const log = await createLogger(root, () => {});
+    const result = await commitCycle(root, {
+      cycleId: "0099",
+      title: "untracked scripts scope warning",
+      config: { mode: "trunk", push: false },
+      baseBranch: "master",
+      log,
+      artifactDir: join(root, "docs/cycle/0099-feature-test"),
+    });
+    assert.ok(result.status === "ok" || result.status === "skipped");
+
+    const body = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const events = body.trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
+    const warn = expectExactlyOne(events, "commit.scope_warning");
+    assert.ok(Array.isArray(warn.files) && (warn.files as string[]).includes("scripts/new-tool.mjs"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("commitCycle — quick_fix in-footprint: no commit.scope_warning emitted", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-sw-qf-infoot-"));
   try {

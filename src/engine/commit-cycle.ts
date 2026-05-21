@@ -134,7 +134,7 @@ export async function commitCycle(
   for (const raw of statusOut.stdout.split("\n")) {
     if (!raw) continue;
     const xy = raw.slice(0, 2);
-    if (xy === "??" || xy[0] === "D" || xy[1] === "D") continue;
+    if (xy[0] === "D" || xy[1] === "D") continue;
     let p = raw.slice(3);
     if (xy[0] === "R" || xy[0] === "C") {
       const arrow = p.lastIndexOf(" -> ");
