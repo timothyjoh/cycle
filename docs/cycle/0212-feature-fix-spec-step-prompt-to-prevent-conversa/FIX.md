@@ -1,0 +1,1 @@
+Both tasks addressed and verified. PLAN.md was fully rewritten as a structured document with three tasks (id/files/steps) and the required `## SPEC Acceptance Traceability` table containing all five SPEC AC bullets verbatim. Full test suite: 605 pass, 0 fail. Coverage: Line 98.51%, Branch 92.50%, Function 92.95% — all gates green, no regression vs baseline.

@@ -119,7 +119,11 @@ Failed `step.end` events carry a head-capped `stderr` field (2000-char, via `MAX
 
 Cycle 0211 added a `## Required Sections` block to `src/defaults/prompts/spec.md` mandating a `## Acceptance Criteria` section with at least one checkbox-format testable bullet in every generated SPEC.md. Review Pass 1 now verifies each SPEC AC bullet one-for-one and treats a missing or empty section as a NEEDS-FIX trigger (not a PLAN gap). Dogfood mirror `.cycle/prompts/{spec,review}.md` are byte-identical after `npm run sync-defaults` (pinned by `tests/defaults/spec-prompt-ac.test.ts` and `tests/defaults/review-prompt-spec-ac.test.ts`).
 
+Cycle 0212 added a `## File Artifact Mode` section to `src/defaults/prompts/spec.md` explicitly prohibiting conversational framing in SPEC.md output: insight blocks, star-marker commentary, and confirmation sentences ("Spec written to…", "I have written the spec") are all banned. The section explains that downstream agents read SPEC.md as their source of truth and contaminated output produces incorrect plans. Dogfood mirror `.cycle/prompts/spec.md` is byte-identical after `npm run sync-defaults` (pinned by `tests/defaults/spec-prompt-ac.test.ts`).
+
 **Known limitation:** AC section presence is enforced only at the prompt level — there is no engine post-condition that reads the generated SPEC.md and fails the spec step if `## Acceptance Criteria` is absent. A spec agent that ignores the instruction produces an AC-free SPEC.md and the engine accepts it. Adding a spec post-condition check analogous to the size gate is deferred work.
+
+**Known limitation:** `src/defaults/prompts/plan.md` has no equivalent `## File Artifact Mode` guardrail. The plan agent outputs PLAN.md as a file artifact read by downstream build and review agents; conversational contamination in plan output (confirmed by cycle 0212's PLAN.md being emitted as a conversational reply on first attempt) breaks SPEC→PLAN traceability and causes NEEDS-FIX cycles. Adding the same guardrail to plan.md is deferred work.
 
 ## Engine-managed commit lifecycle
 

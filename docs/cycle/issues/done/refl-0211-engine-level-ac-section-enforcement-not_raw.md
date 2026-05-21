@@ -3,7 +3,7 @@ id: refl-0211-engine-level-ac-section-enforcement-not
 source: reflection
 title: Engine-level AC section enforcement not yet implemented — prompt-only guard is insufficient
 added_at: "2026-05-21T07:45:44.222Z"
-triage_attempts: 0
+triage_attempts: 1
 priority_hint: 6
 origin_cycle_id: "0211"
 ---

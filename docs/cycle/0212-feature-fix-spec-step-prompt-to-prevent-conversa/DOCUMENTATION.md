@@ -1,0 +1,1 @@
+Updated docs/ENGINE.md SPEC→PLAN traceability section: added a paragraph documenting cycle 0212's `## File Artifact Mode` addition to the spec prompt, and added a known limitation entry for the identical contamination gap in `src/defaults/prompts/plan.md` surfaced by the cycle reflection.

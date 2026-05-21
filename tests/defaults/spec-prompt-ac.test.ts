@@ -29,6 +29,22 @@ test("spec prompt Required Sections uses checkbox format example", async () => {
   );
 });
 
+test("spec prompt File Artifact Mode identifies output as a file not a conversation", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("You are writing a file, not responding in a conversation"),
+    "missing file-artifact framing instruction",
+  );
+});
+
+test("spec prompt File Artifact Mode prohibits insight blocks and star-marker commentary", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("insight blocks or star-marker"),
+    "missing prohibition on insight blocks and star-marker commentary",
+  );
+});
+
 test("dogfood spec prompt is byte-identical to default", async () => {
   const [src, dog] = await Promise.all([readFile(SRC), readFile(DOG)]);
   assert.equal(

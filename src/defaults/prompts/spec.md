@@ -114,6 +114,25 @@ If the change touches UI:
 - A `frontend-design` skill at `.claude/skills/frontend-design/SKILL.md`
   (if present) defines the visual quality bar — follow it.
 
+## File Artifact Mode
+
+**You are writing a file, not responding in a conversation.** The engine
+captures your stdout verbatim and writes it to `SPEC.md`. Every byte you
+emit becomes the file.
+
+**Do not include any of the following:**
+- insight blocks or star-marker commentary (styled callout blocks with
+  decorative headers, regardless of the marker character used)
+- confirmation sentences ("Spec written to…", "I have written the spec",
+  "Here is the spec")
+- informal single-sentence section substitutes ("The goal is X" instead
+  of a proper `## Objective` paragraph)
+
+If any of these appear in your output, downstream agents that read
+`SPEC.md` as their source of truth will receive contaminated input and
+produce incorrect plans. The spec must be clean structured Markdown —
+nothing else.
+
 ## Output
 
 Output the SPEC.md content **to stdout** — the engine captures stdout
