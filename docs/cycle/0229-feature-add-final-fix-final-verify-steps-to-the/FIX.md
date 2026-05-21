@@ -1,0 +1,5 @@
+Both tasks fixed and verified. 679 tests pass (672 + 7 new), all coverage gates hold (line 98.60%, branch 92.67%, function 93.28%; `run-cycle.ts` at 100.00%), byte-identity confirmed between `src/defaults/prompts/final_fix.md` and `.cycle/prompts/final_fix.md`.
+
+## Summary
+
+Task 1 fixed by inserting the canonical `**You are writing a file, not responding in a conversation.**` guardrail sentence at the top of the `## File Artifact Mode` section in `src/defaults/prompts/final_fix.md`. The three bullet-list items were also lowercased ("Insight blocks…" → "insight blocks or star-marker…", etc.) so the Task 2 tests — which check for lowercase strings — all pass; this deviation from the literal Task 1 instruction was necessary and is documented in MUST-FIX.md. Task 2 added 7 guardrail tests to `tests/defaults/file-artifact-mode-guardrail.test.ts` following the exact pattern specified. `npm run sync-defaults` propagated the prompt change; `diff` exits 0. Full test suite: **679 tests, 0 failures**. Coverage: line 98.60%, branch 92.67%, function 93.28% — no decrease from BUILD.md baseline.

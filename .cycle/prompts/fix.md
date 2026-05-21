@@ -93,6 +93,8 @@ If you cannot fix something, check it off anyway and mark it failed:
   **Reason:** [Why]
 ```
 
+Do not finish this step until the full test suite passes (`npm test`).
+
 Also output a one-paragraph **summary to stdout** describing which
 tasks you addressed, the final test-suite outcome, the final coverage
 numbers (line / branch / function) and how they compare to BUILD.md's

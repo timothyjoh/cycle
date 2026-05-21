@@ -110,6 +110,8 @@ describing:
   - tests/engine/commit-cycle.test.ts
   ```
 
+Do not finish this step until the full test suite passes (`npm test`).
+
 The engine captures stdout and writes it to
 `docs/cycle/<cycle_id>-<workflow>-<slug>/BUILD.md`. Nothing else in the
 output — no preamble or closing remarks.

@@ -24,7 +24,7 @@ import { truncateHeadCapped } from "./log-fmt.ts";
 import { spawnSync } from "node:child_process";
 import { isDenied } from "./path-utils.ts";
 
-const RESET_ELIGIBLE_STEPS = new Set(["build", "fix"]);
+const RESET_ELIGIBLE_STEPS = new Set(["build", "fix", "final_fix"]);
 
 // SKIP_ELIGIBLE_STEPS must stay disjoint from any step that mutates the working
 // tree on success — skipping such a step would lose the mutation. Pre-build
@@ -32,7 +32,7 @@ const RESET_ELIGIBLE_STEPS = new Set(["build", "fix"]);
 // <artifactDir>/<STEP>.md from agent stdout, so the artifact IS the work.
 const SKIP_ELIGIBLE_STEPS = new Set(["spec", "research", "plan"]);
 
-const ARTIFACT_STEPS = new Set(["spec", "research", "plan", "build", "review", "fix", "documentation"]);
+const ARTIFACT_STEPS = new Set(["spec", "research", "plan", "build", "review", "fix", "final_fix", "documentation"]);
 
 const ARTIFACT_SUPPRESS_PROMPT =
   "You are in File Artifact Mode for this invocation. Output only the requested document content as clean structured Markdown. Do not include insight blocks, star-marker commentary, educational explanations, contribution requests, confirmation sentences, narration, or trailing commentary. Produce the file — nothing else.";

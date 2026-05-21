@@ -1,0 +1,1 @@
+Updated `docs/ENGINE.md` with two Known Limitation entries in the Feature workflow step sequence section: the double `verify.sh` cost from `final_verify` running unconditionally while `FINAL_FIXES.md` is absent (priority_hint 7 from REFLECTION.md), and the `FINAL_FIX.md` vs `FINAL_FIXES.md` near-identical naming footgun that will affect redesign-07 implementors (priority_hint 5).

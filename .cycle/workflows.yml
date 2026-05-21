@@ -25,6 +25,8 @@ workflows:
       - { name: fix,      agent: claudecode, prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
       - { name: verify,   agent: bash,       command: scripts/verify.sh }
       - { name: reflection,    agent: claudecode, prompt: prompts/reflection.md }
+      - { name: final_fix,     agent: claudecode, prompt: prompts/final_fix.md, skip_unless: FINAL_FIXES.md }
+      - { name: final_verify,  agent: bash,       command: scripts/verify.sh }
       - { name: documentation, agent: claudecode, prompt: prompts/documentation.md }
 
   - name: document

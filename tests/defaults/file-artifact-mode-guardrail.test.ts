@@ -226,3 +226,47 @@ test("dogfood documentation prompt is byte-identical to default", async () => {
     "src/defaults/prompts/documentation.md and .cycle/prompts/documentation.md must match byte-for-byte",
   );
 });
+
+const FINAL_FIX_SRC = "src/defaults/prompts/final_fix.md";
+const FINAL_FIX_DOG = ".cycle/prompts/final_fix.md";
+
+test("final_fix prompt File Artifact Mode identifies output as a file not a conversation", async () => {
+  const body = await readFile(FINAL_FIX_SRC, "utf8");
+  assert.ok(
+    body.includes("You are writing a file, not responding in a conversation"),
+    "missing File Artifact Mode guardrail sentence in final_fix.md",
+  );
+});
+
+test("final_fix prompt File Artifact Mode prohibits insight blocks and star-marker commentary", async () => {
+  const body = await readFile(FINAL_FIX_SRC, "utf8");
+  assert.ok(body.includes("insight blocks or star-marker"), "missing insight blocks / star-marker prohibition in final_fix.md");
+});
+
+test("final_fix prompt File Artifact Mode prohibits confirmation sentences", async () => {
+  const body = await readFile(FINAL_FIX_SRC, "utf8");
+  assert.ok(body.includes("confirmation sentences"), "missing confirmation sentences prohibition in final_fix.md");
+});
+
+test("final_fix prompt File Artifact Mode prohibits trailing commentary", async () => {
+  const body = await readFile(FINAL_FIX_SRC, "utf8");
+  assert.ok(body.includes("trailing commentary"), "missing trailing commentary prohibition in final_fix.md");
+});
+
+test("final_fix prompt File Artifact Mode includes concrete negative example", async () => {
+  const body = await readFile(FINAL_FIX_SRC, "utf8");
+  assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in final_fix.md FAM section");
+});
+
+test("final_fix prompt contains inline FILE ARTIFACT MODE directive", async () => {
+  const body = await readFile(FINAL_FIX_SRC, "utf8");
+  assert.ok(
+    body.includes("FILE ARTIFACT MODE: Output only the document contents requested"),
+    "missing inline FILE ARTIFACT MODE directive in final_fix.md",
+  );
+});
+
+test("dogfood final_fix prompt is byte-identical to default", async () => {
+  const [src, dog] = await Promise.all([readFile(FINAL_FIX_SRC), readFile(FINAL_FIX_DOG)]);
+  assert.equal(Buffer.compare(src, dog), 0, "src/defaults/prompts/final_fix.md and .cycle/prompts/final_fix.md must match byte-for-byte");
+});
