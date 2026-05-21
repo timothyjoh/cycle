@@ -1,0 +1,1 @@
+Addressed 1 task: removed 11-line narration preamble from PLAN.md (lines 1–11, everything before `# Implementation Plan: Cycle 0222`). Verify passed — `head -1` returns the heading. Full test suite: 659/659 pass, 0 failures. Coverage gates unchanged from BUILD.md baseline (no code was modified — fix was documentation-only). No tasks could not be fixed.

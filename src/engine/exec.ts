@@ -7,6 +7,17 @@ import { opencodeExec } from "./exec-opencode.ts";
 import { piExec } from "./exec-pi.ts";
 
 export interface ExecModule {
+  /**
+   * Runs a single workflow step for an agent.
+   *
+   * `appendSystemPrompt`: honoured only by `claudecodeExec` (forwarded as
+   * `--append-system-prompt <value>` before `-p`). Per-agent findings from
+   * cycle 0222: `codex` — not supported; `opencode` — not supported;
+   * `gemini` — unknown (CLI not installed); `auggie` — unknown, CLI unstable;
+   * `pi` — unknown, CLI unstable. See ENGINE.md Known Limitations for details.
+   * `run-cycle.ts` emits `step.warning { reason: "append_system_prompt_ignored" }`
+   * for any non-claudecode agent that receives a non-undefined value (cycle 0219).
+   */
   runStep(args: {
     repoRoot: string;
     promptPath: string;
