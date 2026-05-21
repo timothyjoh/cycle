@@ -14,6 +14,8 @@ Agent dispatch: the per-step `agent:` field in `workflows.yml` resolves through 
 
 `src/engine/triage.ts` is the only writer that moves files out of `raw/`. It spawns the configured agent, parses+validates JSON output (`children[]`, `ordering[]`, `decomposed_parents[]`), and applies queue mutations atomically (writes `todo/<id>.md` via tmp-rename, appends `tbd.jsonl` rows, moves `raw/<id>.md → done/<id>_raw.md`). One agent call per raw; cross-raw batching is deferred. Per-raw retry up to 3 attempts with prior validator error fed back.
 
+**Known limitation:** The parse path calls `JSON.parse(rawStdout)` with no pre-processing. The triage prompt instructs the agent not to wrap output in markdown code fences, but this is a probabilistic defense — the model occasionally ignores it. Fence-wrapped output causes a `JSON.parse` failure that burns a retry attempt rather than recovering trivially. A code-side `stripFences` pass before `JSON.parse` would eliminate this failure class entirely; that is deferred work.
+
 Per-file load isolation: `loadRaws` catches per-file errors (`readFile` or `parseFrontmatter` failure) rather than aborting the entire pass. A failing file emits `triage.raw.load_error { raw_id, error }` (error capped at 2000 chars via `truncateHeadCapped`) and is skipped; surviving raws continue through the agent loop normally. All-load-failure (all files malformed) yields `status:"ok"` with empty processed/failed — distinct from all-agent-failure which produces `engine.paused { reason: "all_triage_failed" }`.
 
 Whole-pass failure: emits `engine.paused { reason: "all_triage_failed", raw_ids, last_errors }` with errors capped at 2000 chars, exits non-zero. Raws stay in `raw/` (no rename) so `cycle triage --dry-run` can re-evaluate after operator edits. Partial failure moves the failed subset to `failed/<id>.md` with `failed_step: "triage"`.
@@ -108,6 +110,8 @@ Failed `step.end` events carry a head-capped `stderr` field (2000-char, via `MAX
 ## SPEC→PLAN traceability
 
 `src/defaults/prompts/plan.md` requires PLAN.md to carry `## SPEC Acceptance Traceability` re-quoting every SPEC `## Acceptance Criteria` bullet verbatim paired with a covering plan-task id or `WAIVED — <rationale>`. Review Pass 1 makes a missing or incomplete section a NEEDS-FIX trigger. Dogfood mirrors `.cycle/prompts/{plan,review}.md` are byte-identical (pinned by `tests/defaults/plan-prompt-spec-traceability.test.ts`).
+
+**Known limitation:** `src/defaults/prompts/spec.md` does not require a structured `## Acceptance Criteria` section in its output contract. When the spec agent emits a thin artifact without that section, PLAN.md's traceability table has nothing to quote verbatim — plan must infer bullets independently, and review can only verify against those inferences, not against SPEC itself. Adding a mandatory `## Acceptance Criteria` block to the spec prompt's output contract is deferred work.
 
 ## Engine-managed commit lifecycle
 

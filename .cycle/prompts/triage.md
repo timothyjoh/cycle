@@ -29,6 +29,8 @@ parseable as JSON on the first try.
 
 {{RETRY_FEEDBACK}}
 
+**Do NOT wrap output in markdown code fences or backtick blocks. Output the JSON object directly with no surrounding characters.**
+
 ## Output contract
 
 Emit exactly one JSON object with these fields:
