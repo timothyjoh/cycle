@@ -221,6 +221,8 @@ test("engine.commit absent — defaults to mode:trunk push:true", async () => {
 
 test("engine.commit present — parsed correctly", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const prev = process.env.CYCLE_TRUNK_BASED;
+  delete process.env.CYCLE_TRUNK_BASED;
   try {
     await writeConfig(root,
       `engine:
@@ -245,6 +247,8 @@ workflows:
     assert.equal(cfg.engine.commit.mode, "local-only");
     assert.equal(cfg.engine.commit.push, false);
   } finally {
+    if (prev === undefined) delete process.env.CYCLE_TRUNK_BASED;
+    else process.env.CYCLE_TRUNK_BASED = prev;
     await rm(root, { recursive: true, force: true });
   }
 });

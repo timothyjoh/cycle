@@ -24,6 +24,7 @@ import { checkoutBase, pullBase, resolveBaseBranch } from "./engine/branch.ts";
 import { commitCycle } from "./engine/commit-cycle.ts";
 import { terminalDrain } from "./engine/issue-lifecycle.ts";
 import { emitStaleDistWarning } from "./engine/stale-dist.ts";
+import { acquireLock, releaseLock } from "./engine/engine-lock.ts";
 import type { Logger } from "./engine/log.ts";
 import type { RunArgs } from "./cli/parse-args.ts";
 
@@ -112,6 +113,17 @@ if (args.dryRun) {
   }));
   process.exit(0);
 }
+
+const lockPath = join(cwd, ".cycle", "engine.lock");
+try {
+  acquireLock(lockPath);
+} catch (err) {
+  console.error((err as Error).message);
+  process.exit(1);
+}
+process.on("exit", () => releaseLock(lockPath));
+process.on("SIGINT", () => process.exit(130));
+process.on("SIGTERM", () => process.exit(143));
 
 const log = await createLogger(cwd);
 

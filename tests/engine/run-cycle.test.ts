@@ -81,7 +81,7 @@ test("runs a 2-step workflow end-to-end and writes log + artifacts", async () =>
       issueId: "TEST-1",
       title: "spec the thing",
       workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.cycleId, "0001");
     assert.equal(r.status, "ok");
@@ -123,7 +123,7 @@ test("checks out base branch after successful cycle", async () => {
       issueId: "TEST-1",
       title: "spec the thing",
       workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -177,7 +177,7 @@ test("checks out base branch after failed cycle", async () => {
       issueId: "TEST-1",
       title: "spec the thing",
       workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "failed");
     assert.equal(r.failingStep, "boom");
@@ -229,7 +229,7 @@ test("injects CYCLE_ISSUE_ID into bash step env", async () => {
       issueId: "ISSUE-42",
       title: "echo env",
       workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
     // The bash step's stdout isn't written to disk by execBashStep — assert via log
@@ -259,7 +259,7 @@ test("injects CYCLE_ISSUE_ID into bash step env", async () => {
       issueId: "ISSUE-99",
       title: "check env",
       workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r2.status, "ok", "check.sh should see CYCLE_ISSUE_ID and exit 0");
   } finally {
@@ -293,7 +293,7 @@ test("logs cycle.checkout status=failed when base branch does not exist", async 
       issueId: "TEST-1",
       title: "spec the thing",
       workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "no-such-base" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "no-such-base", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -339,7 +339,7 @@ test("pulls origin/<CYCLE_BASE> between cycles so second cycle branches off refr
     await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
-    const sharedEnv = { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" };
+    const sharedEnv = { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" };
 
     // Advance origin BEFORE cycle 1 finishes so cycle 1's post-cycle pull
     // moves local main forward. (Mirrors the real bug: a prior cycle's PR
@@ -400,7 +400,7 @@ test("logs cycle.base_pull status=failed when origin remote is missing", async (
       issueId: "TEST-1",
       title: "spec the thing",
       workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -445,7 +445,7 @@ test("honors cycleId opt when caller provides it", async () => {
       issueId: "TEST-1",
       title: "explicit id",
       workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.cycleId, "0042");
     const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
@@ -505,7 +505,7 @@ test("resume mode skips cycle.start, calls checkoutCycleBranch, starts at startS
       title: "resume me",
       workflow: "feature",
       resume: { startStepIndex: 1 },
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.cycleId, "0042");
     assert.equal(r.status, "ok");
@@ -555,7 +555,7 @@ test("resume mode fails cleanly when cycle branch is missing (no cycle.end emitt
         title: "no branch",
         workflow: "feature",
         resume: { startStepIndex: 0 },
-        env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+        env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
       }),
       (err: Error) => /git checkout cycle\/feature\/no-branch failed/.test(err.message),
     );
@@ -607,7 +607,7 @@ test("resume with startStepIndex == steps.length emits cycle.end ok and runs no 
       title: "done already",
       workflow: "feature",
       resume: { startStepIndex: 2 },
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -645,7 +645,7 @@ test("logs cycle.base_pull status=skipped when prior checkout failed", async () 
       issueId: "TEST-1",
       title: "spec the thing",
       workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "no-such-base" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "no-such-base", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -812,7 +812,7 @@ test("fresh build step.start records head_sha; non-build step.start does not", a
       issueId: "TEST-1",
       title: "build sha",
       workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -872,7 +872,7 @@ workflows:
       issueId: "TEST-1",
       title: "trunk build",
       workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -889,7 +889,7 @@ workflows:
       title: "trunk resume",
       workflow: "feature",
       resume: { startStepIndex: 0 },
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r2.status, "ok");
 
@@ -947,7 +947,7 @@ test("fresh fix step.start records head_sha; spec/review step.start does not", a
       issueId: "TEST-1",
       title: "fix sha",
       workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -1008,7 +1008,7 @@ workflows:
       issueId: "TEST-1",
       title: "trunk fix",
       workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -1024,7 +1024,7 @@ workflows:
       title: "trunk resume",
       workflow: "feature",
       resume: { startStepIndex: 0 },
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r2.status, "ok");
 
@@ -1111,7 +1111,7 @@ test("resume at build hard-resets to prior step.start head_sha", async () => {
       title: "resume build",
       workflow: "feature",
       resume: { startStepIndex: 1 },
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -1191,7 +1191,7 @@ test("resume at build with no prior head_sha emits build_pre_sha_missing and ski
       title: "legacy log",
       workflow: "feature",
       resume: { startStepIndex: 1 },
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -1261,7 +1261,7 @@ test("resume at build with unreachable head_sha emits build_pre_sha_unreachable 
       title: "lost sha",
       workflow: "feature",
       resume: { startStepIndex: 1 },
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -1362,7 +1362,7 @@ test("resume at fix hard-resets to prior step.start head_sha", async () => {
       title: "resume fix",
       workflow: "feature",
       resume: { startStepIndex: 5 },
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -1462,7 +1462,7 @@ test("resume at fix with no prior head_sha emits fix_pre_sha_missing and skips r
       title: "legacy fix log",
       workflow: "feature",
       resume: { startStepIndex: 5 },
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -1553,7 +1553,7 @@ test("resume at fix with unreachable head_sha emits fix_pre_sha_unreachable and 
       title: "lost fix sha",
       workflow: "feature",
       resume: { startStepIndex: 5 },
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "ok");
 
@@ -1613,7 +1613,7 @@ test("step with unregistered agent fails the step and ends the cycle", async () 
       issueId: "TEST-1",
       title: "unknown agent",
       workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
     });
     assert.equal(r.status, "failed");
     assert.equal(r.failingStep, "bogus");

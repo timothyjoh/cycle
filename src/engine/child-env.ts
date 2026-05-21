@@ -23,5 +23,11 @@ export function buildChildEnv(extra: Record<string, string>): NodeJS.ProcessEnv 
   const path = basePath
     ? `${nodeBinDir}${delimiter}${basePath}`
     : nodeBinDir;
-  return { ...process.env, ...extra, PATH: path };
+  // Strip cycle-engine-internal vars so they don't bleed into arbitrary
+  // subprocesses (bash steps, agents, verify scripts). They are re-injected
+  // explicitly via cycleEnv when needed (e.g. CYCLE_BASE, CYCLE_ID).
+  // CYCLE_TRUNK_BASED in particular causes test-suite contamination when
+  // npm test is run as a bash step and inherits the engine's env.
+  const { CYCLE_TRUNK_BASED: _t, ...baseEnv } = process.env as Record<string, string | undefined>;
+  return { ...baseEnv, ...extra, PATH: path };
 }

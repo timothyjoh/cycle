@@ -43,7 +43,7 @@ export type CycleConfig = {
   workflows: Workflow[];
 };
 
-export async function loadConfig(repoRoot: string): Promise<CycleConfig> {
+export async function loadConfig(repoRoot: string, env: Record<string, string | undefined> = process.env as Record<string, string | undefined>): Promise<CycleConfig> {
   const path = join(repoRoot, ".cycle/workflows.yml");
   let body: string;
   try {
@@ -83,7 +83,7 @@ export async function loadConfig(repoRoot: string): Promise<CycleConfig> {
     }
     commitConfig = { mode, push: rawCommit.push !== false };
   }
-  if (process.env.CYCLE_TRUNK_BASED === "1") {
+  if (env.CYCLE_TRUNK_BASED === "1") {
     commitConfig.mode = "trunk";
   }
   parsed.engine.commit = commitConfig;

@@ -1,0 +1,1 @@
+SPEC written to `docs/cycle/0202-feature-enforce-single-running-cycle-engine-via/SPEC.md`. Scoped to: new `engine-lock.ts` module + supervisor wiring + tests + coverage floor. Daemon PID file and queue atomicity deferred out of scope.

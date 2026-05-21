@@ -176,7 +176,8 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
   const cycleId = opts.cycleId ?? (await allocateCycleId(repoRoot));
   const log = await createLogger(repoRoot);
   const slug = slugify(opts.title);
-  const cfg = await loadConfig(repoRoot);
+  const mergedEnv = opts.env ? { ...process.env, ...(opts.env) } as Record<string, string | undefined> : undefined;
+  const cfg = await loadConfig(repoRoot, mergedEnv);
   const wf = cfg.workflows.find((w) => w.name === opts.workflow);
   if (!wf) throw new Error(`unknown workflow: ${opts.workflow}`);
 
