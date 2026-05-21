@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, stat } from "node:fs/pr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { runCycle, findPriorBuildHeadSha, findPriorStepHeadSha } from "../../src/engine/run-cycle.ts";
+import { runCycle, findPriorBuildHeadSha, findPriorStepHeadSha, RESET_ELIGIBLE_STEPS } from "../../src/engine/run-cycle.ts";
 
 function git(cwd: string, args: string[]) {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -1585,6 +1585,81 @@ test("findPriorBuildHeadSha returns newer sha when two build step.start rows exi
     assert.equal(got, "NEW_SHA");
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+function workflowYmlQuickfix(stepsBody: string): string {
+  return `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+  commit:
+    mode: trunk
+    push: false
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: quickfix
+    max_cycle_attempts: 3
+    steps:
+${stepsBody}`;
+}
+
+test("RESET_ELIGIBLE_STEPS contains all expected step names", () => {
+  const expected = ["build", "fix", "final_fix", "quick_fix", "test_fix", "test_build"];
+  for (const name of expected) {
+    assert.ok(RESET_ELIGIBLE_STEPS.has(name), `RESET_ELIGIBLE_STEPS must contain "${name}"`);
+  }
+});
+
+test("quick_fix step accumulates touched.json footprint", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-qf-footprint-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-qf-bin-"));
+  try {
+    git(root, ["init", "-b", "main"]);
+    git(root, ["config", "user.email", "t@t"]);
+    git(root, ["config", "user.name", "t"]);
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/stub.ts"), "export {};\n", "utf8");
+    git(root, ["add", "src/stub.ts"]);
+    git(root, ["commit", "-m", "init"]);
+
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(
+      join(root, ".cycle/workflows.yml"),
+      workflowYmlQuickfix(`      - name: quick_fix
+        agent: claudecode
+        prompt: prompts/quick_fix.md
+`),
+      "utf8",
+    );
+    await writeFile(join(root, ".cycle/prompts/quick_fix.md"), "fix it", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(
+      fake,
+      `#!/bin/bash\nprintf 'fix\\n' >> src/stub.ts\nyes FAKED | head -5\n`,
+      "utf8",
+    );
+    await chmod(fake, 0o755);
+
+    const r = await runCycle(root, {
+      issueId: "QF-1",
+      title: "quick fix the thing",
+      workflow: "quickfix",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "1" },
+    });
+    assert.equal(r.status, "ok");
+    assert.ok(r.artifactDir, "artifactDir must be returned");
+
+    const touchedRaw = await readFile(join(r.artifactDir, "touched.json"), "utf8");
+    const touched = JSON.parse(touchedRaw) as { files: string[] };
+    assert.ok(Array.isArray(touched.files), "touched.json must have files array");
+    assert.ok(touched.files.includes("src/stub.ts"), "src/stub.ts must appear in touched.json");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
   }
 });
 

@@ -553,3 +553,39 @@ test("commitCycle — artifactDir supplied, docs/cycle absent: no commit.scope_w
   }
 });
 
+test("commitCycle — quick_fix in-footprint: no commit.scope_warning emitted", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-sw-qf-infoot-"));
+  try {
+    await setupRepo(root);
+    await mkdir(join(root, "docs/cycle/0100-quickfix-qf-test"), { recursive: true });
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/fix.ts"), "export const fixed = true;\n", "utf8");
+    spawnSync("git", ["add", "src/fix.ts"], { cwd: root, shell: false });
+    await writeFile(
+      join(root, "docs/cycle/0100-quickfix-qf-test/touched.json"),
+      JSON.stringify({ files: ["src/fix.ts"] }) + "\n",
+      "utf8",
+    );
+
+    const log = await createLogger(root, () => {});
+    await commitCycle(root, {
+      cycleId: "0100",
+      title: "quick fix in footprint",
+      config: { mode: "trunk", push: false },
+      baseBranch: "master",
+      log,
+      artifactDir: join(root, "docs/cycle/0100-quickfix-qf-test"),
+    });
+
+    let events: Record<string, unknown>[] = [];
+    try {
+      const body = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+      events = body.trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
+    } catch { /* absent log means no warnings */ }
+    const warnings = events.filter((e) => e.event === "commit.scope_warning");
+    assert.equal(warnings.length, 0, "no commit.scope_warning when quick_fix file is in footprint");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+

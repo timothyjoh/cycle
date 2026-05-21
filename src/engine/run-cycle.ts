@@ -24,7 +24,7 @@ import { truncateHeadCapped } from "./log-fmt.ts";
 import { spawnSync } from "node:child_process";
 import { isDenied } from "./path-utils.ts";
 
-const RESET_ELIGIBLE_STEPS = new Set(["build", "fix", "final_fix"]);
+export const RESET_ELIGIBLE_STEPS = new Set(["build", "fix", "final_fix", "quick_fix", "test_fix", "test_build"]);
 
 // SKIP_ELIGIBLE_STEPS must stay disjoint from any step that mutates the working
 // tree on success — skipping such a step would lose the mutation. Pre-build
