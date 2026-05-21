@@ -191,6 +191,11 @@ export async function runTriage(
   // retry budget. SPEC §Requirements suggests a single batched prompt; we
   // deviate so a poison raw can't block its siblings. See BUILD.md §Deviations.
   for (const raw of raws) {
+    if (raw.fm.priority === "discuss") {
+      await parkForDiscussion(repoRoot, raw, log);
+      continue;
+    }
+
     const outcome = await processRawWithRetry(raw, {
       repoRoot,
       cfg,
@@ -227,7 +232,8 @@ export async function runTriage(
     await rewriteOrdering(repoRoot, lastOrdering, log);
   }
 
-  if (failed.length === raws.length) {
+  const actionableCount = raws.filter((r) => r.fm.priority !== "discuss").length;
+  if (actionableCount > 0 && failed.length === actionableCount) {
     // All-fail path: raws stay in raw/ so `cycle triage --dry-run` can
     // re-evaluate them after operator edits without any manual `mv`.
 
@@ -695,6 +701,29 @@ async function moveToFailed(repoRoot: string, raw: RawIssue): Promise<void> {
     await rename(raw.srcPath, join(failedDir, `${raw.id}.md`));
   } catch {
     // raw file may have been removed mid-flight; nothing else to do
+  }
+}
+
+async function parkForDiscussion(
+  repoRoot: string,
+  raw: RawIssue,
+  log: Logger,
+): Promise<void> {
+  const discussDir = join(repoRoot, "docs/cycle/issues/discuss");
+  await mkdir(discussDir, { recursive: true });
+  const destPath = join(discussDir, `${raw.id}.md`);
+  let renamed = true;
+  try {
+    await rename(raw.srcPath, destPath);
+  } catch {
+    renamed = false;
+  }
+  if (renamed) {
+    await log.emit("issue.parked_for_discussion", {
+      id: raw.id,
+      priority: "discuss",
+      path: destPath,
+    });
   }
 }
 

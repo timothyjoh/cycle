@@ -29,6 +29,9 @@ docs/cycle/issues/
 ├── failed/     # Cycles that exhausted 3 attempts. Artifacts preserved alongside.
 ├── blocked/    # Items whose `depends_on` graph reached a failed item.
 │               # Human moves back to raw/ (or todo/) to retry.
+├── discuss/    # Items parked for human judgment. Engine routes any raw with
+│               # priority: discuss here before agent call. To release: edit
+│               # priority to a real value and move back to raw/.
 └── TEMPLATE.md
 ```
 
@@ -107,6 +110,17 @@ blocked_at: 2026-05-13T03:45:01Z
 blocked_by: [Jira-007-fix-login-cookie]   # transitive chain captured
 ---
 ```
+
+### Discuss (`discuss/<id>.md`)
+
+```yaml
+---
+# … original frontmatter unchanged …
+priority: discuss   # set by the issue author; engine routes on this value
+---
+```
+
+**Release mechanism:** Set `priority` to `low | medium | high | critical` and move the file back to `raw/`. The next engine run will triage it normally via `processRawWithRetry`.
 
 ---
 
@@ -268,7 +282,7 @@ One additional constraint:
 
 Deps in `failed/` or `blocked/` don't count as "unsatisfied" — they count as resolved-by-cascade. But by then `propagateBlocked()` will have moved the dependent rows out.
 
-**Note on `discuss` priority:** `discuss` rows drain last — they are not held for human review. Until the `discuss` folder lifecycle (redesign-05) ships, any issue filed with `priority: discuss` will eventually be auto-executed by the engine at the tail of the queue.
+**Note on `discuss` priority:** Raws with `priority: discuss` are routed to `discuss/` by the triage loop before the agent is called. They are never queued. See § 3 Discuss for the release mechanism.
 
 ---
 
