@@ -12,26 +12,6 @@ export type CommitResult =
   | { status: "skipped"; reason: "nothing_to_commit" }
   | { status: "failed"; reason: "commit_failed" | "push_failed"; attempt?: number };
 
-export async function parseTouchedFiles(buildMdPath: string): Promise<string[] | null> {
-  let text: string;
-  try {
-    text = await readFile(buildMdPath, "utf8");
-  } catch {
-    return null;
-  }
-  const lines = text.split("\n");
-  const headerIdx = lines.findIndex((l) => l.trim() === "## Touched Files");
-  if (headerIdx === -1) return null;
-  const files: string[] = [];
-  for (let i = headerIdx + 1; i < lines.length; i++) {
-    const l = lines[i];
-    if (l.startsWith("##")) break;
-    const m = /^\s*-\s+(.+)/.exec(l);
-    if (m) files.push(m[1].trim());
-  }
-  return files;
-}
-
 function spawnGit(
   args: string[],
   cwd: string,

@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { commitCycle, buildClosesBlock, parseTouchedFiles } from "../../src/engine/commit-cycle.ts";
+import { commitCycle, buildClosesBlock } from "../../src/engine/commit-cycle.ts";
 import { createLogger } from "../../src/engine/log.ts";
 import { expectExactlyOne } from "../helpers.ts";
 
@@ -416,47 +416,6 @@ exec /usr/bin/git "$@"
     });
     assert.ok(show.stdout.includes("change.txt"), "real changed file must be in commit");
     assert.ok(!show.stdout.includes("submodule-dir"), "gitlink path must be excluded from commit");
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-// --- parseTouchedFiles unit tests ---
-
-test("parseTouchedFiles — absent file returns null", async () => {
-  const result = await parseTouchedFiles("/tmp/definitely-does-not-exist-BUILD.md");
-  assert.equal(result, null);
-});
-
-test("parseTouchedFiles — file exists, no Touched Files section returns null", async () => {
-  const root = await mkdtemp(join(tmpdir(), "cycle-ptf-test-"));
-  try {
-    const p = join(root, "BUILD.md");
-    await writeFile(p, "## Summary\nDid some stuff.\n\n## Notes\nNone.\n", "utf8");
-    const result = await parseTouchedFiles(p);
-    assert.equal(result, null);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("parseTouchedFiles — section present returns file list", async () => {
-  const root = await mkdtemp(join(tmpdir(), "cycle-ptf-test-"));
-  try {
-    const p = join(root, "BUILD.md");
-    await writeFile(p, [
-      "## Summary",
-      "Did stuff.",
-      "",
-      "## Touched Files",
-      "- src/foo.ts",
-      "- src/bar.ts",
-      "",
-      "## Notes",
-      "None.",
-    ].join("\n"), "utf8");
-    const result = await parseTouchedFiles(p);
-    assert.deepEqual(result, ["src/foo.ts", "src/bar.ts"]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
