@@ -43,6 +43,11 @@ test("build prompt File Artifact Mode prohibits trailing commentary", async () =
   );
 });
 
+test("build prompt File Artifact Mode includes concrete negative example", async () => {
+  const body = await readFile(BUILD_SRC, "utf8");
+  assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in build.md FAM section");
+});
+
 test("dogfood build prompt is byte-identical to default", async () => {
   const [src, dog] = await Promise.all([readFile(BUILD_SRC), readFile(BUILD_DOG)]);
   assert.equal(
@@ -82,6 +87,11 @@ test("research prompt File Artifact Mode prohibits trailing commentary", async (
     body.includes("trailing commentary"),
     "missing trailing commentary prohibition in research.md",
   );
+});
+
+test("research prompt File Artifact Mode includes concrete negative example", async () => {
+  const body = await readFile(RESEARCH_SRC, "utf8");
+  assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in research.md FAM section");
 });
 
 test("dogfood research prompt is byte-identical to default", async () => {
@@ -125,6 +135,11 @@ test("fix prompt File Artifact Mode prohibits trailing commentary", async () => 
   );
 });
 
+test("fix prompt File Artifact Mode includes concrete negative example", async () => {
+  const body = await readFile(FIX_SRC, "utf8");
+  assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in fix.md FAM section");
+});
+
 test("dogfood fix prompt is byte-identical to default", async () => {
   const [src, dog] = await Promise.all([readFile(FIX_SRC), readFile(FIX_DOG)]);
   assert.equal(
@@ -164,6 +179,11 @@ test("documentation prompt File Artifact Mode prohibits trailing commentary", as
     body.includes("trailing commentary"),
     "missing trailing commentary prohibition in documentation.md",
   );
+});
+
+test("documentation prompt File Artifact Mode includes concrete negative example", async () => {
+  const body = await readFile(DOC_SRC, "utf8");
+  assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in documentation.md FAM section");
 });
 
 test("dogfood documentation prompt is byte-identical to default", async () => {

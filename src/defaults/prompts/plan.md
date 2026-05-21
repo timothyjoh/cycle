@@ -148,6 +148,14 @@ emit becomes the file.
 - trailing commentary addressed to the reader ("Let me know if you want
   me to adjust…", "This plan covers…")
 
+**WRONG** (contaminated output — do not produce this):
+> Plan written to `docs/cycle/0218-feature-fix-artifact-contamination-at-invocation/PLAN.md`.
+>
+> This plan covers all the changes needed...
+
+**CORRECT** (clean artifact output — produce only this):
+> # Implementation Plan: Cycle 0218
+
 If any of these appear in your output, downstream agents that read
 `PLAN.md` as their source of truth will receive contaminated input and
 produce incorrect implementations. The plan must be clean structured

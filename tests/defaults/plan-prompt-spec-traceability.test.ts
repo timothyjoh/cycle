@@ -77,6 +77,21 @@ test("review prompt MUST-FIX template carries Missing SPEC→PLAN Traceability t
   );
 });
 
+test("plan prompt File Artifact Mode prohibits trailing commentary", async () => {
+  const body = await readFile(PLAN_SRC, "utf8");
+  assert.ok(body.includes("trailing commentary"), "missing trailing commentary prohibition in plan.md");
+});
+
+test("plan prompt File Artifact Mode includes concrete negative example", async () => {
+  const body = await readFile(PLAN_SRC, "utf8");
+  assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in plan.md FAM section");
+});
+
+test("review prompt File Artifact Mode includes concrete negative example", async () => {
+  const body = await readFile(REVIEW_SRC, "utf8");
+  assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in review.md FAM section");
+});
+
 test("dogfood plan prompt is byte-identical to default", async () => {
   const [src, dog] = await Promise.all([readFile(PLAN_SRC), readFile(PLAN_DOG)]);
   assert.equal(

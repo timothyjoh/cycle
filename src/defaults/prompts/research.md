@@ -49,6 +49,12 @@ you emit becomes the file.
 - trailing commentary addressed to the reader ("Let me know if you want
   me to add more…", "This research covers…")
 
+**WRONG** (contaminated output — do not produce this):
+> Research complete. I've gathered the information needed for this cycle...
+
+**CORRECT** (clean artifact output — produce only this):
+> # Research: Cycle 0218
+
 If any of these appear in your output, downstream agents that read
 `RESEARCH.md` as their source of truth will receive contaminated input and
 produce incorrect plans. The research document must be clean structured

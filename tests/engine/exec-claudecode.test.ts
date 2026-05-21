@@ -45,3 +45,55 @@ test("resolves StepResult{status:failed,exitCode:-1} when claude binary missing 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("includes --append-system-prompt in argv when appendSystemPrompt is provided", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    const prompts = join(root, ".cycle/prompts");
+    await mkdir(prompts, { recursive: true });
+    await writeFile(join(prompts, "spec.md"), "Write a spec.", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho ARGS $@\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await resolveAgent("claudecode").runStep({
+      repoRoot: root,
+      promptPath: "prompts/spec.md",
+      env: { PATH: `${bin}:${process.env.PATH}` },
+      appendSystemPrompt: "suppress-learning-mode",
+    });
+    assert.equal(r.status, "ok");
+    assert.ok(r.stdout.includes("--append-system-prompt"), "expected --append-system-prompt in argv");
+    assert.ok(r.stdout.includes("suppress-learning-mode"), "expected suppression text in argv");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("omits --append-system-prompt from argv when appendSystemPrompt is not provided", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    const prompts = join(root, ".cycle/prompts");
+    await mkdir(prompts, { recursive: true });
+    await writeFile(join(prompts, "spec.md"), "Write a spec.", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho ARGS $@\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await resolveAgent("claudecode").runStep({
+      repoRoot: root,
+      promptPath: "prompts/spec.md",
+      env: { PATH: `${bin}:${process.env.PATH}` },
+    });
+    assert.equal(r.status, "ok");
+    assert.ok(!r.stdout.includes("--append-system-prompt"), "expected --append-system-prompt absent from argv");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});

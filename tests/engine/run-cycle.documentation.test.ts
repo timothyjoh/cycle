@@ -285,11 +285,11 @@ async function setupBuildDocWorkflow(
   );
   await chmod(fakeDoc, 0o755);
 
-  // Dispatch on $3 (the prompt content passed as argv by exec-claudecode)
+  // Dispatch on last arg (the prompt content passed as final argv element by exec-claudecode)
   const fakeWrapper = join(bin, "claude");
   await writeFile(
     fakeWrapper,
-    `#!/bin/bash\nif [[ "$3" == *DOCUMENTATION_STEP_PROMPT* ]]; then exec "${fakeDoc}" "$@"; fi\nexec "${fakeBuild}" "$@"\n`,
+    `#!/bin/bash\nfor last; do :; done\nif [[ "$last" == *DOCUMENTATION_STEP_PROMPT* ]]; then exec "${fakeDoc}" "$@"; fi\nexec "${fakeBuild}" "$@"\n`,
     "utf8",
   );
   await chmod(fakeWrapper, 0o755);
@@ -420,7 +420,7 @@ test("runCycle: documentation step appends rename destination from R-prefix porc
     const fakeWrapper = join(bin, "claude");
     await writeFile(
       fakeWrapper,
-      `#!/bin/bash\nif [[ "$3" == *DOCUMENTATION_STEP_PROMPT* ]]; then exec "${fakeDoc}" "$@"; fi\nexec "${fakeBuild}" "$@"\n`,
+      `#!/bin/bash\nfor last; do :; done\nif [[ "$last" == *DOCUMENTATION_STEP_PROMPT* ]]; then exec "${fakeDoc}" "$@"; fi\nexec "${fakeBuild}" "$@"\n`,
       "utf8",
     );
     await chmod(fakeWrapper, 0o755);
@@ -603,7 +603,7 @@ test("runCycle: documentation step excludes pre-existing dirty paths staged by p
     const fakeWrapper = join(bin, "claude");
     await writeFile(
       fakeWrapper,
-      `#!/bin/bash\nif [[ "$3" == *DOCUMENTATION_STEP_PROMPT* ]]; then exec "${fakeDoc}" "$@"; fi\nexec "${fakeBuild}" "$@"\n`,
+      `#!/bin/bash\nfor last; do :; done\nif [[ "$last" == *DOCUMENTATION_STEP_PROMPT* ]]; then exec "${fakeDoc}" "$@"; fi\nexec "${fakeBuild}" "$@"\n`,
       "utf8",
     );
     await chmod(fakeWrapper, 0o755);

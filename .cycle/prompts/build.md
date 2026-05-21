@@ -77,6 +77,12 @@ emit becomes the file.
 - trailing commentary addressed to the reader ("Let me know if you want
   me to adjust…", "This summary covers…")
 
+**WRONG** (contaminated output — do not produce this):
+> Build complete. I've implemented the changes and updated the following files...
+
+**CORRECT** (clean artifact output — produce only this):
+> ## Summary
+
 If any of these appear in your output, downstream agents that read
 `BUILD.md` as their source of truth will receive contaminated input and
 produce incorrect plans. The build summary must be clean prose — nothing

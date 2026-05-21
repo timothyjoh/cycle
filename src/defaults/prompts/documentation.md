@@ -70,6 +70,12 @@ byte you emit becomes the file.
 - trailing commentary addressed to the reader ("Let me know if you want
   me to revise…", "This summary covers…")
 
+**WRONG** (contaminated output — do not produce this):
+> Documentation updated. I've modified ENGINE.md and ARCHITECTURE.md to reflect the changes...
+
+**CORRECT** (clean artifact output — produce only this):
+> ## Summary
+
 If any of these appear in your output, downstream agents that read
 `DOCUMENTATION.md` as their source of truth will receive contaminated
 input. The documentation summary must be clean prose — nothing else.

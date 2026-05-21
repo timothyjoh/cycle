@@ -13,6 +13,7 @@ export interface ExecModule {
     env?: Record<string, string>;
     model?: string;
     thinking?: string;
+    appendSystemPrompt?: string;
   }): Promise<StepResult>;
 }
 

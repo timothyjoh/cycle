@@ -56,6 +56,14 @@ emit becomes the file.
 - trailing commentary addressed to the reader ("Let me know if you want
   me to adjust…", "This summary covers…")
 
+**WRONG** (contaminated output — do not produce this):
+> FIX.md written to `docs/cycle/0218-feature-fix-artifact-contamination-at-invocation/FIX.md`.
+>
+> Here is the fix summary...
+
+**CORRECT** (clean artifact output — produce only this):
+> ## Summary
+
 If any of these appear in your output, downstream agents that read
 `FIX.md` as their source of truth will receive contaminated input and
 produce incorrect implementations. The fix summary must be clean prose —
