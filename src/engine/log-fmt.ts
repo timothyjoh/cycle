@@ -3,6 +3,6 @@ export function truncateHeadCapped(s: string, max: number): string {
 }
 
 export function stripFences(s: string): string {
-  const m = s.trim().match(/^```(?:json)?\r?\n([\s\S]*?)\r?\n```$/);
+  const m = s.trim().match(/^```(?:\w+)?\r?\n([\s\S]*?)\r?\n```$/);
   return m ? m[1] : s;
 }

@@ -26,3 +26,23 @@ test("stripFences: handles CRLF line endings", () => {
   const inner = '{"ordering":[],"new_issues":[]}';
   assert.equal(stripFences("```json\r\n" + inner + "\r\n```"), inner);
 });
+
+test("stripFences: strips ```javascript opener and ``` closer", () => {
+  const inner = '{"ordering":[],"new_issues":[]}';
+  assert.equal(stripFences("```javascript\n" + inner + "\n```"), inner);
+});
+
+test("stripFences: strips ```text opener and ``` closer", () => {
+  const inner = '{"ordering":[],"new_issues":[]}';
+  assert.equal(stripFences("```text\n" + inner + "\n```"), inner);
+});
+
+test("stripFences: strips ```JSON opener (uppercase) and ``` closer", () => {
+  const inner = '{"ordering":[],"new_issues":[]}';
+  assert.equal(stripFences("```JSON\n" + inner + "\n```"), inner);
+});
+
+test("stripFences: strips ```jsonc opener and ``` closer", () => {
+  const inner = '{"ordering":[],"new_issues":[]}';
+  assert.equal(stripFences("```jsonc\n" + inner + "\n```"), inner);
+});
