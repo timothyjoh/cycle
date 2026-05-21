@@ -36,3 +36,27 @@ test("review prompt NEEDS-FIX triggers include missing ## Acceptance Criteria se
     "NEEDS-FIX triggers missing ## Acceptance Criteria mention",
   );
 });
+
+test("review prompt includes File Artifact Mode guardrail header", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("You are writing a file, not responding in a conversation"),
+    "missing File Artifact Mode guardrail sentence",
+  );
+});
+
+test("review prompt File Artifact Mode prohibits insight blocks and star-marker commentary", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("insight blocks or star-marker"),
+    "missing insight blocks / star-marker prohibition",
+  );
+});
+
+test("review prompt File Artifact Mode prohibits confirmation sentences", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("confirmation sentences"),
+    "missing confirmation sentences prohibition",
+  );
+});

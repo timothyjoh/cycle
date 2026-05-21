@@ -106,6 +106,25 @@ Otherwise:
 
 Unbacked claims are a NEEDS-FIX trigger.
 
+## File Artifact Mode
+
+**You are writing a file, not responding in a conversation.** The engine
+captures your stdout verbatim and writes it to `REVIEW.md`. Every byte you
+emit becomes the file.
+
+**Do not include any of the following:**
+- insight blocks or star-marker commentary (styled callout blocks with
+  decorative headers, regardless of the marker character used)
+- confirmation sentences ("Review written to…", "I have completed the review",
+  "Here is the review")
+- trailing commentary addressed to the reader ("Let me know if you want
+  me to adjust…", "This review covers…")
+
+If any of these appear in your output, downstream agents that read
+`REVIEW.md` as their source of truth will receive contaminated input and
+produce incorrect fix plans. The review must be clean structured
+Markdown — nothing else.
+
 ## Output 1: REVIEW.md
 
 Output this content **to stdout** — the engine captures stdout and

@@ -123,9 +123,13 @@ Cycle 0212 added a `## File Artifact Mode` section to `src/defaults/prompts/spec
 
 Cycle 0213 added an equivalent `## File Artifact Mode` section to `src/defaults/prompts/plan.md` prohibiting the same class of contamination in PLAN.md output: insight blocks, star-marker commentary, and confirmation sentences are banned. Dogfood mirror `.cycle/prompts/plan.md` is byte-identical after `npm run sync-defaults` (pinned by `tests/defaults/plan-prompt-spec-traceability.test.ts`).
 
+Cycle 0214 added an equivalent `## File Artifact Mode` section to `src/defaults/prompts/review.md` prohibiting the same class of contamination in REVIEW.md output: insight blocks, star-marker commentary, and confirmation sentences are banned. Dogfood mirror `.cycle/prompts/review.md` is byte-identical after `npm run sync-defaults` (pinned by `tests/defaults/review-prompt-spec-ac.test.ts`).
+
 **Known limitation:** AC section presence is enforced only at the prompt level — there is no engine post-condition that reads the generated SPEC.md and fails the spec step if `## Acceptance Criteria` is absent. A spec agent that ignores the instruction produces an AC-free SPEC.md and the engine accepts it. Adding a spec post-condition check analogous to the size gate is deferred work.
 
 **Known limitation:** The review step Pass 1 checklist enforces SPEC.md `## Acceptance Criteria` presence as a hard NEEDS-FIX, but does not check PLAN.md artifact cleanliness. A plan agent that ignores the `## File Artifact Mode` guardrail can emit insight blocks or star-marker commentary into PLAN.md and the review step passes it silently. Adding a PLAN.md cleanliness check (flag insight blocks, star-marker commentary, confirmation sentences as NEEDS-FIX) to review Pass 1 is deferred work.
+
+**Known limitation:** The `## File Artifact Mode` guardrail has been added to `spec.md` (cycle 0212), `plan.md` (cycle 0213), and `review.md` (cycle 0214). The remaining artifact-producing prompts — `build.md`, `research.md`, `fix.md`, and `documentation.md` — have no equivalent guardrail and are equally susceptible to learning-mode contamination. Each will require its own guardrail cycle.
 
 ## Engine-managed commit lifecycle
 
