@@ -47,6 +47,7 @@ Project conventions for cycle. Read before touching code or running the workflow
   returns the matched event.
 - Background: cycles 0022 and 0051 established this rule. `engine.halted` and
   `reflection.summary` are the canonical exactly-once events.
+- **`node:fs/promises` cannot be stubbed via `mock.method`.** ESM module properties are non-configurable, so `mock.method(nodeFsPromises, "rename", …)` throws at setup time. Use `node:fs` (a CJS module with configurable exports) for `mock.method` interception — confirmed working in `tests/engine/dot-env.test.ts`. For `node:fs/promises` targets, use real filesystem manipulation (`chmod`, temp directories) or refactor the target code to accept an injectable function.
 
 ## Structural-invariants policy
 

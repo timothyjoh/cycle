@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { mkdtemp, mkdir, writeFile, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm, stat, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -152,6 +152,33 @@ test("bootstrapArchiveIfLegacy: numeric suffix on collision", async () => {
     await stat(join(root, ".cycle/tbd.jsonl.bootstrap-archive"));
     await stat(join(root, ".cycle/tbd.jsonl.bootstrap-archive.1"));
   } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("bootstrapArchiveIfLegacy: non-ENOENT rename error is wrapped with context", async (t) => {
+  if (process.getuid?.() === 0) {
+    t.skip("chmod-based EACCES injection unreliable as root");
+    return;
+  }
+  const root = await setupRoot();
+  const seed =
+    JSON.stringify({ id: "OLD", source: "text", title: "t", path: "/p", added_at: "y" }) + "\n";
+  await writeFile(join(root, ".cycle/tbd.jsonl"), seed, "utf8");
+  // Remove write permission from .cycle/ so rename fails with EACCES
+  await chmod(join(root, ".cycle"), 0o555);
+  try {
+    await assert.rejects(
+      () => bootstrapArchiveIfLegacy(root),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.ok((err as Error).message.includes("bootstrapArchiveIfLegacy: rename failed:"));
+        assert.equal((err as NodeJS.ErrnoException).code, "EACCES");
+        return true;
+      }
+    );
+  } finally {
+    await chmod(join(root, ".cycle"), 0o755);
     await rm(root, { recursive: true, force: true });
   }
 });

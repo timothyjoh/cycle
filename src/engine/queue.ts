@@ -147,7 +147,14 @@ export async function bootstrapArchiveIfLegacy(repoRoot: string): Promise<boolea
   }
   if (!hasLegacy) return false;
   const archive = await pickArchivePath(repoRoot);
-  await rename(path, archive);
+  try {
+    await rename(path, archive);
+  } catch (e: unknown) {
+    throw Object.assign(
+      new Error(`bootstrapArchiveIfLegacy: rename failed: ${(e as Error).message}`),
+      { code: (e as NodeJS.ErrnoException).code }
+    );
+  }
   return true;
 }
 
