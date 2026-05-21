@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { slugify } from "../issue/id.ts";
 import { serializeFrontmatter } from "./frontmatter.ts";
 import type { Logger } from "./log.ts";
+import { stripFences } from "./log-fmt.ts";
 
 export type SharpEdge = { title: string; body: string; priority_hint: number };
 export type IngestResult = { written: string[]; skipped: number };
@@ -129,6 +130,7 @@ export async function ingestReflection(
 type ParseResult = { ok: true; value: unknown } | { ok: false; message: string };
 
 function parseWithRepair(s: string): ParseResult {
+  s = stripFences(s);
   try {
     return { ok: true, value: JSON.parse(s) };
   } catch (e1) {

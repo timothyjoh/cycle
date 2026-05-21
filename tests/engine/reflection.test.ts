@@ -143,7 +143,7 @@ test("ingestReflection: strips a ```json fenced wrapper before parsing", async (
   }
 });
 
-test("ingestReflection: leading prose + fenced JSON + trailing prose recovers via repair pass", async () => {
+test("ingestReflection: leading prose + fenced JSON + trailing prose parsed via stripFences", async () => {
   const root = await setupRepo();
   try {
     const { events, logger } = makeLogger();
@@ -154,9 +154,29 @@ test("ingestReflection: leading prose + fenced JSON + trailing prose recovers vi
     const r = await ingestReflection(root, CID, SLUG, stdout, logger);
     assert.deepEqual(r, { written: [], skipped: 0 });
     const skip = events.find((e) => e.event === "reflection.skipped");
-    assert.equal(skip, undefined, "repair pass succeeds — no reflection.skipped");
+    assert.equal(skip, undefined, "stripFences extracts fence before repair path — no reflection.skipped");
     const summary = expectExactlyOne(events, "reflection.summary");
     assert.equal(summary.fields.count, 0);
+    assert.equal(summary.fields.skipped, 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("ingestReflection: prose with brace before fence parses via stripFences", async () => {
+  const root = await setupRepo();
+  try {
+    const { events, logger } = makeLogger();
+    const stdout =
+      "Error in step {build}:\n```json\n" +
+      JSON.stringify({ sharp_edges: [{ title: "t", body: "b", priority_hint: 5 }] }) +
+      "\n```";
+    const r = await ingestReflection(root, CID, SLUG, stdout, logger);
+    assert.deepEqual(r, { written: [`refl-${CID}-t`], skipped: 0 });
+    const skip = events.find((e) => e.event === "reflection.skipped");
+    assert.equal(skip, undefined, "stripFences removes fence before brace scan");
+    const summary = expectExactlyOne(events, "reflection.summary");
+    assert.equal(summary.fields.count, 1);
     assert.equal(summary.fields.skipped, 0);
   } finally {
     await rm(root, { recursive: true, force: true });

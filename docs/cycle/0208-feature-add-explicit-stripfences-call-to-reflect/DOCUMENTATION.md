@@ -1,0 +1,1 @@
+Updated docs/ENGINE.md: replaced the "Known limitation" paragraph on the reflection parse path with the cycle 0208 fix description (explicit `stripFences` call in `parseWithRepair`), then appended a two-part known-limitations note covering the remaining unfenced prose-with-brace gap and the triage `validateOutput` asymmetry surfaced in REFLECTION.md.

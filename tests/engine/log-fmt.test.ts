@@ -46,3 +46,11 @@ test("stripFences: strips ```jsonc opener and ``` closer", () => {
   const inner = '{"ordering":[],"new_issues":[]}';
   assert.equal(stripFences("```jsonc\n" + inner + "\n```"), inner);
 });
+
+test("stripFences: strips fence embedded after leading prose", () => {
+  const inner = '{"key":"val"}';
+  assert.equal(
+    stripFences("Error in step {build}:\n```json\n" + inner + "\n```"),
+    inner
+  );
+});

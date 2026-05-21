@@ -71,7 +71,9 @@ Opt-out: `cycle run --no-skip-completed` or `engine.skip_completed_on_retry: fal
 
 On `JSON.parse` failure: first tries trailing-prose repair (scan to last balanced `}`/`]`, re-parse). On continued failure: escalates truncated stdout to `raw/refl-<cycleId>-parse-error.md` and still emits both `reflection.skipped {reason: parse_error}` and `reflection.summary`.
 
-**Known limitation:** `parseWithRepair` has no explicit `stripFences` call — it relies on `trimToLastBalancedClose` scanning forward to the first `{` or `[`, which incidentally skips fence prefixes. This is fragile: prose containing a `{` before the JSON payload (e.g. `Error in step {build}:…`) causes `trimToLastBalancedClose` to latch onto the wrong position. A future fix should add `s = stripFences(s)` at the top of `parseWithRepair`, matching the explicit pattern used in triage's `validateOutput`.
+`parseWithRepair` calls `stripFences(s)` (from `log-fmt.ts`) as its first statement, before any `JSON.parse` or `trimToLastBalancedClose` invocation. This explicit strip removes any markdown fence wrapper and guards against the prose-with-brace hazard: without it, a `{` in leading prose (e.g. `Error in step {build}:…`) causes `trimToLastBalancedClose` to latch onto the wrong brace, producing a parse failure or corrupt result.
+
+**Known limitations:** (1) The prose-with-brace fix applies only when the JSON is fence-wrapped. Unfenced output where prose containing `{…}` precedes the JSON object still causes `trimToLastBalancedClose` to latch onto the wrong brace, resulting in a parse failure and a `refl-<cycleId>-parse-error.md` raw issue. Fix direction: retry `trimToLastBalancedClose` from progressively later `{`/`[` positions until `JSON.parse` succeeds. (2) Triage's `validateOutput` has only `stripFences` + `JSON.parse` — no `trimToLastBalancedClose` repair pass — making it more brittle than `parseWithRepair` for unfenced trailing-prose output. Fix direction: extract a shared `parseJsonWithRepair` utility used by both paths.
 
 ## Documentation step
 
