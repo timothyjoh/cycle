@@ -380,7 +380,11 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           }
         }
         if (r.status === "ok" && step.name === "reflection") {
-          await ingestReflection(repoRoot, cycleId, slug, r.stdout, log);
+          await ingestReflection(
+            repoRoot, cycleId, slug, r.stdout, log,
+            artifactDir,
+            join(artifactDir, "touched.json"),
+          );
         }
         if (r.status === "ok" && step.name === "documentation") {
           try {

@@ -65,7 +65,7 @@ test("runCycle: successful reflection step ingests sharp_edges into raw/", async
 
     const payload = JSON.stringify({
       sharp_edges: [
-        { title: "hidden coupling", body: "engine couples to step name.", priority_hint: 7 },
+        { title: "hidden coupling", body: "engine couples to step name.", bucket: "defer", priority: "high" },
       ],
     }).replace(/'/g, `'\\''`);
     const fake = join(bin, "claude");
@@ -85,16 +85,17 @@ test("runCycle: successful reflection step ingests sharp_edges into raw/", async
     const body = await readFile(reflFile, "utf8");
     const { fm } = parseFrontmatter(body);
     assert.equal(fm.source, "reflection");
-    assert.equal(fm.priority_hint, 7);
+    assert.equal(fm.priority, "high");
+    assert.ok(!("priority_hint" in fm), "no priority_hint field");
     assert.equal(fm.title, "hidden coupling");
 
     const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
     const lines = log.trim().split("\n");
-    const surfacedIdx = lines.findIndex((l) => l.includes('"event":"reflection.surfaced"'));
+    const deferredIdx = lines.findIndex((l) => l.includes('"event":"reflection.deferred_issue_written"'));
     const summaryIdx = lines.findIndex((l) => l.includes('"event":"reflection.summary"'));
     const endIdx = lines.findIndex((l) => l.includes('"event":"cycle.end"'));
-    assert.ok(surfacedIdx >= 0 && summaryIdx >= 0 && endIdx >= 0);
-    assert.ok(surfacedIdx < summaryIdx, "surfaced precedes summary");
+    assert.ok(deferredIdx >= 0 && summaryIdx >= 0 && endIdx >= 0);
+    assert.ok(deferredIdx < summaryIdx, "deferred_issue_written precedes summary");
     assert.ok(summaryIdx < endIdx, "summary precedes cycle.end");
     assert.match(log, /"event":"cycle.end","cycle_id":"\d+","status":"ok"/);
   } finally {

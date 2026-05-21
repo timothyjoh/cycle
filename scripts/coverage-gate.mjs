@@ -27,6 +27,7 @@ const FLOORS = {
   "src/engine/dot-env.ts": 100,
   "src/engine/queue.ts": 90,
   "src/engine/run-cycle.ts": 90,
+  "src/engine/reflection.ts": 95,
 };
 
 const LCOV_PATH = process.argv[2] ?? ".cycle/coverage.lcov";
