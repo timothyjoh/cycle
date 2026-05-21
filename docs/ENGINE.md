@@ -121,9 +121,11 @@ Cycle 0211 added a `## Required Sections` block to `src/defaults/prompts/spec.md
 
 Cycle 0212 added a `## File Artifact Mode` section to `src/defaults/prompts/spec.md` explicitly prohibiting conversational framing in SPEC.md output: insight blocks, star-marker commentary, and confirmation sentences ("Spec written to…", "I have written the spec") are all banned. The section explains that downstream agents read SPEC.md as their source of truth and contaminated output produces incorrect plans. Dogfood mirror `.cycle/prompts/spec.md` is byte-identical after `npm run sync-defaults` (pinned by `tests/defaults/spec-prompt-ac.test.ts`).
 
+Cycle 0213 added an equivalent `## File Artifact Mode` section to `src/defaults/prompts/plan.md` prohibiting the same class of contamination in PLAN.md output: insight blocks, star-marker commentary, and confirmation sentences are banned. Dogfood mirror `.cycle/prompts/plan.md` is byte-identical after `npm run sync-defaults` (pinned by `tests/defaults/plan-prompt-spec-traceability.test.ts`).
+
 **Known limitation:** AC section presence is enforced only at the prompt level — there is no engine post-condition that reads the generated SPEC.md and fails the spec step if `## Acceptance Criteria` is absent. A spec agent that ignores the instruction produces an AC-free SPEC.md and the engine accepts it. Adding a spec post-condition check analogous to the size gate is deferred work.
 
-**Known limitation:** `src/defaults/prompts/plan.md` has no equivalent `## File Artifact Mode` guardrail. The plan agent outputs PLAN.md as a file artifact read by downstream build and review agents; conversational contamination in plan output (confirmed by cycle 0212's PLAN.md being emitted as a conversational reply on first attempt) breaks SPEC→PLAN traceability and causes NEEDS-FIX cycles. Adding the same guardrail to plan.md is deferred work.
+**Known limitation:** The review step Pass 1 checklist enforces SPEC.md `## Acceptance Criteria` presence as a hard NEEDS-FIX, but does not check PLAN.md artifact cleanliness. A plan agent that ignores the `## File Artifact Mode` guardrail can emit insight blocks or star-marker commentary into PLAN.md and the review step passes it silently. Adding a PLAN.md cleanliness check (flag insight blocks, star-marker commentary, confirmation sentences as NEEDS-FIX) to review Pass 1 is deferred work.
 
 ## Engine-managed commit lifecycle
 

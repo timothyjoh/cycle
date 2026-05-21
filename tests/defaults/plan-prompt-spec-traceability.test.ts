@@ -28,6 +28,30 @@ test("plan prompt Important Guidelines carries SPEC→PLAN Traceability rule", a
   );
 });
 
+test("plan prompt File Artifact Mode identifies output as a file not a conversation", async () => {
+  const body = await readFile(PLAN_SRC, "utf8");
+  assert.ok(
+    body.includes("You are writing a file, not responding in a conversation"),
+    "missing file-artifact framing instruction",
+  );
+});
+
+test("plan prompt File Artifact Mode prohibits insight blocks and star-marker commentary", async () => {
+  const body = await readFile(PLAN_SRC, "utf8");
+  assert.ok(
+    body.includes("insight blocks or star-marker"),
+    "missing prohibition on insight blocks and star-marker commentary",
+  );
+});
+
+test("plan prompt File Artifact Mode prohibits confirmation sentences", async () => {
+  const body = await readFile(PLAN_SRC, "utf8");
+  assert.ok(
+    body.includes("confirmation sentences"),
+    "missing prohibition on confirmation sentences",
+  );
+});
+
 test("review prompt Pass 1 names SPEC→PLAN traceability", async () => {
   const body = await readFile(REVIEW_SRC, "utf8");
   assert.ok(

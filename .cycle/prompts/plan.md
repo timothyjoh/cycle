@@ -133,3 +133,28 @@ explicit waiver.
     traceability stub and fail loudly rather than silently drop a
     bullet. The `review` step rejects PLAN.md with a missing or
     incomplete traceability section.
+
+## File Artifact Mode
+
+**You are writing a file, not responding in a conversation.** The engine
+captures your stdout verbatim and writes it to `PLAN.md`. Every byte you
+emit becomes the file.
+
+**Do not include any of the following:**
+- insight blocks or star-marker commentary (styled callout blocks with
+  decorative headers, regardless of the marker character used)
+- confirmation sentences ("Plan written to…", "I have written the plan",
+  "Here is the plan")
+- trailing commentary addressed to the reader ("Let me know if you want
+  me to adjust…", "This plan covers…")
+
+If any of these appear in your output, downstream agents that read
+`PLAN.md` as their source of truth will receive contaminated input and
+produce incorrect implementations. The plan must be clean structured
+Markdown — nothing else.
+
+## Output
+
+Output the PLAN.md content **to stdout** — the engine captures stdout
+and writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/PLAN.md`.
+Nothing else, no preamble or closing remarks.
