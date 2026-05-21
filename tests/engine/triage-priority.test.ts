@@ -200,11 +200,56 @@ test("discuss raw: agent never called, file moved to discuss/, no todo, no queue
       "path points to discuss dir",
     );
 
+    const parkFailed = events.filter((e) => e.event === "issue.park_failed");
+    assert.equal(parkFailed.length, 0, "no park_failed event on success path");
+
     await assert.rejects(
       () => readFile(join(root, "docs/cycle/issues/raw", `${id}.md`), "utf8"),
       { code: "ENOENT" },
       "raw file must not exist after parkForDiscussion",
     );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("discuss raw: parkForDiscussion rename fails → issue.park_failed emitted, raw file stays, no parked_for_discussion", async () => {
+  const root = await setupRepo();
+  try {
+    const id = "test-discuss-fail-01";
+    await writeFile(
+      join(root, "docs/cycle/issues/raw", `${id}.md`),
+      rawBody(id, "Discuss this", "discuss"),
+      "utf8",
+    );
+
+    // Pre-create destPath as a directory so rename(srcPath, destPath) fails with EISDIR.
+    const destPath = join(root, "docs/cycle/issues/discuss", `${id}.md`);
+    await mkdir(destPath, { recursive: true });
+
+    const runAgent = async (): Promise<TriageAgentResult> => {
+      return { exitCode: 0, stdout: "", stderr: "" };
+    };
+
+    const { log, events } = makeLogCapturing();
+    await runTriage(root, makeConfig(), log, { runAgent });
+
+    const failed = events.filter((e) => e.event === "issue.park_failed");
+    assert.equal(failed.length, 1, "exactly one issue.park_failed event");
+    assert.equal(failed[0].fields.id, id, "park_failed id matches raw.id");
+    assert.ok(
+      typeof failed[0].fields.error === "string" && failed[0].fields.error.length > 0,
+      "park_failed error is a non-empty string",
+    );
+
+    const parked = events.filter((e) => e.event === "issue.parked_for_discussion");
+    assert.equal(parked.length, 0, "no parked_for_discussion event on failure path");
+
+    const rawContent = await readFile(
+      join(root, "docs/cycle/issues/raw", `${id}.md`),
+      "utf8",
+    );
+    assert.ok(rawContent.includes(`id: ${id}`), "raw file still present after rename failure");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

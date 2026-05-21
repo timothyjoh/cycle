@@ -716,7 +716,8 @@ async function parkForDiscussion(
   let renamed = true;
   try {
     await rename(raw.srcPath, destPath);
-  } catch {
+  } catch (e) {
+    await log.emit("issue.park_failed", { id: raw.id, error: String(e) });
     renamed = false;
   }
   if (renamed) {

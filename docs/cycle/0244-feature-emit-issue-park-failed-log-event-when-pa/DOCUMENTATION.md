@@ -1,0 +1,1 @@
+Updated `docs/ENGINE.md` line 19 in the **Discuss routing** paragraph: replaced "a failed rename emits nothing" with "a failed rename emits `issue.park_failed { id, error }`" to reflect the new observability added by cycle 0244. No other documentation was stale.
