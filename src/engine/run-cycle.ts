@@ -37,6 +37,23 @@ const ARTIFACT_STEPS = new Set(["spec", "research", "plan", "build", "review", "
 const ARTIFACT_SUPPRESS_PROMPT =
   "You are in File Artifact Mode for this invocation. Output only the requested document content as clean structured Markdown. Do not include insight blocks, star-marker commentary, educational explanations, contribution requests, confirmation sentences, narration, or trailing commentary. Produce the file — nothing else.";
 
+function parseSnapshotPaths(snapshot: string): Set<string> {
+  const paths = new Set<string>();
+  for (const raw of snapshot.split("\n")) {
+    if (!raw) continue;
+    const xy = raw.slice(0, 2);
+    if (xy === "??") continue;
+    let p = raw.slice(3);
+    if (xy[0] === "R" || xy[0] === "C") {
+      const arrow = p.lastIndexOf(" -> ");
+      if (arrow !== -1) p = p.slice(arrow + 4);
+    }
+    p = p.replace(/^"/, "").replace(/"$/, "");
+    paths.add(p);
+  }
+  return paths;
+}
+
 async function appendDocumentationPaths(repoRoot: string, buildMdPath: string, log: Logger, cycleId: string, preSnapshot: string): Promise<void> {
   let text: string;
   try {
@@ -56,19 +73,7 @@ async function appendDocumentationPaths(repoRoot: string, buildMdPath: string, l
     if (m) touchedSet.add(m[1].trim());
   }
 
-  const prePaths = new Set<string>();
-  for (const raw of preSnapshot.split("\n")) {
-    if (!raw) continue;
-    const xy = raw.slice(0, 2);
-    if (xy === "??") continue;
-    let p = raw.slice(3);
-    if (xy[0] === "R" || xy[0] === "C") {
-      const arrow = p.lastIndexOf(" -> ");
-      if (arrow !== -1) p = p.slice(arrow + 4);
-    }
-    p = p.replace(/^"/, "").replace(/"$/, "");
-    prePaths.add(p);
-  }
+  const prePaths = parseSnapshotPaths(preSnapshot);
 
   const result = spawnSync("git", ["status", "--porcelain"], {
     cwd: repoRoot,
@@ -76,21 +81,8 @@ async function appendDocumentationPaths(repoRoot: string, buildMdPath: string, l
     shell: false,
   });
 
-  const toAppend: string[] = [];
-  for (const raw of (result.stdout ?? "").split("\n")) {
-    if (!raw) continue;
-    const xy = raw.slice(0, 2);
-    if (xy === "??") continue;
-    let p = raw.slice(3);
-    if (xy[0] === "R" || xy[0] === "C") {
-      const arrow = p.lastIndexOf(" -> ");
-      if (arrow !== -1) p = p.slice(arrow + 4);
-    }
-    p = p.replace(/^"/, "").replace(/"$/, "");
-    if (isDenied(p)) continue;
-    if (prePaths.has(p)) continue;
-    if (!touchedSet.has(p)) toAppend.push(p);
-  }
+  const toAppend = Array.from(parseSnapshotPaths(result.stdout ?? ""))
+    .filter((p) => !isDenied(p) && !prePaths.has(p) && !touchedSet.has(p));
 
   if (toAppend.length === 0) return;
 
@@ -105,6 +97,33 @@ async function appendDocumentationPaths(repoRoot: string, buildMdPath: string, l
   lines.splice(insertIdx, 0, ...toAppend.map((p) => `- ${p}`));
   await writeFile(buildMdPath, lines.join("\n"), "utf8");
   await log.emit("documentation.paths_appended", { cycle_id: cycleId, appended: toAppend });
+}
+
+async function accumulateTouchedFiles(
+  repoRoot: string,
+  artifactDir: string,
+  preSnapshot: string,
+): Promise<void> {
+  const prePaths = parseSnapshotPaths(preSnapshot);
+
+  const post = spawnSync("git", ["status", "--porcelain"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    shell: false,
+  });
+  const newFiles = Array.from(parseSnapshotPaths(post.stdout ?? ""))
+    .filter((p) => !isDenied(p) && !prePaths.has(p));
+
+  const touchedPath = join(artifactDir, "touched.json");
+  let existing: string[] = [];
+  try {
+    const raw = await readFile(touchedPath, "utf8");
+    const parsed = JSON.parse(raw) as { files?: unknown };
+    if (Array.isArray(parsed.files)) existing = parsed.files as string[];
+  } catch { /* absent or corrupt — start fresh */ }
+
+  const merged = Array.from(new Set([...existing, ...newFiles])).sort();
+  await writeFile(touchedPath, JSON.stringify({ files: merged }, null, 2) + "\n", "utf8");
 }
 
 export async function shouldSkipForArtifact(
@@ -290,7 +309,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         ...(headSha ? { head_sha: headSha } : {}),
       });
       let preSnapshot = "";
-      if (step.name === "documentation") {
+      if (step.name === "documentation" || RESET_ELIGIBLE_STEPS.has(step.name)) {
         const snap = spawnSync("git", ["status", "--porcelain"], { cwd: repoRoot, encoding: "utf8", shell: false });
         preSnapshot = snap.stdout ?? "";
       }
@@ -367,6 +386,11 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           try {
             await appendDocumentationPaths(repoRoot, join(artifactDir, "BUILD.md"), log, cycleId, preSnapshot);
           } catch { /* best-effort append; never fail the cycle */ }
+        }
+        if (r.status === "ok" && RESET_ELIGIBLE_STEPS.has(step.name)) {
+          try {
+            await accumulateTouchedFiles(repoRoot, artifactDir, preSnapshot);
+          } catch { /* best-effort; never fail the cycle */ }
         }
       }
       await log.emit("step.end", {

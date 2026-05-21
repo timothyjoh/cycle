@@ -33,6 +33,7 @@ const ALL_PASSING = makeLcov({
   "src/engine/log-fmt.ts": { lf: 100, lh: 100 },
   "src/engine/dot-env.ts": { lf: 100, lh: 100 },
   "src/engine/queue.ts": { lf: 100, lh: 100 },
+  "src/engine/run-cycle.ts": { lf: 100, lh: 100 },
 });
 
 function runGate(cwd: string) {
@@ -85,6 +86,7 @@ test("coverage-gate: triage.ts below floor → exit 1, stderr names file and per
         "src/engine/log-fmt.ts": { lf: 100, lh: 100 },
         "src/engine/dot-env.ts": { lf: 100, lh: 100 },
         "src/engine/queue.ts": { lf: 100, lh: 100 },
+        "src/engine/run-cycle.ts": { lf: 100, lh: 100 },
       }),
     );
     const result = runGate(root);
@@ -147,6 +149,7 @@ test("coverage-gate: absolute SF: paths normalized via relative() → exit 0", a
       "src/engine/log-fmt.ts",
       "src/engine/dot-env.ts",
       "src/engine/queue.ts",
+      "src/engine/run-cycle.ts",
     ]) {
       files[`${realRoot}/${rel}`] = { lf: 100, lh: 100 };
     }

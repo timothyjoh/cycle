@@ -5,12 +5,12 @@ import { join } from "node:path";
 import { buildChildEnv } from "./child-env.ts";
 import type { CommitConfig } from "./workflow.ts";
 import { isDenied } from "./path-utils.ts";
+import type { Logger } from "./log.ts";
 
 export type CommitResult =
   | { status: "ok"; sha: string }
   | { status: "skipped"; reason: "nothing_to_commit" }
-  | { status: "failed"; reason: "commit_failed" | "push_failed"; attempt?: number }
-  | { status: "failed"; reason: "scope_violation"; blockedFiles: string[] };
+  | { status: "failed"; reason: "commit_failed" | "push_failed"; attempt?: number };
 
 export async function parseTouchedFiles(buildMdPath: string): Promise<string[] | null> {
   let text: string;
@@ -30,44 +30,6 @@ export async function parseTouchedFiles(buildMdPath: string): Promise<string[] |
     if (m) files.push(m[1].trim());
   }
   return files;
-}
-
-export async function scopeGuard(
-  repoRoot: string,
-  cycleId: string,
-  envExtra?: Record<string, string>,
-): Promise<string[]> {
-  let buildMdPath: string | null = null;
-  try {
-    const entries = await readdir(join(repoRoot, "docs/cycle"));
-    const match = entries.find((e) => e.startsWith(`${cycleId}-`));
-    if (match) buildMdPath = join(repoRoot, "docs/cycle", match, "BUILD.md");
-  } catch { /* docs/cycle missing */ }
-
-  if (!buildMdPath) return [];
-  const touched = await parseTouchedFiles(buildMdPath);
-  if (touched === null) return [];
-
-  const touchedSet = new Set(touched);
-  const gitStatus = spawnGit(["status", "--porcelain"], repoRoot, envExtra);
-  const blocked: string[] = [];
-  for (const raw of gitStatus.stdout.split("\n")) {
-    if (!raw) continue;
-    const xy = raw.slice(0, 2);
-    // skip untracked and deleted files (lifecycle moves are not scope violations)
-    if (xy === "??" || xy[0] === "D" || xy[1] === "D") continue;
-    let p = raw.slice(3);
-    if (xy[0] === "R" || xy[0] === "C") {
-      const arrow = p.lastIndexOf(" -> ");
-      if (arrow !== -1) p = p.slice(arrow + 4);
-    }
-    p = p.replace(/^"/, "").replace(/"$/, "");
-    if (isDenied(p)) continue;
-    // only enforce scope for source and script files; docs/tests/README can be freely updated
-    if (!p.startsWith("src/") && !p.startsWith("scripts/")) continue;
-    if (!touchedSet.has(p)) blocked.push(p);
-  }
-  return blocked;
 }
 
 function spawnGit(
@@ -170,11 +132,44 @@ export async function commitCycle(
     config: CommitConfig;
     baseBranch: string;
     envExtra?: Record<string, string>;
+    log?: Logger;
   },
 ): Promise<CommitResult> {
   const { envExtra } = opts;
-  const blockedFiles = await scopeGuard(repoRoot, opts.cycleId, envExtra);
-  if (blockedFiles.length > 0) return { status: "failed", reason: "scope_violation", blockedFiles };
+
+  // Read touched.json from cycle artifact dir (fallback: empty set if absent)
+  let touchedFiles = new Set<string>();
+  try {
+    const entries = await readdir(join(repoRoot, "docs/cycle"));
+    const match = entries.find((e) => e.startsWith(`${opts.cycleId}-`));
+    if (match) {
+      const raw = await readFile(join(repoRoot, "docs/cycle", match, "touched.json"), "utf8");
+      const parsed = JSON.parse(raw) as { files?: unknown };
+      if (Array.isArray(parsed.files)) touchedFiles = new Set(parsed.files as string[]);
+    }
+  } catch { /* docs/cycle absent, touched.json absent, or corrupt */ }
+
+  // Warn (non-blocking) about src/ and scripts/ files absent from touched.json
+  const statusOut = spawnGit(["status", "--porcelain"], repoRoot, envExtra);
+  const warnFiles: string[] = [];
+  for (const raw of statusOut.stdout.split("\n")) {
+    if (!raw) continue;
+    const xy = raw.slice(0, 2);
+    if (xy === "??" || xy[0] === "D" || xy[1] === "D") continue;
+    let p = raw.slice(3);
+    if (xy[0] === "R" || xy[0] === "C") {
+      const arrow = p.lastIndexOf(" -> ");
+      if (arrow !== -1) p = p.slice(arrow + 4);
+    }
+    p = p.replace(/^"/, "").replace(/"$/, "");
+    if (isDenied(p)) continue;
+    if (!p.startsWith("src/") && !p.startsWith("scripts/")) continue;
+    if (!touchedFiles.has(p)) warnFiles.push(p);
+  }
+  if (warnFiles.length > 0) {
+    await opts.log?.emit("commit.scope_warning", { cycle_id: opts.cycleId, files: warnFiles });
+  }
+
   const hasChanges = await stageFiles(repoRoot, envExtra);
   if (!hasChanges) return { status: "skipped", reason: "nothing_to_commit" };
 

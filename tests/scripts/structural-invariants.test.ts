@@ -11,6 +11,8 @@ const FIXTURES = join(process.cwd(), "tests/fixtures/structural-invariants");
 async function setup(cwd: string, content: string) {
   await mkdir(join(cwd, "src/engine"), { recursive: true });
   await writeFile(join(cwd, "src/engine/triage.ts"), content);
+  await writeFile(join(cwd, "src/cli.ts"), "// stub");
+  await writeFile(join(cwd, "src/engine/commit-cycle.ts"), "// stub");
 }
 
 function run(cwd: string) {

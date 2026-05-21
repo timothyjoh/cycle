@@ -4,7 +4,9 @@ import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { commitCycle, buildClosesBlock, parseTouchedFiles, scopeGuard } from "../../src/engine/commit-cycle.ts";
+import { commitCycle, buildClosesBlock, parseTouchedFiles } from "../../src/engine/commit-cycle.ts";
+import { createLogger } from "../../src/engine/log.ts";
+import { expectExactlyOne } from "../helpers.ts";
 
 const WORKFLOWS_YML = `engine:
   max_consecutive_failures: 2
@@ -460,228 +462,104 @@ test("parseTouchedFiles — section present returns file list", async () => {
   }
 });
 
-// --- scopeGuard unit tests ---
+// --- commitCycle commit.scope_warning tests ---
 
-test("scopeGuard — no docs/cycle dir returns empty (no-op)", async () => {
-  const root = await mkdtemp(join(tmpdir(), "cycle-sg-test-"));
+test("commitCycle — out-of-footprint: emits commit.scope_warning, commit proceeds", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-sw-test-"));
   try {
-    // no docs/cycle directory created
-    const result = await scopeGuard(root, "0099");
-    assert.deepEqual(result, []);
+    await setupRepo(root);
+    await mkdir(join(root, "docs/cycle/0099-feature-test", "src"), { recursive: true });
+    await writeFile(
+      join(root, "docs/cycle/0099-feature-test/touched.json"),
+      JSON.stringify({ files: ["src/foo.ts"] }) + "\n",
+      "utf8",
+    );
+    // dirty src/bar.ts — not in touched.json
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/bar.ts"), "export const x = 1;\n", "utf8");
+    spawnSync("git", ["add", "src/bar.ts"], { cwd: root, shell: false });
+
+    const log = await createLogger(root, () => {});
+    const result = await commitCycle(root, {
+      cycleId: "0099",
+      title: "scope warning test",
+      config: { mode: "trunk", push: false },
+      baseBranch: "master",
+      log,
+    });
+    assert.ok(result.status === "ok" || result.status === "skipped", `expected ok or skipped, got ${result.status}`);
+
+    const body = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const events = body.trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
+    const warn = expectExactlyOne(events, "commit.scope_warning");
+    assert.ok(Array.isArray(warn.files) && (warn.files as string[]).includes("src/bar.ts"), "files should include src/bar.ts");
+    assert.ok(!(warn.files as string[]).includes("src/foo.ts"), "files should not include src/foo.ts");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("scopeGuard — BUILD.md absent returns empty (no-op)", async () => {
-  const root = await mkdtemp(join(tmpdir(), "cycle-sg-test-"));
-  try {
-    await mkdir(join(root, "docs/cycle/0099-feature-test"), { recursive: true });
-    // No BUILD.md in the dir
-    const result = await scopeGuard(root, "0099");
-    assert.deepEqual(result, []);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("scopeGuard — BUILD.md no Touched Files section returns empty (no-op)", async () => {
-  const root = await mkdtemp(join(tmpdir(), "cycle-sg-test-"));
-  try {
-    await mkdir(join(root, "docs/cycle/0099-feature-test"), { recursive: true });
-    await writeFile(join(root, "docs/cycle/0099-feature-test/BUILD.md"), "## Summary\nNo section.\n", "utf8");
-    const result = await scopeGuard(root, "0099");
-    assert.deepEqual(result, []);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("scopeGuard — clean working tree vs touched list returns empty", async () => {
-  const root = await mkdtemp(join(tmpdir(), "cycle-sg-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
-  try {
-    await mkdir(join(root, "docs/cycle/0099-feature-test"), { recursive: true });
-    await writeFile(join(root, "docs/cycle/0099-feature-test/BUILD.md"), [
-      "## Touched Files",
-      "- src/foo.ts",
-    ].join("\n"), "utf8");
-    // fake git status returns nothing dirty
-    await writeFakeBin(binDir, "git", `
-if [ "$1" = "status" ]; then printf ""; exit 0; fi
-exec /usr/bin/git "$@"
-`);
-    const result = await scopeGuard(root, "0099", fakeEnv(binDir));
-    assert.deepEqual(result, []);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("scopeGuard — dirty file outside touched list returned as blocked", async () => {
-  const root = await mkdtemp(join(tmpdir(), "cycle-sg-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
-  try {
-    await mkdir(join(root, "docs/cycle/0099-feature-test"), { recursive: true });
-    await writeFile(join(root, "docs/cycle/0099-feature-test/BUILD.md"), [
-      "## Touched Files",
-      "- src/foo.ts",
-    ].join("\n"), "utf8");
-    await writeFakeBin(binDir, "git", `
-if [ "$1" = "status" ]; then printf " M src/bar.ts\n"; exit 0; fi
-exec /usr/bin/git "$@"
-`);
-    const result = await scopeGuard(root, "0099", fakeEnv(binDir));
-    assert.deepEqual(result, ["src/bar.ts"]);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("scopeGuard — renamed file outside touched list returned as blocked (destination path)", async () => {
-  const root = await mkdtemp(join(tmpdir(), "cycle-sg-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
-  try {
-    await mkdir(join(root, "docs/cycle/0099-feature-test"), { recursive: true });
-    await writeFile(join(root, "docs/cycle/0099-feature-test/BUILD.md"), [
-      "## Touched Files",
-      "- src/foo.ts",
-    ].join("\n"), "utf8");
-    await writeFakeBin(binDir, "git", `
-if [ "$1" = "status" ]; then printf "R  old.ts -> src/bar-renamed.ts\n"; exit 0; fi
-exec /usr/bin/git "$@"
-`);
-    const result = await scopeGuard(root, "0099", fakeEnv(binDir));
-    assert.deepEqual(result, ["src/bar-renamed.ts"]);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-// --- commitCycle scope_violation integration ---
-
-test("commitCycle — scope_violation: stageFiles never called", async () => {
-  const root = await mkdtemp(join(tmpdir(), "cycle-sv-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
+test("commitCycle — in-footprint: no commit.scope_warning emitted", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-sw-infoot-"));
   try {
     await setupRepo(root);
     await mkdir(join(root, "docs/cycle/0099-feature-test"), { recursive: true });
-    await writeFile(join(root, "docs/cycle/0099-feature-test/BUILD.md"), [
-      "## Touched Files",
-      "- src/foo.ts",
-    ].join("\n"), "utf8");
-
-    const callLog = join(root, "git-calls.txt");
-    await writeFakeBin(binDir, "git", `
-echo "$@" >> "${callLog}"
-if [ "$1" = "status" ] && [ "$2" = "--porcelain" ] && [ "$3" != "--untracked-files=all" ]; then
-  printf " M src/bar.ts\n"; exit 0
-fi
-exec /usr/bin/git "$@"
-`);
-    await writeFakeBin(binDir, "gh", `exit 1`);
-
-    const result = await commitCycle(root, {
-      cycleId: "0099",
-      title: "scope violation test",
-      config: { mode: "trunk", push: false },
-      baseBranch: "master",
-      envExtra: fakeEnv(binDir),
-    });
-    assert.equal(result.status, "failed");
-    assert.equal((result as { reason: string }).reason, "scope_violation");
-    assert.deepEqual((result as { blockedFiles: string[] }).blockedFiles, ["src/bar.ts"]);
-
-    const calls = await readFile(callLog, "utf8").catch(() => "");
-    assert.ok(!calls.includes("add"), "git add must NOT be called when scope_violation");
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("commitCycle — clean scope: proceeds normally", async () => {
-  const root = await mkdtemp(join(tmpdir(), "cycle-sv-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
-  try {
-    await setupRepo(root);
-    await mkdir(join(root, "docs/cycle/0099-feature-test"), { recursive: true });
-    await writeFile(join(root, "docs/cycle/0099-feature-test/BUILD.md"), [
-      "## Touched Files",
-      "- README.md",
-    ].join("\n"), "utf8");
-    // modify README.md (in the touched list)
-    await writeFile(join(root, "README.md"), "changed", "utf8");
-
-    await writeFakeBin(binDir, "git", `
-if [ "$1" = "status" ] && [ "$2" = "--porcelain" ] && [ "$3" != "--untracked-files=all" ]; then
-  printf " M README.md\n"; exit 0
-fi
-if [ "$1" = "push" ]; then exit 0; fi
-exec /usr/bin/git "$@"
-`);
-    await writeFakeBin(binDir, "gh", `exit 1`);
-
-    const result = await commitCycle(root, {
-      cycleId: "0099",
-      title: "clean scope",
-      config: { mode: "trunk", push: false },
-      baseBranch: "master",
-      envExtra: fakeEnv(binDir),
-    });
-    assert.equal(result.status, "ok");
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-// --- Regression test: real git repo, no fake bins ---
-
-test("regression — BUILD.md touches src/foo.ts, src/bar.ts dirty → scope_violation", async () => {
-  const root = await mkdtemp(join(tmpdir(), "cycle-regression-test-"));
-  try {
-    // set up real git repo with two tracked src files
-    spawnSync("git", ["init", "--initial-branch=master"], { cwd: root, shell: false });
-    spawnSync("git", ["config", "user.email", "test@test.com"], { cwd: root, shell: false });
-    spawnSync("git", ["config", "user.name", "Test"], { cwd: root, shell: false });
     await mkdir(join(root, "src"), { recursive: true });
     await writeFile(join(root, "src/foo.ts"), "export const x = 1;\n", "utf8");
-    await writeFile(join(root, "src/bar.ts"), "export const y = 2;\n", "utf8");
-    await mkdir(join(root, ".cycle"), { recursive: true });
-    await writeFile(join(root, ".cycle/workflows.yml"), WORKFLOWS_YML, "utf8");
-    spawnSync("git", ["add", "-A"], { cwd: root, shell: false });
-    spawnSync("git", ["commit", "-m", "init"], { cwd: root, shell: false });
+    spawnSync("git", ["add", "src/foo.ts"], { cwd: root, shell: false });
+    await writeFile(
+      join(root, "docs/cycle/0099-feature-test/touched.json"),
+      JSON.stringify({ files: ["src/foo.ts"] }) + "\n",
+      "utf8",
+    );
 
-    // write BUILD.md listing only src/foo.ts
-    await mkdir(join(root, "docs/cycle/0099-feature-test"), { recursive: true });
-    await writeFile(join(root, "docs/cycle/0099-feature-test/BUILD.md"), [
-      "## Touched Files",
-      "- src/foo.ts",
-    ].join("\n"), "utf8");
-
-    // dirty src/bar.ts (tracked src file, outside touched list)
-    await writeFile(join(root, "src/bar.ts"), "export const y = 99;\n", "utf8");
-
-    const result = await commitCycle(root, {
+    const log = await createLogger(root, () => {});
+    await commitCycle(root, {
       cycleId: "0099",
-      title: "regression test",
+      title: "in footprint",
       config: { mode: "trunk", push: false },
       baseBranch: "master",
+      log,
     });
-    assert.equal(result.status, "failed");
-    assert.equal((result as { reason: string }).reason, "scope_violation");
-    assert.deepEqual((result as { blockedFiles: string[] }).blockedFiles, ["src/bar.ts"]);
 
-    // src/bar.ts must not be staged — working tree still dirty
-    const status = spawnSync("git", ["status", "--porcelain"], {
-      cwd: root, shell: false, encoding: "utf8",
-    });
-    assert.ok(status.stdout.includes("src/bar.ts"), "src/bar.ts must remain unstaged after scope_violation");
+    let events: Record<string, unknown>[] = [];
+    try {
+      const body = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+      events = body.trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
+    } catch { /* log.jsonl absent means no events emitted — no warnings possible */ }
+    const warnings = events.filter((e) => e.event === "commit.scope_warning");
+    assert.equal(warnings.length, 0, "no commit.scope_warning should be emitted when file is in footprint");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("commitCycle — no touched.json: emits commit.scope_warning for staged src/ files", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-sw-nofile-"));
+  try {
+    await setupRepo(root);
+    await mkdir(join(root, "docs/cycle/0099-feature-nofile"), { recursive: true });
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/bar.ts"), "export const y = 2;\n", "utf8");
+    spawnSync("git", ["add", "src/bar.ts"], { cwd: root, shell: false });
+    // no touched.json written
+
+    const log = await createLogger(root, () => {});
+    const result = await commitCycle(root, {
+      cycleId: "0099",
+      title: "no footprint file",
+      config: { mode: "trunk", push: false },
+      baseBranch: "master",
+      log,
+    });
+    assert.ok(result.status === "ok" || result.status === "skipped");
+
+    const body = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const events = body.trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
+    const warn = expectExactlyOne(events, "commit.scope_warning");
+    assert.ok(Array.isArray(warn.files) && (warn.files as string[]).includes("src/bar.ts"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+

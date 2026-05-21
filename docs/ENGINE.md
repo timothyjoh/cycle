@@ -47,8 +47,6 @@ Engine reads `workflow:` from the popped todo's frontmatter; falls back to CLI d
 
 The CLI loop tracks a non-persistent `consecutive_failures` counter and `failed_cycles` list. Successful cycles reset both; retry-drain leaves them untouched. Terminal failure increments the counter. When it reaches `engine.max_consecutive_failures` (default 2), engine emits `engine.halted {failed_cycles, reason: "max_consecutive_failures", threshold}`, then `engine.stop {status: "halted"}`, exits non-zero.
 
-**Commit-scope-guard-loop pause.** The CLI also tracks a non-persistent `Map<cycleId, number>` (`scopeGuardViolations`) counting consecutive `scope_violation` results from `commitCycle` per cycle. On the 2nd consecutive `scope_violation` for the same `cycle_id`, the engine emits `engine.paused { reason: "commit-scope-guard-loop", cycle_id, violations }` and halts instead of retrying. A successful commit deletes the entry for that `cycle_id`. The first rejection still allows one retry (threshold is ≥ 2, not ≥ 1). `engine.halted` is NOT emitted for this pause reason.
-
 ## Resume from log tail
 
 `src/engine/log-tail.ts` (`readLogTail` / `parseLogTail`) scans `.cycle/log.jsonl` backwards. At `engine.start`, if the most-recent `cycle.start` has no matching `cycle.end`, the CLI refetches base branch (git fetch + ff merge), validates the `tbd.jsonl` row is still `in_progress` for the same `cycle_id`, then calls `runCycle({ resume: { startStepIndex } })`.
@@ -104,6 +102,28 @@ After the `fix` step exits `status:ok` and `FIX.md` is written, the engine reads
 After a `build` or `fix` step exits `status:ok` and its artifact is written, the engine runs `git diff HEAD -- src/` (array args, `cwd: repoRoot`, no shell). If stdout is empty — meaning no tracked files under `src/` changed relative to HEAD — the engine mutates `r.status = "failed"` with stderr from `formatEmptyDiffGuardError(stepName)` — message format: `<step> post-condition failed: no src/ changes detected (step reported ok but git diff HEAD -- src/ is empty)`. Falls through standard `cycle.end status:"failed" failing_step:"<step>"` machinery. Bash steps and all other step names (`spec`, `review`, `plan`, `research`, `reflection`, `documentation`) bypass this guard entirely.
 
 **Known limitation:** Verification-only work items — confirm an already-implemented feature, add a missing test — structurally cannot close through the normal cycle workflow. The build agent correctly reports nothing to do, but the empty-diff guard treats zero `src/` changes as failure regardless. Such issues exhaust retries and go terminal-failed, orphaning any dependents that declared `depends_on` on them. Workaround: handle verification work in a `bash` build step (bypasses the guard), or introduce a `verification` workflow variant whose build post-condition checks `tests/` rather than `src/`.
+
+## touched.json footprint
+
+After each successful `build` or `fix` step, the engine captures a `git status --porcelain` snapshot before and after the step, diffs them to identify newly-dirtied files, and accumulates the union into `docs/cycle/<cycleId>-<workflow>-<slug>/touched.json`.
+
+Schema: `{ "files": string[] }` — sorted, deduplicated, repo-root-relative paths. Accumulation: union across all `build`/`fix` steps within a cycle; never overwritten within a cycle. Files dirty before a step begins are excluded (captured in the pre-snapshot). Untracked files (`??`) and denylisted paths (`.claude/`, `dist/`, `node_modules/`, `.cycle/cycle.pid`, `*.lock`) are excluded. The write is best-effort — any error is silently swallowed and never fails the cycle.
+
+At commit time, `commitCycle` reads `touched.json` from the cycle's artifact dir (falling back to an empty set if the file is absent or unparseable) and compares each staged `src/` and `scripts/` file against the set. Any staged file absent from the footprint triggers a `commit.scope_warning` log event:
+
+```
+{ ts, event: "commit.scope_warning", cycle_id: string, files: string[] }
+```
+
+The commit is never blocked — staging and commit always proceed regardless of the warning. The warning is informational and emitted only when `opts.log` is provided to `commitCycle`. The previous blocking `scopeGuard` function and the `commit-scope-guard-loop` halt path have been removed entirely.
+
+**Known limitation:** `RESET_ELIGIBLE_STEPS` is hardcoded as `["build", "fix"]` in `run-cycle.ts`. The `quickfix` workflow uses `quick_fix` and `test_fix` as its mutation steps; the `e2e-tests` workflow uses `test_build`. None appear in `RESET_ELIGIBLE_STEPS`, so no footprint is accumulated for those workflows. Every commit from a `quickfix` or `e2e-tests` cycle will emit `commit.scope_warning` for every staged `src/` file — the warning fires unconditionally on every commit, making it permanently noisy for those workflows. Fix: extend `RESET_ELIGIBLE_STEPS` to include `quick_fix`, `test_fix`, and `test_build`, or derive the eligible set from workflow definitions rather than hardcoding it.
+
+**Known limitation:** `commitCycle` independently re-discovers the cycle artifact directory via a `readdir` prefix scan on `docs/cycle/` rather than receiving the path from `run-cycle.ts` directly. If `docs/cycle/` is absent or the scan finds no matching entry, `commitCycle` silently falls back to an empty footprint set, causing `commit.scope_warning` for every staged `src/` file. Fix: thread `artifactDir` (or a `touchedJsonPath`) into `CommitCycleOpts` so the path is resolved once by `runCycle` and passed through.
+
+**Known limitation:** Newly-created (untracked) `src/` or `scripts/` files are absent from `touched.json`. `parseSnapshotPaths` skips `??` lines, so a brand-new file created by an agent but not yet `git add`-ed is excluded from footprint accumulation. At commit time, `stageFiles` uses `--untracked-files=all` and picks the file up, but `commit-cycle.ts` also skips `??` lines in the scope-warning check. Result: a newly-created `src/` file is staged and committed while being absent from both `touched.json` and any `commit.scope_warning` emission. The footprint record is silently incomplete for workflows that scaffold new source files. Fix: extend `parseSnapshotPaths` to track `??` lines for `src/`/`scripts/` paths, or accept the gap and document it as intentional scope.
+
+**Known limitation:** `bash`-agent steps are excluded from `touched.json` accumulation regardless of step name. `accumulateTouchedFiles` is called only inside the `else` branch of `if (step.agent === "bash")` in `run-cycle.ts`. A step named `build` or `fix` with `agent: bash` satisfies the `RESET_ELIGIBLE_STEPS` name check but is silently excluded by the outer agent-type guard — no error, no warning, no `touched.json` entry. If a future workflow adds a bash `build` step, the footprint record will be silently empty. Fix: add a structural invariant asserting no workflow in `.cycle/` uses `agent: bash` for a step named `build` or `fix`, or document the exclusion in the workflow authoring guide.
 
 ## Failed step.end stderr
 
@@ -178,15 +198,6 @@ engine:
 
 **Branch checkout skipping**: Trunk/local-only cycles emit `cycle.checkout status:skipped reason:"trunk"` (no checkout needed — never left base branch). `worktree-pr` mode emits `cycle.checkout status:ok` after `checkoutBase()`. `cycle.base_pull` is emitted in all modes when checkout succeeds (trunk always succeeds); it is emitted `status:skipped` only when the checkout itself failed.
 
-**Scope guard** (`parseTouchedFiles` / `scopeGuard` in `src/engine/commit-cycle.ts`): Before `stageFiles()` runs, `commitCycle()` calls `scopeGuard(repoRoot, cycleId)` which:
-1. Locates `docs/cycle/<cycleId>-*/BUILD.md` via `readdir` + prefix match.
-2. Calls `parseTouchedFiles(buildMdPath)` to extract the `## Touched Files` YAML list.
-3. Runs `git status --porcelain` and collects dirty tracked-file paths not in the list (denylisted files skipped; `??` untracked entries ignored).
-4. Returns the blocked file list. If non-empty, `commitCycle()` returns `{ status: "failed", reason: "scope_violation", blockedFiles }` — `stageFiles()` is never called.
-
-Guard is a **no-op** when BUILD.md is absent or has no `## Touched Files` section (pre-existing cycles, quickfix/document workflows). Blocked-file errors are surfaced via the `CommitResult` return value; `cli.ts` routes them through the standard retry/terminal-drain path.
-
-**BUILD.md contract**: Build agents must append a `## Touched Files` YAML list (exact repo-relative paths, no globs) to their stdout output. The engine writes this to `docs/cycle/<cycleId>-*/BUILD.md`. The scope guard reads it at commit time.
 ## Stale-dist warning
 
 At engine start, before emitting `engine.start`, the engine compares the mtime of `dist/cycle.js` against the instant the process launched (`processStart = Date.now()` captured before any `await` in `cli.ts`). If `dist/cycle.js` is newer, the engine emits one `engine.warning`:

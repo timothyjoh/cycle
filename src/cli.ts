@@ -30,7 +30,7 @@ import type { Logger } from "./engine/log.ts";
 import type { RunArgs } from "./cli/parse-args.ts";
 
 type HaltContext = { issueId: string; failingStep: string | undefined };
-type ResumeOutcome = "ok" | "retry" | "terminal" | "skipped" | "scope-guard-loop";
+type ResumeOutcome = "ok" | "retry" | "terminal" | "skipped";
 type ResumeResult = {
   processed: number;
   outcome: ResumeOutcome;
@@ -174,7 +174,6 @@ let halted = false;
 let haltReason: "max_consecutive_failures" | "triage_failed" | null = null;
 let lastHaltContext: HaltContext | undefined;
 const maxConsecutiveFailures = cfg?.engine?.max_consecutive_failures ?? 2;
-const scopeGuardViolations = new Map<string, number>();
 
 async function drainSuccess(
   cwd: string,
@@ -376,19 +375,8 @@ async function runResumeOnce(
       issueId: tail.issueId,
       config: cfg.engine.commit,
       baseBranch: cfg.engine.base_branch,
+      log,
     });
-    if (cr.status === "failed" && cr.reason === "scope_violation") {
-      const count = (scopeGuardViolations.get(tail.cycleId) ?? 0) + 1;
-      scopeGuardViolations.set(tail.cycleId, count);
-      if (count >= 2) {
-        await log.emit("engine.paused", {
-          reason: "commit-scope-guard-loop",
-          cycle_id: tail.cycleId,
-          violations: cr.blockedFiles,
-        });
-        return { processed: 0, outcome: "scope-guard-loop" };
-      }
-    }
     if (cr.status === "failed") {
       if (row!.attempt + 1 < maxAttempts) {
         await drainRetry(cwd, log, tail.cycleId, tail.issueId, "commit");
@@ -398,7 +386,6 @@ async function runResumeOnce(
       return { processed: 0, outcome: "terminal", issueId: tail.issueId, failingStep: "commit" };
     }
     await drainSuccess(cwd, log, todoPath, doneDir, tail.cycleId, tail.issueId);
-    scopeGuardViolations.delete(tail.cycleId);
     return { processed: 1, outcome: "ok" };
   }
   if (row!.attempt + 1 < maxAttempts) {
@@ -426,8 +413,6 @@ if (cfg) {
         halted = true;
         haltReason = "max_consecutive_failures";
       }
-    } else if (result.outcome === "scope-guard-loop") {
-      halted = true;
     }
   }
 }
@@ -492,20 +477,8 @@ while (!halted) {
       issueId: row.id,
       config: cfg!.engine.commit,
       baseBranch: cfg!.engine.base_branch,
+      log,
     });
-    if (cr.status === "failed" && cr.reason === "scope_violation") {
-      const count = (scopeGuardViolations.get(cycleId) ?? 0) + 1;
-      scopeGuardViolations.set(cycleId, count);
-      if (count >= 2) {
-        await log.emit("engine.paused", {
-          reason: "commit-scope-guard-loop",
-          cycle_id: cycleId,
-          violations: cr.blockedFiles,
-        });
-        halted = true;
-        break;
-      }
-    }
     if (cr.status === "failed") {
       if (row.attempt + 1 < maxAttempts) {
         await drainRetry(cwd, log, cycleId, row.id, "commit");
@@ -522,7 +495,6 @@ while (!halted) {
       }
     } else {
       await drainSuccess(cwd, log, todoPath, doneDir, cycleId, row.id);
-      scopeGuardViolations.delete(cycleId);
       cyclesProcessed++;
       consecutiveFailures = 0;
       failedCycles = [];

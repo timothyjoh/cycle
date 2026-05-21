@@ -22,6 +22,18 @@ const INVARIANTS = [
     expected: 1,
     reason: 'childIds variable declaration',
   },
+  {
+    file: 'src/cli.ts',
+    pattern: /commit-scope-guard-loop/g,
+    expected: 0,
+    reason: 'commit-scope-guard-loop halt path removed in cycle 0227',
+  },
+  {
+    file: 'src/engine/commit-cycle.ts',
+    pattern: /scopeGuard/g,
+    expected: 0,
+    reason: 'blocking scopeGuard removed in cycle 0227',
+  },
 ];
 
 let failed = 0;
