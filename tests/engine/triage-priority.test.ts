@@ -199,6 +199,12 @@ test("discuss raw: agent never called, file moved to discuss/, no todo, no queue
       (parked[0].fields.path as string).endsWith(`discuss/${id}.md`),
       "path points to discuss dir",
     );
+
+    await assert.rejects(
+      () => readFile(join(root, "docs/cycle/issues/raw", `${id}.md`), "utf8"),
+      { code: "ENOENT" },
+      "raw file must not exist after parkForDiscussion",
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -255,6 +261,12 @@ test("discuss raw moved back to raw/ with priority: medium is triaged on next ru
 
     const discussPath = join(root, "docs/cycle/issues/discuss", `${id}.md`);
     await readFile(discussPath, "utf8"); // throws if not found
+
+    await assert.rejects(
+      () => readFile(rawPath, "utf8"),
+      { code: "ENOENT" },
+      "raw file must not exist after first parkForDiscussion",
+    );
 
     // Simulate human: move back to raw/ with real priority
     await writeFile(rawPath, rawBody(id, "Roundtrip test", "medium"), "utf8");
@@ -320,6 +332,12 @@ test("discuss + all normal fail → engine.paused emitted, normal raw stays in r
 
     const discussPath = join(root, "docs/cycle/issues/discuss", `${discussId}.md`);
     await readFile(discussPath, "utf8");
+
+    await assert.rejects(
+      () => readFile(join(root, "docs/cycle/issues/raw", `${discussId}.md`), "utf8"),
+      { code: "ENOENT" },
+      "raw file must not exist after parkForDiscussion",
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -362,6 +380,12 @@ test("mixed batch: discuss raw parked, normal raw triaged", async () => {
 
     const discussPath = join(root, "docs/cycle/issues/discuss", `${discussId}.md`);
     await readFile(discussPath, "utf8"); // throws if not found
+
+    await assert.rejects(
+      () => readFile(join(root, "docs/cycle/issues/raw", `${discussId}.md`), "utf8"),
+      { code: "ENOENT" },
+      "raw file must not exist after parkForDiscussion",
+    );
 
     const todoFiles = await readdir(join(root, "docs/cycle/issues/todo"));
     assert.ok(
