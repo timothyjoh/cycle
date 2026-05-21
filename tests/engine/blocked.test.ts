@@ -28,6 +28,7 @@ function row(id: string, overrides: Partial<QueueRow> = {}): QueueRow {
     attempt: 0,
     depends_on: [],
     triaged_at: "2026-05-13T10:00:00Z",
+    priority: "medium",
     ...overrides,
   };
 }

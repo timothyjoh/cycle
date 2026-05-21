@@ -253,7 +253,7 @@ test("runCliCleanupWithDeps: in_progress row with resolved todo protects branch"
     listCycleBranches: async () => [{ branch: "cycle/feature/live-work", head_sha: "sha1", last_commit_subject: "s" }],
     currentBranchName: async () => "main",
     deleteBranch: async () => { throw new Error("should not delete"); },
-    readQueue: async () => [{ id: "my-001", title: "live work", status: "in_progress", attempt: 0, cycle_id: "0099", depends_on: [], triaged_at: new Date().toISOString() }],
+    readQueue: async () => [{ id: "my-001", title: "live work", status: "in_progress", attempt: 0, cycle_id: "0099", depends_on: [], triaged_at: new Date().toISOString(), priority: "medium" as const }],
     readTodoFile: async (_root, relId) => relId.includes("my-001") ? fm : null,
     emitCleanupDeleted: async () => {},
     resolveBaseBranch: async () => "master",

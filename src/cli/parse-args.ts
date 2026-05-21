@@ -12,45 +12,29 @@ export type RunArgs = {
 export type DropArgs = {
   command: "drop";
   text: string;
-  priority: number;
 };
 
 export type ParsedArgs = RunArgs | DropArgs;
 
 export function parseArgs(argv: string[]): ParsedArgs {
   if (argv[0] === "drop") {
-    let values: Record<string, unknown>;
     let positionals: string[];
     try {
-      ({ values, positionals } = nodeParseArgs({
+      ({ positionals } = nodeParseArgs({
         args: argv.slice(1),
-        options: {
-          priority: { type: "string" },
-        },
+        options: {},
         allowPositionals: true,
       }));
     } catch (err) {
       throw new Error(
-        `drop: ${(err as Error).message} (usage: cycle drop "<text>" [--priority N]; N is an integer 1..10, default 3)`,
+        `drop: ${(err as Error).message} (usage: cycle drop "<text>")`,
       );
     }
 
     const text = positionals.join(" ").trim();
     if (!text) throw new Error("drop requires task text");
 
-    let priority = 3;
-    if (values.priority !== undefined) {
-      const raw = String(values.priority);
-      const n = Number(raw);
-      if (!/^-?\d+$/.test(raw) || !Number.isInteger(n) || n < 1 || n > 10) {
-        throw new Error(
-          `drop: --priority must be an integer 1..10 (got "${raw}"); usage: cycle drop "<text>" [--priority N]  (N is an integer 1..10, default 3)`,
-        );
-      }
-      priority = n;
-    }
-
-    return { command: "drop", text, priority };
+    return { command: "drop", text };
   }
 
   if (argv[0] !== "run") throw new Error(`unknown command: ${argv[0] ?? "(none)"}`);

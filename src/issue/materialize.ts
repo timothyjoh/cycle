@@ -6,7 +6,6 @@ export async function materializeFreeformIssue(
   text: string,
   repoRoot: string,
   now: Date = new Date(),
-  priority: number = 3,
 ) {
   const id = freeformId(text, now);
   const dir = join(repoRoot, "docs", "cycle", "issues", "raw");
@@ -19,7 +18,7 @@ export async function materializeFreeformIssue(
     `title: "${text.replace(/"/g, '\\"')}"`,
     `added_at: ${now.toISOString()}`,
     "triage_attempts: 0",
-    `priority: ${priority}`,
+    "priority: medium",
     "---",
     "",
     text,

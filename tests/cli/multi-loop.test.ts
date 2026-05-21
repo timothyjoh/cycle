@@ -156,7 +156,7 @@ test("'drop' materializes an issue to raw/ without running", async () => {
   }
 });
 
-test("'run \"<text>\" --dry-run' pins raw frontmatter byte-shape (priority: 3 default)", async () => {
+test("'run \"<text>\" --dry-run' pins raw frontmatter byte-shape (priority: medium default)", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
     const distPath = await ensureDist();
@@ -193,7 +193,7 @@ test("'run \"<text>\" --dry-run' pins raw frontmatter byte-shape (priority: 3 de
       'title: "park this too"\n' +
       `${addedAtMatch[0]}\n` +
       "triage_attempts: 0\n" +
-      "priority: 3\n" +
+      "priority: medium\n" +
       "---\n\n";
     assert.ok(
       body.startsWith(expectedFrontmatter),

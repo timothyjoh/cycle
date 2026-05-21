@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   type QueueRow,
+  type Priority,
   readQueue,
   writeQueue,
   appendRow,
@@ -15,6 +16,7 @@ import {
   drainFailedRetry,
   drainFailedTerminal,
   isLegacyLine,
+  normalizePriority,
 } from "../../src/engine/queue.ts";
 
 async function setupRoot() {
@@ -31,6 +33,7 @@ function row(id: string, overrides: Partial<QueueRow> = {}): QueueRow {
     attempt: 0,
     depends_on: [],
     triaged_at: "2026-05-13T10:00:00Z",
+    priority: "medium",
     ...overrides,
   };
 }
@@ -312,6 +315,164 @@ test("writeQueue empty leaves empty file", async () => {
     await writeQueue(root, []);
     const raw = await readFile(join(root, ".cycle/tbd.jsonl"), "utf8");
     assert.equal(raw, "");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// normalizePriority unit tests
+test("normalizePriority: numeric buckets", () => {
+  assert.equal(normalizePriority(10), "critical");
+  assert.equal(normalizePriority(8), "critical");
+  assert.equal(normalizePriority(7), "critical");
+  assert.equal(normalizePriority(6), "high");
+  assert.equal(normalizePriority(5), "high");
+  assert.equal(normalizePriority(4), "medium");
+  assert.equal(normalizePriority(3), "medium");
+  assert.equal(normalizePriority(2), "low");
+  assert.equal(normalizePriority(1), "low");
+});
+
+test("normalizePriority: absent/null/unrecognized → medium", () => {
+  assert.equal(normalizePriority(undefined), "medium");
+  assert.equal(normalizePriority(null), "medium");
+  assert.equal(normalizePriority("bogus"), "medium");
+  assert.equal(normalizePriority({}), "medium");
+});
+
+test("normalizePriority: enum strings pass through", () => {
+  const values: Priority[] = ["low", "medium", "high", "critical", "discuss"];
+  for (const v of values) {
+    assert.equal(normalizePriority(v), v);
+  }
+});
+
+// readQueue normalization tests
+test("readQueue: normalizes numeric priority and strips priority_hint", async () => {
+  const root = await setupRoot();
+  try {
+    const line = JSON.stringify({
+      id: "X",
+      title: "X title",
+      status: "pending",
+      attempt: 0,
+      depends_on: [],
+      triaged_at: "2026-05-13T10:00:00Z",
+      priority: 3,
+      priority_hint: "high",
+    });
+    await writeFile(join(root, ".cycle/tbd.jsonl"), line + "\n", "utf8");
+    const rows = await readQueue(root);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].priority, "medium");
+    assert.ok(!("priority_hint" in rows[0]), "priority_hint should be stripped");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("readQueue: row missing priority gets normalized to medium", async () => {
+  const root = await setupRoot();
+  try {
+    const line = JSON.stringify({
+      id: "Y",
+      title: "Y title",
+      status: "pending",
+      attempt: 0,
+      depends_on: [],
+      triaged_at: "2026-05-13T10:00:00Z",
+    });
+    await writeFile(join(root, ".cycle/tbd.jsonl"), line + "\n", "utf8");
+    const rows = await readQueue(root);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].priority, "medium");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// popNextPending priority sort tests
+test("popNextPending: returns critical before high before medium before low", async () => {
+  const root = await setupRoot();
+  try {
+    await writeQueue(root, [
+      row("M", { priority: "medium" }),
+      row("C", { priority: "critical" }),
+      row("L", { priority: "low" }),
+      row("H", { priority: "high" }),
+    ]);
+    const next = await popNextPending(root);
+    assert.equal(next?.id, "C");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("popNextPending: discuss is last priority", async () => {
+  const root = await setupRoot();
+  try {
+    await writeQueue(root, [
+      row("D", { priority: "discuss" }),
+      row("M", { priority: "medium" }),
+    ]);
+    const next = await popNextPending(root);
+    assert.equal(next?.id, "M");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("popNextPending: stability — two medium rows preserve insertion order", async () => {
+  const root = await setupRoot();
+  try {
+    await writeQueue(root, [
+      row("A", { priority: "medium", triaged_at: "2026-05-13T10:00:00Z" }),
+      row("B", { priority: "medium", triaged_at: "2026-05-13T11:00:00Z" }),
+    ]);
+    const next = await popNextPending(root);
+    assert.equal(next?.id, "A");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("popNextPending: topological clamp — high-priority child blocked by low-priority pending parent", async () => {
+  const root = await setupRoot();
+  try {
+    await writeQueue(root, [
+      row("parent", { priority: "low" }),
+      row("child", { priority: "high", depends_on: ["parent"] }),
+    ]);
+    const next = await popNextPending(root);
+    assert.equal(next?.id, "parent");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("popNextPending: topological clamp — child blocked by in_progress parent returns null", async () => {
+  const root = await setupRoot();
+  try {
+    await writeQueue(root, [
+      row("parent", { status: "in_progress", cycle_id: "0001", priority: "low" }),
+      row("child", { priority: "high", depends_on: ["parent"] }),
+    ]);
+    const next = await popNextPending(root);
+    assert.equal(next, null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("popNextPending: all-blocked queue returns null", async () => {
+  const root = await setupRoot();
+  try {
+    await writeQueue(root, [
+      row("A", { depends_on: ["B"] }),
+      row("B", { depends_on: ["A"] }),
+    ]);
+    const next = await popNextPending(root);
+    assert.equal(next, null);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -12,6 +12,7 @@ import {
   writeQueue,
   appendRow,
   bootstrapArchiveIfLegacy,
+  normalizePriority,
   type QueueRow,
 } from "./queue.ts";
 import { resolveAgent } from "./exec.ts";
@@ -592,6 +593,7 @@ async function applyRaw(
 
   try {
     const triagedAt = new Date().toISOString();
+    const priority = normalizePriority((raw.fm as Record<string, unknown>).priority);
     for (const child of children) {
       const todoPath = join(todoDir, `${child.id}.md`);
       const fm: Frontmatter = {
@@ -601,6 +603,7 @@ async function applyRaw(
         depends_on: child.depends_on,
         triaged_at: triagedAt,
         source: "triage",
+        priority,
       };
       if (child.id !== raw.id) fm.parent = raw.id;
 
@@ -616,6 +619,7 @@ async function applyRaw(
         attempt: 0,
         depends_on: child.depends_on,
         triaged_at: triagedAt,
+        priority,
       };
       if (child.id !== raw.id) row.parent = raw.id;
 

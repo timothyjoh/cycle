@@ -5,11 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
-test("cycle drop --priority writes priority to raw frontmatter", async () => {
+test("cycle drop (no flag) exits 0 and emits priority: medium", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-drop-priority-"));
   try {
     const bin = join(process.cwd(), "dist/cycle.js");
-    const result = spawnSync(process.execPath, [bin, "drop", "foo bar", "--priority", "5"], {
+    const result = spawnSync(process.execPath, [bin, "drop", "foo bar"], {
       cwd: root,
       env: process.env,
       encoding: "utf8",
@@ -20,23 +20,23 @@ test("cycle drop --priority writes priority to raw frontmatter", async () => {
     assert.ok(typeof out.issue_id === "string" && out.issue_id.length > 0);
     assert.ok(typeof out.path === "string" && out.path.length > 0);
     const body = await readFile(out.path, "utf8");
-    assert.match(body, /^priority: 5$/m);
+    assert.match(body, /^priority: medium$/m);
+    assert.doesNotMatch(body, /^priority: \d/m);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("cycle drop --priority rejects out-of-range with non-zero exit", async () => {
+test("cycle drop --priority exits non-zero (unknown option)", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-drop-priority-"));
   try {
     const bin = join(process.cwd(), "dist/cycle.js");
-    const result = spawnSync(process.execPath, [bin, "drop", "foo", "--priority", "11"], {
+    const result = spawnSync(process.execPath, [bin, "drop", "foo", "--priority", "high"], {
       cwd: root,
       env: process.env,
       encoding: "utf8",
     });
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /must be an integer 1\.\.10/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -49,12 +49,12 @@ source: jira          # jira | linear | github | text | reflection
 title: "Safari login broken"
 added_at: 2026-05-13T01:30:00Z
 triage_attempts: 0    # engine-managed
-priority: 3           # optional hint to triage; not honored automatically
+priority: medium      # optional hint to triage: low | medium | high | critical | discuss
 ---
 Description text from the upstream source.
 ```
 
-Default and range: `priority` is an integer in the inclusive range 1–10; `cycle drop` (via `materializeFreeformIssue`) emits `3` when `--priority` is not given.
+Values: `priority` is one of `low | medium | high | critical | discuss`; `cycle drop` (via `materializeFreeformIssue`) emits `medium` by default. The engine reads this field at triage time and propagates it to each child's todo frontmatter and queue row. Legacy numeric values (1–10) are normalized at read time: 7–10 → `critical`, 5–6 → `high`, 3–4 → `medium`, 1–2 → `low`.
 
 ### Triaged todo (`todo/<parent>-<slug>.md`)
 
@@ -242,7 +242,8 @@ Live, priority-ordered queue. Drains on success/failure. **Not the audit log** �
   "status": "pending",
   "attempt": 0,
   "depends_on": [],
-  "triaged_at": "2026-05-13T02:30:00Z"
+  "triaged_at": "2026-05-13T02:30:00Z",
+  "priority": "medium"
 }
 ```
 
@@ -260,10 +261,14 @@ When status flips `pending → in_progress`, the engine writes `cycle_id: "0042"
 
 ### Pop ordering
 
-FIFO from the top of `tbd.jsonl`, with one constraint:
-- If the top row has unsatisfied `depends_on` (any id in the array still appears as pending or in_progress in `tbd.jsonl`), skip it and pop the next eligible row. Resume normal order when its deps clear.
+Priority-sorted, then stable-FIFO within each tier. The engine sorts pending rows by `priority` before selecting the next row: `critical → high → medium → low → discuss`. Rows within the same tier drain in `triaged_at` insertion order.
+
+One additional constraint:
+- If the next eligible row has unsatisfied `depends_on` (any id in the array still appears as pending or in_progress in `tbd.jsonl`), it is skipped regardless of priority tier. The next eligible row without a blocking dep is selected instead.
 
 Deps in `failed/` or `blocked/` don't count as "unsatisfied" — they count as resolved-by-cascade. But by then `propagateBlocked()` will have moved the dependent rows out.
+
+**Note on `discuss` priority:** `discuss` rows drain last — they are not held for human review. Until the `discuss` folder lifecycle (redesign-05) ships, any issue filed with `priority: discuss` will eventually be auto-executed by the engine at the tail of the queue.
 
 ---
 

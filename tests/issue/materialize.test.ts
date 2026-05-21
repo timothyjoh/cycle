@@ -25,7 +25,7 @@ test("writes a markdown file with frontmatter to raw/", async () => {
       'title: "fix login bug"\n' +
       "added_at: 2026-05-12T10:30:00.000Z\n" +
       "triage_attempts: 0\n" +
-      "priority: 3\n" +
+      "priority: medium\n" +
       "---\n\n";
     assert.ok(
       body.startsWith(expectedFrontmatter),
@@ -39,17 +39,17 @@ test("writes a markdown file with frontmatter to raw/", async () => {
   }
 });
 
-test("writes explicit priority into frontmatter when supplied", async () => {
+test("three-arg call emits priority: medium (no numeric priority parameter)", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
     const { path } = await materializeFreeformIssue(
       "fix login bug",
       root,
       new Date("2026-05-12T10:30:00Z"),
-      7,
     );
     const body = await readFile(path, "utf8");
-    assert.match(body, /^priority: 7$/m);
+    assert.match(body, /^priority: medium$/m);
+    assert.doesNotMatch(body, /^priority: \d/m);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -158,6 +158,7 @@ test("rejects child id colliding with existing queue row", () => {
       attempt: 0,
       depends_on: [],
       triaged_at: "now",
+      priority: "medium",
     },
   ];
   checkReject(JSON.stringify(j), queue, "collides");
@@ -198,6 +199,7 @@ test("accepts well-formed payload with pending queue context", () => {
       attempt: 0,
       depends_on: [],
       triaged_at: "now",
+      priority: "medium",
     },
   ];
   const r = validateOutput(JSON.stringify(j), fakeRaws as never, queue, cfg);
@@ -290,6 +292,7 @@ test("resolves depends_on against existing pending queue row id", () => {
       attempt: 0,
       depends_on: [],
       triaged_at: "now",
+      priority: "medium",
     },
   ];
   const r = validateOutput(

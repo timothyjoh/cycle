@@ -35,6 +35,10 @@ On terminal-drain frontmatter mutation failure: fall back to writing `failed/<id
 
 Engine reads `workflow:` from the popped todo's frontmatter; falls back to CLI default. First start with a legacy `tbd.jsonl` archives it to `.cycle/tbd.jsonl.bootstrap-archive`. On retry, `createCycleBranch` reuses an existing `cycle/<workflow>/<slug>` branch.
 
+**Priority sort**: `popNextPending` sorts pending rows by priority tier before selecting the next row: `critical → high → medium → low → discuss`. Sort is stable — rows within the same tier drain in `triaged_at` insertion order. **Topological clamp**: a pending row is skipped if any id in its `depends_on` list is still present in the queue (pending or in_progress), regardless of the blocked row's own priority tier. Legacy numeric `priority` values and `priority_hint` fields are normalized at `readQueue` time (7–10 → `critical`, 5–6 → `high`, 3–4 → `medium`, 1–2 → `low`; absent → `medium`).
+
+**Known limitation:** `discuss`-priority rows auto-drain last — there is no hold or human-review gate. The `discuss` value is intended to signal "needs human decision before work begins" (redesign-05 will introduce the `discuss/` folder lifecycle and gate), but until that lands any issue filed with `priority: discuss` will be auto-executed by the engine at the tail of the queue. If you want to park an issue without executing it, move it to `blocked/` manually or do not add it to `tbd.jsonl`.
+
 ## Blocked propagation
 
 `src/engine/blocked.ts:propagateBlocked(repoRoot, failedId, log?)` runs deterministically (no LLM) on every terminal failure. Reads `tbd.jsonl`, walks dependents breadth-first from `failedId`, stamps `blocked_at` and `blocked_by:[<immediate predecessors>]`, renames `todo/<id>.md → blocked/<id>.md`, drops rows in a single `writeQueue` after all moves succeed. Each pass is atomic; mid-walk error rolls back staged renames. In-progress rows are moved too. Humans manually move `blocked/<id>.md → raw/<id>.md` to re-enter the queue.

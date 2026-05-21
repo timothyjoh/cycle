@@ -3,6 +3,23 @@ import { join } from "node:path";
 
 export type QueueRowStatus = "pending" | "in_progress";
 
+export type Priority = "low" | "medium" | "high" | "critical" | "discuss";
+
+const PRIORITY_ORDER: Record<Priority, number> = {
+  critical: 0, high: 1, medium: 2, low: 3, discuss: 4,
+};
+
+export function normalizePriority(raw: unknown): Priority {
+  if (raw === "low" || raw === "medium" || raw === "high" || raw === "critical" || raw === "discuss") return raw;
+  if (typeof raw === "number") {
+    if (raw >= 7) return "critical";
+    if (raw >= 5) return "high";
+    if (raw >= 3) return "medium";
+    return "low";
+  }
+  return "medium";
+}
+
 export type QueueRow = {
   id: string;
   parent?: string;
@@ -12,6 +29,7 @@ export type QueueRow = {
   depends_on: string[];
   triaged_at: string;
   cycle_id?: string;
+  priority: Priority;
 };
 
 function queuePath(repoRoot: string): string {
@@ -38,6 +56,8 @@ function isQueueRow(parsed: unknown): parsed is QueueRow {
   if (typeof obj.attempt !== "number") return false;
   if (!Array.isArray(obj.depends_on)) return false;
   if (typeof obj.triaged_at !== "string") return false;
+  if (obj.priority !== "low" && obj.priority !== "medium" && obj.priority !== "high" &&
+      obj.priority !== "critical" && obj.priority !== "discuss") return false;
   return true;
 }
 
@@ -58,6 +78,11 @@ export async function readQueue(repoRoot: string): Promise<QueueRow[]> {
       parsed = JSON.parse(line);
     } catch {
       continue;
+    }
+    if (parsed && typeof parsed === "object") {
+      const o = parsed as Record<string, unknown>;
+      o.priority = normalizePriority(o.priority ?? o.priority_hint);
+      delete o.priority_hint;
     }
     if (!isQueueRow(parsed)) continue;
     rows.push(parsed);
@@ -128,8 +153,13 @@ export async function bootstrapArchiveIfLegacy(repoRoot: string): Promise<boolea
 
 export async function popNextPending(repoRoot: string): Promise<QueueRow | null> {
   const rows = await readQueue(repoRoot);
-  for (const row of rows) {
-    if (row.status === "pending") return row;
+  const allIds = new Set(rows.map((r) => r.id));
+  const pending = rows
+    .filter((r) => r.status === "pending")
+    .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+  for (const row of pending) {
+    const blocked = row.depends_on.some((dep) => allIds.has(dep) && dep !== row.id);
+    if (!blocked) return row;
   }
   return null;
 }
