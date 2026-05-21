@@ -161,8 +161,10 @@ export async function bootstrapArchiveIfLegacy(repoRoot: string): Promise<boolea
 export async function popNextPending(repoRoot: string): Promise<QueueRow | null> {
   const rows = await readQueue(repoRoot);
   const allIds = new Set(rows.map((r) => r.id));
+  // Stopgap: discuss rows are held for human review and must not be auto-executed.
+  // Full lifecycle: redesign-05-discuss-folder-lifecycle.
   const pending = rows
-    .filter((r) => r.status === "pending")
+    .filter((r) => r.status === "pending" && r.priority !== "discuss")
     .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
   for (const row of pending) {
     const blocked = row.depends_on.some((dep) => allIds.has(dep) && dep !== row.id);

@@ -435,7 +435,7 @@ test("popNextPending: returns critical before high before medium before low", as
   }
 });
 
-test("popNextPending: discuss is last priority", async () => {
+test("popNextPending: discuss rows are filtered — mixed queue returns highest non-discuss", async () => {
   const root = await setupRoot();
   try {
     await writeQueue(root, [
@@ -444,6 +444,23 @@ test("popNextPending: discuss is last priority", async () => {
     ]);
     const next = await popNextPending(root);
     assert.equal(next?.id, "M");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("popNextPending: returns null when all pending rows are discuss", async () => {
+  const root = await setupRoot();
+  try {
+    await writeQueue(root, [
+      row("D1", { priority: "discuss" }),
+      row("D2", { priority: "discuss" }),
+    ]);
+    const next = await popNextPending(root);
+    assert.equal(next, null);
+    const after = await readQueue(root);
+    assert.equal(after.length, 2);
+    assert.ok(after.every((r) => r.status === "pending"));
   } finally {
     await rm(root, { recursive: true, force: true });
   }

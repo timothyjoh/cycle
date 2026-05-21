@@ -1,0 +1,1 @@
+Added a Known limitation note to `docs/ENGINE.md` in the Queue section's `discuss` priority note, documenting that the discuss-stall condition (`popNextPending` returning `null` due to all-discuss rows) emits no log event distinguishable from an empty queue or all-blocked deadlock, and pointing to the `queue.discuss_stall` event as the fix direction.
