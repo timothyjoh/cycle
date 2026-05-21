@@ -134,19 +134,22 @@ function parseWithRepair(s: string): ParseResult {
   try {
     return { ok: true, value: JSON.parse(s) };
   } catch (e1) {
-    const repaired = trimToLastBalancedClose(s);
-    if (repaired === null) return { ok: false, message: (e1 as Error).message };
-    try {
-      return { ok: true, value: JSON.parse(repaired) };
-    } catch (e2) {
-      return { ok: false, message: (e2 as Error).message };
+    let offset = 0;
+    while (true) {
+      const repaired = trimToLastBalancedClose(s, offset);
+      if (repaired === null) return { ok: false, message: (e1 as Error).message };
+      try {
+        return { ok: true, value: JSON.parse(repaired.slice) };
+      } catch {
+        offset = repaired.start + 1;
+      }
     }
   }
 }
 
-function trimToLastBalancedClose(s: string): string | null {
+function trimToLastBalancedClose(s: string, startOffset: number = 0): { slice: string; start: number } | null {
   let start = -1;
-  for (let i = 0; i < s.length; i++) {
+  for (let i = startOffset; i < s.length; i++) {
     const c = s.charCodeAt(i);
     if (c === 0x7b /* { */ || c === 0x5b /* [ */) {
       start = i;
@@ -182,7 +185,7 @@ function trimToLastBalancedClose(s: string): string | null {
     }
   }
   if (lastIdx < 0) return null;
-  return s.slice(start, lastIdx + 1);
+  return { slice: s.slice(start, lastIdx + 1), start };
 }
 
 function truncateUtf8(s: string, budget: number = TRUNC_BUDGET, marker: string = TRUNC_MARKER): string {

@@ -1,0 +1,1 @@
+Updated `docs/ENGINE.md` line 76: replaced the now-stale Known limitation (1) (prose-with-brace unfenced case) with a description of the cycle-0209 `startOffset`-based retry loop in `trimToLastBalancedClose` and `parseWithRepair`; limitation (2) (`validateOutput` asymmetry) preserved unchanged as still open.

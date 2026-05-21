@@ -262,7 +262,7 @@ test("ingestReflection: unbalanced braces escalate without looping", async () =>
   }
 });
 
-test("ingestReflection: repair-substring still invalid JSON escalates with second-parse error message", async () => {
+test("ingestReflection: repair-substring still invalid JSON exhausts retry loop and escalates", async () => {
   const root = await setupRepo();
   try {
     const { events, logger } = makeLogger();
@@ -601,6 +601,43 @@ test("ingestReflection: entry whose title slugifies to empty falls back to 'entr
     const r = await ingestReflection(root, CID, SLUG, stdout, logger);
     assert.deepEqual(r, { written: [`refl-${CID}-entry`], skipped: 0 });
     assert.ok(await fileExists(join(root, "docs/cycle/issues/raw", `refl-${CID}-entry.md`)));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("ingestReflection: unfenced prose with brace before JSON object recovers via retry", async () => {
+  const root = await setupRepo();
+  try {
+    const { events, logger } = makeLogger();
+    const stdout = "Error in step {build}: failed.\n" + JSON.stringify({ sharp_edges: [] });
+    const r = await ingestReflection(root, CID, SLUG, stdout, logger);
+    assert.deepEqual(r, { written: [], skipped: 0 });
+    const skip = events.find((e) => e.event === "reflection.skipped");
+    assert.equal(skip, undefined, "retry loop succeeds — no reflection.skipped for parse failure");
+    const summary = expectExactlyOne(events, "reflection.summary");
+    assert.equal(summary.fields.count, 0);
+    assert.equal(summary.fields.skipped, 0);
+    const files = await readdir(join(root, "docs/cycle/issues/raw"));
+    assert.equal(files.filter((f) => f.includes("parse-error")).length, 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("ingestReflection: unfenced prose with brace before JSON array recovers — parse ok, shape check fails cleanly", async () => {
+  const root = await setupRepo();
+  try {
+    const { events, logger } = makeLogger();
+    const stdout = "Prose {with: braces} and more prose\n[1,2,3]";
+    const r = await ingestReflection(root, CID, SLUG, stdout, logger);
+    assert.deepEqual(r, { written: [], skipped: 0 });
+    const skip = events.find((e) => e.event === "reflection.skipped");
+    assert.ok(skip, "reflection.skipped emitted for shape failure");
+    assert.equal(skip!.fields.reason, "parse_error");
+    assert.match(String(skip!.fields.message), /sharp_edges/);
+    const files = await readdir(join(root, "docs/cycle/issues/raw"));
+    assert.equal(files.filter((f) => f.includes("parse-error")).length, 0, "no parse-error file — parse itself succeeded");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
