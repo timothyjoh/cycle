@@ -7,6 +7,10 @@ triaged_at: "2026-05-21T23:09:18.333Z"
 source: triage
 priority: medium
 parent: refl-0244-refl-0228-parkfordiscussion-rename-failu
+failed_at: "2026-05-22T00:06:58.647Z"
+failed_step: build
+failed_attempts: 3
+last_cycle_id: "0245"
 ---
 ## Context
 
