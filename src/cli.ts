@@ -233,7 +233,7 @@ function spawnRunOne(params: RunOneParams): Promise<number> {
   // because the run-one child's loadConfig reads it to force trunk mode. Without
   // this, --trunk and .cycle/.env silently fail to reach the child and every
   // cycle falls back to the worktree-pr default.
-  const extra = process.env.CYCLE_TRUNK_BASED === "1" ? { CYCLE_TRUNK_BASED: "1" } : {};
+  const extra: Record<string, string> = process.env.CYCLE_TRUNK_BASED === "1" ? { CYCLE_TRUNK_BASED: "1" } : {};
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
