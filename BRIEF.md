@@ -1,172 +1,134 @@
 # Project Brief: cycle
 
-> **Status:** Working draft. Captures the design discussion to date —
-> decisions that are settled, and open questions still to resolve before
-> implementation begins.
+> What cycle is and why it exists. For *how it's built*, see
+> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); for engine internals, see
+> [`docs/ENGINE.md`](docs/ENGINE.md).
 
 ## Overview
 
 **cycle** is an engine that turns work items into code changes. Installed
-into any repo — brownfield or greenfield — it's invoked by *something
-else* (an agent like Claude Code or OpenClaw, or a CI job) with one or
-more **issues** to work through.
+into any repo — brownfield or greenfield — it is invoked by *something
+else*: an agent like Claude Code, or a CI job, handed one or more
+**issues** to work through.
 
 An **issue** is any unit of work: a free-text task, a Jira card, a GitHub
-issue, a PRD, a BRIEF. Cycle's triage reads each issue and decides how
-many **cycles** (phases of work) it needs — one if small, many if big.
-Every cycle produced by triage lands in a single ordered queue. The
+issue, a PRD, a brief. Triage reads each issue and decides how many
+**cycles** (phases of work) it needs — one if small, several if large.
+Every cycle that triage produces lands in a single ordered queue. The
 engine then churns through the queue one cycle at a time, each producing
-its own branch, PR, and merge back to `main`, until the queue is empty.
+its own branch and commits, until the queue is empty.
 
-Cycle runs as a blocking subprocess that streams JSONL progress events to
-stdout so the calling agent can monitor, and writes artifacts to
+cycle runs as a blocking subprocess that streams JSONL progress events to
+stdout so the calling agent can monitor it, and writes artifacts to
 `docs/cycle/` for a paper trail.
 
-**cycle effectively replaces cc-pipeline.**
+## Why a factory, not a chat turn
 
-## Contrast with cc-pipeline
+A single agent turn is good at producing one change. It is weak at the
+*factory* problem: working a backlog, repeating the SDLC loop without
+drift, honoring repo-specific constraints, recovering from failure, and
+leaving an auditable trail. cycle is the layer that does the boring,
+repeatable mechanics so a parent agent can hand off a batch and walk away.
 
-| | cc-pipeline | cycle |
-|---|---|---|
-| Driver | `BRIEF.md` → Epics → Phases (project vision) | 1+ issues per invocation (task, Jira card, GH issue, PRD, BRIEF) |
-| Greenfield only? | Effectively yes | Works on brownfield and greenfield |
-| Who invokes it | Human runs `npx cc-pipeline run` | Another agent (Claude Code, OpenClaw, …) or a CI job |
-| Install model | `node_modules` via `npx` | `npx @cycleai/cli init` once; single bundled file committed into `.cycle/bin/` |
-| UI | TUI | None — JSONL events on stdout for programmatic monitoring |
-| Workflow shape | One fixed linear workflow | Library of named workflows; triage picks per cycle |
-| Unit of work | Phase within a project vision | Cycle — one workflow run against one scoped piece of an issue |
-| Run lifecycle | Long-lived loop across project phases | Processes a queue of cycles until empty, then exits |
+The center of gravity is **issue-driven, brownfield work** handled one
+issue at a time — typically from GitHub, Jira, Linear, or user-supplied
+issue files dropped into the repo.
 
-## Tech Stack
+## Runtime model
 
-- **Bootstrap.** `npx @cycleai/cli init` scaffolds the repo once. The
-  npm package ships the prebuilt engine bundle as a static asset; `init`
-  copies it into `.cycle/bin/cycle.js`. Upgrades: `npx @cycleai/cli@latest
-  init --upgrade` refreshes the bundle and skill, leaving user-customized
-  workflows / prompts / scripts in place (3-way merge; `--force`
-  overwrites everything). The npm package name is also reserved as
-  `@cycle-afk` as a backup scope.
-- **Node-native.** Authored in TypeScript; bundled via `esbuild` into a
-  single self-contained file at `.cycle/bin/cycle.js`. The bundle file
-  starts with a `#!/usr/bin/env node` shebang and is committed
-  executable, so the canonical invocation is `./.cycle/bin/cycle.js` —
-  no `node …` prefix needed.
-- No `npm install` required in the consuming repo after init — the
-  committed bundle is the engine.
-- Runtime on the consuming repo: **`node`** (≥ 22.6; ≥ 24 LTS
-  recommended) + **`claude` CLI** + **git** + **`gh`**. Nothing else.
-  - Node is the default JavaScript runtime on every CI image, container
-    base, and developer machine — zero install friction.
-  - **No TS → JS transpile in the dev loop.** Node 22.6+ executes `.ts`
-    files directly via `--experimental-strip-types`; Node 23.6+ strips
-    types by default. Type-checking runs separately (`tsc --noEmit`).
-  - `esbuild` produces the single-file `.cycle/bin/cycle.js` bundle —
-    one devDependency, no broader build toolchain.
-  - Node's built-in `node:http` server will power the future HTML
-    progress viewer without adding a web framework dependency.
-- Ships a minimal Claude Code skill at `.claude/skills/cycle.md` by
-  default (opt out via `cycle init --no-skill`).
-- Must run locally, in **GitHub Actions**, and in **ephemeral containers**
-  spun up to handle a batch of work. A single-executable distribution
-  via Node SEA (`node --experimental-sea-config`) is a future option for
-  contexts where requiring Node is friction; out of MVP scope.
+- **Bootstrap.** `npx @cycleai/cli init` scaffolds the repo once. The npm
+  package ships the prebuilt engine bundle as a static asset; `init`
+  copies it into `.cycle/bin/cycle.js`. Upgrades:
+  `npx @cycleai/cli@latest init --upgrade` refreshes the bundle and skill
+  while leaving user-customized workflows / prompts / scripts in place
+  (`--force` overwrites everything).
+- **Node-native.** Authored in TypeScript, bundled via `esbuild` into a
+  single self-contained `.cycle/bin/cycle.js` with a `#!/usr/bin/env node`
+  shebang, committed executable — so the canonical invocation is
+  `./.cycle/bin/cycle.js` with no `node` prefix on Unix. No transpile step
+  in the dev loop: Node 22.6+ runs `.ts` directly via type stripping, and
+  type-checking is a separate `tsc --noEmit`.
+- **No install in the consuming repo.** After `init`, the committed bundle
+  is the engine. Runtime needs only `node` (≥ 22.6), the `claude` CLI,
+  `git`, and `gh`.
+- Ships a Claude Code skill at `.claude/skills/cycle.md` by default (opt
+  out with `cycle init --no-skill`).
 
-## Invocation Contract
-
-The canonical command form uses the shebang on the committed bundle:
+## Invocation
 
 ```bash
-# Single freeform task (blocking; parent waits until queue empty)
+# Single freeform task (blocking; returns when the queue is empty)
 ./.cycle/bin/cycle.js run "fix the login bug on Safari"
 
-# Single issue from a tracker (engine shells out to fetch-issue.sh)
-./.cycle/bin/cycle.js run --issue JIRA-123
+# Drop work into the inbox, drain it later
+./.cycle/bin/cycle.js drop "investigate checkout double-retry"
+./.cycle/bin/cycle.js run
 
-# A batch of issues
-./.cycle/bin/cycle.js run --issues-file issues.json
-cat issues.json | ./.cycle/bin/cycle.js run --issues-stdin
+# Force a specific workflow (skip triage's choice)
+./.cycle/bin/cycle.js run --workflow quickfix "bump the lodash pin"
 
-# Force a specific workflow (skip triage)
-./.cycle/bin/cycle.js run --workflow feature "add CSV export"
-
-# Triage only, no execution
+# Triage/queue preview only — no execution
 ./.cycle/bin/cycle.js run --dry-run "…"
 
-# Choose merge mode (default: auto)
-./.cycle/bin/cycle.js run --merge-mode stack "…"
-
-# Detached daemon mode — process the queue in the background
-./.cycle/bin/cycle.js run --detach --issues-file issues.json
-
-# Daemon control (only meaningful while a detached daemon is alive)
-./.cycle/bin/cycle.js status            # one-shot JSON snapshot
-./.cycle/bin/cycle.js attach            # tail .cycle/log.jsonl live
-./.cycle/bin/cycle.js stop              # graceful drain
-./.cycle/bin/cycle.js stop --force      # SIGTERM
+# Read-only status and triage diagnostics
+./.cycle/bin/cycle.js status
+./.cycle/bin/cycle.js triage --dry-run
 ```
 
-Windows / cross-platform fallback: `node .cycle/bin/cycle.js run …`
-works identically — the shebang is just a convenience on Unix.
+Windows / cross-platform fallback: `node .cycle/bin/cycle.js run …` works
+identically.
 
-- **Blocking by default.** The parent agent waits until the pending
-  queue is empty. CI jobs and ephemeral containers want this.
-- **`--detach` for interactive / long-queue use.** Spawns a daemon,
-  writes its PID to `.cycle/cycle.pid`, exits immediately. A second
-  `run --detach` invocation in the same repo refuses with a pointer to
-  `cycle attach` / `cycle stop`. One daemon per repo.
-- **stdout = JSONL events** (mirrored to `.cycle/log.jsonl`).
-- **`status` / `attach` / `stop` are JSON-out by default** so agents
-  can consume them; `--human` formats for terminals.
-- **Per-cycle artifacts** under `docs/cycle/<cycle-id>-<workflow>-<slug>/`.
-- **Each cycle produces its own commits, branch, and PR.**
+- **Blocking by default.** The parent waits until the pending queue is
+  empty. CI jobs and ephemeral containers want this exit-code contract.
+- **stdout = JSONL events**, mirrored to `.cycle/log.jsonl`.
+- **One engine per repo**, enforced by a PID lockfile at
+  `.cycle/engine.lock`.
+- **Per-cycle artifacts** land under `docs/cycle/<cycle-id>-<workflow>-<slug>/`.
 
 ### Auth and credentials
 
-Cycle does not document an env-var contract, run preflight credential
-checks, or ship a `doctor` subcommand. Callers (developer's local
-config, CI secrets, container env) are responsible for ensuring
-`claude` and `gh` are pre-authenticated and any `.cycle/scripts/*.sh`
-have the env vars they need.
+cycle defers credential management entirely to the caller. It documents no
+env-var contract, runs no preflight credential check, and ships no
+`doctor` subcommand. The deployment environment (developer machine, CI
+secrets, container env) is responsible for ensuring `claude`, `gh`, and any
+`.cycle/scripts/*.sh` have the credentials they need.
 
-## Issue Ingestion
+## Issue lifecycle
 
 > **Authoritative spec:** [`docs/RFC-001-issue-lifecycle.md`](docs/RFC-001-issue-lifecycle.md).
-> This section is a short summary; the RFC supersedes any prior detail in BRIEF.
+> This is a summary.
 
-Issues land in `docs/cycle/issues/raw/` (the inbox). Triage runs at
-engine start (and between cycles when `raw/` is non-empty), enriches
-each raw issue with codebase context, decomposes large issues into
-vertical-slice children, and writes them to `docs/cycle/issues/todo/`
-with `workflow:` frontmatter naming which workflow to run.
+Issues land in `docs/cycle/issues/raw/` (the inbox). Triage runs at engine
+start, and between cycles whenever `raw/` is non-empty: it enriches each
+raw issue with codebase context, decomposes large issues into
+vertical-slice children, and writes them to `docs/cycle/issues/todo/` with
+a `workflow:` frontmatter field naming which workflow to run.
 
 The folder state machine:
 
-- **`raw/`** — inbox. Strives to be empty when the engine is running.
+- **`raw/`** — inbox. Strives to be empty while the engine runs.
 - **`todo/`** — triaged, enriched, vertical-slice work items.
-- **`done/`** — successful cycles land here. Decomposed parents land
-  here too, with `_raw` suffix.
-- **`failed/`** — cycles that exhausted 3 attempts.
+- **`done/`** — successful cycles; decomposed parents land here with a
+  `_raw` suffix.
+- **`failed/`** — cycles that exhausted their attempt budget.
 - **`blocked/`** — items whose `depends_on` chain reached a failed item.
 
-Live queue lives in `.cycle/tbd.jsonl` — a priority-ordered, status-aware
-index that **drains** on cycle completion (rows removed on `cycle.end`
-ok / N-attempt failure). Audit log is separate: `.cycle/log.jsonl`,
-append-only.
+The live queue lives in `.cycle/tbd.jsonl` — a priority-ordered,
+status-aware index that **drains** as cycles complete. The audit log is
+separate: `.cycle/log.jsonl`, append-only, never rewritten.
 
-CLI / tracker / agent intake all materialize a file in `raw/`. Uniform
-input path. `--issue <id>` delegates to `.cycle/scripts/fetch-issue.sh`
-which writes the markdown into `raw/`.
+CLI, tracker, and agent intake all materialize a file in `raw/` — one
+uniform input path.
 
 ## Triage
 
 > **Authoritative spec:** [`docs/RFC-001-issue-lifecycle.md`](docs/RFC-001-issue-lifecycle.md) §5.
 
-Triage is an **engine-internal subroutine** (not a workflow). Spawns a
-configurable agent (claudecode by default) with a triage prompt, parses
-JSON output describing enriched children + ordering, applies the queue
-mutations atomically.
+Triage is an **engine-internal subroutine**, not a workflow. It spawns a
+configurable agent (`claudecode` by default) with a triage prompt, parses
+the JSON output describing enriched children plus ordering, and applies the
+queue mutations atomically.
 
-Configurable in `workflows.yml`:
 ```yaml
 triage:
   agent: claudecode
@@ -175,419 +137,70 @@ triage:
 ```
 
 Triage **always enriches** (even when no decomposition is needed) and
-**always picks a workflow** for each child. Original raw file moves to
-`done/<id>_raw.md` after triage emits children. Children land in `todo/`
-as `<parent>-<slug>.md` with `parent:` frontmatter linking them.
+**always picks a workflow** for each child. The original raw file moves to
+`done/<id>_raw.md` once triage emits children. Children land in `todo/` as
+`<parent>-<slug>.md` with `parent:` frontmatter linking them.
 
-Per-raw retry up to 3 attempts. On partial-fail (some raws decompose
-cleanly while others exhaust attempts): the failed subset moves
-`raw/<id>.md → failed/<id>.md` with `failed_step: "triage"` and
-`failed_at` stamped via a deferred `moveToFailed` flush. If ALL raws
-fail in one pass, engine emits `engine.paused {reason:
-"all_triage_failed", …}` and exits — raws stay in `raw/` with
-`triage_attempts: 3` (no rename) so `cycle triage --dry-run`
-re-evaluates them without operator `mv`.
+Per-raw retry up to 3 attempts. On partial failure — some raws decompose
+cleanly while others exhaust attempts — the failed subset moves to
+`failed/<id>.md`. If *every* raw fails in one pass, the engine emits
+`engine.paused {reason: "all_triage_failed", …}` and exits, leaving the
+raws in place so `cycle triage --dry-run` can re-evaluate them after edits.
 
-## Default Workflow Library
+## Workflows
 
-### `research`
-Read-only codebase analysis. No commits, no PR.
-`investigate → findings` → writes `FINDINGS.md`.
+A workflow is an ordered list of steps in `.cycle/workflows.yml`. Four ship
+by default:
 
-### `bug`
-Lightweight fix path.
-`investigate → fix → verify → commit → pr`
+- **`feature`** — full single-pass SDLC:
+  `spec → research → plan → build → review → fix → verify → reflection → final_fix → final_verify → documentation`.
+- **`quickfix`** — surgical fix: `plan_fix → quick_fix → test_fix → verify`.
+- **`document`** — docs/prompt edits only:
+  `plan_documents → authoring → review_documents → verify`.
+- **`e2e-tests`** — Playwright tests against the running app:
+  `research → test_plan → test_build → review → fix → verify`.
 
-### `feature`
-Full SDLC, single pass.
-`spec → research → plan → build → review → fix → verify → commit → pr`
+There is **no separate `epic` workflow.** An issue that needs multiple
+cycles is simply one whose triage produced multiple queue entries, each a
+standalone workflow run. Default workflows are autonomous; custom workflows
+can add human-in-the-loop steps.
 
-There is **no separate `epic` workflow.** Issues that need multiple
-cycles are simply issues whose triage produced multiple queue entries —
-each entry is a standalone `bug` / `feature` / `research` cycle.
+## Branching, commit, and failure handling
 
-Default workflows are autonomous. Custom workflows can add
-human-in-the-loop steps later.
-
-## Branching & Merge Modes
-
-**Default: `auto` — "dark factory" mode.**
-Each cycle branches off the current tip of `main` as
-`cycle/<workflow>/<slug>`, opens a PR, and auto-merges via
-`gh pr merge --squash --auto`. Branch protection (required checks,
-required reviews if configured) enforces quality. The next cycle starts
-from the updated `main` so it sees the prior cycle's code. Linear
-history.
-
-**`--merge-mode stack` — human-review mode.**
-Cycle N+1 branches off cycle N's branch instead of `main`, so it sees
-N's code without waiting for merge. Each cycle opens a PR but does not
-block on merge. Humans review and merge the stack bottom-up in the
-tracker.
-
-Git worktrees are deferred — future optional feature, not MVP.
-
-## Cycle Attempts & Failure Handling
-
-The engine is a "dark factory" — when a cycle can't pass its quality
-gates, it's abandoned and retried from scratch rather than nursed along
-in a bad state.
-
-### Two layers of retry
-
-- **Step-level** (`on_fail: retry:N` in workflow YAML) — transient step
-  failures (flaky test, network hiccup). Tuned per step.
-- **Cycle-level** (max 3 attempts, configured per workflow) — "the AI
-  went down a bad path" failures that step-level retries can't fix. An
-  attempt runs the workflow end-to-end; on failure it's abandoned and a
-  fresh one starts.
-
-### What counts as an attempt failure
-
-| Triggers an attempt failure | Handled separately |
-|---|---|
-| `verify` fails after step-level retries | Rate limit → pause/resume (no attempt consumed) |
-| `review` produces unresolvable must-fixes | Push network error → step-level retry |
-| `build` fails after step-level retries | Git/auth errors → fail fast (engine exits) |
-| Merge conflict on rebase / auto-merge | Engine uncaught exception → crash, resume later |
-
-### Attempt mechanics
-
-- **Branch.** The `cycle/<workflow>/<slug>` branch is reused across
-  attempts; `createCycleBranch` no-ops on an existing branch. For
-  `build`/`fix` steps the engine hard-resets the branch to the
-  pre-step `head_sha` recorded on the prior attempt's `step.start`,
-  discarding partial agent edits so the retry runs against a clean
-  pre-step tree.
-- **Artifacts.** `docs/cycle/<cycle-id>-<workflow>-<slug>/` persists
-  across attempts. Pre-build steps (`spec`, `research`, `plan`) skip
-  on retry when their `<STEP>.md` already exists with `> 0` bytes
-  (emit `step.skipped {reason: "artifact_present"}`); downstream
-  steps re-run normally and overwrite their own artifacts. Opt out
-  per-cycle via `cycle run --no-skip-completed` or globally via
-  `engine.skip_completed_on_retry: false` in `workflows.yml`.
-- **Cycle ID.** Same ID across all attempts (cycle 0042 attempted
-  three times), with `attempt: N` in log events. `drainFailedRetry`
-  preserves `cycle_id` on the requeued `tbd.jsonl` row; the next
-  pop in `cli.ts` reuses it rather than allocating a fresh id, which
-  is what keeps the artifact directory stable for the pre-build
-  skip gate above.
-
-### When 3 attempts are exhausted
-
-- Push the final attempt's branch to `cycle/abandoned/<cycle-id>-<slug>`.
-- Open a PR titled `Failed Attempt: <title>` (cold storage with GitHub
-  visibility — not intended to merge).
-- Move the issue file from `todo/` to `blocked/` with `blocked_at:`
-  and `blocked_cycle:` in frontmatter; write a `BLOCKED.md` note.
-- **Skip the remaining planned cycles of that issue.** They never
-  started, so they consume no IDs — the next issue's first cycle gets
-  the next sequential ID cleanly.
-- Emit `cycle.abandoned` and `issue.blocked` events.
-
-### Mode interaction
-
-- **`--merge-mode auto` — default `--on-abandon continue`.** Next issue
-  starts; queue keeps flowing.
-- **`--merge-mode stack` — default `--on-abandon halt`.** Stack
-  dependencies make a mid-stack abandon ambiguous; let a human sort it
-  out.
-
-### Rate limits
-
-Rate limits are orthogonal to attempt counting:
-
-- **Short transient (minutes).** In-process exponential backoff
-  (30s → 60s → 120s → 300s, ~5 min cap). Emits `rate_limit.hit` /
-  `rate_limit.resumed`.
-- **Long exhaustion (hours).** Engine emits `engine.paused` with a
-  `retry_after` hint, then exits with code `42`. A parent agent or
-  cron re-invokes later; the engine picks up from `tbd.jsonl` and
-  `log.jsonl`. Opt-in `--rate-limit-behavior sleep` keeps the process
-  alive instead (for containers with nothing else to do).
-- **Proactive awareness.** The engine tracks `anthropic-ratelimit-*`
-  response headers and pauses preemptively if the next call would
-  exceed the window.
-
-### Configurability
-
-`max_cycle_attempts` is set per workflow in `.cycle/workflows/*.yaml`
-(default 3). No CLI override — each workflow's policy is baked in.
-
----
-
-## Artifacts & State
-
-**Engine state (`.cycle/`).**
-- `.cycle/log.jsonl` — global append-only event log. Source of truth for
-  everything that has happened. Never rewritten.
-- `.cycle/tbd.jsonl` — pending untriaged issues. One line per issue;
-  mutated as the engine consumes work.
-
-**Issues (`docs/cycle/issues/`).** Five folders — `tbd/`, `queued/`,
-`triaged/`, `blocked/`, `failed/` — plus a `TEMPLATE.md`
-(superseded — see RFC-001 § 12 BB-1). See Issue Ingestion and Cycle
-Attempts & Failure Handling.
-
-**Per-cycle artifacts (`docs/cycle/<cycle-id>-<workflow>-<slug>/`).**
-E.g., `docs/cycle/0042-feature-safari-login/`, containing SPEC.md,
-PLAN.md, REVIEW.md, FINDINGS.md, TRIAGE.md (on the first cycle of a
-triage), etc. Committed into that cycle's PR. Maintainers can keep or
-prune later; default is to keep as a paper trail.
-
-Cycle IDs are 4-digit zero-padded integers (`0001` through `9999`),
-globally unique within the project repo, allocated at cycle start by
-scanning `log.jsonl` for the highest existing ID.
-
-These files also form the read contract for future tooling — a TUI and a
-Node-backed HTML viewer that render queue progress from `tbd.jsonl` +
-`log.jsonl` in real time.
-
-## Configuration
-
-Workflows are defined in YAML under `.cycle/workflows/`. Projects can add
-or override workflows. Steps reference prompt templates in
-`.cycle/prompts/`. Agents per step (`claudecode`, `codex`, `bash`) are
-configurable.
-
-## Claude Code Skill
-
-`cycle init` installs `.claude/skills/cycle.md` by default (opt out
-with `--no-skill`). The skill is **non-prescriptive**: it enumerates
-cycle's CLI surface (subcommands, flags, exit codes, JSONL event
-names, common invocation patterns) and lets Claude route natural
-language to the right command shape per request. The skill is not a
-hard-coded dispatch table — there's no "if user says X then run Y"
-logic, just a reference doc + behavioral guidance.
-
-Invocation flavors:
-- **Slash command.** `/cycle "fix the safari login bug"`,
-  `/cycle --issue JIRA-123`, `/cycle status`, etc. Claude maps the
-  surface form to the right local or `npx` invocation:
-  - Bootstrap-class actions (`init`, `init --upgrade`) → `npx
-    @cycleai/cli …`
-  - Runtime actions (`run`, `status`, `attach`, `stop`) →
-    `./.cycle/bin/cycle.js …`
-- **Description-triggered.** User says "use cycle to work through
-  these tickets" and Claude Code recognizes the intent.
-
-### Narration model
-
-The skill follows a **hybrid push / pull** model so long-running queues
-don't drown the chat:
-
-- **Push proactively** on major milestones and anything needing human
-  attention: `engine.start`, `engine.stop`, `engine.paused`,
-  `cycle.start`, `cycle.end`, `cycle.attempt.failed`,
-  `cycle.abandoned`, `triage.abandoned`, `issue.completed`,
-  `issue.blocked`, `rate_limit.hit`, `rate_limit.resumed`, fatal exits.
-- **Pull on demand** for routine progress (`step.start`, `step.end`,
-  individual `commit` / `pr.opened` events). When the user asks
-  "what's going on?", Claude summarizes from `cycle status` + a tail
-  of `.cycle/log.jsonl`.
-
-### Reattach on new session
-
-When a new Claude Code session opens in a repo with a live cycle
-daemon (PID file present, process alive), the skill instructs Claude
-to run `cycle status` on the *first* cycle-related prompt and lead
-with a snapshot (current cycle ID, queue depth, last event) before
-acting on the user's request. No always-on SessionStart hook — the
-check is gated by the user's intent, not the session lifecycle.
-
-### Detach defaults
-
-For any multi-issue invocation or any `--issues-file` / `--issues-stdin`
-input, the skill invokes cycle with `--detach`. Short single-task runs
-remain foreground so the user sees output inline. This is a skill-side
-heuristic, not an engine policy — humans calling cycle directly can
-mix and match.
-
-### What the skill does NOT do
-
-- Reschedule a follow-up invocation after exit-code-42 (left to
-  cron / caller).
-- Pretty-print or visualize beyond progress relay — the future TUI /
-  HTML viewer is its own surface.
-- Validate auth or credentials — see Auth and credentials above.
+- The engine owns all git operations after a cycle's steps complete,
+  configured via `engine.commit` in `workflows.yml`
+  (`mode: trunk | local-only | worktree-pr`, `push: true | false`).
+- **`trunk`** commits straight to the base branch; **`worktree-pr`** (the
+  shipped default) gives each cycle its own `cycle/<workflow>/<slug>`
+  branch. After the steps pass, the engine stages the intended change
+  surface, commits with subject `cycle <id>: <title>`, appends any
+  `Closes #N` lines from the issue body, and pushes with backoff retry.
+- **Two retry layers.** Step-level (`on_fail: retry:N`) for transient
+  failures; cycle-level (default 3 attempts) abandons a bad attempt and
+  re-runs the workflow on a clean tree, hard-resetting `build`/`fix` to
+  pre-step HEAD and reusing pre-build artifacts.
+- **Exhausted attempts** move the issue to `blocked/` and skip its
+  remaining planned cycles — one bad slice never stalls the rest of the
+  queue.
+- **Rate limits** are orthogonal to attempt counting: short transients back
+  off in process; long exhaustion emits `engine.paused` and exits `42` for
+  the caller to re-invoke later.
+- The queue **halts** after `engine.max_consecutive_failures` consecutive
+  terminal failures (default 2).
 
 ## What cycle is NOT
 
-- **Not** a project vision driver. No BRIEF → Epic → Phase loop of its
-  own. A list of issues is supplied per invocation.
-- **Not** a TUI. Progress is JSONL on stdout; humans monitor *through*
-  the invoking agent.
-- **Not** a service. Default mode is a blocking subprocess that
-  processes a queue and exits. The `--detach` flag turns it into a
-  one-per-repo daemon for interactive use, but there's still no
-  always-on background process across machines or repos.
+- **Not** a project-vision driver. There is no built-in
+  brief → epic → phase roadmap loop; issues are supplied per invocation.
+- **Not** a TUI. Progress is JSONL on stdout; humans monitor *through* the
+  invoking agent.
+- **Not** a service. The default mode is a blocking subprocess that
+  processes a queue and exits. There is no always-on background process.
 
----
+## Not yet built
 
-## Resolved Decisions
-
-**Branching & PR strategy (Open Q #1).**
-Each cycle creates a branch `cycle/<workflow>/<slug>` off the configured
-base. Default `--merge-mode auto` auto-merges via
-`gh pr merge --squash --auto`, relying on branch protection.
-`--merge-mode stack` branches each cycle off the prior cycle's branch for
-human-review workflows. Queue execution is sequential. No worktrees in
-MVP.
-
-**State model (Open Q #2).**
-Two global files at `.cycle/`: `log.jsonl` (append-only event history,
-source of truth) and `tbd.jsonl` (pending untriaged issues, mutated as
-consumed). No per-run subdirectory, no per-run ID. Cycles are the only
-persistent identity: 4-digit zero-padded, globally unique within the
-repo. Per-cycle artifacts at
-`docs/cycle/<cycle-id>-<workflow>-<slug>/`.
-
-**Resume semantics (Open Q #3).**
-Largely falls out of the state model: re-invoking `cycle run` with no
-arguments continues consuming whatever is still in `tbd.jsonl`. No
-explicit `--resume` flag needed. A crashed engine leaves its pending
-queue in place for the next invocation.
-
-**Queue failure handling (Open Q #4).**
-Cycles get 3 attempts; each attempt re-runs the workflow on the same
-`cycle/<workflow>/<slug>` branch with `build`/`fix` hard-reset to
-pre-step HEAD and pre-build artifacts (`SPEC.md`/`RESEARCH.md`/`PLAN.md`)
-reused from the prior attempt. After 3 exhausted attempts, the
-branch is preserved under `cycle/abandoned/…` with a
-`Failed Attempt: …`-titled PR, the issue file moves to `blocked/`, and
-remaining planned cycles of the same issue are skipped. In `auto` mode
-the queue continues; in `stack` mode it halts. Rate limits are
-orthogonal: short transients back off in-process; long exhaustion
-exits with code 42 for the caller to re-invoke later. See Cycle
-Attempts & Failure Handling.
-
-**Skill packaging (Open Q #5).**
-`cycle init` installs `.claude/skills/cycle.md` by default (opt out via
-`--no-skill`). Skill is minimal: supports both slash-command
-(`/cycle …`) and description-triggered invocation, and relays JSONL
-progress to the user. Exit-42 rescheduling, log-history queries, and
-fancy visualization are left to the caller. See Claude Code Skill.
-
-**Init scope (Open Q #6).**
-`cycle init` touches three top-level directories:
-- `.cycle/` — `bin/cycle.js`, `workflows/*.yaml`, `prompts/*.md`,
-  `scripts/*.sh`, `CLAUDE.md`
-- `.claude/skills/cycle.md` — by default (opt out via `--no-skill`)
-- `docs/cycle/issues/` — `TEMPLATE.md` plus empty `tbd/`, `queued/`,
-  `triaged/`, `blocked/`, `failed/` directories (superseded — see
-  RFC-001 § 12 BB-1)
-
-`log.jsonl` and `tbd.jsonl` are created at first run under `.cycle/`
-and committed by default (users can `.gitignore` for local-only
-state). `cycle init --force` overwrites existing files.
-
-**Definition of Done (Open Q #7).**
-MVP ships after **Phase 4** — by which point cycle can be left
-running unattended against a batch of real issues. Phase 5 is
-post-MVP polish. MVP is validated on **both** the cycle repo itself
-(brownfield dog-food) and a dedicated greenfield test repo. See
-Phase Plan below.
-
-**Bootstrap & upgrade (Open Q #8).**
-The CLI ships as the npm package `@cycleai/cli` (backup scope
-`@cycle-afk`). `npx @cycleai/cli init` is the one-time bootstrap; the
-prebuilt engine bundle ships *inside* the package and `init` copies it
-to `.cycle/bin/cycle.js` (with `#!/usr/bin/env node` shebang, committed
-executable). Engine version = npm package version, atomic. Upgrades:
-`npx @cycleai/cli@latest init --upgrade` rewrites the engine bundle and
-skill, leaving user-customized workflows / prompts / scripts intact via
-a 3-way merge; `--force` overwrites everything.
-
-**Daemon mode (Open Q #9).**
-Engine grows an opt-in `--detach` flag. Blocking remains the default
-to preserve the CI / ephemeral-container exit-code contract. A
-detached run writes `.cycle/cycle.pid`; a second `run --detach` in the
-same repo refuses with a pointer to `cycle attach` / `cycle stop`.
-One daemon per repo. Control surface: `cycle attach` (tail
-`.cycle/log.jsonl` from EOF; Ctrl-C detaches without killing),
-`cycle status` (one-shot JSON snapshot), `cycle stop` (graceful drain),
-`cycle stop --force` (SIGTERM). All three are JSON-out by default;
-`--human` flag formats for terminals.
-
-**Skill behavior (Open Q #10).**
-The Claude Code skill is non-prescriptive — it enumerates cycle's CLI
-surface and lets Claude route. Narration is hybrid: push on major
-milestones and anything failure-related, pull on demand for routine
-events. On a new session entering a repo with a live daemon, the
-skill prompts Claude to run `cycle status` on the first cycle-related
-prompt and lead with a snapshot. Detach is the skill's default for
-multi-issue runs; foreground for short single-task runs. See Claude
-Code Skill.
-
-**Issue fetch (Open Q #11).**
-`--issue <id>` delegates the actual tracker fetch to
-`.cycle/scripts/fetch-issue.sh`, which writes a markdown file into
-`tbd/` (superseded — see RFC-001 § 12 BB-1).
-Default scripts ship for the common trackers (dispatch on id
-prefix). Engine has no built-in tracker SDKs and no bundled
-credentials — credentials live in env vars the script reads. See
-Issue Ingestion.
-
-**Auth (Open Q #12).**
-Cycle defers credential management entirely to the caller. No
-documented env-var contract from the engine, no preflight check, no
-`cycle doctor` subcommand. The deployment environment (developer
-machine, GitHub Actions secrets, container env) is responsible for
-ensuring `claude`, `gh`, and any fetch / commit / pr / merge scripts
-are pre-authenticated. See Auth and credentials.
-
----
-
-## Phase Plan
-
-**Phase 1 — Walking skeleton.**
-`npx @cycleai/cli init` scaffolds everything (engine bundle, default
-workflows, prompts, scripts, skill). `./.cycle/bin/cycle.js run
-"text"` runs a single freeform task end-to-end. One workflow
-implemented (`feature` — spec → plan → build → verify → commit →
-pr); `review` / `fix` can be stubs. Task flows through
-`tbd/ → queued/ → triaged/` (superseded — see RFC-001 § 12 BB-1).
-Branch, commit, PR, auto-merge. JSONL
-events on stdout; `log.jsonl` + `tbd.jsonl` populated. Skill shipped.
-
-**Phase 2 — Full default workflow library.**
-`bug` and `research` workflows implemented. Triage classifies between
-all three. `review` + `fix` fully wired in `feature`.
-
-> **Note:** (superseded — see RFC-001 § 12 BB-1)
-
-**Phase 3 — Batch ingestion.**
-`--issue <id>` (tracker fetch), `--issues-file`, `--issues-stdin`.
-External agents dropping files into `tbd/`. Multi-cycle triage
-(decomposing a single issue into multiple cycles). Queue iteration
-across many issues. `depends_on:` sequencing. Pre-emptive `tbd/`
-rescans.
-
-**Phase 4 — Failure resilience. ⛳ MVP line.**
-3-attempt abandon-and-restart with branch reuse, pre-step `head_sha`
-resets on `build`/`fix`, and pre-build artifact reuse on retry.
-`blocked/` folder. `Failed Attempt:` preservation PR.
-Triage retry + `failed/` folder after 3 attempts. Rate-limit handling
-(short in-process backoff, long `engine.paused` + exit 42).
-`--on-abandon` flag. `--detach` daemon mode with `cycle attach` /
-`status` / `stop` control surface and `.cycle/cycle.pid` lock —
-needed because "left running unattended against a batch of real
-issues" implies multi-hour runs the user shouldn't have to babysit
-in the foreground.
-
-**Phase 5 — Polish & secondary modes (post-MVP).**
-`--merge-mode stack` with stacked branches. Custom-workflow
-extensibility verified. `init --upgrade` 3-way merge path battle-tested.
-`.github/workflows/cycle-on-issue.yml` example. README and usage
-docs. Known-good CI container image or install recipe.
-
-**MVP validation.**
-- **Brownfield dog-food.** Cycle runs in the cycle repo itself on an
-  issue like "add a new prompt template" or "refactor the triage
-  parser" — proving it works in a brownfield codebase.
-- **Greenfield test repo.** Cycle runs in a separate minimal repo
-  from a seeded BRIEF-sized task — proving it works on a fresh
-  codebase.
-
-Both paths must produce merged PRs without manual intervention for
-MVP to be considered done.
+The engine commits and pushes today; the broader factory model is still
+landing. Not yet implemented: pull-request creation and auto-merge,
+stacked-branch / human-review mode, a detached daemon with `attach` /
+`stop` control, multi-issue batch flags (`--issue` / `--issues-file`), and
+the HTML/TUI progress viewer. This brief describes current shipped behavior.

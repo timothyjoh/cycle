@@ -1,20 +1,26 @@
 # cycle — Architecture
 
-> Companion to [`BRIEF.md`](../BRIEF.md). Where BRIEF explains *what* cycle
-> is and *why*, this document explains *how* it's put together.
+> Companion to [`BRIEF.md`](../BRIEF.md). Where the brief explains *what*
+> cycle is and *why*, this document explains *how* it is put together. For
+> subsystem-level implementation detail, see [`ENGINE.md`](ENGINE.md).
+>
+> This document describes **current shipped behavior**. Targets that are not
+> yet built (pull requests, auto-merge, stacked branches, a detached daemon)
+> are called out in [§12 Not Yet Built](#12-not-yet-built), not woven into
+> the narrative as if present.
 
 ## 1. System Context
 
-cycle is not a top-level application. It's a library + engine invoked by
-**something else** — a parent agent or a CI job — and it acts on the
-local working tree of the repo it's installed in.
+cycle is not a top-level application. It is a library + engine invoked by
+**something else** — a parent agent or a CI job — and it acts on the local
+working tree of the repo it is installed in.
 
 ```
 ┌──────────────────────────────────────┐
 │  Parent caller                       │
-│  (Claude Code, OpenClaw, GH Actions) │
+│  (Claude Code, GitHub Actions, …)    │
 └────────────────┬─────────────────────┘
-                 │  spawn + 1 or more issues
+                 │  spawn + one or more issues
                  ▼
 ┌──────────────────────────────────────┐
 │  cycle (./.cycle/bin/cycle.js)       │
@@ -32,8 +38,8 @@ local working tree of the repo it's installed in.
 │     └────────┘    └───────────┘      │
 └────────────────┬─────────────────────┘
                  │  JSONL events (stdout)
-                 │  artifacts (docs/cycle/<run-id>/)
-                 │  commits + branches + PRs (+ merges)
+                 │  artifacts (docs/cycle/<cycle-id>-…/)
+                 │  commits + branches (pushed)
                  ▼
         Parent caller observes
 ```
@@ -41,31 +47,30 @@ local working tree of the repo it's installed in.
 Contracts:
 
 - **In:** one or more *issues*. An issue is any unit of work — free-text
-  task, Jira card, GH issue, PRD, BRIEF. Any entry point (positional
-  `"task text"`, `--issue <id>`, `--issues-file`, `--issues-stdin`, or
-  files dropped into `docs/cycle/issues/raw/` by an external agent)
-  materializes as a markdown file in the `raw/` inbox. The engine's
-  scan loop then picks them up.
+  task, Jira card, GH issue, PRD, brief. Any entry point (positional
+  `"task text"`, or a file dropped into `docs/cycle/issues/raw/` by an
+  external agent) materializes as a markdown file in the `raw/` inbox. The
+  engine's triage pass then picks it up.
 - **Out:** JSONL event stream on stdout (mirrored to `.cycle/log.jsonl`);
   durable per-cycle artifacts under `docs/cycle/<cycle-id>-<workflow>-<slug>/`;
-  one branch, commit set, and PR per cycle; issue files advance through
-  `raw/ → todo/ → done/` as state changes; a final exit code.
+  branches and commits (pushed when `push: true`); issue files advancing
+  through `raw/ → todo/ → done/` as state changes; a final exit code.
 
 ## 2. Distribution & Runtime
 
 ### Bootstrap
 
 cycle ships as the npm package **`@cycleai/cli`** (backup scope
-**`@cycle-afk`** registered for safety). One-time install in a repo:
+**`@cycle-afk`**). One-time install in a repo:
 
 ```bash
 npx @cycleai/cli init
 ```
 
 The npm package contains the prebuilt engine bundle as a static asset.
-`init` copies `node_modules/@cycleai/cli/dist/cycle.js` into the
-consuming repo's `.cycle/bin/`. Engine version = npm package version
-(atomic — no separate engine release pipeline).
+`init` copies it into the consuming repo's `.cycle/bin/cycle.js`. Engine
+version = npm package version (atomic — no separate engine release
+pipeline).
 
 Upgrades use the same package with a flag:
 
@@ -75,88 +80,53 @@ npx @cycleai/cli@latest init --upgrade   # refresh bundle + skill,
 npx @cycleai/cli@latest init --force     # overwrite everything
 ```
 
-`--upgrade` is non-destructive on user-edited files: a 3-way merge
-across `workflows/`, `prompts/`, `scripts/` rewrites defaults the user
-hasn't touched and leaves the rest in place (printing a diff for any
-file that would otherwise be clobbered).
+`--upgrade` is non-destructive on user-edited files: it rewrites defaults
+the user has not touched and leaves the rest in place.
 
 ### What ships into the consuming repo
 
 ```
 .cycle/
 ├── bin/
-│   └── cycle.js          # Single-file bundled engine (esbuild).
-│                          # Starts with `#!/usr/bin/env node`, committed
-│                          # `chmod +x`, so `./.cycle/bin/cycle.js …` runs
-│                          # directly with no `node` prefix on Unix.
-├── workflows/
-│   ├── research.yaml
-│   ├── bug.yaml
-│   └── feature.yaml      # Default workflow definitions
-├── prompts/
-│   ├── triage.md
-│   ├── investigate.md
-│   ├── spec.md
-│   ├── research.md
-│   ├── plan.md
-│   ├── build.md
-│   ├── review.md
-│   ├── fix.md
-│   └── verify.md         # Default prompt templates
-├── scripts/
-│   ├── fetch-issue.sh    # Backs `--issue <id>`; dispatches on id prefix
-│   │                     # (JIRA- / LIN- / gh-) to a tracker fetch
-│   └── merge.sh          # Git / gh helpers invoked by bash steps
-│                         # (commit/push/PR are engine-managed, not step scripts)
-└── CLAUDE.md             # Config docs for agents working on this repo
+│   └── cycle.js          # Single-file bundled engine (esbuild). Starts with
+│                          # `#!/usr/bin/env node`, committed `chmod +x`, so
+│                          # `./.cycle/bin/cycle.js …` runs with no `node` prefix.
+├── workflows.yml         # Engine, triage, and workflow configuration (one file)
+├── prompts/              # Prompt templates for each workflow step and triage
+├── scripts/              # verify.sh and git helpers invoked by bash steps
 .claude/
 └── skills/
     └── cycle.md          # Claude Code skill; shipped by default
                           # (opt out with `cycle init --no-skill`)
+docs/cycle/issues/        # raw / todo / done / failed / blocked
 ```
 
-Runtime state files (`log.jsonl`, `tbd.jsonl`, `cycle.pid` when a
-daemon is alive) live under `.cycle/` and are written at first run,
-not by `init`.
+Runtime state files (`log.jsonl`, `tbd.jsonl`, `engine.lock` while an
+engine is running) live under `.cycle/` and are written at first run, not
+by `init`.
 
 ### Runtime requirements
 
-- **Node.js** (≥ 22.6; ≥ 24 LTS recommended) — to execute bundled
-  `cycle.js`. The bundle is plain JavaScript, so no runtime flags are
-  required. Dev-loop `.ts` execution uses Node's native type stripping
+- **Node.js** (≥ 22.6) — to execute the bundled `cycle.js`. The bundle is
+  plain JavaScript, so no runtime flags are required. The dev loop runs
+  `.ts` directly via Node's native type stripping
   (`--experimental-strip-types` on 22.6+; default on 23.6+).
-- **`claude` CLI** — for the `claudecode` agent
-- **git** and **`gh`** — branches, commits, PRs, auto-merge
-- Optional: **`codex`**, **`auggie`**, **`opencode`**, **`pi`** — if a workflow routes a step through one of these alternative agents
-- Optional: **tracker API access** (Jira / Linear / GitHub) — only when
-  `--issue` needs a remote fetch
+- **`claude` CLI** — for the default `claudecode` agent.
+- **git** and **`gh`** — branches, commits, pushes.
+- Optional: **`codex`**, **`gemini`**, **`auggie`**, **`opencode`**,
+  **`pi`** — if a workflow routes a step through one of these agents.
 
-After `init` runs once, no further `npm install` is needed in the
-consuming repo — the committed `cycle.js` bundle is the engine. No
-persistent services. The only daemon is the optional one a user opts
-into via `cycle run --detach` (see §3); it lives only as long as its
-queue, exits when done, and is one-per-repo (PID file
-`.cycle/cycle.pid`).
+After `init` runs once, no further `npm install` is needed — the committed
+`cycle.js` bundle is the engine. There are no persistent services.
 
 ### Why Node + esbuild
 
-- **Universally present.** Node is on every CI image, every container
-  base, and every developer machine. Zero runtime-install friction —
-  no extra `curl` step in GitHub Actions or ephemeral containers.
-- **Native TypeScript execution — no TS → JS transpile in the dev
-  loop.** Node 22.6+ runs `.ts` files directly via
-  `--experimental-strip-types`; Node 23.6+ strips types by default.
-  Type-checking is a separate `tsc --noEmit` step, not a runtime
-  prerequisite.
+- **Universally present.** Node is on every CI image, container base, and
+  developer machine — zero runtime-install friction.
+- **Native TypeScript execution.** No TS → JS transpile in the dev loop;
+  type-checking is a separate `tsc --noEmit` step.
 - **`esbuild` for distribution.** A single devDependency produces the
-  bundled `.cycle/bin/cycle.js` — one tool, one command, no broader
-  toolchain (rollup + plugins + ts-loader) required.
-- **Built-in HTTP server.** `node:http` will power the future HTML
-  progress viewer without adding a web framework dependency.
-- A **single-executable distribution** via Node SEA
-  (`node --experimental-sea-config`) is available if we later need a
-  zero-runtime path for specific deployment contexts; out of MVP
-  scope.
+  bundled `.cycle/bin/cycle.js` — one tool, one command.
 
 ## 3. Invocation Contract
 
@@ -165,207 +135,129 @@ queue, exits when done, and is one-per-repo (PID file
 The canonical invocation uses the committed shebang bundle:
 
 ```bash
-./.cycle/bin/cycle.js run "<task text>"
-./.cycle/bin/cycle.js run --issue <ticket-id>
-./.cycle/bin/cycle.js run --issues-file <path>
-cat issues.json | ./.cycle/bin/cycle.js run --issues-stdin
+./.cycle/bin/cycle.js run "<task text>"     # run one freeform task to completion
+./.cycle/bin/cycle.js run                    # no text → drain whatever is queued
 ./.cycle/bin/cycle.js run --workflow <name> "<task text>"
-./.cycle/bin/cycle.js run --dry-run "<task text>"
-./.cycle/bin/cycle.js run --merge-mode {auto|stack} "…"
-
-# Detached daemon mode (one daemon per repo)
-./.cycle/bin/cycle.js run --detach --issues-file <path>
-
-# Daemon control commands (require a live daemon)
-./.cycle/bin/cycle.js status               # JSON snapshot
-./.cycle/bin/cycle.js attach               # tail .cycle/log.jsonl live
-./.cycle/bin/cycle.js stop                 # graceful drain
-./.cycle/bin/cycle.js stop --force         # SIGTERM
+./.cycle/bin/cycle.js run --dry-run "<task text>"   # triage/queue preview, no execution
+./.cycle/bin/cycle.js drop "<task text>"     # materialize an issue into raw/, don't run
+./.cycle/bin/cycle.js status                 # log-derived queue snapshot
+./.cycle/bin/cycle.js triage --dry-run       # re-run triage read-only
+./.cycle/bin/cycle.js cleanup [--dry-run|--yes] [--force]  # prune orphaned cycle/* branches
 ```
 
 Cross-platform fallback: `node .cycle/bin/cycle.js …` works identically
 (useful on Windows where the shebang is ignored).
 
-Flags (strawman):
+`run` flags:
 
 | Flag | Purpose |
 |---|---|
-| `--issue <id>` | Fetch a ticket via `.cycle/scripts/fetch-issue.sh <id>` |
-| `--issues-file <path>` | Load a JSON array of issues from a file |
-| `--issues-stdin` | Read a JSON array of issues from stdin |
-| `--workflow <name>` | Skip triage; force a specific workflow per cycle |
-| `--dry-run` | Run triage only; print the queue; don't execute |
-| `--merge-mode {auto\|stack}` | Default `auto` (merge each cycle to main), alternate `stack` (stacked branches, no auto-merge) |
-| `--base <branch>` | Override the PR base branch (default `main`) |
-| `--no-pr` | Commit locally but don't push or open PRs |
-| `--detach` | Spawn a daemon, write PID to `.cycle/cycle.pid`, exit immediately |
-| `--human` | Format `status` / `attach` / `stop` output for humans instead of JSON |
+| `--workflow <name>` | Force a specific workflow per cycle instead of triage's choice (default `feature`) |
+| `--dry-run` | Print the pending queue as `issue.ingested` events and exit; no execution |
+| `--no-skip-completed` | On retry, re-derive `spec`/`research`/`plan` even if their artifacts exist |
+| `--trunk` | Commit straight to the base branch instead of per-cycle branches (sets `CYCLE_TRUNK_BASED`) |
 
 Subcommands:
 
 | Subcommand | Purpose |
 |---|---|
-| `run` | Process the queue (foreground by default; daemon with `--detach`) |
-| `status` | One-shot JSON snapshot of the live daemon (PID, current cycle ID, queue depth, last event, elapsed). Exits non-zero if no daemon. |
-| `attach` | Tail `.cycle/log.jsonl` from EOF, follow until daemon exits. Ctrl-C detaches without killing the daemon. |
-| `stop` | Signal the daemon to halt gracefully after the current cycle. `--force` sends SIGTERM. |
+| `run` | Materialize any task text, then process the queue to completion (foreground, blocking) |
+| `drop` | Materialize a freeform task into `raw/` and exit without running the engine |
+| `status` | One-shot snapshot derived from `.cycle/log.jsonl` (queue counts, in-flight cycle) |
+| `triage` | `--dry-run` re-runs triage against `raw/` without mutating state |
+| `cleanup` | List (or, with `--yes`, delete) local `cycle/*` branches that have no matching `in_progress` queue row |
+| `init` | Scaffold (or `--force` overwrite) the repo-local factory kit |
 
 ### Execution model
 
-- **Blocking by default.** The parent caller `spawn`s cycle and waits
-  for exit. The engine runs until `tbd.jsonl` is empty or a failure
-  stops the queue. CI jobs and ephemeral containers depend on this
-  contract — they exit when the process exits.
-- **`--detach` for interactive use.** Spawns a daemon, writes its PID
-  to `.cycle/cycle.pid`, exits immediately. The daemon runs the same
-  scan / process loop and writes the same JSONL log. A second
-  `run --detach` in the same repo refuses with a clear error pointing
-  at `cycle attach` / `cycle stop`. One daemon per repo.
-- **stdout = JSONL** in foreground mode (mirrored to `.cycle/log.jsonl`).
-  In detached mode, the parent receives only the daemon-start ACK on
-  stdout — the JSONL stream lands in `.cycle/log.jsonl` and is consumed
-  via `cycle attach`.
-- **stderr = freeform.** Human-legible log output, errors, stack traces.
-- **Exit code.** `0` on success, `42` on rate-limit pause, non-zero on
-  any other failure. `status` / `attach` / `stop` exit `0` on success,
-  non-zero if no live daemon is found.
+- **Blocking.** The parent caller `spawn`s cycle and waits for exit. The
+  engine runs until `tbd.jsonl` is empty or a failure stops the queue. CI
+  jobs and ephemeral containers depend on this contract.
+- **One engine per repo.** At startup the engine acquires a PID lockfile at
+  `.cycle/engine.lock`; a second concurrent invocation exits non-zero
+  rather than racing the first.
+- **stdout = JSONL** (mirrored to `.cycle/log.jsonl`). **stderr = freeform**
+  human-legible log output, errors, stack traces.
+- **Exit code.** `0` on success, `42` on rate-limit pause, non-zero on any
+  other failure.
 
-### JSONL event schema (strawman)
+### JSONL event schema
+
+The log is a flat, append-only stream of `{ts, event, …}` objects. New
+`event` types can be added without breaking parsers that ignore unknowns.
+There is no per-run ID; engine lifecycle is bracketed by `engine.start` /
+`engine.stop`.
 
 ```jsonl
 {"ts":"…","event":"engine.start"}
-{"ts":"…","event":"issue.ingested","issue_id":"JIRA-123","path":"docs/cycle/issues/todo/JIRA-123.md"}
-{"ts":"…","event":"tbd.pop","issue_id":"JIRA-123"}
-{"ts":"…","event":"triage.start","issue_id":"JIRA-123","attempt":1}
-{"ts":"…","event":"triage.decision","issue_id":"JIRA-123","plan":[{"workflow":"feature","title":"…"},{"workflow":"feature","title":"…"}]}
-{"ts":"…","event":"cycle.start","cycle_id":"0042","workflow":"feature","title":"…","issue_id":"JIRA-123","attempt":1}
+{"ts":"…","event":"issue.dropped","issue_id":"txt-20260522-120000-fix-login","path":"docs/cycle/issues/raw/…"}
+{"ts":"…","event":"cycle.start","cycle_id":"0042","workflow":"feature","title":"…","issue_id":"…","attempt":1}
 {"ts":"…","event":"step.start","cycle_id":"0042","step":"spec","agent":"claudecode"}
-{"ts":"…","event":"step.end","cycle_id":"0042","step":"spec","status":"ok","duration_ms":12345,"artifact":"docs/cycle/0042-feature-safari-login/SPEC.md"}
+{"ts":"…","event":"step.end","cycle_id":"0042","step":"spec","status":"ok","duration_ms":12345,"artifact":"docs/cycle/0042-feature-…/SPEC.md"}
 {"ts":"…","event":"commit","cycle_id":"0042","sha":"…"}
-{"ts":"…","event":"pr.opened","cycle_id":"0042","url":"…","number":142}
-{"ts":"…","event":"pr.merged","cycle_id":"0042","sha":"…"}
 {"ts":"…","event":"cycle.end","cycle_id":"0042","status":"ok"}
-{"ts":"…","event":"issue.completed","issue_id":"JIRA-123","cycles":["0042","0043"]}
 {"ts":"…","event":"engine.stop","status":"ok"}
 ```
 
-Cycle-attempt / abandon variants:
-
-```jsonl
-{"ts":"…","event":"cycle.attempt.failed","cycle_id":"0042","attempt":1,"reason":"verify_failed"}
-{"ts":"…","event":"cycle.start","cycle_id":"0042","workflow":"feature","attempt":2}
-{"ts":"…","event":"cycle.abandoned","cycle_id":"0042","attempts":3,"preservation_branch":"cycle/abandoned/0042-feature-safari-login","pr_url":"…"}
-{"ts":"…","event":"issue.blocked","issue_id":"JIRA-123","blocked_cycle":"0042","path":"docs/cycle/issues/blocked/JIRA-123.md"}
-```
-
 Failed `step.end` events (any agent) carry a head-capped `stderr` field
-(2000-char convention, slice to `MAX-1` + `…`). Both bash-step subprocess
-failures and dispatch-time `UnknownAgentError` synthesis surface here.
-Successful `step.end` events on all paths omit the field.
+(2000-char cap). Successful events omit it. A skipped pre-build step on
+retry emits `step.skipped {reason: "artifact_present", artifact_path}` in
+lieu of `step.start` / `step.end`.
+
+Triage-failure and rate-limit variants:
 
 ```jsonl
-{"ts":"…","event":"step.end","cycle_id":"0042","step":"verify","status":"failed","exit_code":1,"stderr":"npm test failed: 3 assertions…"}
+{"ts":"…","event":"triage.raw.failed","raw_id":"…","attempt":1,"error":"…"}
+{"ts":"…","event":"engine.paused","reason":"all_triage_failed","raw_ids":["…"],"last_errors":[…]}
+{"ts":"…","event":"rate_limit.hit"}
+{"ts":"…","event":"engine.paused","reason":"rate_limit","retry_after":"…"}
 ```
-
-Pre-build skip on retry (see Section 10 — Failure Modes) emits one
-event per skipped step in lieu of `step.start` / `step.end`:
-
-```jsonl
-{"ts":"…","event":"step.skipped","cycle_id":"0042","step":"spec","reason":"artifact_present","artifact_path":"docs/cycle/0042-feature-x/SPEC.md"}
-```
-
-Triage failure / rate-limit variants:
-
-```jsonl
-{"ts":"…","event":"triage.failed","issue_id":"JIRA-123","attempt":1,"reason":"invalid_json"}
-{"ts":"…","event":"triage.abandoned","issue_id":"JIRA-123","attempts":3,"path":"docs/cycle/issues/failed/JIRA-123.md"}
-{"ts":"…","event":"rate_limit.hit","retry_after_s":120,"tokens_remaining":0}
-{"ts":"…","event":"rate_limit.resumed"}
-{"ts":"…","event":"engine.paused","reason":"rate_limit","retry_after":"2026-04-18T20:00:00Z"}
-```
-
-The schema is flat and additive — new `event` types can be introduced
-without breaking parsers that ignore unknowns. There is no per-run ID;
-engine lifecycle is marked by `engine.start` / `engine.stop` with
-timestamps.
 
 ## 4. Execution Model
 
 ### Engine lifecycle
 
-1. **Parse args.** For any CLI-supplied input, materialize a markdown
-   file in `docs/cycle/issues/raw/` (filename derived from `id`, or a
-   `txt-<ts>-<slug>` for freeform text).
-2. **Start.** Emit `engine.start`.
-3. **Scan `raw/`.** For each file not yet reflected in `tbd.jsonl`:
-   `mv` it to `todo/`, then append a line to `tbd.jsonl` (dedup by
-   `id`). Emit one `issue.ingested` per file.
-4. **Process loop** (until `tbd.jsonl` is empty):
-   - **Pop** the next issue from `tbd.jsonl`; emit `tbd.pop`.
-   - **Skip if blocked** by `depends_on:` — if any dependency is still
-     in `raw/`, `todo/`, or is an unmerged cycle, re-append the line
-     to the tail of `tbd.jsonl` and continue to the next entry. (Cycle
-     detection: after a full pass where no issue can progress, abort.)
-   - **Triage** the `todo/` file → a *plan* of 1+ cycles, each
-     tagged with a workflow (`bug` / `feature` / `research`) and a
-     spec. No cycle IDs assigned yet.
-     - On triage failure: increment `triage_attempts` in frontmatter,
-       re-append to `tbd.jsonl`. After 3 attempts, move the file to
-       `failed/` with a `FAILURE.md` note; emit `triage.abandoned`.
-   - **Write `TRIAGE.md`** (populated once the first cycle ID is
-     assigned); the issue file stays in `todo/` until cycle completion.
-   - **Cycle sub-loop** (for each planned cycle):
-     - **Allocate the cycle ID** by scanning `log.jsonl` for the
-       highest existing ID and incrementing. Append it to the issue's
-       frontmatter `cycles:`.
-     - Create `docs/cycle/<cycle-id>-<workflow>-<slug>/`.
-     - **Attempt loop** (up to `max_cycle_attempts`, default 3):
-       - Create the branch (off `main` in `auto` mode, off the prior
-         cycle's branch in `stack` mode). On attempts 2+, delete the
-         prior attempt's branch first and wipe the artifact dir.
-       - Load the workflow YAML; execute its steps in order. Each
-         step honors its own `on_fail: retry:N` policy.
-       - On a code-level failure (verify fails, review unresolvable,
-         build fails, merge conflict): emit `cycle.attempt.failed`
-         and loop.
-       - On success: open a PR. Under `auto`, enable
-         `gh pr merge --squash --auto` and poll until the PR lands
-         on `main` before proceeding. Under `stack`, proceed
-         immediately. Emit `cycle.end`, break the attempt loop.
-     - On exhausted attempts: push final-attempt branch to
-       `cycle/abandoned/<cycle-id>-<slug>`, open a `Failed Attempt: …`
-       PR (no auto-merge), emit `cycle.abandoned`, then break out of
-       the cycle sub-loop — the issue's remaining planned cycles are
-       skipped (they consume no IDs). Move the issue file to
-       `blocked/` with `BLOCKED.md`; emit `issue.blocked`. In `stack`
-       mode the engine halts entirely (default `--on-abandon halt`).
-     - On issue completion (all planned cycles merged): move the issue
-       file from `todo/` to `done/` and append `completed_at:`; emit
-       `issue.completed`.
-5. **Re-scan `raw/`.** If new files appeared during the run, loop back
-   to step 4.
-6. **Finalize.** When `tbd.jsonl` is empty and `raw/` is empty, emit
-   `engine.stop` and exit 0.
+1. **Parse args.** For freeform task text, materialize a markdown file in
+   `docs/cycle/issues/raw/` (`txt-<YYYYMMDD-HHMMSS>-<slug>.md`).
+2. **Acquire the engine lock** (`.cycle/engine.lock`); refuse to start if a
+   live engine already holds it. Emit `engine.start`.
+3. **Triage `raw/`.** Enrich each raw issue, decompose large ones into
+   vertical-slice children, write `todo/<id>.md`, and append rows to
+   `tbd.jsonl`. (See [§4 Triage](#triage).)
+4. **Process loop** (until `tbd.jsonl` has no runnable pending row):
+   - **Pop** the next pending row, honoring priority tiers and the
+     `depends_on` topological clamp.
+   - **Allocate the cycle ID** by scanning `log.jsonl` for the highest
+     existing ID and incrementing; create
+     `docs/cycle/<cycle-id>-<workflow>-<slug>/`.
+   - **Attempt loop** (up to `max_cycle_attempts`, default 3): load the
+     workflow, execute its steps in order (each honoring its own
+     `on_fail` policy and post-conditions). On a code-level gate failure,
+     abandon the attempt and restart on a clean tree; on success, the
+     engine commits and pushes, then emits `cycle.end`.
+   - **On exhausted attempts:** stamp the issue file, move `todo/ → failed/`,
+     run blocked-propagation over dependents, and continue with the next
+     issue.
+   - **On success:** move `todo/ → done/`; the `tbd.jsonl` row drains.
+5. **Re-triage `raw/`** between cycles whenever new files have appeared.
+6. **Finalize.** When nothing runnable remains, release the lock, emit
+   `engine.stop`, and exit `0`.
 
-Triage is lazy (per issue, just before its cycles run). The backlog in
-`raw/` + `tbd.jsonl` stays a meaningful live queue. Crash-resume is
-trivial — re-invoking `cycle run` with no arguments picks up from
-whatever's still in the folders and `tbd.jsonl`.
+Triage and the queue together stay a meaningful live backlog. Crash-resume
+is trivial: re-invoking `cycle run` with no arguments reads the `log.jsonl`
+tail to resume any in-flight cycle, then continues the pending rows.
 
 ### Triage
 
-> **Authoritative spec:** [`../docs/RFC-001-issue-lifecycle.md`](../RFC-001-issue-lifecycle.md) §5. This section is a summary.
+> **Authoritative spec:** [`RFC-001-issue-lifecycle.md`](RFC-001-issue-lifecycle.md) §5. This is a summary.
 
-Triage is an **engine-internal subroutine** with a configurable agent.
-Not a workflow — no cycle id, no branch, no PR, no artifact directory.
+Triage is an **engine-internal subroutine** with a configurable agent — not
+a workflow (no cycle id, no branch, no artifact directory). It runs at
+`engine.start` and again before each pop when `raw/` is non-empty.
 
-Triggers:
-1. At `engine.start`, if `log.jsonl` shows no in-flight cycle.
-2. Between cycles, before each pop, when `raw/` is non-empty.
-
-For each file in `raw/`, the agent enriches with codebase context,
-decomposes large issues into vertical-slice children, picks a workflow,
-and emits structured JSON:
+For each file in `raw/`, the agent enriches it with codebase context,
+decomposes large issues into vertical-slice children, picks a workflow, and
+emits structured JSON:
 
 ```json
 {
@@ -385,32 +277,27 @@ and emits structured JSON:
 }
 ```
 
-Engine atomically: writes `todo/<id>.md` files, moves
-`raw/<id>.md → done/<id>_raw.md`, appends ordered lines to
-`tbd.jsonl`, may rewrite `tbd.jsonl` if triage reorders existing pending
-rows (in-progress rows are fenced and cannot be moved).
-
-Configured in `workflows.yml` top section: `agent`, `prompt`,
-`max_turns`. Per-raw retry up to 3 attempts. On partial-fail (at least
-one raw decomposes cleanly while others exhaust their attempts): the
-failed subset moves `raw/<id>.md → failed/<id>.md` with `failed_step:
-"triage"` and `failed_at` stamped, via a deferred `moveToFailed` flush
-after the per-raw loop. If ALL raws fail in one pass: emit
-`engine.paused {reason: "all_triage_failed", …}` and exit non-zero —
-raws stay in `raw/` with `triage_attempts: 3` (no rename, no
-`failed_step` stamp) so `cycle triage --dry-run` re-evaluates the same
-files after operator edits without any manual `mv`.
+The engine atomically writes `todo/<id>.md` files, moves
+`raw/<id>.md → done/<id>_raw.md`, and appends ordered rows to `tbd.jsonl`.
+Configured in the top of `workflows.yml` (`agent`, `prompt`, `max_turns`).
+Per-raw retry up to 3 attempts. On partial failure the failed subset moves
+to `failed/<id>.md`; if *all* raws fail in one pass the engine emits
+`engine.paused {reason: "all_triage_failed", …}` and exits, leaving the
+raws in place for `cycle triage --dry-run` to re-evaluate.
 
 ### Workflows
 
 Workflows live in **a single `workflows.yml`** at the root of `.cycle/`,
-alongside engine config and triage config:
+alongside engine and triage config:
 
 ```yaml
 # .cycle/workflows.yml
 engine:
   max_consecutive_failures: 2
   base_branch: master
+  commit:
+    mode: worktree-pr        # trunk | local-only | worktree-pr
+    push: true
 
 triage:
   agent: claudecode
@@ -422,123 +309,111 @@ workflows:
     description: Full SDLC pass for a single cycle of work.
     max_cycle_attempts: 3
     steps:
-  - name: spec
-    agent: claudecode
-    prompt: prompts/spec.md
-  - name: research
-    agent: claudecode
-    prompt: prompts/research.md
-  - name: plan
-    agent: claudecode
-    prompt: prompts/plan.md
-  - name: build
-    agent: claudecode
-    prompt: prompts/build.md
-  - name: review
-    agent: claudecode
-    prompt: prompts/review.md
-  - name: fix
-    agent: claudecode
-    prompt: prompts/fix.md
-    skip_unless: MUST-FIX.md
-  - name: verify
-    agent: bash
-    command: scripts/verify.sh
-  # commit, push, and PR are engine-managed after steps complete (see engine.commit in workflows.yml)
+      - { name: spec,          agent: claudecode, prompt: prompts/spec.md }
+      - { name: research,      agent: claudecode, prompt: prompts/research.md }
+      - { name: plan,          agent: claudecode, prompt: prompts/plan.md }
+      - { name: build,         agent: claudecode, prompt: prompts/build.md }
+      - { name: review,        agent: claudecode, prompt: prompts/review.md }
+      - { name: fix,           agent: claudecode, prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
+      - { name: verify,        agent: bash,       command: scripts/verify.sh }
+      - { name: reflection,    agent: claudecode, prompt: prompts/reflection.md }
+      - { name: final_fix,     agent: claudecode, prompt: prompts/final_fix.md, skip_unless: FINAL_FIXES.md }
+      - { name: final_verify,  agent: bash,       command: scripts/verify.sh }
+      - { name: documentation, agent: claudecode, prompt: prompts/documentation.md }
 ```
 
-Per-step configurable fields (strawman):
+Per-step fields:
 
 | Field | Meaning |
 |---|---|
 | `name` | Step identifier (also referenced by skip conditions) |
 | `agent` | One of `claudecode`, `codex`, `gemini`, `auggie`, `opencode`, `pi`, `bash` |
-| `prompt` | Path (relative to `.cycle/`) to the prompt (AI agents) |
-| `command` | Shell command (for `bash` agent) |
-| `model` | Override model for this step (codex/auggie/opencode/pi: passed as `--model`) |
-| `thinking` | Thinking level for this step (codex/auggie/opencode/pi: passed as `--thinking`) |
-| `skip_unless` | Only run if the named artifact exists |
-| `timeout` | Per-step inactivity / wall-clock cap |
+| `prompt` | Path (relative to `.cycle/`) to the prompt template (AI agents) |
+| `command` | Shell command (for the `bash` agent) |
+| `model` | Override model for this step (`codex`/`auggie`/`opencode`/`pi` → `--model`) |
+| `thinking` | Thinking level for this step (`codex`/`auggie`/`opencode`/`pi` → `--thinking`) |
+| `skip_unless` | Only run if the named artifact exists in the cycle's artifact dir |
 | `on_fail` | `exit` (default) \| `continue` \| `retry:N` |
 
 ### Agents
 
 | Agent | Execution | Use for |
 |---|---|---|
-| `claudecode` | Claude Agent SDK (in-process) or `claude -p` (piped) | All AI steps by default |
-| `codex` | `codex` subprocess (stdin prompt delivery; optional `--model`/`--thinking` flags) | Alternative for build / fix / review |
-| `gemini` | `gemini` subprocess (stdin prompt delivery) | Alternative AI agent |
-| `auggie` | `auggie` subprocess (stdin prompt delivery; optional `--model`/`--thinking` flags) | Alternative for build / fix / review |
-| `opencode` | `opencode` subprocess (stdin prompt delivery; optional `--model`/`--thinking` flags) | Alternative for build / fix / review |
-| `pi` | `pi` subprocess (stdin prompt delivery; optional `--model`/`--thinking` flags) | Alternative for build / fix / review |
-| `bash` | Direct shell | `verify`, `commit`, `pr`, `merge`, scripts |
+| `claudecode` | `claude -p` (piped) | All AI steps by default |
+| `codex` | `codex` subprocess (optional `--model`/`--thinking`) | Alternative for build / fix / review |
+| `gemini` | `gemini` subprocess | Alternative AI agent |
+| `auggie` | `auggie` subprocess (optional `--model`/`--thinking`) | Alternative for build / fix / review |
+| `opencode` | `opencode` subprocess (optional `--model`/`--thinking`) | Alternative for build / fix / review |
+| `pi` | `pi` subprocess (optional `--model`/`--thinking`) | Alternative for build / fix / review |
+| `bash` | Direct shell (array args, no `shell: true`) | `verify`, scripts |
 
-> **Note:** `--model` and `--thinking` flag names for `codex`, `auggie`, `opencode`, and `pi` are forwarded by convention from the codex pattern. They have not been verified against each binary's live `--help` output — if a binary uses different flag names the forwarding silently does nothing.
-
-New agent types require a rebuild of `cycle.js` — explicitly out of scope
-for MVP.
+New agent types require a rebuild of `cycle.js`.
 
 ## 5. Workflow Library
 
-### `research` (read-only)
+Four workflows ship by default. Triage selects one per slice; `--workflow`
+forces a choice.
+
+### `feature` — full SDLC
 
 ```
-investigate → findings
+spec → research → plan → build → review → fix → verify → reflection → final_fix → final_verify → documentation
 ```
 
-No commits, no PR. Writes `FINDINGS.md` to the cycle's artifact
-directory.
+`fix` and `final_fix` are conditional (`skip_unless` gates). `reflection`
+and `documentation` are non-fatal terminal steps — a failure emits a
+`*.skipped` event but does not flip `cycle.end` to failed.
 
-### `bug`
-
-```
-investigate → fix → verify → commit → pr
-```
-
-Lightweight fix path.
-
-### `feature`
+### `quickfix` — surgical fix
 
 ```
-spec → research → plan → build → review → fix → verify → reflection → documentation → commit → pr
+plan_fix → quick_fix → test_fix → verify
 ```
 
-Full SDLC pass. `fix` is conditional — only runs if `review` produced
-must-fixes. `documentation` and `reflection` are non-fatal terminal steps — failure emits a skipped event but does not flip `cycle.end` to failed.
+For a well-scoped issue. No spec, no research, no review.
+
+### `document` — docs / prompt edits
+
+```
+plan_documents → authoring → review_documents → verify
+```
+
+No code, no reflection.
+
+### `e2e-tests` — Playwright tests
+
+```
+research → test_plan → test_build → review → fix → verify
+```
+
+Writes or extends end-to-end tests against the running app; works directly
+on the base branch.
 
 > **There is no separate `epic` workflow.** An issue that needs multiple
-> cycles is simply one whose triage returned multiple queue entries, each
-> of which is a standalone `bug` / `feature` / `research` cycle.
+> cycles is simply one whose triage returned multiple queue entries, each a
+> standalone workflow run.
 
 ## 6. State & Artifacts
 
 ### Engine state (in `.cycle/`)
 
-Three files, both at the repo root under `.cycle/`:
+- **`.cycle/log.jsonl`** — append-only event history, mirrored from stdout.
+  Source of truth for everything that has happened; never rewritten. Used
+  to reconstruct cycle state, allocate the next cycle ID, and power
+  `cycle status`.
+- **`.cycle/tbd.jsonl`** — live, priority-ordered work queue (post-triage).
+  One todo per line. Rows drain on cycle completion: removed when a cycle
+  ends `ok` (file → `done/`) or exhausts its attempts (file → `failed/`).
+  On the `in_progress` transition, the row's status flips and `cycle_id` is
+  written. Survives a crash — the next invocation reads `log.jsonl` first to
+  resume any in-flight cycle, then proceeds with the pending rows. See
+  [`RFC-001-issue-lifecycle.md`](RFC-001-issue-lifecycle.md) §6.
+- **`.cycle/engine.lock`** — PID lockfile held for the life of a running
+  engine, enforcing one engine per repo. Released on exit; a stale lock
+  (dead PID) is reclaimed by the next invocation.
 
-- **`.cycle/log.jsonl`** — append-only event history, mirrored from
-  stdout. Source of truth for everything that has happened: triage
-  decisions, step starts/ends, commits, PRs, merges, issue lifecycle,
-  engine lifecycle. Never rewritten. Used to reconstruct cycle state,
-  allocate the next cycle ID, and power the future TUI / HTML viewer.
-- **`.cycle/tbd.jsonl`** — live priority-ordered work queue (post-triage).
-  One **todo** per line. Rows drain on cycle completion: removed when a
-  cycle ends `ok` (file → `done/`) or when attempts exhaust (file →
-  `failed/`). On in_progress transition, the row's status flips and
-  `cycle_id` is written. Remains populated if the engine crashes — the
-  next invocation reads `log.jsonl` first to resume any in-flight cycle,
-  then proceeds with the pending rows. See
-  [`RFC-001-issue-lifecycle.md`](../RFC-001-issue-lifecycle.md) §6.
-- **`.cycle/cycle.pid`** — present only while a `--detach` daemon is
-  alive. Contains the daemon PID. `cycle status` / `attach` / `stop`
-  read it to locate the running process; `cycle run --detach` refuses
-  to start a second daemon if it exists and points to a live PID. The
-  daemon removes the file on graceful exit; a stale file (PID is dead)
-  is auto-cleaned by the next invocation. Generally gitignored.
-
-Row schema for `tbd.jsonl` (one line per pending or in-progress todo;
-the file under `todo/` is the source of truth for body + extended
-frontmatter):
+Row schema for `tbd.jsonl` (the file under `todo/` is the source of truth
+for body + extended frontmatter):
 
 ```json
 {"id":"Jira-007-fix-login-cookie","parent":"Jira-007","title":"…","status":"pending","attempt":0,"depends_on":[],"triaged_at":"2026-05-13T02:30:00Z"}
@@ -549,28 +424,29 @@ When a row flips to `status: "in_progress"`, the engine writes
 
 ### Issue state machine (`docs/cycle/issues/`)
 
-> **Authoritative spec:** [`../RFC-001-issue-lifecycle.md`](../RFC-001-issue-lifecycle.md) §2.
+> **Authoritative spec:** [`RFC-001-issue-lifecycle.md`](RFC-001-issue-lifecycle.md) §2.
 
-Five folders shadow `tbd.jsonl`, giving every issue a durable,
-git-visible state:
+Five folders shadow `tbd.jsonl`, giving every issue durable, git-visible
+state:
 
 ```
 docs/cycle/issues/
-├── TEMPLATE.md     # Frontmatter reference for agents creating issues
-├── raw/            # Inbox — new files dropped by agents, CLI, tracker fetch, reflection
+├── raw/            # Inbox — new files dropped by agents, CLI, or reflection
 ├── todo/           # Triaged + enriched, vertical-slice, ready to cycle
 ├── done/           # Successful cycles' files; decomposed parents (suffix `_raw`)
-├── failed/         # Cycles that exhausted 3 attempts
+├── failed/         # Cycles that exhausted their attempt budget
 └── blocked/        # depends_on chain reached a failed item
 ```
 
 State transitions:
-- `raw/` → triage subroutine → `todo/` (enriched) + `done/<id>_raw.md` (original)
-- `todo/` → `done/`: cycle ended ok; tbd.jsonl row removed
-- `todo/` → `failed/`: cycle exhausted `max_cycle_attempts`; row removed; `propagateBlocked` may move dependents
+
+- `raw/` → triage → `todo/` (enriched) + `done/<id>_raw.md` (original)
+- `todo/` → `done/`: cycle ended ok; `tbd.jsonl` row removed
+- `todo/` → `failed/`: cycle exhausted `max_cycle_attempts`; `propagateBlocked` may move dependents
 - `todo/` → `blocked/`: `depends_on` chain reached a failed item; `blocked_by:` written into frontmatter
 
-Issue file naming: `<id>.md` (e.g., `Jira-007.md` in `raw/`, `Jira-007-fix-login-cookie.md` in `todo/`). For freeform text input the engine generates `txt-<YYYYMMDD-HHMMSS>-<short-slug>.md`.
+For freeform text input the engine generates
+`txt-<YYYYMMDD-HHMMSS>-<short-slug>.md`.
 
 ### Per-cycle artifact directory (durable)
 
@@ -581,346 +457,153 @@ docs/cycle/0042-feature-safari-login/
 ├── RESEARCH.md
 ├── PLAN.md
 ├── REVIEW.md
-├── FINDINGS.md   # research workflow only
+├── REFLECTION.md
+├── touched.json  # Files this cycle's mutation steps actually changed
 └── …
 ```
 
-Each cycle directory is committed as part of that cycle's PR. Maintainers
+Each cycle directory is committed as part of that cycle's change. Maintainers
 can keep or prune `docs/cycle/` later.
 
 ### Cycle ID
 
 4-digit zero-padded integer (`0001`–`9999`), globally unique within the
 project repo. Allocated at cycle start by scanning `log.jsonl` for the
-highest existing cycle ID and incrementing. Widening beyond 4 digits is
-trivial if a project ever approaches 10k cycles.
+highest existing ID and incrementing. A run is just one process execution —
+a temporal boundary, not a persistent identity; cycles are the only
+persistent identity the system mints.
 
-### No run ID
+## 7. Branching & Commit
 
-A "run" is just one process execution of the engine — a temporal
-boundary, not a persistent identity. Engine lifecycle is marked in
-`log.jsonl` by `engine.start` / `engine.stop` events with timestamps; no
-ID is minted. Cycles are the only persistent identity the system needs.
+The engine — not workflow steps — owns all git operations after a cycle's
+steps complete, configured via `engine.commit` in `workflows.yml`:
 
-## 7. Branching & Merge Modes
+```yaml
+engine:
+  commit:
+    mode: trunk | local-only | worktree-pr
+    push: true | false
+```
 
-Resolved. Two modes, chosen by `--merge-mode`.
+- **`worktree-pr`** (shipped default) — each cycle gets its own
+  `cycle/<workflow>/<slug>` branch, with head-SHA capture on `build`/`fix`
+  `step.start` and SHA-based hard-reset on retry/resume.
+- **`trunk`** — no cycle branches; the engine commits straight to the base
+  branch. Enabled per-run with `--trunk` or per-repo with
+  `CYCLE_TRUNK_BASED=1` in `.cycle/.env`.
+- **`local-only`** — same as `trunk` but `push` is forced false.
 
-### `auto` — "dark factory" mode (default)
-
-- Each cycle branches off the current tip of the base branch (`main` by
-  default, overridable with `--base`).
-- Branch name: `cycle/<workflow>/<slug>`.
-- After commits and push, the engine opens a PR and enables
-  `gh pr merge --squash --auto`.
-- Branch protection (required checks, required reviews if any) enforces
-  quality.
-- The engine **waits** for the PR to land on `main` before dequeuing the
-  next cycle. This is polling on the merge state, not blocking on human
-  review — if human review is required by branch protection, the queue
-  will sit until it's approved.
-- Linear history. Next cycle starts from updated `main` and sees the
-  prior cycle's code.
-
-### `stack` — human-review mode
-
-- Cycle 1 branches off `main`. Cycle N+1 branches off cycle N's branch.
-- Branch name: `cycle/<workflow>/<slug>` (unique per cycle via slug).
-- After commits and push, the engine opens a PR with base = previous
-  cycle's branch (or `main` for cycle 1).
-- The engine does **not** wait for merge. It proceeds immediately to the
-  next cycle.
-- Humans review and merge the stack bottom-up in the tracker. Sequential
-  dependencies work because each branch includes its predecessors'
-  commits.
-
-### Worktrees
-
-Deferred. A future optional feature that could let the engine work on
-cycles in parallel in separate worktrees. Out of MVP scope.
-
-### Commit / PR / merge logic
-
-Lives in `bash` steps that ship in `.cycle/scripts/` — projects can
-customize (signed commits, PR templates, assigned reviewers, labels).
+After the steps pass, `commitCycle` stages every non-denied file (the
+denylist covers `.claude/`, `dist/`, `node_modules/`, `.cycle/cycle.pid`,
+`*.lock`, and submodule gitlinks), commits with subject
+`cycle <id>: <title>`, appends any `Closes #N` lines parsed from the issue
+body, and — when `push: true` — pushes with 3× backoff retry. A
+`commit.scope_warning` is logged (never blocking) when a staged `src/`/`scripts/`
+file is absent from the cycle's `touched.json` footprint.
 
 ## 8. Anatomy of a Typical Run
 
-Example: parent agent invokes cycle with 7 Jira issues, 3 of them big.
+1. A parent agent runs `./.cycle/bin/cycle.js run "fix safari login bug"`.
+2. cycle materializes the task into `docs/cycle/issues/raw/` and emits
+   `engine.start` after acquiring `.cycle/engine.lock`.
+3. Triage enriches the raw issue and writes `todo/<id>.md` plus a
+   `tbd.jsonl` row (decomposing into several rows if the issue is large).
+4. The process loop pops the row, scans `log.jsonl` for the highest cycle
+   ID (say `0041`), allocates `0042`, and creates
+   `docs/cycle/0042-feature-safari-login/`.
+5. Cycle `0042` runs the `feature` steps, each emitting `step.start` /
+   `step.end`. On success the engine commits and pushes, emits `cycle.end`,
+   and moves the issue file from `todo/` to `done/`.
+6. The loop continues until `tbd.jsonl` has no runnable row, re-triaging
+   `raw/` if new files appeared. Final: `engine.stop` with status `ok`,
+   exit `0`.
 
-1. Parent runs
-   `./.cycle/bin/cycle.js run --issues-file jira-todo.json`.
-2. cycle writes 7 markdown files into `docs/cycle/issues/raw/` (one per
-   Jira card). Emits `engine.start`.
-3. Scan: each file is moved to `todo/` and a line is appended to
-   `.cycle/tbd.jsonl`. Emits 7 `issue.ingested` events.
-4. Process loop begins. Pops the first line from `tbd.jsonl` (say
-   `JIRA-123`); emits `tbd.pop`.
-5. Triage classifies `JIRA-123` as a single `feature` cycle. Logs
-   `triage.decision`. Engine scans `log.jsonl`, finds the previous
-   highest cycle ID was `0041`, so this cycle gets `0042`. Writes
-   `TRIAGE.md` into `docs/cycle/0042-feature-safari-login/`, updates
-   the issue file's `cycles: [0042]` frontmatter. The file stays in
-   `todo/` until cycle completion.
-6. Cycle `0042` runs:
-   - Branch `cycle/feature/safari-login` created off `main`.
-   - `docs/cycle/0042-feature-safari-login/` gets its workflow
-     artifacts.
-   - Workflow steps run:
-     `spec → research → plan → build → review → fix → verify → reflection → documentation → commit → pr`.
-     Each emits `step.start` / `step.end`.
-   - PR opened; `gh pr merge --squash --auto` enabled.
-   - Engine polls until the PR lands on `main`. Emits `pr.merged` and
-     `cycle.end`.
-   - Since `0042` was the only cycle from `JIRA-123`, the engine moves
-     the issue file from `todo/` to `done/`, appends `completed_at:`,
-     and emits `issue.completed`.
-7. Engine loops back. Pops `JIRA-124`. Triage decomposes into 3
-   cycles (`0043`, `0044`, `0045`). Each runs in turn, branched off the
-   updated `main`. After `0045` merges, `JIRA-124.md` gets its
-   `completed_at:`.
-8. And so on, until `tbd.jsonl` is empty. Final scan of `raw/` —
-   nothing new. Emits `engine.stop` with status `ok`. Exit 0.
+**Crash recovery:** if the engine crashes mid-cycle, `tbd.jsonl` still holds
+the pending rows and `log.jsonl` records what happened. Re-invoking
+`./.cycle/bin/cycle.js run` with no arguments resumes the in-flight cycle
+from the log tail, then continues the queue.
 
-**`--merge-mode stack`:** each cycle's PR is opened with the prior
-cycle's branch as its base, no polling, the engine moves straight to
-the next cycle. Humans merge the stack bottom-up later.
-
-**Crash recovery:** if the engine crashes after cycle `0044` merges,
-`tbd.jsonl` still has `JIRA-125`–`JIRA-127`, `log.jsonl` records
-everything that did happen, and the `todo/`/`done/` folders reflect
-true state. Re-invoking `./.cycle/bin/cycle.js run` with no
-arguments picks up automatically — starting with any cycle left
-mid-flight (detected from the log), then continuing through the queue.
-
-**External agent drop:** while the engine is processing cycle `0042`,
-another agent drops `JIRA-200.md` into `raw/`. The engine sees it on
-the next scan (after the current queue empties) and keeps running
+**External agent drop:** while the engine processes one cycle, another agent
+can drop a file into `raw/`; the engine picks it up on the next triage pass
 instead of stopping.
 
 ## 9. Extensibility
 
-- **New workflows.** Drop a YAML file in `.cycle/workflows/` referencing
-  prompts in `.cycle/prompts/`. The CLI auto-discovers it; it becomes a
-  valid `--workflow` argument and can be selected by triage if the
-  triage prompt is updated to know about it.
+- **New workflows.** Add an entry under `workflows:` in
+  `.cycle/workflows.yml` referencing prompts in `.cycle/prompts/`. It
+  becomes a valid `--workflow` argument and can be selected by triage once
+  the triage prompt knows about it.
 - **New prompts.** Edit markdown files in `.cycle/prompts/` — no rebuild.
-- **Custom commit / PR / merge logic.** Override scripts in
-  `.cycle/scripts/` (or point workflow YAML to different scripts).
-- **New agent types.** Out of scope for MVP; requires a rebuild of
-  `.cycle/bin/cycle.js`.
+- **Custom commit / verification logic.** Override scripts in
+  `.cycle/scripts/`.
+- **New agent types.** Require a rebuild of `.cycle/bin/cycle.js`.
 
 ## 10. Failure Modes
 
 Two layers of retry:
 
-- **Step-level** (`on_fail: retry:N` in workflow YAML) for transient
-  step issues.
-- **Cycle-level** (`max_cycle_attempts: 3` per workflow) — on a
-  code-level gate failure, the attempt is abandoned and a fresh
-  attempt re-runs on the same `cycle/<workflow>/<slug>` branch with
-  `build`/`fix` hard-reset to pre-step HEAD; pre-build artifacts
-  (`SPEC.md`/`RESEARCH.md`/`PLAN.md`) under the cycle's artifact
-  directory are reused via the skip gate below.
-- **Pre-build skip on retry**: on the second and later attempts of the
-  same `(issue_id, cycle_id)` pair, the engine skips `{spec, research,
-  plan}` if the corresponding `<artifactDir>/<STEP>.md` is present with
-  `> 0` bytes. The `(issue_id, cycle_id)` pair stays stable across
-  attempts because drainFailedRetry preserves the row's cycle_id when
-  it bumps `attempt` and resets `status` to `pending`
-  (`src/engine/queue.ts`); the next pop in `src/cli.ts` reuses that id
-  rather than allocating a fresh one, so `runCycle`'s `artifactDir`
-  matches the prior attempt's directory. Event shape: `{event: "step.skipped",
-  ts, cycle_id, step, reason: "artifact_present", artifact_path}`.
-  Opt-out via `cycle run --no-skip-completed` or
-  `engine.skip_completed_on_retry: false` in `workflows.yml`; CLI wins.
-  The resolved boolean is logged on `engine.start` as
-  `skip_completed_on_retry`. `parseLogTail` treats `step.skipped` as
-  terminal-equivalent to `step.end status:"ok"` for resume-index math,
-  so a re-resume after a skipped step advances past it. The gate is
-  bounded to pre-build steps because `build`, `fix`, `verify`, and
-  `commit` already mutate the working tree and must re-run against
-  `head_sha` resets; `SKIP_ELIGIBLE_STEPS` is hard-coded disjoint from
-  `RESET_ELIGIBLE_STEPS` in `src/engine/run-cycle.ts`.
+- **Step-level** (`on_fail: retry:N` in workflow YAML) for transient step
+  issues.
+- **Cycle-level** (`max_cycle_attempts`, default 3) — on a code-level gate
+  failure, the attempt is abandoned and a fresh attempt re-runs on the same
+  branch with `build`/`fix` hard-reset to pre-step HEAD; pre-build artifacts
+  (`SPEC.md`/`RESEARCH.md`/`PLAN.md`) are reused via the skip gate below.
+- **Pre-build skip on retry:** on attempts 2+, the engine skips
+  `{spec, research, plan}` if the corresponding `<artifactDir>/<STEP>.md`
+  is present with `> 0` bytes (`step.skipped {reason: "artifact_present"}`).
+  Opt out with `--no-skip-completed` or
+  `engine.skip_completed_on_retry: false`.
 
 | Failure | Category | Behavior |
 |---|---|---|
-| `verify` fails after step-level retries | Code-level gate | **Attempt failure.** Abandon attempt; restart fresh. |
-| `review` produces unresolvable must-fixes after `fix` | Code-level gate | **Attempt failure.** |
-| `build` fails after step-level retries | Code-level gate | **Attempt failure.** |
-| Merge conflict on rebase / auto-merge | Code-level gate | **Attempt failure.** |
-| 3 cycle attempts exhausted | — | Push to `cycle/abandoned/<cycle-id>-<slug>`; open `Failed Attempt: …` PR; move issue to `blocked/`; skip remaining planned cycles of the issue; `cycle.abandoned` + `issue.blocked` events. `auto` mode continues to next issue; `stack` mode halts. |
-| Rate limit (short) | External transient | In-process exponential backoff (30s → 5m cap). No attempt consumed. |
-| Rate limit (long) | External transient | Emit `engine.paused`; exit code 42. Caller re-invokes later. Opt-in `--rate-limit-behavior sleep` stays in-process. |
-| Push network error | Infrastructure | Exponential backoff, retry up to 3 times. No attempt consumed. |
-| Push auth / permission error | Environment | Fail fast — engine exits non-zero. |
-| `git` operation error (dirty tree, detached HEAD) | Environment | Fail fast. |
-| `claude` CLI auth / setup error | Environment | Fail fast. |
-| `claude` CLI transient network error | External transient | Backoff + retry. |
-| Engine uncaught exception | Internal | Crash. Resume on next invocation via `tbd.jsonl` + `log.jsonl`. |
-| Triage produces invalid classification | — | Increment `triage_attempts`; re-append to `tbd.jsonl`. After 3 attempts, move to `failed/` with `FAILURE.md`; emit `triage.abandoned`. |
+| `verify` fails after step-level retries | Code-level gate | Attempt failure — abandon and restart. |
+| `review` produces unresolvable must-fixes after `fix` | Code-level gate | Attempt failure. |
+| `build` fails after step-level retries | Code-level gate | Attempt failure. |
+| Attempt budget exhausted | — | Stamp + move issue to `blocked/`; skip its remaining planned cycles; `propagateBlocked` moves dependents. Queue continues with the next issue. |
+| Rate limit (short) | External transient | In-process exponential backoff. No attempt consumed. |
+| Rate limit (long) | External transient | Emit `engine.paused`; exit `42`. Caller re-invokes later. |
+| Push network error | Infrastructure | Backoff, retry up to 3 times. No attempt consumed. |
+| Push auth / git error | Environment | Fail fast — engine exits non-zero. |
+| Engine uncaught exception | Internal | Crash; resume on next invocation via `tbd.jsonl` + `log.jsonl`. |
+| All raws fail triage in one pass | — | `engine.paused {reason: "all_triage_failed"}`; raws stay in `raw/` for `cycle triage --dry-run`. |
+
+The queue **halts** after `engine.max_consecutive_failures` consecutive
+terminal failures (default 2): the engine emits `engine.halted` then
+`engine.stop {status: "halted"}` and exits non-zero.
 
 ## 11. Integration Surfaces
 
-### Claude Code / OpenClaw (parent agent)
+### Parent agent (Claude Code, …)
 
-Spawns cycle, parses JSONL events, relays progress back to its human.
-For short single-task runs the parent invokes cycle in the foreground
-and stays pinned until exit. For multi-issue queues the parent invokes
-with `--detach`, gets the daemon-start ACK back immediately, and then
-either reads `.cycle/log.jsonl` directly or shells out to
-`cycle attach` to follow events.
+Spawns cycle in the foreground, parses the JSONL events, and relays
+progress back to its human. A skill at `.claude/skills/cycle.md` is
+installed by default by `cycle init` (opt out via `--no-skill`). The skill
+is **non-prescriptive** — it enumerates cycle's CLI surface (subcommands,
+flags, exit codes, JSONL event names) and lets Claude route natural language
+to the right command, rather than hard-coding an "if user says X then run Y"
+dispatch.
 
-### Claude Code skill
+### GitHub Actions / ephemeral containers
 
-A skill at `.claude/skills/cycle.md` is installed by default by
-`cycle init` (opt out via `--no-skill`). It is **non-prescriptive** —
-the skill enumerates cycle's CLI surface (subcommands, flags, exit
-codes, JSONL event names, common invocation patterns) and lets Claude
-route natural language to the right command shape per request. There
-is no hard-coded "if user says X then run Y" dispatch.
-
-Invocation flavors:
-
-- **Slash command** — `/cycle "fix the safari login bug"`,
-  `/cycle --issue JIRA-123`, `/cycle status`, `/cycle stop`, etc.
-- **Description-triggered** — the user says "use cycle to work through
-  these tickets" and Claude Code recognizes the intent.
-
-The skill teaches Claude to split routing between two binaries:
-
-- Bootstrap-class actions (`init`, `init --upgrade`, `init --force`)
-  → `npx @cycleai/cli …`.
-- Runtime actions (`run`, `status`, `attach`, `stop`) →
-  `./.cycle/bin/cycle.js …`.
-
-#### Narration model
-
-Hybrid push / pull, designed so long-running queues don't drown the
-chat:
-
-- **Push proactively** on milestones and anything needing human
-  attention: `engine.start`, `engine.stop`, `engine.paused`,
-  `cycle.start`, `cycle.end`, `cycle.attempt.failed`,
-  `cycle.abandoned`, `triage.abandoned`, `issue.completed`,
-  `issue.blocked`, `rate_limit.hit`, `rate_limit.resumed`, fatal
-  exits.
-- **Pull on demand** for routine progress (`step.start`, `step.end`,
-  individual `commit` / `pr.opened`). When the user asks "what's
-  going on?", Claude summarizes via `cycle status` plus a tail of
-  `.cycle/log.jsonl`.
-
-#### Detach defaults
-
-For multi-issue invocations or any `--issues-file` / `--issues-stdin`
-input, the skill invokes cycle with `--detach`. Short single-task
-runs stay in the foreground so output flows inline.
-
-#### Reattach on a new session
-
-When a new Claude Code session opens in a repo with a live daemon
-(`.cycle/cycle.pid` exists, process alive), the skill prompts Claude
-to run `cycle status` on the *first* cycle-related prompt and lead
-with a snapshot (current cycle ID, queue depth, last event) before
-acting on the user's request. No always-on SessionStart hook — the
-check is gated by user intent, not session lifecycle.
-
-What the skill explicitly **does not** do (deferred / caller's
-responsibility):
-
-- Rescheduling a follow-up invocation after exit-code-42.
-- Historical queries / analytics across `log.jsonl` runs.
-- Pretty-printing or visualization beyond progress relay.
-- Validating credentials — see §2 and BRIEF.md §Auth and credentials.
-
-This keeps the skill resilient against CLI drift — it only needs
-updating when the invocation surface changes. Richer wrapping belongs
-in the future TUI / HTML viewer, not the skill.
-
-### GitHub Actions
-
-A workflow file (e.g., `.github/workflows/cycle-on-issue.yml`) triggers
-on an issue label or comment, spins up a container (usually
-`ubuntu-latest`) with `node` + `claude` + repo checkout, and invokes
-`./.cycle/bin/cycle.js run --issue ${{ github.event.issue.number }}`
-(foreground — CI wants the exit code). Node is preinstalled on
-`ubuntu-latest`; use `actions/setup-node` only to pin a specific
-version. Tracker / `claude` / `gh` credentials are supplied via
-GitHub Actions secrets and exported into the job env — cycle itself
+The same blocking invocation works under CI. A workflow file triggers on an
+issue label or comment, spins up a container with `node` + `claude` + `gh` +
+repo checkout, and runs `./.cycle/bin/cycle.js run "…"` in the foreground —
+CI wants the exit code. Credentials are supplied via the environment; cycle
 does not preflight or validate them.
 
-### Ephemeral bug-fix containers
+## 12. Not Yet Built
 
-Same pattern as Actions, via any orchestrator (Daytona, devcontainers,
-custom Docker). Self-contained `.cycle/bin/` means the container only
-needs `node` + `claude` + `gh` preinstalled.
+The engine commits and pushes today; the broader factory model is still
+landing. The following are described in the project's design history but are
+**not implemented** in the current engine, and are intentionally absent from
+the narrative above:
 
----
-
-## 12. Open Architectural Questions
-
-All resolved. See [`BRIEF.md`](../BRIEF.md) §Resolved Decisions and
-§Phase Plan.
-
-Resolved since the last revision:
-
-1. ✅ Branching & PR strategy — default `auto` (branch off main,
-   auto-merge), alternate `stack` (stacked branches, human review). See §7.
-2. ✅ State log — global `.cycle/log.jsonl` (append-only) plus
-   `.cycle/tbd.jsonl` (pending untriaged issues). Cycle ID is the only
-   persistent identity; no run ID. See §6.
-3. ✅ Resume semantics — re-invoking `cycle run` with no arguments
-   continues consuming `tbd.jsonl`. No explicit `--resume` flag needed.
-4. ✅ Queue failure handling — 3 attempts per cycle (branch reuse +
-   pre-step `head_sha` resets on `build`/`fix` + pre-build artifact
-   reuse on retry). On exhaustion: preservation
-   branch + `Failed Attempt: …` PR; issue moves to `blocked/`;
-   remaining planned cycles skip (no IDs consumed). `auto` mode
-   continues to next issue; `stack` mode halts. Rate limits orthogonal
-   (backoff for short, `engine.paused` + exit 42 for long). See §10.
-5. ✅ Skill packaging — minimal `.claude/skills/cycle.md` shipped by
-   default (`cycle init --no-skill` opts out). Supports `/cycle …`
-   slash command and description-triggered invocation. Exit-42
-   rescheduling, historical log queries, and visualization deferred
-   to callers / future viewer tooling. See §11.
-6. ✅ `init` scope — touches `.cycle/`, `.claude/skills/cycle.md`,
-   and `docs/cycle/issues/`. `log.jsonl` and `tbd.jsonl` created on
-   first run and committed by default. `cycle init --force`
-   overwrites existing files. See §2.
-7. ✅ Definition of Done — MVP ships after Phase 4 (full failure
-   resilience; safe to leave unattended). Phase 5 is post-MVP
-   polish. Validated on both the cycle repo (brownfield dog-food)
-   and a greenfield test repo. See [`BRIEF.md`](../BRIEF.md)
-   §Phase Plan.
-8. ✅ Bootstrap & upgrade — npm package `@cycleai/cli` (backup scope
-   `@cycle-afk`). `npx @cycleai/cli init` is the one-time bootstrap;
-   the prebuilt engine bundle ships inside the package and `init`
-   copies it to `.cycle/bin/cycle.js`. Bundle starts with
-   `#!/usr/bin/env node`, committed `chmod +x`, so canonical invoke
-   is `./.cycle/bin/cycle.js`. `init --upgrade` refreshes engine +
-   skill via 3-way merge; `init --force` overwrites everything.
-   See §2.
-9. ✅ Daemon mode — engine grows an opt-in `--detach` flag (blocking
-   remains default for CI / container parity). Detached run writes
-   PID to `.cycle/cycle.pid`; second `run --detach` in the same repo
-   refuses. Control surface: `cycle attach` (tail), `cycle status`
-   (JSON snapshot), `cycle stop` (graceful), `cycle stop --force`.
-   All JSON-out by default; `--human` for terminal formatting.
-   See §3 and §6.
-10. ✅ Skill behavior — non-prescriptive: enumerates CLI surface,
-    Claude routes natural language. Hybrid push/pull narration
-    (push milestones + failures, pull routine). Reattach via skill
-    prose — Claude runs `cycle status` on first cycle-related prompt
-    in any session with a live daemon. `--detach` is the skill's
-    default for multi-issue runs. See §11.
-11. ✅ Issue fetch — `--issue <id>` delegates to
-    `.cycle/scripts/fetch-issue.sh` (engine ships defaults that
-    dispatch on id prefix; users override per repo). No tracker SDKs
-    in the engine bundle. See §2 (scripts) and BRIEF.md §Issue
-    Ingestion.
-12. ✅ Auth — deferred entirely to the caller. No env-var contract
-    documented by the engine, no preflight credential check, no
-    `cycle doctor` subcommand. CI secrets, dev-machine config, and
-    container env are responsible for ensuring `claude`, `gh`, and
-    fetch / commit / pr scripts are pre-authenticated. See
-    BRIEF.md §Auth and credentials.
+- **Pull-request creation and auto-merge.** `worktree-pr` mode creates a
+  per-cycle branch and pushes it, but does not yet open a PR or merge it.
+- **Stacked-branch / human-review mode** (`--merge-mode stack`).
+- **A detached daemon** (`run --detach`) with `attach` / `stop` control and
+  a `.cycle/cycle.pid` lifecycle. The current model is a single foreground
+  engine guarded by `.cycle/engine.lock`.
+- **Multi-issue batch intake flags** (`--issue <id>`, `--issues-file`,
+  `--issues-stdin`) and tracker fetch scripts.
+- **The HTML / TUI progress viewer.**

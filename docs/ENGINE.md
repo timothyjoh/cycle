@@ -4,17 +4,17 @@ Detailed notes on each engine subsystem. For high-level architecture see [`docs/
 
 ## Source layout
 
-- Engine modules: `src/engine/` — run-cycle, scan, log, log-tail, branch, exec, exec-bash, exec-claudecode, exec-codex, exec-gemini, child-env, workflow, cycle-id, queue, frontmatter, blocked, reflection, sanitize-artifact, commit-cycle, issue-lifecycle
-- CLI: `src/cli.ts`, `src/cli/{parse-args,init}.ts`
+- Engine modules: `src/engine/` — run-cycle, log, log-tail, branch, exec, exec-bash, exec-claudecode, exec-codex, exec-gemini, exec-auggie, exec-opencode, exec-pi, exec-spawn, child-env, dot-env, engine-lock, path-utils, log-fmt, workflow, cycle-id, queue, frontmatter, triage, blocked, reflection, sanitize-artifact, commit-cycle, issue-lifecycle
+- CLI: `src/cli.ts`, `src/cli/{parse-args,init,status,triage,cleanup,run-one}.ts`
 - Defaults (shipped into consumer repos): `src/defaults/` — single `workflows.yml`, `prompts/`, `scripts/`
 
-Agent dispatch: the per-step `agent:` field in `workflows.yml` resolves through `resolveAgent(name)` in `exec.ts`. Unknown names throw `UnknownAgentError` → `step.end status:failed`. Registered agents: `claudecode`, `codex`, `gemini`. The `codex` agent accepts optional `model` and `thinking` step fields; when present, they are prepended to the spawn argv as `--model <value>` and `--thinking <value>` (model first). Neither field affects `claudecode` or `gemini` dispatch. The `ExecModule.runStep` interface also accepts `appendSystemPrompt?: string`; `claudecodeExec` prepends `--append-system-prompt <value>` to argv (before `-p`) when this field is truthy. All other exec modules currently silently discard the field — artifact contamination suppression via `appendSystemPrompt` is a no-op for non-claudecode agents. When `appendSystemPrompt` is non-empty and the resolved agent is not `claudecode`, `run-cycle.ts` emits a `step.warning` event with `reason: "append_system_prompt_ignored"` and the agent name before dispatching `mod.runStep`.
+Agent dispatch: the per-step `agent:` field in `workflows.yml` resolves through `resolveAgent(name)` in `exec.ts`. Unknown names throw `UnknownAgentError` → `step.end status:failed`. Registered agents: `claudecode`, `codex`, `gemini`, `auggie`, `opencode`, `pi` (plus `bash`, dispatched directly). The `codex`, `auggie`, `opencode`, and `pi` agents accept optional `model` and `thinking` step fields; when present, they are prepended to the spawn argv as `--model <value>` and `--thinking <value>` (model first). The `ExecModule.runStep` interface also accepts `appendSystemPrompt?: string`; `claudecodeExec` prepends `--append-system-prompt <value>` to argv (before `-p`) when this field is truthy. All other exec modules currently discard the field, so `appendSystemPrompt`-based contamination suppression is a no-op for non-claudecode agents. When `appendSystemPrompt` is non-empty and the resolved agent is not `claudecode`, `run-cycle.ts` emits `step.warning { reason: "append_system_prompt_ignored" }` with the agent name before dispatching `mod.runStep`.
 
 ## Triage subroutine
 
 `src/engine/triage.ts` is the only writer that moves files out of `raw/`. It spawns the configured agent, parses+validates JSON output (`children[]`, `ordering[]`, `decomposed_parents[]`), and applies queue mutations atomically (writes `todo/<id>.md` via tmp-rename, appends `tbd.jsonl` rows, moves `raw/<id>.md → done/<id>_raw.md`). One agent call per raw; cross-raw batching is deferred. Per-raw retry up to 3 attempts with prior validator error fed back.
 
-**Fence handling:** The triage prompt instructs the agent not to wrap output in markdown code fences (cycle 0205). As a deterministic code-side fallback, `stripFences(rawStdout)` is applied unconditionally before `JSON.parse` in `validateOutput` (cycle 0206) — strips leading ` ```json `, bare ` ``` `, or any language-tagged opener (` ```javascript `, ` ```text `, ` ```JSON `, ` ```jsonc `, etc.) and trailing ` ``` ` closer, passes through unfenced input unchanged. The opening pattern `/^```(?:\w+)?\r?\n/` matches any optional `\w+` language tag, covering all LLM-emitted variants (cycle 0207).
+**Fence handling:** The triage prompt instructs the agent not to wrap output in markdown code fences. As a deterministic code-side fallback, `stripFences(rawStdout)` is applied unconditionally before `JSON.parse` in `validateOutput` — strips leading ` ```json `, bare ` ``` `, or any language-tagged opener (` ```javascript `, ` ```text `, ` ```JSON `, ` ```jsonc `, etc.) and trailing ` ``` ` closer, passes through unfenced input unchanged. The opening pattern `/^```(?:\w+)?\r?\n/` matches any optional `\w+` language tag, covering all LLM-emitted variants.
 
 **Discuss routing:** Before the per-raw agent call, `runTriage` checks each raw's `priority` frontmatter field. If `priority === "discuss"`, `parkForDiscussion` moves the file to `docs/cycle/issues/discuss/<id>.md` (mkdir recursive, rename), emits `issue.parked_for_discussion { id, priority, path }`, and `continue`s — no agent call, no `applyRaw`, no queue row. Raws with any other priority proceed through `processRawWithRetry` unchanged. The `issue.parked_for_discussion` event is emitted only when the rename succeeds; a failed rename emits `issue.park_failed { id, error }` (file stays in `raw/` and will be retried on the next pass). The `all_triage_failed` halt guard counts only actionable (non-discuss) raws, so a batch of discuss-only raws does not trigger `engine.paused`.
 
@@ -81,7 +81,7 @@ Opt-out: `cycle run --no-skip-completed` or `engine.skip_completed_on_retry: fal
 
 `src/engine/reflection.ts:ingestReflection(repoRoot, cycleId, slug, stdout, log, artifactDir, touchedJsonPath)` runs after a successful `reflection` terminal step. Parses stdout as `{sharp_edges:[{title, body, bucket, priority?}]}` and routes each entry into one of three buckets. Parse/schema/exec failures emit `reflection.skipped` but do NOT flip `cycle.end` to failed. Idempotent on resume (unlinks prior `refl-<cycleId>-*.md` files from `raw/`). Slug collisions get numeric suffix (`-2`, `-3`, …).
 
-**Three-bucket routing** (cycle 0230):
+**Three-bucket routing**:
 
 | Bucket | Routing action | Notes |
 |--------|---------------|-------|
@@ -116,7 +116,7 @@ On `JSON.parse` failure: first tries trailing-prose repair (scan to last balance
 
 ## Feature workflow step sequence
 
-The `feature` workflow step sequence (as of cycle 0230): `spec → research → plan → build → review → fix (skip_unless: MUST-FIX.md) → verify (bash) → reflection → final_fix (skip_unless: FINAL_FIXES.md) → final_verify (bash) → documentation`. The two tail steps (`final_fix`, `final_verify`) are inserted between `reflection` and `documentation`. `final_fix` applies in-cycle remediations from `FINAL_FIXES.md` (written by the reflection step when `fix_now` items exist); `final_verify` re-runs `scripts/verify.sh` to confirm the tree is clean. Both steps are fatal on failure. `final_fix` is skipped when `FINAL_FIXES.md` is absent; `final_verify` runs regardless.
+The `feature` workflow step sequence: `spec → research → plan → build → review → fix (skip_unless: MUST-FIX.md) → verify (bash) → reflection → final_fix (skip_unless: FINAL_FIXES.md) → final_verify (bash) → documentation`. The two tail steps (`final_fix`, `final_verify`) are inserted between `reflection` and `documentation`. `final_fix` applies in-cycle remediations from `FINAL_FIXES.md` (written by the reflection step when `fix_now` items exist); `final_verify` re-runs `scripts/verify.sh` to confirm the tree is clean. Both steps are fatal on failure. `final_fix` is skipped when `FINAL_FIXES.md` is absent; `final_verify` runs regardless.
 
 **Known limitation:** `final_verify` has no `skip_unless` condition, so `scripts/verify.sh` runs on every feature cycle even when `final_fix` was skipped. When no `fix_now` items exist, the cycle pays two full `verify.sh` runs with no remediation benefit from the second one. Fix: gate `final_verify` with `skip_unless: FINAL_FIXES.md` to match `final_fix`.
 
@@ -154,7 +154,7 @@ After each successful `build`, `fix`, `final_fix`, `quick_fix`, `test_fix`, or `
 
 Schema: `{ "files": string[] }` — sorted, deduplicated, repo-root-relative paths. Accumulation: union across all `RESET_ELIGIBLE_STEPS` steps within a cycle; never overwritten within a cycle. Files dirty before a step begins are excluded (captured in the pre-snapshot). Newly-created untracked files (`??`) under `src/` and `scripts/` are included; untracked paths outside those directories and denylisted paths (`.claude/`, `dist/`, `node_modules/`, `.cycle/cycle.pid`, `*.lock`) are excluded. The write is best-effort — any error is silently swallowed and never fails the cycle.
 
-`final_fix` is included in `RESET_ELIGIBLE_STEPS` (alongside `build`, `fix`, `quick_fix`, `test_fix`, and `test_build`); its git delta is appended to `touched.json` after the step completes, using the same `accumulateTouchedFiles` path. `final_fix` is skipped when `FINAL_FIXES.md` is absent from the artifact directory (`skip_unless: FINAL_FIXES.md`); the reflection step writes this file when `fix_now` items are present (cycle 0230). `final_verify` runs regardless of whether `final_fix` was skipped.
+`final_fix` is included in `RESET_ELIGIBLE_STEPS` (alongside `build`, `fix`, `quick_fix`, `test_fix`, and `test_build`); its git delta is appended to `touched.json` after the step completes, using the same `accumulateTouchedFiles` path. `final_fix` is skipped when `FINAL_FIXES.md` is absent from the artifact directory (`skip_unless: FINAL_FIXES.md`); the reflection step writes this file when `fix_now` items are present. `final_verify` runs regardless of whether `final_fix` was skipped.
 
 At commit time, `commitCycle` reads `touched.json` from `opts.artifactDir` (falling back to an empty set if `artifactDir` is absent, the file is absent, or the file is unparseable) and compares each staged `src/` and `scripts/` file against the set. Any staged file absent from the footprint triggers a `commit.scope_warning` log event:
 
@@ -174,7 +174,7 @@ Failed `step.end` events carry a head-capped `stderr` field (2000-char, via `MAX
 
 ## Review step Pass 3
 
-`src/defaults/prompts/review.md` carries `## Pass 3: Doc-vs-Code Claim Verification` — enumerates command/flag/path/event/frontmatter/behavioral claims in `README.md`, `CLAUDE.md`, `AGENTS.md`, `docs/**/*.md` (excluding `docs/cycle/*`), pairs each with a `file:line` reference, treats unbacked claims as NEEDS-FIX. Dogfood mirror `.cycle/prompts/review.md` is byte-identical (pinned by `tests/defaults/review-prompt-doc-claim-pass.test.ts`).
+`src/defaults/prompts/review.md` carries `## Pass 3: Doc-vs-Code Claim Verification` — enumerates command/flag/path/event/frontmatter/behavioral claims in `README.md`, `CLAUDE.md`, `AGENTS.md`, `docs/**/*.md` (excluding `docs/cycle/*`), pairs each with a `file:line` reference, treats unbacked claims as NEEDS-FIX. The installed `.cycle/prompts/review.md` copy is byte-identical (pinned by `tests/defaults/review-prompt-doc-claim-pass.test.ts`).
 
 ## Review step Pass 4
 
@@ -182,35 +182,21 @@ Failed `step.end` events carry a head-capped `stderr` field (2000-char, via `MAX
 
 ## SPEC→PLAN traceability
 
-`src/defaults/prompts/plan.md` requires PLAN.md to carry `## SPEC Acceptance Traceability` re-quoting every SPEC `## Acceptance Criteria` bullet verbatim paired with a covering plan-task id or `WAIVED — <rationale>`. Review Pass 1 makes a missing or incomplete section a NEEDS-FIX trigger. Dogfood mirrors `.cycle/prompts/{plan,review}.md` are byte-identical (pinned by `tests/defaults/plan-prompt-spec-traceability.test.ts`).
+`src/defaults/prompts/plan.md` requires PLAN.md to carry `## SPEC Acceptance Traceability` re-quoting every SPEC `## Acceptance Criteria` bullet verbatim, paired with a covering plan-task id or `WAIVED — <rationale>`. `src/defaults/prompts/spec.md` mandates a `## Acceptance Criteria` section with at least one checkbox-format testable bullet in every generated SPEC.md. Review Pass 1 verifies each SPEC AC bullet one-for-one and treats a missing or incomplete section as a NEEDS-FIX trigger.
 
-Cycle 0211 added a `## Required Sections` block to `src/defaults/prompts/spec.md` mandating a `## Acceptance Criteria` section with at least one checkbox-format testable bullet in every generated SPEC.md. Review Pass 1 now verifies each SPEC AC bullet one-for-one and treats a missing or empty section as a NEEDS-FIX trigger (not a PLAN gap). Dogfood mirror `.cycle/prompts/{spec,review}.md` are byte-identical after `npm run sync-defaults` (pinned by `tests/defaults/spec-prompt-ac.test.ts` and `tests/defaults/review-prompt-spec-ac.test.ts`).
+All `src/defaults/prompts/` are mirrored into the installed `.cycle/prompts/` copy by `npm run sync-defaults`; the two are kept byte-identical and that equality is pinned by the `tests/defaults/*.test.ts` suite.
 
-Cycle 0212 added a `## File Artifact Mode` section to `src/defaults/prompts/spec.md` explicitly prohibiting conversational framing in SPEC.md output: insight blocks, star-marker commentary, and confirmation sentences ("Spec written to…", "I have written the spec") are all banned. The section explains that downstream agents read SPEC.md as their source of truth and contaminated output produces incorrect plans. Dogfood mirror `.cycle/prompts/spec.md` is byte-identical after `npm run sync-defaults` (pinned by `tests/defaults/spec-prompt-ac.test.ts`).
+### File Artifact Mode contamination suppression
 
-Cycle 0213 added an equivalent `## File Artifact Mode` section to `src/defaults/prompts/plan.md` prohibiting the same class of contamination in PLAN.md output: insight blocks, star-marker commentary, and confirmation sentences are banned. Dogfood mirror `.cycle/prompts/plan.md` is byte-identical after `npm run sync-defaults` (pinned by `tests/defaults/plan-prompt-spec-traceability.test.ts`).
+All seven artifact-producing prompt templates (`spec`, `plan`, `build`, `review`, `research`, `fix`, `documentation`) carry a `## File Artifact Mode` section prohibiting conversational framing in their output — insight blocks, star-marker commentary, and confirmation sentences ("Spec written to…", "I have written the spec") — because downstream agents read these files as their source of truth and contaminated output produces incorrect plans. Each template also carries an inline `FILE ARTIFACT MODE:` directive as its very first line, which suppresses contamination at the user-turn level regardless of system-prompt ordering.
 
-Cycle 0214 added an equivalent `## File Artifact Mode` section to `src/defaults/prompts/review.md` prohibiting the same class of contamination in REVIEW.md output: insight blocks, star-marker commentary, and confirmation sentences are banned. Dogfood mirror `.cycle/prompts/review.md` is byte-identical after `npm run sync-defaults` (pinned by `tests/defaults/review-prompt-spec-ac.test.ts`).
+Suppression is reinforced at the invocation layer: `run-cycle.ts` defines `ARTIFACT_STEPS` (the eight artifact step names) and `ARTIFACT_SUPPRESS_PROMPT`; when an artifact step dispatches, `appendSystemPrompt: ARTIFACT_SUPPRESS_PROMPT` is passed, and `claudecodeExec` prepends `--append-system-prompt <text>` to argv before `-p`.
 
-Cycle 0216 added equivalent `## File Artifact Mode` sections to `src/defaults/prompts/build.md`, `research.md`, `fix.md`, and `documentation.md` — completing guardrail coverage across all artifact-producing prompts. Dogfood mirrors `.cycle/prompts/{build,research,fix,documentation}.md` are byte-identical after `npm run sync-defaults` (pinned by `tests/defaults/file-artifact-mode-guardrail.test.ts`, 20 tests: 4 phrase-presence + 1 dogfood per prompt).
+**Known limitation:** AC section presence is enforced only at the prompt level — no engine post-condition reads the generated SPEC.md and fails the spec step if `## Acceptance Criteria` is absent. A spec agent that ignores the instruction produces an AC-free SPEC.md and the engine accepts it.
 
-Cycle 0218 added invocation-layer contamination suppression: `ARTIFACT_STEPS` (a `Set` of the eight artifact step names: `spec`, `plan`, `build`, `fix`, `final_fix`, `research`, `review`, `documentation`) and `ARTIFACT_SUPPRESS_PROMPT` are defined in `run-cycle.ts`. When `mod.runStep()` dispatches an artifact step, `appendSystemPrompt: ARTIFACT_SUPPRESS_PROMPT` is passed; `claudecodeExec` prepends `--append-system-prompt <text>` to argv before `-p`, injecting a File Artifact Mode system prompt at the invocation layer. Cycle 0218 also added WRONG/CORRECT negative examples to the `## File Artifact Mode` guardrail in `src/defaults/prompts/{plan,review,build,research,fix,documentation}.md` (synced to `.cycle/prompts/`), extending the concrete negative pattern beyond `spec.md` (which received its example in cycle 0217) to cover all six remaining artifact prompts.
+**Known limitation:** Review Pass 1 enforces SPEC.md `## Acceptance Criteria` presence as a hard NEEDS-FIX, but does not check PLAN.md artifact cleanliness — a plan agent that ignores the `## File Artifact Mode` guardrail can emit commentary into PLAN.md and the review step passes it silently.
 
-Cycle 0221 added an inline `FILE ARTIFACT MODE:` directive as the very first line of all seven artifact prompt templates (`spec.md`, `plan.md`, `build.md`, `review.md`, `research.md`, `fix.md`, `documentation.md`) in `src/defaults/prompts/`, prepended before each existing title heading with one blank line separator. This supplements `--append-system-prompt` injection with a user-turn-level suppression mechanism that operates regardless of system-prompt ordering. Seven directive-presence assertions added across `tests/defaults/{spec-prompt-ac,plan-prompt-spec-traceability,file-artifact-mode-guardrail}.test.ts` (total test count: 659). Dogfood mirrors propagated to `.cycle/prompts/` via `npm run sync-defaults`.
-
-**Known limitation:** AC section presence is enforced only at the prompt level — there is no engine post-condition that reads the generated SPEC.md and fails the spec step if `## Acceptance Criteria` is absent. A spec agent that ignores the instruction produces an AC-free SPEC.md and the engine accepts it. Adding a spec post-condition check analogous to the size gate is deferred work.
-
-**Known limitation:** The review step Pass 1 checklist enforces SPEC.md `## Acceptance Criteria` presence as a hard NEEDS-FIX, but does not check PLAN.md artifact cleanliness. A plan agent that ignores the `## File Artifact Mode` guardrail can emit insight blocks or star-marker commentary into PLAN.md and the review step passes it silently. Adding a PLAN.md cleanliness check (flag insight blocks, star-marker commentary, confirmation sentences as NEEDS-FIX) to review Pass 1 is deferred work.
-
-**Known limitation:** `appendSystemPrompt` forwarding is honoured only by `claudecodeExec` (forwarded as `--append-system-prompt <value>` before `-p`, cycle 0218). The five other registered exec modules (`exec-codex.ts`, `exec-gemini.ts`, `exec-auggie.ts`, `exec-opencode.ts`, `exec-pi.ts`) silently discard the field; `run-cycle.ts` emits `step.warning { reason: "append_system_prompt_ignored" }` when this occurs (cycle 0219). Per-agent CLI findings established in cycle 0222: **codex** — not supported (no system-prompt-append flag, confirmed via `codex exec --help`); **opencode** — not supported (no system-prompt-append flag, confirmed via `opencode run --help`); **gemini** — unknown (CLI not installed in dev environment); **auggie** — unknown, CLI unstable (not installed; `exec-auggie.ts` flag names assumed from codex parity); **pi** — unknown, CLI unstable (not installed; same as auggie). Forwarding will be added to an exec module only when its CLI flag is confirmed; unknown entries will be updated as CLIs stabilise.
-
-**Known limitation:** The argv-assertion tests added in cycle 0218 (`exec-claudecode.test.ts`) verify that `--append-system-prompt` and its value appear somewhere in argv, but do not assert their position relative to `-p`. The claude CLI requires `--append-system-prompt <value>` to precede `-p <prompt>`; a future refactor that reorders argv construction would keep tests green while the flag silently stopped working. Cycle 0223 added an ordering assertion (`argv.indexOf("--append-system-prompt") < argv.indexOf("-p")`) that closes this gap.
-
-**Known limitation:** Neither `--append-system-prompt` injection (cycle 0218) nor inline `FILE ARTIFACT MODE:` directives at line 1 of each prompt template (cycle 0221) reliably suppress artifact contamination when the agent session carries stronger competing instructions injected by the session hook at startup (e.g. `CAVEMAN MODE ACTIVE` and learning-mode framing). Cycle 0221's REVIEW.md was contaminated despite the inline directive being present when the review prompt executed. The suppression instruction competes with existing session context rather than replacing it; a structural fix at the session/hook layer may be required.
-
-**Known limitation:** Cycle 0217 adds engine-level sanitization to strip the `SPEC.md written to \`path\`.` and `Single deliverable:` confirmation lines at the artifact-write seam, and adds a concrete negative example to `spec.md`'s `## File Artifact Mode` guardrail. This reduces contamination severity (downstream agents see clean Markdown instead of the preamble) but does not eliminate the root cause: the model can still produce structurally incomplete artifacts (no `## Acceptance Criteria`, no `## Objective`) that pass the `SPEC_MIN_BYTES` gate. Cycle 0224 replaced the hardcoded cycle-0217 path in `spec.md`'s negative example with the generic placeholder `docs/cycle/NNNN-feature-<title>/SPEC.md`; however `fix.md`, `research.md`, `plan.md`, and `review.md` still embed a hardcoded `docs/cycle/0218-feature-fix-artifact-contamination-at-invocation/` path in their negative/correct examples and will exhibit the same staleness as cycles accumulate.
-
-**Known limitation:** `.cycle/scripts/verify.sh` contains NVM v22 path injection lines absent from `src/defaults/scripts/verify.sh`. This causes `npm run sync-defaults` to exit 2 on every run, masking real sync failures. Resolution paths: back-port the NVM injection to `src/defaults/scripts/verify.sh` (if needed for portability on nvm-only machines), or add a `.cycle/.syncignore` mechanism to skip intentional local overrides.
+**Known limitation:** `appendSystemPrompt` forwarding is honoured only by `claudecodeExec`. The other registered exec modules (`exec-codex.ts`, `exec-gemini.ts`, `exec-auggie.ts`, `exec-opencode.ts`, `exec-pi.ts`) silently discard the field; `run-cycle.ts` emits `step.warning { reason: "append_system_prompt_ignored" }` when a non-claudecode agent is dispatched with a non-empty `appendSystemPrompt`. Forwarding will be added to an exec module once its CLI's system-prompt-append flag is confirmed.
 
 ## Engine-managed commit lifecycle
 
@@ -262,24 +248,8 @@ At engine start, before emitting `engine.start`, the engine compares the mtime o
 
 **No warning** is emitted when `dist/cycle.js` does not exist (ENOENT) or when its mtime ≤ process start. The engine continues regardless.
 
-## PID File Lifecycle (`cycle run --detach`)
+## Single-engine lock
 
-When `--detach` is passed, the CLI parent process:
-1. Reads `.cycle/cycle.pid`; if the stored PID is live (`process.kill(pid, 0)` succeeds or throws `EPERM`), exits 1 with a message referencing `cycle attach` and `cycle stop`.
-2. Reconstructs the `run` argv (minus `--detach`) and spawns `node dist/cycle.js run [flags]` with `detached: true`, `stdio: "ignore"`, and `CYCLE_DAEMON=1` in the environment via `buildChildEnv`.
-3. Writes the child PID to `.cycle/cycle.pid` via `src/engine/pid.ts:writePid`.
-4. Calls `child.unref()` and exits 0 immediately — the terminal is released.
+Only one engine runs per repo at a time. At startup `cli.ts` calls `acquireLock(.cycle/engine.lock)` (`src/engine/engine-lock.ts`), which writes the current PID to the lockfile; a second concurrent invocation whose stored PID is still live exits non-zero rather than racing the first. A stale lock (dead PID) is reclaimed. The lock is released via a `process.on("exit")` handler.
 
-A stale PID file (process dead, `ESRCH`) does not block a new `--detach` run — the file is overwritten.
-
-The daemon child (carrying `CYCLE_DAEMON=1`) registers SIGTERM, SIGINT, and SIGUSR2 handlers on startup.
-
-**On graceful stop (`cycle stop`):** The caller sends SIGUSR2 to the daemon PID. The daemon sets a `gracefulStop` flag; the drain loop checks the flag at the top of each iteration and breaks when set. The engine then emits `engine.stop { status: "stopped" }` and calls `removePid` before exiting 0.
-
-**On forced stop (`cycle stop --force`):** The caller sends SIGTERM. The daemon's SIGTERM handler calls `removePid` then `process.exit(0)` immediately — no drain-loop iteration completes after the signal arrives. SIGINT behaves identically.
-
-On clean completion (queue exhausted, no halt), the `engine.stop` emission path calls `removePid(cwd)` before `process.exit`.
-
-`.cycle/cycle.pid` is in the commit denylist (`DENYLIST_EXACT` in `src/engine/path-utils.ts`) — it is never staged.
-
-PID file helpers live in `src/engine/pid.ts`: `writePid`, `readPid`, `removePid`, `isAlive`.
+`.cycle/cycle.pid` remains in the commit denylist (`DENYLIST_EXACT` in `src/engine/path-utils.ts`) so any future PID-based daemon state is never staged.

@@ -137,7 +137,7 @@ Independently: load `.cycle/.env` at engine bootstrap (or flip the shipped defau
 
 Filed as `raw/` issues, build order encoded by id prefix (`redesign-NN-…`):
 
-1. `redesign-01-single-engine-lock` — **critical**. Lands first so all subsequent dogfooded cycles are race-safe.
+1. `redesign-01-single-engine-lock` — **critical**. Lands first so all subsequent cycles are race-safe.
 2. `redesign-02-load-cycle-env` — high. Trunk enforcement gap.
 3. `redesign-03-priority-enum-and-ordering` — high. Foundational for §5/§6.
 4. `redesign-04-footprint-json-and-scope-guard-demote` — high. Foundational for §2/§3.

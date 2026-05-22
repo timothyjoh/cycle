@@ -17,6 +17,10 @@ CYCLE_SYNC_DEFAULTS_FORCE=1 npm run sync-defaults
 
 Force prints `force: overwriting N divergent path(s): <comma-list>` and exits 0.
 
-## The canonical divergent file
+## Why divergence is allowed
 
-`.cycle/workflows.yml` — the dogfood copy runs a trunk-based variant (`no_branch: true`, `commit-trunk.sh`, no `pr` step) that the shipped default does not carry. The guard exists to prevent a stray `sync-defaults` from silently re-clobbering it (the 0046 incident).
+A repo may intentionally customize an installed `.cycle/*` file (a tuned
+prompt, a repo-specific `workflows.yml`, a local `verify.sh`). The guard
+exists so that a routine `sync-defaults` does not silently clobber those
+deliberate local edits — the operator must pass `--force` to overwrite a
+divergent destination.
