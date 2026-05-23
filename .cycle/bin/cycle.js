@@ -8796,7 +8796,7 @@ var init_exports = {};
 __export(init_exports, {
   runInit: () => runInit
 });
-import { cp, mkdir as mkdir6, stat as stat3, chmod, copyFile } from "node:fs/promises";
+import { cp, mkdir as mkdir6, stat as stat3, chmod, copyFile, writeFile as writeFile6 } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { dirname as dirname4, join as join14 } from "node:path";
 async function runInit(opts) {
@@ -8805,6 +8805,10 @@ async function runInit(opts) {
   await mkdir6(join14(t, ".cycle/bin"), { recursive: true });
   await copyFile(enginePath, join14(t, ".cycle/bin/cycle.js"));
   await chmod(join14(t, ".cycle/bin/cycle.js"), 493);
+  await writeFile6(
+    join14(t, ".cycle/package.json"),
+    JSON.stringify({ type: "module", private: true }, null, 2) + "\n"
+  );
   const defaults = await locateDefaultsDir();
   await mkdir6(join14(t, ".cycle"), { recursive: true });
   await copyFile(join14(defaults, "workflows.yml"), join14(t, ".cycle/workflows.yml"));
@@ -9003,7 +9007,7 @@ var init_exec_bash = __esm({
 });
 
 // src/engine/reflection.ts
-import { mkdir as mkdir7, readdir as readdir3, readFile as readFile11, rename as rename6, unlink as unlink3, writeFile as writeFile6 } from "node:fs/promises";
+import { mkdir as mkdir7, readdir as readdir3, readFile as readFile11, rename as rename6, unlink as unlink3, writeFile as writeFile7 } from "node:fs/promises";
 import { dirname as dirname5, join as join17 } from "node:path";
 async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2, artifactDir, touchedJsonPath) {
   const rawDir2 = join17(repoRoot, "docs/cycle/issues/raw");
@@ -9342,7 +9346,7 @@ function validateEntry(e) {
 async function atomicWrite2(path, content) {
   await mkdir7(dirname5(path), { recursive: true });
   const tmp = path + ".tmp";
-  await writeFile6(tmp, content, "utf8");
+  await writeFile7(tmp, content, "utf8");
   try {
     await rename6(tmp, path);
   } catch (e) {
@@ -9391,7 +9395,7 @@ var init_sanitize_artifact = __esm({
 });
 
 // src/engine/run-cycle.ts
-import { writeFile as writeFile7, readFile as readFile12, stat as stat4 } from "node:fs/promises";
+import { writeFile as writeFile8, readFile as readFile12, stat as stat4 } from "node:fs/promises";
 import { join as join18 } from "node:path";
 import { spawnSync as spawnSync2 } from "node:child_process";
 function parseSnapshotPaths(snapshot) {
@@ -9449,7 +9453,7 @@ async function appendDocumentationPaths(repoRoot, buildMdPath, log2, cycleId, pr
     insertIdx--;
   }
   lines.splice(insertIdx, 0, ...toAppend.map((p) => `- ${p}`));
-  await writeFile7(buildMdPath, lines.join("\n"), "utf8");
+  await writeFile8(buildMdPath, lines.join("\n"), "utf8");
   await log2.emit("documentation.paths_appended", { cycle_id: cycleId, appended: toAppend });
 }
 async function accumulateTouchedFiles(repoRoot, artifactDir, preSnapshot) {
@@ -9469,7 +9473,7 @@ async function accumulateTouchedFiles(repoRoot, artifactDir, preSnapshot) {
   } catch {
   }
   const merged = Array.from(/* @__PURE__ */ new Set([...existing, ...newFiles])).sort();
-  await writeFile7(touchedPath, JSON.stringify({ files: merged }, null, 2) + "\n", "utf8");
+  await writeFile8(touchedPath, JSON.stringify({ files: merged }, null, 2) + "\n", "utf8");
 }
 async function shouldSkipForArtifact(artifactDir, stepName) {
   if (!SKIP_ELIGIBLE_STEPS.has(stepName)) return { skip: false };
@@ -9655,7 +9659,7 @@ async function runCycle(repoRoot, opts) {
         if (r.status === "ok" && step.name) {
           const sanitized = sanitizeArtifactStdout(r.stdout);
           const artifactPath = join18(artifactDir, `${step.name.toUpperCase()}.md`);
-          await writeFile7(artifactPath, sanitized, "utf8");
+          await writeFile8(artifactPath, sanitized, "utf8");
           if (step.name === "spec") {
             const bytes = Buffer.byteLength(sanitized, "utf8");
             if (bytes < SPEC_MIN_BYTES) {

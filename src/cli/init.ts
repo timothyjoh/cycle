@@ -1,4 +1,4 @@
-import { cp, mkdir, stat, chmod, copyFile } from "node:fs/promises";
+import { cp, mkdir, stat, chmod, copyFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -12,6 +12,15 @@ export async function runInit(opts: { targetRoot: string; force: boolean }) {
   await mkdir(join(t, ".cycle/bin"), { recursive: true });
   await copyFile(enginePath, join(t, ".cycle/bin/cycle.js"));
   await chmod(join(t, ".cycle/bin/cycle.js"), 0o755);
+
+  // The engine bundle is ESM. Node decides ESM vs CJS by walking up from the
+  // file to the nearest package.json; without "type": "module" here the
+  // bundle fails on its first `import` in any consumer repo that has no
+  // root package.json (or whose root package.json is not module-typed).
+  await writeFile(
+    join(t, ".cycle/package.json"),
+    JSON.stringify({ type: "module", private: true }, null, 2) + "\n",
+  );
 
   const defaults = await locateDefaultsDir();
   await mkdir(join(t, ".cycle"), { recursive: true });

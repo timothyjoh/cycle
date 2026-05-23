@@ -15,6 +15,8 @@ test("init scaffolds .cycle/bin/cycle.js (exec), workflows, prompts, scripts", a
     const head = (await readFile(bin, "utf8")).slice(0, 30);
     assert.match(head, /^#!\/usr\/bin\/env node/);
     await stat(join(root, ".cycle/workflows.yml"));
+    const pkg = JSON.parse(await readFile(join(root, ".cycle/package.json"), "utf8"));
+    assert.equal(pkg.type, "module", ".cycle/package.json must mark the bundle as ESM");
     await assert.rejects(
       () => stat(join(root, ".cycle/workflows")),
       (e: NodeJS.ErrnoException) => e.code === "ENOENT",
