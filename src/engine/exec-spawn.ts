@@ -7,7 +7,8 @@ import type { StepResult } from "./exec-bash.ts";
 export interface RunAgentOptions {
   binary: string;
   argv: string[];
-  promptDelivery: "stdin" | "argv";
+  /** "stdin": prompt piped to stdin. "argv": prompt appended as last arg. "file": abs path appended as last arg (no file read). */
+  promptDelivery: "stdin" | "argv" | "file";
   promptPath: string;
   repoRoot: string;
   env?: Record<string, string>;
@@ -17,15 +18,21 @@ export interface RunAgentOptions {
 export async function runAgent(opts: RunAgentOptions): Promise<StepResult> {
   const { binary, argv, promptDelivery, promptPath, repoRoot, env, signal } = opts;
   const abs = join(repoRoot, ".cycle", promptPath);
-  const prompt = await readFile(abs, "utf8");
-  const finalArgv = promptDelivery === "argv" ? [...argv, prompt] : argv;
   const base = { cwd: repoRoot, env: buildChildEnv(env ?? {}), shell: false, signal };
 
+  let finalArgv: string[];
+  let prompt: string | undefined;
+  if (promptDelivery === "file") {
+    finalArgv = [...argv, abs];
+  } else {
+    prompt = await readFile(abs, "utf8");
+    finalArgv = promptDelivery === "argv" ? [...argv, prompt] : argv;
+  }
+
   return new Promise<StepResult>((resolve) => {
-    const child =
-      promptDelivery === "argv"
-        ? spawn(binary, finalArgv, { ...base, stdio: ["ignore", "pipe", "pipe"] })
-        : spawn(binary, finalArgv, base);
+    const child = promptDelivery === "stdin"
+      ? spawn(binary, finalArgv, base)
+      : spawn(binary, finalArgv, { ...base, stdio: ["ignore", "pipe", "pipe"] });
 
     let stdout = "";
     let stderr = "";
@@ -39,7 +46,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<StepResult> {
     });
     if (promptDelivery === "stdin") {
       child.stdin!.on("error", () => {});
-      child.stdin!.write(prompt);
+      child.stdin!.write(prompt!);
       child.stdin!.end();
     }
   });
