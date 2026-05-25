@@ -29,6 +29,7 @@ Project conventions for cycle. Read before touching code or running the workflow
 | `cycle status` | Print queue counts and in-flight cycle. Read-only. |
 | `cycle triage --dry-run` | Re-run triage against `raw/` without mutating state. Diagnostic for `engine.paused {reason: "all_triage_failed"}`. |
 | `cycle cleanup [--dry-run|--yes] [--force]` | List (or delete with `--yes`) local `cycle/*` branches with no matching `in_progress` queue row. Safe by default: `--dry-run` is implicit; `--force` bypasses the dirty-tree guard. |
+| `cycle help` | Print usage and exit 0. Also triggered by `--help` or `cycle run --help`. |
 
 ## Coverage policy
 

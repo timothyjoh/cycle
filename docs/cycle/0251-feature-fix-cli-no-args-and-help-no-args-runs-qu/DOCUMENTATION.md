@@ -1,0 +1,1 @@
+Updated `CLAUDE.md` to add a `cycle help` row to the Commands table (noting `--help` and `cycle run --help` trigger the same output). Updated `README.md` Failure handling to note that bare `cycle` is now equivalent to `cycle run` for crash recovery re-invocation.

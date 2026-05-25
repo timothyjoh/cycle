@@ -37,7 +37,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     return { command: "drop", text };
   }
 
-  if (argv[0] !== "run") throw new Error(`unknown command: ${argv[0] ?? "(none)"}`);
+  if (argv.length > 0 && argv[0] !== "run") throw new Error(`unknown command: ${argv[0]}`);
 
   const { values, positionals } = nodeParseArgs({
     args: argv.slice(1),
@@ -46,6 +46,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
       "dry-run": { type: "boolean", default: false },
       "no-skip-completed": { type: "boolean", default: false },
       trunk: { type: "boolean", default: false },
+      help: { type: "boolean", default: false },
     },
     allowPositionals: true,
   });

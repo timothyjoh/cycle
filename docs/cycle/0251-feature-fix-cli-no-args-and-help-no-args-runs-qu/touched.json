@@ -1,0 +1,7 @@
+{
+  "files": [
+    "src/cli.ts",
+    "src/cli/parse-args.ts",
+    "tests/cli/parse-args.test.ts"
+  ]
+}

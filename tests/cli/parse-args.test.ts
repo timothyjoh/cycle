@@ -67,3 +67,20 @@ test("--trunk defaults to false", () => {
   assert.equal(r.command, "run");
   if (r.command === "run") assert.equal(r.trunk, false);
 });
+
+test("parses [] (no args) — defaults to run drain-only mode", () => {
+  const r = parseArgs([]);
+  assert.deepEqual(r, { command: "run", text: null, workflow: "feature", dryRun: false, noSkipCompleted: false, trunk: false });
+});
+
+test("parseArgs(['run', '--help']) does not throw ERR_PARSE_ARGS_UNKNOWN_OPTION", () => {
+  assert.doesNotThrow(() => parseArgs(["run", "--help"]));
+  const r = parseArgs(["run", "--help"]);
+  assert.equal(r.command, "run");
+});
+
+test("parseArgs(['--help']) — handled upstream in cli.ts, throws at parse-args level", () => {
+  // --help with no 'run' prefix is intercepted before parseArgs in cli.ts.
+  // At the parse-args level it is still an unknown command.
+  assert.throws(() => parseArgs(["--help"]), /unknown command/);
+});

@@ -82,6 +82,30 @@ if (argv[0] === "cleanup") {
   if (result.stderr) process.stderr.write(result.stderr + String.fromCharCode(10));
   process.exit(result.exitCode);
 }
+
+if (argv[0] === "help" || argv[0] === "--help" || argv.includes("--help")) {
+  console.log(`cycle — issue-driven workflow engine for autonomous code changes
+
+Usage:
+  cycle [run] [<task>] [flags]  Triage and run the queue (optionally add a freeform task first)
+  cycle drop <task>             Add a freeform task to the inbox without running
+  cycle status                  Print queue counts and in-flight state
+  cycle triage [--dry-run]      Re-run triage diagnostics
+  cycle cleanup [--dry-run] [--yes] [--force]
+                                List or delete orphaned cycle/* branches
+  cycle help                    Show this help
+
+Flags for run:
+  --workflow <name>             Force a workflow (default: feature)
+  --dry-run                     Preview triage/queue; no execution
+  --no-skip-completed           Re-derive pre-build artifacts on retry
+  --trunk                       Commit to base branch instead of per-cycle branches
+
+  --version                     Print version and exit
+  --help                        Show this help`);
+  process.exit(0);
+}
+
 const args = parseArgs(argv);
 const cwd = process.cwd();
 

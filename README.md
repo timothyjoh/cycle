@@ -141,7 +141,7 @@ Each step is executed by a configurable **agent**. `claudecode` (the `claude` CL
 - **Pre-build skip on retry.** On a retry, `spec` / `research` / `plan` are skipped when their artifact already exists non-empty (override with `--no-skip-completed`).
 - **Exhausted attempts** move the issue to `blocked/` and skip its remaining planned cycles, so one bad slice does not stall the rest of the queue.
 - **Rate limits** are handled out of band: short transients back off in process; long exhaustion emits `engine.paused` and exits `42` for the caller to re-invoke later.
-- **Crash recovery** is automatic — re-invoking `cycle run` with no arguments resumes any in-flight cycle from the log tail, then continues the pending queue.
+- **Crash recovery** is automatic — re-invoking `cycle run` (or bare `cycle`) resumes any in-flight cycle from the log tail, then continues the pending queue.
 
 When every raw issue fails triage in a single pass, the engine emits `engine.paused {reason: "all_triage_failed", …}` and exits non-zero, leaving the work queue intact. Iterate with `cycle triage --dry-run` until it exits `0`, then re-fire the engine.
 
