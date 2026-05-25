@@ -1,6 +1,6 @@
 ---
 id: mentor-sigterm-graceful-shutdown
-title: "SIGTERM exits immediately, leaving in-flight cycle mid-step with no cycle.end event"
+title: "SIGTERM: emit cycle.killed before exit; emit cycle.restart on next invocation when open cycle detected"
 added_at: "2026-05-25T00:00:00.000Z"
 source: mentor-review
 triage_attempts: 0
@@ -15,32 +15,28 @@ priority_hint: 7
 process.on("SIGTERM", () => process.exit(143));
 ```
 
-This exits the engine immediately on `SIGTERM`, killing the in-flight `spawnRunOne` child process mid-step. The result:
+This exits immediately with no log event. On next invocation, `readLogTail` sees an open `cycle.start` with no matching `cycle.end` and attempts resume — but there is no record of why the cycle is open, making it impossible to distinguish a crash from an intentional kill.
 
-1. No `cycle.end` event is emitted — the log tail shows an open `cycle.start` with no matching close.
-2. On next invocation, `readLogTail` detects the open cycle and attempts resume from the last completed step — which is correct behavior, but only if the working tree is clean. An abrupt kill mid-step may leave partial file writes or uncommitted changes.
-3. The engine lock is released (the `process.on("exit")` handler fires), but the in-progress queue row is not updated.
+## Intended behavior
 
-For a tool meant to run AFK and unattended (e.g. as a CI job that can be canceled), SIGTERM should drain cleanly.
+- **On SIGTERM**: emit `cycle.killed { cycle_id, ... }` to the log, then exit immediately (keep fast exit — no draining).
+- **On next `cycle run`**: when `readLogTail` detects a `cycle.start` with no `cycle.end`, emit `cycle.restart { cycle_id, ... }` between the open start and the new work, then resume from the last completed step as today.
+
+This gives operators and downstream tooling a definitive record: killed here, restarted here.
 
 ## Fix
 
-On SIGTERM:
-1. Set a shutdown flag that the main drain loop checks after each `spawnRunOne` returns.
-2. Kill the current `spawnRunOne` child with SIGTERM (not SIGKILL), give it a short grace period (5s), then SIGKILL if still running.
-3. After the child exits, emit `cycle.end { status: "interrupted", cycle_id, ... }` to close the log tail.
-4. Emit `engine.stop { status: "interrupted" }`.
-5. Release the lock and exit 130.
-
-This makes the interrupted cycle resumable on next invocation via the standard resume path, same as a crash.
+1. In `src/cli.ts` SIGTERM handler: write `cycle.killed` event to the log before calling `process.exit(143)`.
+2. In `src/engine/run-cycle.ts` (or wherever resume detection lives): when an open cycle is detected on startup, emit `cycle.restart` before continuing.
+3. No draining, no grace period — fast exit is preserved.
 
 ## Acceptance Criteria
 
-- [ ] SIGTERM causes the engine to stop after the current subprocess exits (or after 5s grace period)
-- [ ] `cycle.end { status: "interrupted" }` is emitted when SIGTERM interrupts a running cycle
-- [ ] `engine.stop { status: "interrupted" }` is emitted
-- [ ] Engine lock is released cleanly
-- [ ] Next `cycle run` resumes the interrupted cycle from the last completed step
-- [ ] SIGINT behavior (exit 130) is unchanged
-- [ ] Test coverage for the SIGTERM path
+- [ ] SIGTERM emits `cycle.killed { cycle_id, timestamp }` to the event log before exit
+- [ ] Process still exits immediately on SIGTERM (no drain, no subprocess wait)
+- [ ] On next `cycle run`, an open cycle triggers a `cycle.restart` event in the log before work resumes
+- [ ] `cycle.restart` is emitted only when a `cycle.start` has no matching `cycle.end` (not on clean starts)
+- [ ] Engine lock is released cleanly on SIGTERM (existing `process.on("exit")` handler sufficient)
+- [ ] SIGINT behavior is unchanged
+- [ ] Tests cover: SIGTERM emits `cycle.killed`; next-run emits `cycle.restart` when open cycle detected
 - [ ] All existing tests pass
