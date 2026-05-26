@@ -118,6 +118,12 @@ Re-run triage as a read-only diagnostic (no state mutation):
 
 `run` flags: `--workflow <name>`, `--dry-run` (triage/queue preview only), `--no-skip-completed` (force re-derivation of pre-build artifacts on retry), `--trunk` (commit straight to the base branch instead of per-cycle branches).
 
+## Ideas and inbox
+
+Use `docs/cycle/issues/ideas/` for rough backlog notes, ambiguous asks, and work that needs human/agent discussion before execution. cycle does not drain `ideas/` automatically.
+
+Use `docs/cycle/issues/inbox/` for work that is ready for triage. To promote an idea, add enough context and acceptance criteria, change `priority: idea` to `low | medium | high | critical`, move the file into `inbox/`, then run `cycle triage --dry-run` or `cycle run`.
+
 ## Workflows
 
 A workflow is an ordered list of steps defined in `.cycle/workflows.yml`; triage picks one per slice from the workflows configured in that file (or you force one with `--workflow`). See [`docs/workflows.md`](docs/workflows.md) for how to add repo-specific workflows. Four ship by default:

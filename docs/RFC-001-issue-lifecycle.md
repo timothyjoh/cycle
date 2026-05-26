@@ -63,7 +63,19 @@ Inbox files are **source material**, not the normalized execution contract. Tria
 
 ### Ideas / backlog (`ideas/<id>.md`)
 
-`ideas/` is intentionally outside the execution path. Use it for vague prompts, early backlog notes, human/agent discussion drafts, and anything that should not automatically enter the production lane. Triage also parks `priority: idea` inbox items here before any agent call. To promote an idea, revise it until the desired work is clear, then move it into `inbox/` with a real priority.
+`ideas/` is intentionally outside the execution path. Use it for vague prompts, early backlog notes, human/agent discussion drafts, and anything that should not automatically enter the production lane. Triage also parks `priority: idea` inbox items here before any agent call.
+
+The ideas box is a manual product-management lane, not a hidden queue. The engine does not drain it. A human, parent agent, or coding agent should periodically review `ideas/`, discuss or rewrite the thin items, and promote only the ones that have become actionable.
+
+**Promotion workflow:**
+
+1. Review `docs/cycle/issues/ideas/` with a human or agent.
+2. Add the missing context: observed problem, desired outcome, acceptance criteria, relevant files/URLs, and out-of-scope notes.
+3. Change `priority: idea` to `low | medium | high | critical`.
+4. Move the file to `docs/cycle/issues/inbox/`.
+5. Run `cycle triage --dry-run` if you want a read-only check, or `cycle run` to let the production lane process it.
+
+If an item is still just a hunch, leave it in `ideas/`. That is the point: ideas are allowed to be valuable without being executable yet.
 
 ### Triaged todo (`todo/<parent>-<slug>.md`)
 
@@ -118,7 +130,7 @@ blocked_by:
 ---
 ```
 
-### Discuss (`ideas/<id>.md`)
+### Parked idea (`ideas/<id>.md`)
 
 ```yaml
 ---

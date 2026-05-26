@@ -22,7 +22,7 @@ source_url: https://github.com/org/repo/issues/123
 source_id: "123"
 title: "Fix Safari login redirect"
 added_at: 2026-05-26T20:00:00Z
-priority: medium        # low | medium | high | critical | discuss
+priority: medium        # low | medium | high | critical | idea
 ---
 ```
 
@@ -93,3 +93,17 @@ success criteria before cycle works on it.
 
 Good triage should avoid turning vague prompts into confident implementation
 work. The right path for thin input is clarification first, execution later.
+
+## Promoting an idea
+
+The engine does not process `ideas/` automatically. A human, parent agent, or
+coding agent should periodically review that folder, rewrite promising notes
+into actionable work, then promote them by:
+
+1. adding enough context and acceptance criteria for triage to make a grounded
+   workflow choice;
+2. changing `priority: idea` to `low`, `medium`, `high`, or `critical`; and
+3. moving the file into `docs/cycle/issues/inbox/`.
+
+After promotion, `cycle triage --dry-run` is the safe preview, and `cycle run`
+hands it to the production lane.
