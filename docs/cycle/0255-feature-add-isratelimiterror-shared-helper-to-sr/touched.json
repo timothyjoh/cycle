@@ -1,0 +1,8 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "scripts/coverage-gate.mjs",
+    "src/engine/rate-limit.ts",
+    "tests/scripts/coverage-gate.test.ts"
+  ]
+}

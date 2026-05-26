@@ -28,6 +28,7 @@ const FLOORS = {
   "src/engine/queue.ts": 90,
   "src/engine/run-cycle.ts": 90,
   "src/engine/reflection.ts": 95,
+  "src/engine/rate-limit.ts": 100,
 };
 
 const LCOV_PATH = process.argv[2] ?? ".cycle/coverage.lcov";

@@ -213,6 +213,8 @@ Triage-failure and rate-limit variants:
 {"ts":"…","event":"engine.paused","reason":"rate_limit","retry_after":"…"}
 ```
 
+> **Note:** `rate_limit.hit` and `engine.paused {reason: "rate_limit"}` are not yet emitted. The detection primitive `isRateLimitError` in `src/engine/rate-limit.ts` exists but wiring into exec modules and the run-cycle pause/retry loop is pending.
+
 ## 4. Execution Model
 
 ### Engine lifecycle
