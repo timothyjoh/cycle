@@ -1,0 +1,7 @@
+{
+  "files": [
+    ".cycle/scripts/verify.sh",
+    "src/defaults/scripts/verify.sh",
+    "tests/defaults/scripts.test.ts"
+  ]
+}

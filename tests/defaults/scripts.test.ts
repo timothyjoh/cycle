@@ -12,8 +12,27 @@ for (const s of ["verify.sh"]) {
   });
 }
 
-test("verify.sh installs deps when node_modules is missing", async () => {
+test("verify.sh does not invoke npm install", async () => {
   const body = await readFile("src/defaults/scripts/verify.sh", "utf8");
-  assert.match(body, /npm install/, "verify.sh should invoke npm install");
-  assert.match(body, /node_modules/, "verify.sh should reference node_modules");
+  assert.doesNotMatch(body, /^\s*npm install/m, "verify.sh must not invoke npm install");
+});
+
+test("verify.sh exits 1 with actionable message when node_modules is absent", async () => {
+  const body = await readFile("src/defaults/scripts/verify.sh", "utf8");
+  assert.match(
+    body,
+    /!\s*-d node_modules[\s\S]*?Run 'npm install'/,
+    "verify.sh must co-locate the node_modules guard with the actionable 'npm install' message",
+  );
+});
+
+test("verify.sh checks pytest availability before invoking it", async () => {
+  const body = await readFile("src/defaults/scripts/verify.sh", "utf8");
+  assert.match(body, /command -v pytest/, "verify.sh must guard pytest availability");
+});
+
+test("verify.sh exits 1 with custom-script direction when no runner detected", async () => {
+  const body = await readFile("src/defaults/scripts/verify.sh", "utf8");
+  assert.doesNotMatch(body, /passing trivially/, "verify.sh must not pass trivially");
+  assert.match(body, /custom.*verify\.sh/, "verify.sh must direct operator to write custom script");
 });

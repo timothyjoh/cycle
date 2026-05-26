@@ -1,0 +1,1 @@
+Updated `docs/auggie-mentor-feedback.md` §3.2 to mark the `verify.sh` auto-install recommendation as implemented by cycle 0254, replacing the stale description of the old behavior with a status note summarizing the three new fail-fast guards.

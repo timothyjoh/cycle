@@ -38,9 +38,11 @@ There is no bundled model, no fallback agent, and no preflight check that valida
 **Recommendation:** Add a `cycle doctor` subcommand that checks for all required binaries, auth status, and repo testability. Update the README to describe cycle as an "agent CLI orchestrator" rather than a standalone factory.
 
 ### 3.2 `verify.sh` default is too naive for brownfield claims
-The default verify script checks for `package.json` + `npm test`, `Cargo.toml`, or `pyproject.toml`. Brownfield repos use yarn, pnpm, poetry, pipenv, make, gradle, maven, etc. Worse, it auto-runs `npm install` if `node_modules` is missing — a destructive, slow, and potentially network-failing side effect buried in a verification step.
+The default verify script checks for `package.json` + `npm test`, `Cargo.toml`, or `pyproject.toml`. Brownfield repos use yarn, pnpm, poetry, pipenv, make, gradle, maven, etc.
 
 **Recommendation:** Change the default to *fail* when no test runner is detected, with a clear message telling the user to write `.cycle/scripts/verify.sh`. Auto-install is never the right default for a factory.
+
+**Status (cycle 0254):** Implemented. The `npm install` auto-install fallback is removed. Missing `node_modules/` in a Node repo exits 1 with a message directing the operator to run `npm install` before starting cycle. Missing `pytest` in a Python repo exits 1 similarly. No recognized test runner exits 1 directing the operator to write a custom `.cycle/scripts/verify.sh`. The top-of-file comment declares the default intentionally strict.
 
 ### 3.3 Git error handling is opaque
 All git failures in `branch.ts` and `commit-cycle.ts` surface as generic `Error("git ... failed: <stderr>")`. There is no classification of:
