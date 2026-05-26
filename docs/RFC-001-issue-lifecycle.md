@@ -23,6 +23,8 @@ The MVP (cycles 0001–0009) forced `--workflow feature` on every input, never a
 docs/cycle/issues/
 ├── raw/        # Inbox. Sparse drops from agents, CLI, tracker fetch, reflection.
 │               # Strives to be empty whenever the engine is running.
+├── ideas/      # Non-ingested backlog / discussion shelf. Human or parent agent
+│               # promotes items into raw/ once they are ready for triage.
 ├── todo/       # Triaged, enriched, vertical-slice work items. Each = one cycle's input.
 ├── done/       # Successful cycles' files land here. Decomposed parents land here too
 │               # with `_raw` suffix.
@@ -32,6 +34,7 @@ docs/cycle/issues/
 ├── discuss/    # Items parked for human judgment. Engine routes any raw with
 │               # priority: discuss here before agent call. To release: edit
 │               # priority to a real value and move back to raw/.
+├── RAW_ISSUE_EXAMPLE.md
 └── TEMPLATE.md
 ```
 
@@ -44,6 +47,7 @@ The previous `tbd/`, `queued/`, and `triaged/` folders are removed during bootst
 ### Raw drop (`raw/<id>.md`)
 
 Thin. May be one line; may be a copy of a Jira description. The body is whatever the source had.
+For a concrete ready-to-triage example, see [`RAW_ISSUE_EXAMPLE.md`](RAW_ISSUE_EXAMPLE.md).
 
 ```yaml
 ---
@@ -58,6 +62,12 @@ Description text from the upstream source.
 ```
 
 Values: `priority` is one of `low | medium | high | critical | discuss`; `cycle drop` (via `materializeFreeformIssue`) emits `medium` by default. The engine reads this field at triage time and propagates it to each child's todo frontmatter and queue row. Legacy numeric values (1–10) are normalized at read time: 7–10 → `critical`, 5–6 → `high`, 3–4 → `medium`, 1–2 → `low`.
+
+Raw files are **source material**, not the normalized execution contract. Triage is the normalization boundary: it reads raw inputs, enriches them with repo context, chooses one of the configured workflow names, and writes machine-operable `todo/` files.
+
+### Ideas / backlog (`ideas/<id>.md`)
+
+`ideas/` is intentionally outside the engine intake path. Use it for vague prompts, early backlog notes, human/agent discussion drafts, and anything that should not automatically enter the production lane. To promote an idea, revise it until the desired work is clear, then move it into `raw/` with a real priority.
 
 ### Triaged todo (`todo/<parent>-<slug>.md`)
 
