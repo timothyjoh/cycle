@@ -270,3 +270,123 @@ test("dogfood final_fix prompt is byte-identical to default", async () => {
   const [src, dog] = await Promise.all([readFile(FINAL_FIX_SRC), readFile(FINAL_FIX_DOG)]);
   assert.equal(Buffer.compare(src, dog), 0, "src/defaults/prompts/final_fix.md and .cycle/prompts/final_fix.md must match byte-for-byte");
 });
+
+const PLAN_DOCS_SRC = "src/defaults/prompts/plan_documents.md";
+const PLAN_DOCS_DOG = ".cycle/prompts/plan_documents.md";
+
+test("plan_documents prompt contains inline FILE ARTIFACT MODE directive", async () => {
+  const body = await readFile(PLAN_DOCS_SRC, "utf8");
+  assert.ok(
+    body.startsWith("FILE ARTIFACT MODE: Output only the document contents requested."),
+    "missing FILE ARTIFACT MODE inline directive on line 1 of plan_documents.md",
+  );
+});
+
+test("plan_documents prompt File Artifact Mode prohibits insight blocks and star-marker commentary", async () => {
+  const body = await readFile(PLAN_DOCS_SRC, "utf8");
+  assert.ok(body.includes("insight blocks or star-marker commentary"), "missing insight blocks / star-marker prohibition in plan_documents.md");
+});
+
+test("plan_documents prompt File Artifact Mode prohibits confirmation sentences", async () => {
+  const body = await readFile(PLAN_DOCS_SRC, "utf8");
+  assert.ok(body.includes("confirmation sentences"), "missing confirmation sentences prohibition in plan_documents.md");
+});
+
+test("plan_documents prompt File Artifact Mode prohibits trailing commentary", async () => {
+  const body = await readFile(PLAN_DOCS_SRC, "utf8");
+  assert.ok(body.includes("trailing commentary"), "missing trailing commentary prohibition in plan_documents.md");
+});
+
+test("plan_documents prompt File Artifact Mode includes concrete negative example", async () => {
+  const body = await readFile(PLAN_DOCS_SRC, "utf8");
+  assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in plan_documents.md FAM section");
+});
+
+test("dogfood plan_documents prompt is byte-identical to default", async () => {
+  const [src, dog] = await Promise.all([readFile(PLAN_DOCS_SRC), readFile(PLAN_DOCS_DOG)]);
+  assert.equal(
+    Buffer.compare(src, dog),
+    0,
+    "src/defaults/prompts/plan_documents.md and .cycle/prompts/plan_documents.md must match byte-for-byte — run npm run sync-defaults",
+  );
+});
+
+const AUTHORING_SRC = "src/defaults/prompts/authoring.md";
+const AUTHORING_DOG = ".cycle/prompts/authoring.md";
+
+test("authoring prompt contains inline FILE ARTIFACT MODE directive", async () => {
+  const body = await readFile(AUTHORING_SRC, "utf8");
+  assert.ok(
+    body.startsWith("FILE ARTIFACT MODE: Output only the document contents requested."),
+    "missing FILE ARTIFACT MODE inline directive on line 1 of authoring.md",
+  );
+});
+
+test("authoring prompt File Artifact Mode prohibits insight blocks and star-marker commentary", async () => {
+  const body = await readFile(AUTHORING_SRC, "utf8");
+  assert.ok(body.includes("insight blocks or star-marker commentary"), "missing insight blocks / star-marker prohibition in authoring.md");
+});
+
+test("authoring prompt File Artifact Mode prohibits confirmation sentences", async () => {
+  const body = await readFile(AUTHORING_SRC, "utf8");
+  assert.ok(body.includes("confirmation sentences"), "missing confirmation sentences prohibition in authoring.md");
+});
+
+test("authoring prompt File Artifact Mode prohibits trailing commentary", async () => {
+  const body = await readFile(AUTHORING_SRC, "utf8");
+  assert.ok(body.includes("trailing commentary"), "missing trailing commentary prohibition in authoring.md");
+});
+
+test("authoring prompt File Artifact Mode includes concrete negative example", async () => {
+  const body = await readFile(AUTHORING_SRC, "utf8");
+  assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in authoring.md FAM section");
+});
+
+test("dogfood authoring prompt is byte-identical to default", async () => {
+  const [src, dog] = await Promise.all([readFile(AUTHORING_SRC), readFile(AUTHORING_DOG)]);
+  assert.equal(
+    Buffer.compare(src, dog),
+    0,
+    "src/defaults/prompts/authoring.md and .cycle/prompts/authoring.md must match byte-for-byte — run npm run sync-defaults",
+  );
+});
+
+const REVIEW_DOCS_SRC = "src/defaults/prompts/review_documents.md";
+const REVIEW_DOCS_DOG = ".cycle/prompts/review_documents.md";
+
+test("review_documents prompt contains inline FILE ARTIFACT MODE directive", async () => {
+  const body = await readFile(REVIEW_DOCS_SRC, "utf8");
+  assert.ok(
+    body.startsWith("FILE ARTIFACT MODE: Output only the document contents requested."),
+    "missing FILE ARTIFACT MODE inline directive on line 1 of review_documents.md",
+  );
+});
+
+test("review_documents prompt File Artifact Mode prohibits insight blocks and star-marker commentary", async () => {
+  const body = await readFile(REVIEW_DOCS_SRC, "utf8");
+  assert.ok(body.includes("insight blocks or star-marker commentary"), "missing insight blocks / star-marker prohibition in review_documents.md");
+});
+
+test("review_documents prompt File Artifact Mode prohibits confirmation sentences", async () => {
+  const body = await readFile(REVIEW_DOCS_SRC, "utf8");
+  assert.ok(body.includes("confirmation sentences"), "missing confirmation sentences prohibition in review_documents.md");
+});
+
+test("review_documents prompt File Artifact Mode prohibits trailing commentary", async () => {
+  const body = await readFile(REVIEW_DOCS_SRC, "utf8");
+  assert.ok(body.includes("trailing commentary"), "missing trailing commentary prohibition in review_documents.md");
+});
+
+test("review_documents prompt File Artifact Mode includes concrete negative example", async () => {
+  const body = await readFile(REVIEW_DOCS_SRC, "utf8");
+  assert.ok(body.includes("**WRONG**"), "missing WRONG/CORRECT negative example in review_documents.md FAM section");
+});
+
+test("dogfood review_documents prompt is byte-identical to default", async () => {
+  const [src, dog] = await Promise.all([readFile(REVIEW_DOCS_SRC), readFile(REVIEW_DOCS_DOG)]);
+  assert.equal(
+    Buffer.compare(src, dog),
+    0,
+    "src/defaults/prompts/review_documents.md and .cycle/prompts/review_documents.md must match byte-for-byte — run npm run sync-defaults",
+  );
+});

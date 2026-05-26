@@ -1,0 +1,14 @@
+{
+  "files": [
+    ".cycle/prompts/authoring.md",
+    ".cycle/prompts/plan_documents.md",
+    ".cycle/prompts/review_documents.md",
+    ".cycle/prompts/verify.md",
+    "src/defaults/prompts/authoring.md",
+    "src/defaults/prompts/plan_documents.md",
+    "src/defaults/prompts/review_documents.md",
+    "src/defaults/prompts/verify.md",
+    "tests/defaults/file-artifact-mode-guardrail.test.ts",
+    "tests/defaults/verify-prompt-spec-ac.test.ts"
+  ]
+}
