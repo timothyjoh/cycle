@@ -11,9 +11,10 @@
 
 ## 1. System Context
 
-cycle is not a top-level application. It is a library + engine invoked by
-**something else** — a parent agent or a CI job — and it acts on the local
-working tree of the repo it is installed in.
+cycle is not a top-level application. It is a repo-local production cell:
+a library + engine invoked by **something else** — a parent agent, a CI job,
+a cloud worker, or a developer machine — and it acts on the local working
+tree of the repo it is installed in.
 
 ```
 ┌──────────────────────────────────────┐
@@ -28,7 +29,7 @@ working tree of the repo it is installed in.
 │  │ ingest issues                  │  │
 │  │   → triage each → [cycles…]    │  │
 │  │   → flatten into queue         │  │
-│  │   → run cycles sequentially    │  │
+│  │   → run one cycle at a time    │  │
 │  └────────┬──────────────┬────────┘  │
 │           │              │           │
 │           ▼              ▼           │
@@ -55,6 +56,10 @@ Contracts:
   durable per-cycle artifacts under `docs/cycle/<cycle-id>-<workflow>-<slug>/`;
   branches and commits (pushed when `push: true`); issue files advancing
   through `raw/ → todo/ → done/` as state changes; a final exit code.
+- **Concurrency boundary:** one cycle engine owns one repository lane. The
+  PID lock rejects concurrent engines in the same repo; factory-scale
+  orchestration is expected to run separate cycle instances per repository,
+  not parallel workers inside one working tree.
 
 ## 2. Distribution & Runtime
 
@@ -173,9 +178,12 @@ Subcommands:
 - **Blocking.** The parent caller `spawn`s cycle and waits for exit. The
   engine runs until `tbd.jsonl` is empty or a failure stops the queue. CI
   jobs and ephemeral containers depend on this contract.
-- **One engine per repo.** At startup the engine acquires a PID lockfile at
-  `.cycle/engine.lock`; a second concurrent invocation exits non-zero
-  rather than racing the first.
+- **One engine per repo, one cycle at a time.** At startup the engine
+  acquires a PID lockfile at `.cycle/engine.lock`; a second concurrent
+  invocation exits non-zero rather than racing the first. This is an
+  explicit product constraint, not a missing scheduler: repo-local
+  serialization preserves deterministic integration and avoids avoidable
+  merge/state conflicts.
 - **stdout = JSONL** (mirrored to `.cycle/log.jsonl`). **stderr = freeform**
   human-legible log output, errors, stack traces.
 - **Exit code.** `0` on success, non-zero on failure. The engine does not
@@ -410,8 +418,9 @@ on the base branch.
   resume any in-flight cycle, then proceeds with the pending rows. See
   [`RFC-001-issue-lifecycle.md`](RFC-001-issue-lifecycle.md) §6.
 - **`.cycle/engine.lock`** — PID lockfile held for the life of a running
-  engine, enforcing one engine per repo. Released on exit; a stale lock
-  (dead PID) is reclaimed by the next invocation.
+  engine, enforcing one engine per repo and one active cycle lane per
+  working tree. Released on exit; a stale lock (dead PID) is reclaimed by
+  the next invocation.
 
 Row schema for `tbd.jsonl` (the file under `todo/` is the source of truth
 for body + extended frontmatter):

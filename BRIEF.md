@@ -6,9 +6,10 @@
 
 ## Overview
 
-**cycle** is an engine that turns work items into code changes. Installed
-into any repo — brownfield or greenfield — it is invoked by *something
-else*: an agent like Claude Code, or a CI job, handed one or more
+**cycle** is a repo-local production cell that turns work items into
+reviewable code changes. Installed into any repo — brownfield or
+greenfield — it is invoked by *something else*: an agent like Claude Code,
+a CI job, a cloud worker, or a developer machine, handed one or more
 **issues** to work through.
 
 An **issue** is any unit of work: a free-text task, a Jira card, a GitHub
@@ -16,23 +17,28 @@ issue, a PRD, a brief. Triage reads each issue and decides how many
 **cycles** (phases of work) it needs — one if small, several if large.
 Every cycle that triage produces lands in a single ordered queue. The
 engine then churns through the queue one cycle at a time, each producing
-its own branch and commits, until the queue is empty.
+its own branch and commits, until the queue is empty. This serialization is
+intentional: cycle owns one repository lane and rejects concurrent engines
+in that repo rather than creating avoidable merge and state conflicts.
 
 cycle runs as a blocking subprocess that streams JSONL progress events to
 stdout so the calling agent can monitor it, and writes artifacts to
 `docs/cycle/` for a paper trail.
 
-## Why a factory, not a chat turn
+## Why a production cell, not a chat turn
 
 A single agent turn is good at producing one change. It is weak at the
-*factory* problem: working a backlog, repeating the SDLC loop without
+production problem: working a backlog, repeating the SDLC loop without
 drift, honoring repo-specific constraints, recovering from failure, and
 leaving an auditable trail. cycle is the layer that does the boring,
-repeatable mechanics so a parent agent can hand off a batch and walk away.
+repeatable mechanics so a parent agent or orchestration layer can hand off
+repo-local work and walk away.
 
 The center of gravity is **issue-driven, brownfield work** handled one
 issue at a time — typically from GitHub, Jira, Linear, or user-supplied
-issue files dropped into the repo.
+issue files dropped into the repo. Factory-scale throughput comes from
+running one serialized cycle instance per repository under a higher-level
+controller, not from parallel workers editing the same repository at once.
 
 ## Runtime model
 
@@ -199,6 +205,10 @@ can add human-in-the-loop steps.
   invoking agent.
 - **Not** a service. The default mode is a blocking subprocess that
   processes a queue and exits. There is no always-on background process.
+- **Not** an intra-repo parallel worker pool. cycle intentionally runs one
+  engine per repository and one cycle at a time; multi-repo scheduling and
+  fleet coordination belong to a future control plane outside the core
+  engine.
 
 ## Not yet built
 

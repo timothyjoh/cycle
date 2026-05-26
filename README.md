@@ -4,18 +4,18 @@
 
 # cycle
 
-**cycle is a dark factory for AFK software development.** Drop work into a repo, walk away, and let an agent-operated assembly line triage it, break it into buildable slices, run a full workflow on each, verify the result, and land commits — leaving a complete paper trail behind.
+**cycle is a repo-local production cell for AFK software development.** Drop work into a repository, walk away, and let one serialized agent-operated lane triage it, break it into buildable slices, run a full workflow on each, verify the result, and produce reviewable commits — leaving a complete paper trail behind.
 
 It is built for the two places autonomous development usually gets hard:
 
 - **Brownfield repos**, where every ticket hides conventions, coupling, stale tests, and merge policy that a naive agent will miss.
 - **Greenfield repos**, where a rough brief needs to become a sequence of scoped implementation cycles.
 
-cycle turns those inputs into an ordered queue of durable, auditable code-production cycles.
+cycle turns those inputs into an ordered queue of durable, auditable code-production cycles. It is deliberately **one engine per repository, one cycle at a time**: the unit of scale is another repo-local cycle instance, not parallel workers fighting over the same tree.
 
 ## What cycle is
 
-cycle is an issue-driven workflow engine for autonomous code changes. You install it into a repository, invoke it from a parent agent or CI job, and it runs until its queue is empty or a safety gate tells it to stop.
+cycle is an issue-driven workflow engine for autonomous code changes. You install it into a repository, invoke it from a parent agent, CI job, cloud VM, or developer machine, and it runs until its queue is empty or a safety gate tells it to stop.
 
 An **issue** can be almost anything:
 
@@ -25,13 +25,13 @@ An **issue** can be almost anything:
 - a PRD or a brief
 - a reflection surfaced by a previous cycle
 
-cycle's job is to make that work machine-operable: triage it, enrich it with codebase context, decompose large asks into vertical slices, run the configured workflow for each slice, and emit branches, commits, logs, and artifacts as it goes.
+cycle's job is to make that work machine-operable: triage it, enrich it with codebase context, decompose large asks into vertical slices, run the configured workflow for each slice, and emit branches, commits, logs, and artifacts as it goes. The output is not a claim of perfection; it is a tested, explained, readily useful deliverable for human feedback.
 
 ## Why it exists
 
-Most agentic coding tools are good at a single interactive turn. They are weaker at the factory problem: taking a backlog, repeatedly grinding the boring SDLC loop, respecting repo-specific constraints, recovering from failure, and leaving enough of a trail for a human to trust what happened.
+Most agentic coding tools are good at a single interactive turn. They are weaker at the production-cell problem: taking a backlog, repeatedly grinding the boring SDLC loop, respecting repo-specific constraints, recovering from failure, and leaving enough of a trail for a human to trust what happened.
 
-cycle is that factory layer. It gives a parent agent a single subprocess to hand work to, while cycle handles the repeatable mechanics:
+cycle is that repo-local factory layer. It gives a parent agent or automation layer a single subprocess to hand work to, while cycle handles the repeatable mechanics:
 
 - **Intake.** Normalize freeform tasks, tracker issues, and raw markdown drops into one inbox.
 - **Triage.** Inspect the repo, enrich each issue, pick a workflow, and split oversized asks into smaller cycles.
@@ -40,9 +40,9 @@ cycle is that factory layer. It gives a parent agent a single subprocess to hand
 - **State.** Keep a live drain queue plus an append-only JSONL audit log.
 - **Recovery.** Resume in-flight work after a crash, pause safely when triage fails, and block only dependent work after a terminal failure.
 
-## The dark factory model
+## The production-cell model
 
-Every cycle is an isolated production run:
+Every cycle is one serialized production run inside a repo-local lane:
 
 1. Start from the current base branch.
 2. Run the workflow steps with repo-aware prompts and scripts.
@@ -50,7 +50,7 @@ Every cycle is an isolated production run:
 4. Commit only the intended change surface.
 5. Push, then move to the next queued cycle.
 
-If a run gets into a bad state, cycle abandons that attempt and restarts from a clean tree rather than nursing a compromised working tree along. The goal is not to make agents look busy — it is to keep the assembly line safe enough to leave AFK.
+If a run gets into a bad state, cycle abandons that attempt and restarts from a clean tree rather than nursing a compromised working tree along. The goal is not to make agents look busy — it is to make the repo-local production lane deterministic enough to leave AFK. Fleet-scale coordination belongs above cycle: run one cycle instance per repo and let an external orchestrator decide what each repository should work on.
 
 ## Why it works for brownfield
 
