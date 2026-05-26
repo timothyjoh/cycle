@@ -29,6 +29,7 @@ export type EngineConfig = {
   base_branch: string;
   skip_completed_on_retry?: boolean;
   commit: CommitConfig;
+  rate_limit_backoff_ms?: number;
 };
 
 export type TriageConfig = {

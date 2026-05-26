@@ -253,3 +253,46 @@ At engine start, before emitting `engine.start`, the engine compares the mtime o
 Only one engine runs per repo at a time. At startup `cli.ts` calls `acquireLock(.cycle/engine.lock)` (`src/engine/engine-lock.ts`), which writes the current PID to the lockfile; a second concurrent invocation whose stored PID is still live exits non-zero rather than racing the first. A stale lock (dead PID) is reclaimed. The lock is released via a `process.on("exit")` handler.
 
 `.cycle/cycle.pid` remains in the commit denylist (`DENYLIST_EXACT` in `src/engine/path-utils.ts`) so any future PID-based daemon state is never staged.
+
+## Rate-Limit Pause/Retry Loop
+
+When an agent step returns a rate-limit signal, the engine pauses, sleeps a configurable backoff, and retries the same step — preventing rate-limited runs from burning failure budget and halting the queue.
+
+### `StepResult.rateLimited`
+
+`StepResult` (defined in `src/engine/exec-bash.ts`) has an optional `rateLimited?: true` field. Each of the six agent exec modules (`exec-claudecode.ts`, `exec-codex.ts`, `exec-auggie.ts`, `exec-gemini.ts`, `exec-opencode.ts`, `exec-pi.ts`) calls `isRateLimitError(r)` after `runAgent` returns; if it returns `true`, the module produces `{ ...r, status: "failed", rateLimited: true }`. `exec-bash.ts` never sets `rateLimited` — bash steps are excluded from rate-limit detection.
+
+### Retry loop in `run-cycle.ts`
+
+The step dispatch is wrapped in an inner `while(true)` loop:
+
+1. Dispatch the step (bash or agent).
+2. If `r.rateLimited` is `true`:
+   - Read `cfg.engine.rate_limit_backoff_ms` (default `3_600_000` ms = 1 hour).
+   - Emit `engine.paused { reason: "rate_limit", retry_at: <ISO string> }`.
+   - Sleep `backoffMs` ms (via injectable `sleepFn`).
+   - Set `wasRateLimited = true` and `continue` (same step index, same `i`).
+3. Otherwise `break`.
+
+After the loop:
+- If `wasRateLimited && r.status === "ok"`, emit `engine.resumed { reason: "rate_limit_cleared" }`.
+- If a retry produces `status: "failed"` without `rateLimited`, `engine.resumed` is **not** emitted and the normal failure path runs.
+
+The retry loop is unbounded — it exits only when the step returns a non-rate-limit result. The 1-hour default backoff is the natural throttle.
+
+### Events
+
+```json
+{ "event": "engine.paused", "reason": "rate_limit", "retry_at": "2026-01-01T02:00:00.000Z" }
+{ "event": "engine.resumed", "reason": "rate_limit_cleared" }
+```
+
+### Configuration
+
+`engine.rate_limit_backoff_ms` in `workflows.yml` (default `3600000`). Override per-repo in `.cycle/workflows.yml`.
+
+### Test injection
+
+`RunCycleOpts.sleepFn?: (ms: number) => Promise<void>` allows tests to inject a no-op sleep so tests do not wait 1 hour. The production default is `setTimeout`-based.
+
+**Known limitation:** The retry loop is unbounded — if the agent is permanently rate-limited (invalid API key, banned account, wrong endpoint), the engine will emit `engine.paused` every `rate_limit_backoff_ms` forever with no automatic exit. A configurable `max_rate_limit_retries` cap is tracked in `raw/`. Manual escape hatch: `cycle stop` (or kill the process) — the queue row stays `in_progress` and can be manually reset to `pending` in `tbd.jsonl`.

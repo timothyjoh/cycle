@@ -173,4 +173,30 @@ describe("pi exec", { concurrency: false }, () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  test("pi: sets rateLimited:true when binary exits 1 with rate-limit signal in stderr", async () => {
+    const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+    const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+    try {
+      const prompts = join(root, ".cycle/prompts");
+      await mkdir(prompts, { recursive: true });
+      await writeFile(join(prompts, "spec.md"), "body", "utf8");
+
+      const fake = join(bin, "pi");
+      await writeFile(fake, '#!/bin/sh\necho "rate limit exceeded" >&2\nexit 1\n', "utf8");
+      await chmod(fake, 0o755);
+
+      process.env.CYCLE_PI_BIN = fake;
+      const r = await resolveAgent("pi").runStep({
+        repoRoot: root,
+        promptPath: "prompts/spec.md",
+      });
+      assert.equal(r.status, "failed");
+      assert.equal(r.rateLimited, true);
+    } finally {
+      delete process.env.CYCLE_PI_BIN;
+      await rm(root, { recursive: true, force: true });
+      await rm(bin, { recursive: true, force: true });
+    }
+  });
 });

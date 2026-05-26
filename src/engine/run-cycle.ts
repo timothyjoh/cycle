@@ -198,6 +198,7 @@ export type RunCycleOpts = {
   attempt?: number;
   skipCompletedOnRetry?: boolean;
   baseBranch?: string;
+  sleepFn?: (ms: number) => Promise<void>;
 };
 
 export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
@@ -239,6 +240,8 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
     ...(opts.issueId ? { CYCLE_ISSUE_ID: opts.issueId } : {}),
     ...(opts.env ?? {}),
   };
+
+  const sleepFn = opts.sleepFn ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
 
   try {
     const startIdx = opts.resume?.startStepIndex ?? 0;
@@ -317,36 +320,55 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         const snap = spawnSync("git", ["status", "--porcelain"], { cwd: repoRoot, encoding: "utf8", shell: false });
         preSnapshot = snap.stdout ?? "";
       }
-      let r: StepResult;
-      if (step.agent === "bash") {
-        r = await execBashStep(repoRoot, step.command!, cycleEnv);
-      } else {
-        try {
-          const mod = resolveAgent(step.agent);
-          const appendSP = ARTIFACT_STEPS.has(step.name ?? "") ? ARTIFACT_SUPPRESS_PROMPT : undefined;
-          if (appendSP !== undefined && step.agent !== "claudecode") {
-            await log.emit("step.warning", {
-              cycle_id: cycleId,
-              step: step.name,
-              reason: "append_system_prompt_ignored",
-              agent: step.agent,
+      const appendSP = step.agent !== "bash" && ARTIFACT_STEPS.has(step.name ?? "")
+        ? ARTIFACT_SUPPRESS_PROMPT
+        : undefined;
+      if (appendSP !== undefined && step.agent !== "claudecode") {
+        await log.emit("step.warning", {
+          cycle_id: cycleId,
+          step: step.name,
+          reason: "append_system_prompt_ignored",
+          agent: step.agent,
+        });
+      }
+      let r: StepResult = { status: "failed", exitCode: -1, stdout: "", stderr: "" };
+      let wasRateLimited = false;
+      while (true) {
+        if (step.agent === "bash") {
+          r = await execBashStep(repoRoot, step.command!, cycleEnv);
+        } else {
+          try {
+            const mod = resolveAgent(step.agent);
+            r = await mod.runStep({
+              repoRoot,
+              promptPath: step.prompt!,
+              env: cycleEnv,
+              model: step.model,
+              thinking: step.thinking,
+              appendSystemPrompt: appendSP,
             });
-          }
-          r = await mod.runStep({
-            repoRoot,
-            promptPath: step.prompt!,
-            env: cycleEnv,
-            model: step.model,
-            thinking: step.thinking,
-            appendSystemPrompt: appendSP,
-          });
-        } catch (err) {
-          if (err instanceof UnknownAgentError) {
-            r = { status: "failed", exitCode: -1, stdout: "", stderr: err.message };
-          } else {
-            throw err;
+          } catch (err) {
+            if (err instanceof UnknownAgentError) {
+              r = { status: "failed", exitCode: -1, stdout: "", stderr: err.message };
+            } else {
+              throw err;
+            }
           }
         }
+        if (r.rateLimited) {
+          const backoffMs = cfg.engine.rate_limit_backoff_ms ?? 3_600_000;
+          const retryAt = new Date(Date.now() + backoffMs).toISOString();
+          await log.emit("engine.paused", { reason: "rate_limit", retry_at: retryAt });
+          await sleepFn(backoffMs);
+          wasRateLimited = true;
+          continue;
+        }
+        break;
+      }
+      if (wasRateLimited && r.status === "ok") {
+        await log.emit("engine.resumed", { reason: "rate_limit_cleared" });
+      }
+      if (step.agent !== "bash") {
         if (r.status === "ok" && step.name) {
           const sanitized = sanitizeArtifactStdout(r.stdout);
           const artifactPath = join(artifactDir, `${step.name.toUpperCase()}.md`);

@@ -3,6 +3,7 @@
 engine:
   max_consecutive_failures: 2
   base_branch: master
+  rate_limit_backoff_ms: 3600000
   commit:
     mode: worktree-pr
     push: true

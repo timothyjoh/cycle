@@ -7,6 +7,7 @@ export type StepResult = {
   exitCode: number;
   stdout: string;
   stderr: string;
+  rateLimited?: true;
 };
 
 export function execBashStep(repoRoot: string, command: string, env: Record<string, string>): Promise<StepResult> {

@@ -164,3 +164,28 @@ test("codex: resolves StepResult{status:failed,exitCode:-1} when codex binary mi
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("codex: sets rateLimited:true when binary exits 1 with rate-limit signal in stderr", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    const prompts = join(root, ".cycle/prompts");
+    await mkdir(prompts, { recursive: true });
+    await writeFile(join(prompts, "spec.md"), "body", "utf8");
+
+    const fake = join(bin, "codex");
+    await writeFile(fake, '#!/bin/sh\necho "rate limit exceeded" >&2\nexit 1\n', "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await resolveAgent("codex").runStep({
+      repoRoot: root,
+      promptPath: "prompts/spec.md",
+      env: { PATH: `${bin}:${process.env.PATH}` },
+    });
+    assert.equal(r.status, "failed");
+    assert.equal(r.rateLimited, true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});

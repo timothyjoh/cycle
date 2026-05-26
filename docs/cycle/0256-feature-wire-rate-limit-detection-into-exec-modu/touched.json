@@ -1,0 +1,23 @@
+{
+  "files": [
+    ".cycle/workflows.yml",
+    "CLAUDE.md",
+    "docs/ENGINE.md",
+    "src/defaults/workflows.yml",
+    "src/engine/exec-auggie.ts",
+    "src/engine/exec-bash.ts",
+    "src/engine/exec-claudecode.ts",
+    "src/engine/exec-codex.ts",
+    "src/engine/exec-gemini.ts",
+    "src/engine/exec-opencode.ts",
+    "src/engine/exec-pi.ts",
+    "src/engine/run-cycle.ts",
+    "src/engine/workflow.ts",
+    "tests/engine/exec-auggie.test.ts",
+    "tests/engine/exec-claudecode.test.ts",
+    "tests/engine/exec-codex.test.ts",
+    "tests/engine/exec-gemini.test.ts",
+    "tests/engine/exec-opencode.test.ts",
+    "tests/engine/exec-pi.test.ts"
+  ]
+}
