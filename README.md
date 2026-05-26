@@ -13,6 +13,19 @@ It is built for the two places autonomous development usually gets hard:
 
 cycle turns those inputs into an ordered queue of durable, auditable code-production cycles. It is deliberately **one engine per repository, one cycle at a time**: the unit of scale is another repo-local cycle instance, not parallel workers fighting over the same tree.
 
+## Host prerequisites
+
+cycle installs a repo-local engine; it does **not** install the whole host environment. Before leaving it AFK, the machine needs the basic production-cell tooling already available:
+
+- **Node.js >= 22.6** to run the bundled engine.
+- **git** for status, branch/reset, commit, and push operations.
+- **GitHub CLI (`gh`)** when workflows or automation interact with GitHub.
+- **An authenticated coding agent CLI** matching `.cycle/workflows.yml`; the default workflows use `claudecode`, which expects the `claude` CLI.
+- **Repository dependencies** required by `.cycle/scripts/verify.sh`.
+- **Git credentials and remote access** when push is enabled.
+
+See [`docs/runtime-environment.md`](docs/runtime-environment.md) for setup guidance and the planned `cycle doctor` / `cycle preflight` direction.
+
 ## What cycle is
 
 cycle is an issue-driven workflow engine for autonomous code changes. You install it into a repository, invoke it from a parent agent, CI job, cloud VM, or developer machine, and it runs until its queue is empty or a safety gate tells it to stop.
@@ -154,18 +167,20 @@ When every inbox issue fails triage in a single pass, the engine emits `engine.p
 ## Runtime requirements
 
 - **Node.js ≥ 22.6** (the bundle is plain JS; the dev loop uses Node's native TypeScript stripping)
-- the **`claude` CLI** for the default agent
 - **git** and **`gh`**
+- an authenticated coding-agent CLI for every agent referenced by `.cycle/workflows.yml` (`claude` for the default `claudecode` workflow)
+- repository dependencies needed by `.cycle/scripts/verify.sh`
 
-Credentials are the caller's responsibility — cycle ships no env-var contract, no preflight check, and no bundled tracker SDKs.
+Credentials are the caller's responsibility — cycle ships no env-var contract and no bundled tracker SDKs. See [`docs/runtime-environment.md`](docs/runtime-environment.md) for the full setup checklist. A first-class `cycle doctor` / `cycle preflight` command is planned but not yet built.
 
 ## Roadmap (not yet built)
 
-The engine today commits and pushes; the broader factory model is still landing. Notably **not yet implemented**: pull-request creation and auto-merge, stacked-branch / human-review mode, a detached daemon with `attach` / `stop` control, and the HTML/TUI progress viewer. The docs below describe the current shipped behavior, not these targets.
+The engine today commits and pushes; the broader factory model is still landing. Notably **not yet implemented**: pull-request creation and auto-merge, stacked-branch / human-review mode, `cycle doctor` / `cycle preflight`, a detached daemon with `attach` / `stop` control, and the HTML/TUI progress viewer. The docs below describe the current shipped behavior, not these targets.
 
 ## Design docs
 
 - [`BRIEF.md`](BRIEF.md) — product brief: what cycle is and why.
+- [`docs/runtime-environment.md`](docs/runtime-environment.md) — host prerequisites, setup checks, and future doctor/preflight direction.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system architecture, state model, and integration surfaces.
 - [`docs/ENGINE.md`](docs/ENGINE.md) — engine implementation reference for contributors.
 - [`docs/RFC-001-issue-lifecycle.md`](docs/RFC-001-issue-lifecycle.md) — issue lifecycle, triage, queue, and blocked-work semantics.
