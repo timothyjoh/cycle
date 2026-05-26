@@ -182,9 +182,12 @@ can add human-in-the-loop steps.
 - **Exhausted attempts** move the issue to `blocked/` and skip its
   remaining planned cycles — one bad slice never stalls the rest of the
   queue.
-- **Rate limits** are orthogonal to attempt counting: short transients back
-  off in process; long exhaustion emits `engine.paused` and exits `42` for
-  the caller to re-invoke later.
+- **Rate limits** are orthogonal to attempt counting: on detection the engine
+  emits `engine.paused { reason: "rate_limit", retry_at }`, sleeps
+  `engine.rate_limit_backoff_ms` (default 3,600,000 ms), and retries the
+  same step in-process. On first clean success it emits
+  `engine.resumed { reason: "rate_limit_cleared" }`. The engine never exits
+  on rate-limit; retries do not increment `consecutive_failures`.
 - The queue **halts** after `engine.max_consecutive_failures` consecutive
   terminal failures (default 2).
 

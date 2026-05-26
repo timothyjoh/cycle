@@ -178,8 +178,9 @@ Subcommands:
   rather than racing the first.
 - **stdout = JSONL** (mirrored to `.cycle/log.jsonl`). **stderr = freeform**
   human-legible log output, errors, stack traces.
-- **Exit code.** `0` on success, `42` on rate-limit pause, non-zero on any
-  other failure.
+- **Exit code.** `0` on success, non-zero on failure. The engine does not
+  exit on rate-limit — it retries in-process until the step succeeds or
+  encounters a non-rate-limit failure.
 
 ### JSONL event schema
 
@@ -209,11 +210,9 @@ Triage-failure and rate-limit variants:
 ```jsonl
 {"ts":"…","event":"triage.raw.failed","raw_id":"…","attempt":1,"error":"…"}
 {"ts":"…","event":"engine.paused","reason":"all_triage_failed","raw_ids":["…"],"last_errors":[…]}
-{"ts":"…","event":"rate_limit.hit"}
-{"ts":"…","event":"engine.paused","reason":"rate_limit","retry_after":"…"}
+{"ts":"…","event":"engine.paused","reason":"rate_limit","retry_at":"…"}
+{"ts":"…","event":"engine.resumed","reason":"rate_limit_cleared"}
 ```
-
-> **Note:** `rate_limit.hit` and `engine.paused {reason: "rate_limit"}` are not yet emitted. The detection primitive `isRateLimitError` in `src/engine/rate-limit.ts` exists but wiring into exec modules and the run-cycle pause/retry loop is pending.
 
 ## 4. Execution Model
 
@@ -562,8 +561,7 @@ Two layers of retry:
 | `review` produces unresolvable must-fixes after `fix` | Code-level gate | Attempt failure. |
 | `build` fails after step-level retries | Code-level gate | Attempt failure. |
 | Attempt budget exhausted | — | Stamp + move issue to `blocked/`; skip its remaining planned cycles; `propagateBlocked` moves dependents. Queue continues with the next issue. |
-| Rate limit (short) | External transient | In-process exponential backoff. No attempt consumed. |
-| Rate limit (long) | External transient | Emit `engine.paused`; exit `42`. Caller re-invokes later. |
+| Rate limit | External transient | Emit `engine.paused { reason: "rate_limit", retry_at }`; sleep `engine.rate_limit_backoff_ms` (default 1 h); retry same step in-process. On first clean success emit `engine.resumed { reason: "rate_limit_cleared" }`. No attempt consumed; `consecutive_failures` not incremented; engine does not exit. |
 | Push network error | Infrastructure | Backoff, retry up to 3 times. No attempt consumed. |
 | Push auth / git error | Environment | Fail fast — engine exits non-zero. |
 | Engine uncaught exception | Internal | Crash; resume on next invocation via `tbd.jsonl` + `log.jsonl`. |

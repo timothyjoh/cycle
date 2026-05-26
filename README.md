@@ -140,7 +140,7 @@ Each step is executed by a configurable **agent**. `claudecode` (the `claude` CL
 - **Two retry layers.** Step-level (`on_fail: retry:N`) absorbs transient hiccups; cycle-level (default 3 attempts) abandons a bad attempt and restarts the workflow on a clean tree.
 - **Pre-build skip on retry.** On a retry, `spec` / `research` / `plan` are skipped when their artifact already exists non-empty (override with `--no-skip-completed`).
 - **Exhausted attempts** move the issue to `blocked/` and skip its remaining planned cycles, so one bad slice does not stall the rest of the queue.
-- **Rate limits** are handled out of band: short transients back off in process; long exhaustion emits `engine.paused` and exits `42` for the caller to re-invoke later.
+- **Rate limits** trigger an in-process pause/retry loop: the engine emits `engine.paused { reason: "rate_limit", retry_at }`, sleeps `engine.rate_limit_backoff_ms` (default 1 hour = 3,600,000 ms), and retries the same step. On first clean success after a rate-limited attempt it emits `engine.resumed { reason: "rate_limit_cleared" }`. Rate-limit retries are invisible to the consecutive-failure counter — the engine never exits on rate-limit.
 - **Crash recovery** is automatic — re-invoking `cycle run` (or bare `cycle`) resumes any in-flight cycle from the log tail, then continues the pending queue.
 
 When every raw issue fails triage in a single pass, the engine emits `engine.paused {reason: "all_triage_failed", …}` and exits non-zero, leaving the work queue intact. Iterate with `cycle triage --dry-run` until it exits `0`, then re-fire the engine.
