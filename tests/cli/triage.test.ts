@@ -57,7 +57,7 @@ test("triage end-to-end: dropped raw decomposes into two todos via stubbed claud
     const promptsDir = join(cycleDir, "prompts");
     await mkdir(scriptsDir, { recursive: true });
     await mkdir(promptsDir, { recursive: true });
-    await mkdir(join(root, "docs/cycle/issues/raw"), { recursive: true });
+    await mkdir(join(root, "docs/cycle/issues/inbox"), { recursive: true });
     await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
     await mkdir(join(root, "docs/cycle/issues/done"), { recursive: true });
     await mkdir(join(root, "docs/cycle/issues/failed"), { recursive: true });
@@ -108,8 +108,8 @@ test("triage end-to-end: dropped raw decomposes into two todos via stubbed claud
     const aId = `${rawId}-a`;
     const bId = `${rawId}-b`;
 
-    const rawListing = await readdir(join(root, "docs/cycle/issues/raw"));
-    assert.deepEqual(rawListing, [], "raw/ should be empty after triage");
+    const rawListing = await readdir(join(root, "docs/cycle/issues/inbox"));
+    assert.deepEqual(rawListing, [], "inbox/ should be empty after triage");
 
     const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
     const events = log.trim().split("\n").map((l) => JSON.parse(l));

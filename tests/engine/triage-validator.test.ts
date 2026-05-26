@@ -342,7 +342,7 @@ test("childIds set serves both ordering membership and sibling depends_on resolu
   }
 });
 
-test("decomposed parent's raw id in depends_on is rejected as dangling", () => {
+test("decomposed parent's inbox id in depends_on is rejected as dangling", () => {
   const j = validChildR1Json();
   // Child references its own raw parent id which is being decomposed
   // (moved to done/, not in todos, queue, or siblings).

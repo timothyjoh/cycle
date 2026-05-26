@@ -8,7 +8,7 @@ export async function materializeFreeformIssue(
   now: Date = new Date(),
 ) {
   const id = freeformId(text, now);
-  const dir = join(repoRoot, "docs", "cycle", "issues", "raw");
+  const dir = join(repoRoot, "docs", "cycle", "issues", "inbox");
   await mkdir(dir, { recursive: true });
   const path = join(dir, `${id}.md`);
   const frontmatter = [

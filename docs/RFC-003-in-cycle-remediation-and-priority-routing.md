@@ -10,7 +10,7 @@
 
 Two recurring failure patterns drove this RFC.
 
-**1a. Reflection over-emission → exponential backlog.** The `feature` reflection step surfaces every sharp edge as a `raw/` issue. With 3+ edges per cycle and each cycle's reflection front-loaded as "self-heal" work, the `todo/` queue grew faster than it drained. We want emergent work to *remain possible* — but triaged, prioritized, and bounded, with trivial in-scope fixes collapsed into the cycle that created them rather than spawned as future cycles.
+**1a. Reflection over-emission → exponential backlog.** The `feature` reflection step surfaces every sharp edge as a `inbox/` issue. With 3+ edges per cycle and each cycle's reflection front-loaded as "self-heal" work, the `todo/` queue grew faster than it drained. We want emergent work to *remain possible* — but triaged, prioritized, and bounded, with trivial in-scope fixes collapsed into the cycle that created them rather than spawned as future cycles.
 
 **1b. Inconsistent commits / "the engine dies and we don't know why."** Two mechanical causes:
 - The **commit scope guard** blocks any commit where a `src/`/`scripts/` file is dirty but absent from BUILD.md's agent-authored `## Touched Files` list. Two violations trip `engine.paused {reason: "commit-scope-guard-loop"}`. This is the halt seen in cycles 0200–0201.
@@ -68,21 +68,21 @@ Reflection writes three things:
 
 1. **`REFLECTION.md`** — narrative, including its routing decisions for this cycle.
 2. **`FINAL_FIXES.md`** — the mechanical, in-footprint fix list for `final_fix`.
-3. **`raw/` issues** — deferred work, each carrying a `priority` (§5).
+3. **`inbox/` issues** — deferred work, each carrying a `priority` (§5).
 
 Every sharp edge is sorted by this rule:
 
 | Bucket | Bright line | Destination |
 |---|---|---|
 | **fix-now** | Confined to the cycle footprint **AND** mechanical (no design decision) | `FINAL_FIXES.md` |
-| **defer** | Requires files outside the footprint, or is large enough to deserve its own spec/review (includes `commit.scope_warning` escapes) | `raw/` issue + `priority: low\|medium\|high\|critical` |
-| **discuss** | Implies the approach may be wrong, or a genuine design fork reflection can't resolve alone | `raw/` issue + `priority: discuss` |
+| **defer** | Requires files outside the footprint, or is large enough to deserve its own spec/review (includes `commit.scope_warning` escapes) | `inbox/` issue + `priority: low\|medium\|high\|critical` |
+| **discuss** | Implies the approach may be wrong, or a genuine design fork reflection can't resolve alone | `inbox/` issue + `priority: idea` |
 
 The footprint test is objective and engine-verifiable, which removes the "small today, big tomorrow" inconsistency. The only judgment left to reflection is narrow and appropriate: *mechanical vs needs-design*.
 
 ### 4.1 Emission cap
 
-Reflection emits **at most the top 1–2 deferred issues per cycle**, choosing the highest-value, and dedups against `raw/`, `todo/`, `discuss/`, and recently-surfaced ids. This is safe **because reflection recurs every cycle**: a sharp edge that genuinely matters resurfaces the next time that area is touched and gets filed then; one-off trivia that never resurfaces was not worth a queue row. `FINAL_FIXES.md` is uncapped (already bounded by "footprint + mechanical").
+Reflection emits **at most the top 1–2 deferred issues per cycle**, choosing the highest-value, and dedups against `inbox/`, `todo/`, `ideas/`, and recently-surfaced ids. This is safe **because reflection recurs every cycle**: a sharp edge that genuinely matters resurfaces the next time that area is touched and gets filed then; one-off trivia that never resurfaces was not worth a queue row. `FINAL_FIXES.md` is uncapped (already bounded by "footprint + mechanical").
 
 ---
 
@@ -94,7 +94,7 @@ A single enum replaces both RFC-001's integer `priority` and reflection's `prior
 priority: low | medium | high | critical | discuss
 ```
 
-- **Default `medium`.** If a `raw/` drop omits `priority`, **triage sets it to `medium` and moves on**. `materializeFreeformIssue` (`cycle drop`) emits `medium` instead of the old `3`.
+- **Default `medium`.** If a `inbox/` drop omits `priority`, **triage sets it to `medium` and moves on**. `materializeFreeformIssue` (`cycle drop`) emits `medium` instead of the old `3`.
 - **`low|medium|high|critical` are ordering tiers; `discuss` is a routing flag** (§6), not a tier.
 - Anyone may set `priority` at drop time, including `discuss`. Reflection is just the common producer of `discuss`.
 
@@ -110,18 +110,18 @@ Queue ordering stops being the triage agent's job. The engine sorts pending rows
 
 ---
 
-## 6. The `discuss/` lane
+## 6. The `ideas/` lane
 
 A new lifecycle folder, parallel to `blocked/`:
 
 ```
-docs/cycle/issues/discuss/   # Parked for human judgment. Not in tbd.jsonl. Not auto-processed.
+docs/cycle/issues/ideas/   # Parked for human judgment. Not in tbd.jsonl. Not auto-processed.
 ```
 
-- **Engine-routed before the agent.** During the triage phase, the engine reads each raw's `priority` *before* invoking the triage agent. `priority: discuss` → move the raw to `discuss/` as-is, emit `issue.parked_for_discussion`, and skip the agent (no enrichment, no `tbd.jsonl` row).
-- **Release mirrors `blocked/`.** A human reads `discuss/<id>.md`, sets a real priority, and moves it back to `raw/`; the next run triages it normally.
+- **Engine-routed before the agent.** During the triage phase, the engine reads each raw's `priority` *before* invoking the triage agent. `priority: idea` → move the raw to `ideas/` as-is, emit `issue.parked_for_ideas`, and skip the agent (no enrichment, no `tbd.jsonl` row).
+- **Release mirrors `blocked/`.** A human reads `ideas/<id>.md`, sets a real priority, and moves it back to `inbox/`; the next run triages it normally.
 
-`discuss/` deliberately is *not* `todo/`: a `todo/` file with no `tbd.jsonl` row is an implicit state the engine actively walks (drain-by-filename, dependency scans) and can orphan. A dedicated folder keeps parked items out of every structure the engine traverses.
+`ideas/` deliberately is *not* `todo/`: a `todo/` file with no `tbd.jsonl` row is an implicit state the engine actively walks (drain-by-filename, dependency scans) and can orphan. A dedicated folder keeps parked items out of every structure the engine traverses.
 
 ---
 
@@ -135,7 +135,7 @@ Independently: load `.cycle/.env` at engine bootstrap (or flip the shipped defau
 
 ## 8. Rollout order
 
-Filed as `raw/` issues, build order encoded by id prefix (`redesign-NN-…`):
+Filed as `inbox/` issues, build order encoded by id prefix (`redesign-NN-…`):
 
 1. `redesign-01-single-engine-lock` — **critical**. Lands first so all subsequent cycles are race-safe.
 2. `redesign-02-load-cycle-env` — high. Trunk enforcement gap.

@@ -72,7 +72,7 @@ test("runCliTriage no flag: exit 2, help on stderr", async () => {
   }
 });
 
-test("runCliTriage --dry-run empty raw/: exit 0, empty JSON array", async () => {
+test("runCliTriage --dry-run empty inbox/: exit 0, empty JSON array", async () => {
   const root = await repo();
   try {
     const result = await runCliTriage(root, ["--dry-run"]);
@@ -119,9 +119,9 @@ function rawBody(id: string): string {
 test("runCliTriage --dry-run ok report: exit 0, JSON has status:ok", async () => {
   const root = await repo();
   try {
-    await mkdir(join(root, "docs/cycle/issues/raw"), { recursive: true });
+    await mkdir(join(root, "docs/cycle/issues/inbox"), { recursive: true });
     await writeFile(
-      join(root, "docs/cycle/issues/raw/r1.md"),
+      join(root, "docs/cycle/issues/inbox/r1.md"),
       rawBody("r1"),
       "utf8",
     );
@@ -140,9 +140,9 @@ test("runCliTriage --dry-run ok report: exit 0, JSON has status:ok", async () =>
 test("runCliTriage --dry-run failed report: exit 1", async () => {
   const root = await repo();
   try {
-    await mkdir(join(root, "docs/cycle/issues/raw"), { recursive: true });
+    await mkdir(join(root, "docs/cycle/issues/inbox"), { recursive: true });
     await writeFile(
-      join(root, "docs/cycle/issues/raw/bad.md"),
+      join(root, "docs/cycle/issues/inbox/bad.md"),
       rawBody("bad"),
       "utf8",
     );

@@ -130,7 +130,7 @@ workflows:
   }
 });
 
-test("'drop' materializes an issue to raw/ without running", async () => {
+test("'drop' materializes an issue to inbox/ without running", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
     const distPath = await ensureDist();
@@ -141,10 +141,10 @@ test("'drop' materializes an issue to raw/ without running", async () => {
     assert.equal(out.event, "issue.dropped");
     assert.match(out.issue_id, /^txt-\d{8}-\d{6}-park-this-for-later$/);
 
-    // raw/ has the file, no log.jsonl (drop is engine-side silent)
+    // inbox/ has the file, no log.jsonl (drop is engine-side silent)
     const rawFile = await readFile(out.path, "utf8");
     assert.match(rawFile, /park this for later/);
-    assert.match(out.path, /\/docs\/cycle\/issues\/raw\//);
+    assert.match(out.path, /\/docs\/cycle\/issues\/inbox\//);
     try {
       await readFile(join(root, ".cycle/log.jsonl"), "utf8");
       assert.fail("drop should not write log.jsonl");
@@ -168,7 +168,7 @@ test("'run \"<text>\" --dry-run' pins raw frontmatter byte-shape (priority: medi
     );
     assert.equal(r.status, 0, `cycle run exit: ${r.status}\nstderr: ${r.stderr}`);
 
-    const rawDir = join(root, "docs/cycle/issues/raw");
+    const rawDir = join(root, "docs/cycle/issues/inbox");
     const entries = (await readdir(rawDir)).filter((f) => f.endsWith(".md"));
     assert.equal(entries.length, 1, `expected exactly one raw .md, got: ${entries.join(", ")}`);
 
@@ -229,7 +229,7 @@ test("'drop' and 'run \"<text>\"' produce byte-equal frontmatter after normalizi
     // run --dry-run: stdout is NDJSON events; locate raw file via readdir
     const runResult = spawnSync("node", [distPath, "run", text, "--dry-run"], { cwd: rootB, encoding: "utf8" });
     assert.equal(runResult.status, 0, `cycle run exit: ${runResult.status}\nstderr: ${runResult.stderr}`);
-    const rawDir = join(rootB, "docs/cycle/issues/raw");
+    const rawDir = join(rootB, "docs/cycle/issues/inbox");
     const entries = (await readdir(rawDir)).filter((f) => f.endsWith(".md"));
     assert.equal(entries.length, 1, `expected exactly one raw .md, got: ${entries.join(", ")}`);
     const bodyB = await readFile(join(rawDir, entries[0]), "utf8");

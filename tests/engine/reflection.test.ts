@@ -24,9 +24,9 @@ function makeLogger(): { events: EmittedEvent[]; logger: { emit: (e: string, f: 
 async function setupRepo(): Promise<{ root: string; artifactDir: string }> {
   const root = await mkdtemp(join(tmpdir(), "cycle-refl-"));
   await mkdir(join(root, ".cycle"), { recursive: true });
-  await mkdir(join(root, "docs/cycle/issues/raw"), { recursive: true });
+  await mkdir(join(root, "docs/cycle/issues/inbox"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
-  await mkdir(join(root, "docs/cycle/issues/discuss"), { recursive: true });
+  await mkdir(join(root, "docs/cycle/issues/ideas"), { recursive: true });
   const artifactDir = join(root, `docs/cycle/${CID}-test-cycle`);
   await mkdir(artifactDir, { recursive: true });
   // Create empty log.jsonl so readScopeWarnings has something to read
@@ -59,8 +59,8 @@ test("ingestReflection: happy path with 2 entries writes files and emits events"
     const r = await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
     assert.deepEqual(r, { written: [`refl-${CID}-foo-bar`, `refl-${CID}-baz`], skipped: 0, fixNow: 0 });
 
-    const fooPath = join(root, "docs/cycle/issues/raw", `refl-${CID}-foo-bar.md`);
-    const bazPath = join(root, "docs/cycle/issues/raw", `refl-${CID}-baz.md`);
+    const fooPath = join(root, "docs/cycle/issues/inbox", `refl-${CID}-foo-bar.md`);
+    const bazPath = join(root, "docs/cycle/issues/inbox", `refl-${CID}-baz.md`);
     assert.ok(await fileExists(fooPath));
     assert.ok(await fileExists(bazPath));
 
@@ -96,7 +96,7 @@ test("ingestReflection: empty array emits summary only, no files", async () => {
     const { events, logger } = makeLogger();
     const r = await ingestReflection(root, CID, SLUG, JSON.stringify({ sharp_edges: [] }), logger, artifactDir, join(artifactDir, "touched.json"));
     assert.deepEqual(r, { written: [], skipped: 0, fixNow: 0 });
-    const entries = await readdir(join(root, "docs/cycle/issues/raw"));
+    const entries = await readdir(join(root, "docs/cycle/issues/inbox"));
     assert.equal(entries.length, 0);
     assert.equal(events.length, 1);
     assert.equal(events[0].event, "reflection.summary");
@@ -119,7 +119,7 @@ test("ingestReflection: unparseable stdout escalates to refl-<cid>-parse-error.m
     const summary = expectExactlyOne(events, "reflection.summary");
     assert.equal(summary.fields.count, 0);
     assert.equal(summary.fields.skipped, 1);
-    const errPath = join(root, "docs/cycle/issues/raw", `refl-${CID}-parse-error.md`);
+    const errPath = join(root, "docs/cycle/issues/inbox", `refl-${CID}-parse-error.md`);
     assert.ok(await fileExists(errPath));
     const body = await readFile(errPath, "utf8");
     const { fm, bodyAfter } = parseFrontmatter(body);
@@ -223,7 +223,7 @@ test("ingestReflection: repair pass handles JSON strings containing braces", asy
       }) + "\nyap yap yap";
     const r = await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
     assert.deepEqual(r, { written: [`refl-${CID}-brace-title`], skipped: 0, fixNow: 0 });
-    const p = join(root, "docs/cycle/issues/raw", `refl-${CID}-brace-title.md`);
+    const p = join(root, "docs/cycle/issues/inbox", `refl-${CID}-brace-title.md`);
     const body = await readFile(p, "utf8");
     const { fm, bodyAfter } = parseFrontmatter(body);
     assert.equal(fm.title, "brace title");
@@ -246,7 +246,7 @@ test("ingestReflection: repair pass handles backslash-escaped quotes inside JSON
     const r = await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
     assert.equal(r.skipped, 0);
     assert.equal(r.written.length, 1);
-    const p = join(root, "docs/cycle/issues/raw", `${r.written[0]}.md`);
+    const p = join(root, "docs/cycle/issues/inbox", `${r.written[0]}.md`);
     const body = await readFile(p, "utf8");
     const { fm } = parseFrontmatter(body);
     assert.equal(fm.title, 'fix: "quoted" title');
@@ -295,7 +295,7 @@ test("ingestReflection: escalation truncates stdout over 8 KB", async () => {
     const huge = "x".repeat(10000);
     const r = await ingestReflection(root, CID, SLUG, huge, logger, artifactDir, join(artifactDir, "touched.json"));
     assert.equal(r.written.length, 1);
-    const errPath = join(root, "docs/cycle/issues/raw", `refl-${CID}-parse-error.md`);
+    const errPath = join(root, "docs/cycle/issues/inbox", `refl-${CID}-parse-error.md`);
     const file = await readFile(errPath, "utf8");
     const { bodyAfter } = parseFrontmatter(file);
     const trimmed = bodyAfter.replace(/^\n/, "").replace(/\n$/, "");
@@ -312,7 +312,7 @@ test("ingestReflection: escalation preserves short stdout verbatim (no marker)",
     const { logger } = makeLogger();
     const r = await ingestReflection(root, CID, SLUG, "garbage", logger, artifactDir, join(artifactDir, "touched.json"));
     assert.equal(r.written.length, 1);
-    const errPath = join(root, "docs/cycle/issues/raw", `refl-${CID}-parse-error.md`);
+    const errPath = join(root, "docs/cycle/issues/inbox", `refl-${CID}-parse-error.md`);
     const file = await readFile(errPath, "utf8");
     const { bodyAfter } = parseFrontmatter(file);
     assert.match(bodyAfter, /^\ngarbage\n$/);
@@ -333,7 +333,7 @@ test("ingestReflection: escalation truncation is codepoint-safe across multi-byt
     const stdout = "a".repeat(8190) + "🚀";
     const r = await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
     assert.equal(r.written.length, 1);
-    const errPath = join(root, "docs/cycle/issues/raw", `refl-${CID}-parse-error.md`);
+    const errPath = join(root, "docs/cycle/issues/inbox", `refl-${CID}-parse-error.md`);
     const file = await readFile(errPath, "utf8");
     const { bodyAfter } = parseFrontmatter(file);
     const trimmed = bodyAfter.replace(/^\n/, "").replace(/\n$/, "");
@@ -347,12 +347,12 @@ test("ingestReflection: escalation truncation is codepoint-safe across multi-byt
 test("ingestReflection: escalation is idempotent on resume (pre-seeded parse-error file replaced)", async () => {
   const { root, artifactDir } = await setupRepo();
   try {
-    const errPath = join(root, "docs/cycle/issues/raw", `refl-${CID}-parse-error.md`);
+    const errPath = join(root, "docs/cycle/issues/inbox", `refl-${CID}-parse-error.md`);
     await writeFile(errPath, "stale-content-from-previous-attempt", "utf8");
     const { logger } = makeLogger();
     const r = await ingestReflection(root, CID, SLUG, "still not json", logger, artifactDir, join(artifactDir, "touched.json"));
     assert.deepEqual(r, { written: [`refl-${CID}-parse-error`], skipped: 1, fixNow: 0 });
-    const files = (await readdir(join(root, "docs/cycle/issues/raw")))
+    const files = (await readdir(join(root, "docs/cycle/issues/inbox")))
       .filter((n) => n.startsWith(`refl-${CID}-`));
     assert.deepEqual(files, [`refl-${CID}-parse-error.md`], "exactly one parse-error file");
     const body = await readFile(errPath, "utf8");
@@ -423,8 +423,8 @@ test("ingestReflection: in-pass slug collision appends -2 suffix", async () => {
       skipped: 0,
       fixNow: 0,
     });
-    const p1 = join(root, "docs/cycle/issues/raw", `refl-${CID}-refactor-x.md`);
-    const p2 = join(root, "docs/cycle/issues/raw", `refl-${CID}-refactor-x-2.md`);
+    const p1 = join(root, "docs/cycle/issues/inbox", `refl-${CID}-refactor-x.md`);
+    const p2 = join(root, "docs/cycle/issues/inbox", `refl-${CID}-refactor-x-2.md`);
     assert.ok(await fileExists(p1));
     assert.ok(await fileExists(p2));
   } finally {
@@ -435,7 +435,7 @@ test("ingestReflection: in-pass slug collision appends -2 suffix", async () => {
 test("ingestReflection: idempotent re-run unlinks prior refl-<cycleId>-*.md", async () => {
   const { root, artifactDir } = await setupRepo();
   try {
-    const stalePath = join(root, "docs/cycle/issues/raw", `refl-${CID}-stale.md`);
+    const stalePath = join(root, "docs/cycle/issues/inbox", `refl-${CID}-stale.md`);
     await writeFile(stalePath, "stale content", "utf8");
     const { logger } = makeLogger();
     const stdout = JSON.stringify({
@@ -443,7 +443,7 @@ test("ingestReflection: idempotent re-run unlinks prior refl-<cycleId>-*.md", as
     });
     await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
     assert.equal(await fileExists(stalePath), false);
-    const freshPath = join(root, "docs/cycle/issues/raw", `refl-${CID}-fresh.md`);
+    const freshPath = join(root, "docs/cycle/issues/inbox", `refl-${CID}-fresh.md`);
     assert.ok(await fileExists(freshPath));
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -461,9 +461,9 @@ test("ingestReflection: idempotent re-run with same stdout yields identical fina
       ],
     });
     await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
-    const after1 = (await readdir(join(root, "docs/cycle/issues/raw"))).sort();
+    const after1 = (await readdir(join(root, "docs/cycle/issues/inbox"))).sort();
     await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
-    const after2 = (await readdir(join(root, "docs/cycle/issues/raw"))).sort();
+    const after2 = (await readdir(join(root, "docs/cycle/issues/inbox"))).sort();
     assert.deepEqual(after1, after2);
     assert.deepEqual(after2, [`refl-${CID}-alpha.md`, `refl-${CID}-beta.md`]);
   } finally {
@@ -481,7 +481,7 @@ test("ingestReflection: defer entry writes priority enum in frontmatter", async 
     const r = await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
     assert.deepEqual(r, { written: [`refl-${CID}-huge-pri`], skipped: 0, fixNow: 0 });
     const body = await readFile(
-      join(root, "docs/cycle/issues/raw", `refl-${CID}-huge-pri.md`),
+      join(root, "docs/cycle/issues/inbox", `refl-${CID}-huge-pri.md`),
       "utf8",
     );
     const { fm } = parseFrontmatter(body);
@@ -531,7 +531,7 @@ test("ingestReflection: title containing colon and quote round-trips through fro
     });
     const r = await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
     assert.equal(r.written.length, 1);
-    const path = join(root, "docs/cycle/issues/raw", `${r.written[0]}.md`);
+    const path = join(root, "docs/cycle/issues/inbox", `${r.written[0]}.md`);
     const body = await readFile(path, "utf8");
     const { fm } = parseFrontmatter(body);
     assert.equal(fm.title, tricky);
@@ -557,7 +557,7 @@ test("ingestReflection: null entry dropped as invalid", async () => {
 test("ingestReflection: unlink error on stale file is swallowed", async () => {
   const { root, artifactDir } = await setupRepo();
   try {
-    const rawDir = join(root, "docs/cycle/issues/raw");
+    const rawDir = join(root, "docs/cycle/issues/inbox");
     const stalePath = join(rawDir, `refl-${CID}-stale.md`);
     await writeFile(stalePath, "stale", "utf8");
     // Make raw dir read-only so unlink fails but readdir still works.
@@ -586,7 +586,7 @@ test("ingestReflection: unlink error on stale file is swallowed", async () => {
 test("ingestReflection: atomicWrite cleanup runs when rename fails", async () => {
   const { root, artifactDir } = await setupRepo();
   try {
-    const rawDir = join(root, "docs/cycle/issues/raw");
+    const rawDir = join(root, "docs/cycle/issues/inbox");
     const targetId = `refl-${CID}-blocked`;
     // Pre-create a directory at the target path so rename fails (ENOTEMPTY/EISDIR).
     await mkdir(join(rawDir, `${targetId}.md`), { recursive: true });
@@ -612,7 +612,7 @@ test("ingestReflection: entry whose title slugifies to empty falls back to 'entr
     });
     const r = await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
     assert.deepEqual(r, { written: [`refl-${CID}-entry`], skipped: 0, fixNow: 0 });
-    assert.ok(await fileExists(join(root, "docs/cycle/issues/raw", `refl-${CID}-entry.md`)));
+    assert.ok(await fileExists(join(root, "docs/cycle/issues/inbox", `refl-${CID}-entry.md`)));
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -630,7 +630,7 @@ test("ingestReflection: unfenced prose with brace before JSON object recovers vi
     const summary = expectExactlyOne(events, "reflection.summary");
     assert.equal(summary.fields.count, 0);
     assert.equal(summary.fields.skipped, 0);
-    const files = await readdir(join(root, "docs/cycle/issues/raw"));
+    const files = await readdir(join(root, "docs/cycle/issues/inbox"));
     assert.equal(files.filter((f) => f.includes("parse-error")).length, 0);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -648,7 +648,7 @@ test("ingestReflection: unfenced prose with brace before JSON array recovers —
     assert.ok(skip, "reflection.skipped emitted for shape failure");
     assert.equal(skip!.fields.reason, "parse_error");
     assert.match(String(skip!.fields.message), /sharp_edges/);
-    const files = await readdir(join(root, "docs/cycle/issues/raw"));
+    const files = await readdir(join(root, "docs/cycle/issues/inbox"));
     assert.equal(files.filter((f) => f.includes("parse-error")).length, 0, "no parse-error file — parse itself succeeded");
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -730,7 +730,7 @@ test("cap: at most 2 defer+discuss combined written; reflection.cap_reached emit
     assert.equal(r.written.length, 2);
     const capEv = expectExactlyOne(events, "reflection.cap_reached");
     assert.equal(capEv.fields.title, "edge three");
-    const rawFiles = await readdir(join(root, "docs/cycle/issues/raw"));
+    const rawFiles = await readdir(join(root, "docs/cycle/issues/inbox"));
     assert.equal(rawFiles.filter((f) => f.endsWith(".md")).length, 2);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -744,7 +744,7 @@ test("cap: discuss counts toward cap", async () => {
     const stdout = JSON.stringify({
       sharp_edges: [
         { title: "defer one", body: "b1", bucket: "defer", priority: "high" },
-        { title: "discuss two", body: "b2", bucket: "discuss" },
+        { title: "discuss two", body: "b2", bucket: "idea" },
         { title: "defer three", body: "b3", bucket: "defer", priority: "medium" },
       ],
     });
@@ -757,14 +757,14 @@ test("cap: discuss counts toward cap", async () => {
   }
 });
 
-test("dedup: same-cycle raw/ file removed by cleanup and re-created (no dedup skip)", async () => {
+test("dedup: same-cycle inbox/ file removed by cleanup and re-created (no dedup skip)", async () => {
   const { root, artifactDir } = await setupRepo();
   try {
     const { events, logger } = makeLogger();
-    // Idempotent cleanup removes refl-<CID>-*.md from raw/ before dedup map is built.
-    // So a pre-existing same-cycle file in raw/ is deleted first and then re-written —
-    // dedup_skipped is NOT emitted. This verifies cleanup takes precedence over raw/ dedup.
-    const prePath = join(root, "docs/cycle/issues/raw", `refl-${CID}-recreated.md`);
+    // Idempotent cleanup removes refl-<CID>-*.md from inbox/ before dedup map is built.
+    // So a pre-existing same-cycle file in inbox/ is deleted first and then re-written —
+    // dedup_skipped is NOT emitted. This verifies cleanup takes precedence over inbox/ dedup.
+    const prePath = join(root, "docs/cycle/issues/inbox", `refl-${CID}-recreated.md`);
     await writeFile(prePath, "stale content", "utf8");
     const stdout = JSON.stringify({
       sharp_edges: [{ title: "recreated", body: "fresh body.", bucket: "defer", priority: "medium" }],
@@ -785,7 +785,7 @@ test("dedup: matching id in todo/ emits reflection.dedup_skipped", async () => {
   const { root, artifactDir } = await setupRepo();
   try {
     const { events, logger } = makeLogger();
-    // Pre-create a file in todo/ (triage moved it there from raw/)
+    // Pre-create a file in todo/ (triage moved it there from inbox/)
     const preexistingId = `refl-${CID}-already-triaged`;
     await writeFile(join(root, "docs/cycle/issues/todo", `${preexistingId}.md`), "---\nid: x\n---\n", "utf8");
     const stdout = JSON.stringify({
@@ -797,34 +797,34 @@ test("dedup: matching id in todo/ emits reflection.dedup_skipped", async () => {
     assert.equal(dupEv.fields.id, preexistingId);
     assert.equal(dupEv.fields.existing_in, "todo");
     // No new file written for this entry
-    const rawFiles = await readdir(join(root, "docs/cycle/issues/raw"));
+    const rawFiles = await readdir(join(root, "docs/cycle/issues/inbox"));
     assert.equal(rawFiles.filter((f) => f.endsWith(".md")).length, 0);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("dedup: matching id in discuss/ emits reflection.dedup_skipped", async () => {
+test("dedup: matching id in ideas/ emits reflection.dedup_skipped", async () => {
   const { root, artifactDir } = await setupRepo();
   try {
     const { events, logger } = makeLogger();
-    // Pre-create a file in discuss/ (triage routed it there)
+    // Pre-create a file in ideas/ (triage routed it there)
     const preexistingId = `refl-${CID}-in-discuss`;
-    await writeFile(join(root, "docs/cycle/issues/discuss", `${preexistingId}.md`), "---\nid: x\n---\n", "utf8");
+    await writeFile(join(root, "docs/cycle/issues/ideas", `${preexistingId}.md`), "---\nid: x\n---\n", "utf8");
     const stdout = JSON.stringify({
-      sharp_edges: [{ title: "in discuss", body: "body.", bucket: "discuss" }],
+      sharp_edges: [{ title: "in discuss", body: "body.", bucket: "idea" }],
     });
     const r = await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
     assert.equal(r.written.length, 0);
     const dupEv = expectExactlyOne(events, "reflection.dedup_skipped");
     assert.equal(dupEv.fields.id, preexistingId);
-    assert.equal(dupEv.fields.existing_in, "discuss");
+    assert.equal(dupEv.fields.existing_in, "idea");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("scope_warning: commit.scope_warning in log.jsonl produces deferred raw issue", async () => {
+test("scope_warning: commit.scope_warning in log.jsonl produces deferred inbox issue", async () => {
   const { root, artifactDir } = await setupRepo();
   try {
     const { events, logger } = makeLogger();
@@ -838,7 +838,7 @@ test("scope_warning: commit.scope_warning in log.jsonl produces deferred raw iss
     await writeFile(join(root, ".cycle", "log.jsonl"), logLine + "\n", "utf8");
     const stdout = JSON.stringify({ sharp_edges: [] });
     const r = await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
-    // The synthetic entry should be written as a deferred raw issue
+    // The synthetic entry should be written as a deferred inbox issue
     assert.equal(r.written.length, 1);
     const deferredEv = events.find((e) => e.event === "reflection.deferred_issue_written");
     assert.ok(deferredEv, "deferred_issue_written emitted for scope warning");
@@ -912,7 +912,7 @@ test("priority: defer entry with priority: critical writes priority: critical fr
       sharp_edges: [{ title: "critical issue", body: "very urgent.", bucket: "defer", priority: "critical" }],
     });
     await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
-    const body = await readFile(join(root, "docs/cycle/issues/raw", `refl-${CID}-critical-issue.md`), "utf8");
+    const body = await readFile(join(root, "docs/cycle/issues/inbox", `refl-${CID}-critical-issue.md`), "utf8");
     const { fm } = parseFrontmatter(body);
     assert.equal(fm.priority, "critical");
   } finally {
@@ -920,17 +920,17 @@ test("priority: defer entry with priority: critical writes priority: critical fr
   }
 });
 
-test("priority: discuss entry writes priority: discuss frontmatter", async () => {
+test("priority: idea entry writes priority: idea frontmatter", async () => {
   const { root, artifactDir } = await setupRepo();
   try {
     const { logger } = makeLogger();
     const stdout = JSON.stringify({
-      sharp_edges: [{ title: "discuss this", body: "needs discussion.", bucket: "discuss" }],
+      sharp_edges: [{ title: "discuss this", body: "needs ideas.", bucket: "idea" }],
     });
     await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
-    const body = await readFile(join(root, "docs/cycle/issues/raw", `refl-${CID}-discuss-this.md`), "utf8");
+    const body = await readFile(join(root, "docs/cycle/issues/inbox", `refl-${CID}-discuss-this.md`), "utf8");
     const { fm } = parseFrontmatter(body);
-    assert.equal(fm.priority, "discuss");
+    assert.equal(fm.priority, "idea");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -943,13 +943,13 @@ test("no priority_hint: no written file contains priority_hint key in frontmatte
     const stdout = JSON.stringify({
       sharp_edges: [
         { title: "defer one", body: "b1", bucket: "defer", priority: "high" },
-        { title: "discuss two", body: "b2", bucket: "discuss" },
+        { title: "discuss two", body: "b2", bucket: "idea" },
       ],
     });
     await ingestReflection(root, CID, SLUG, stdout, logger, artifactDir, join(artifactDir, "touched.json"));
-    const rawFiles = await readdir(join(root, "docs/cycle/issues/raw"));
+    const rawFiles = await readdir(join(root, "docs/cycle/issues/inbox"));
     for (const name of rawFiles) {
-      const content = await readFile(join(root, "docs/cycle/issues/raw", name), "utf8");
+      const content = await readFile(join(root, "docs/cycle/issues/inbox", name), "utf8");
       assert.ok(!content.includes("priority_hint"), `${name} must not contain priority_hint`);
     }
   } finally {

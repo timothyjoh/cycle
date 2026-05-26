@@ -1,13 +1,13 @@
 # Raw Issue Example
 
 This file documents the preferred shape for a work item that is ready to enter
-`docs/cycle/issues/raw/` and be triaged by cycle.
+`docs/cycle/issues/inbox/` and be triaged by cycle.
 
-It is an example, not an active issue. Do not move this file into `raw/`.
+It is an example, not an active issue. Do not move this file into `inbox/`.
 
-## What belongs in `raw/`
+## What belongs in `inbox/`
 
-Use `raw/` for work that is ready for the engine to inspect, normalize into
+Use `inbox/` for work that is ready for the engine to inspect, normalize into
 one or more `todo/` items, and eventually execute. Source material can be messy
 or copied directly from GitHub, Linear, Jira, a chat thread, or a human note —
 but the more concrete the input, the less triage has to infer.
@@ -53,7 +53,7 @@ browsing, but the private-browsing part is not yet confirmed.
 
 ## What triage normalizes
 
-The raw issue is source material. During triage, cycle converts it into one or
+The inbox issue is source material. During triage, cycle converts it into one or
 more `todo/` files with engine-required fields:
 
 - `id`
@@ -73,8 +73,8 @@ should route each child to one of those configured workflows.
 
 ## Thin or ambiguous inputs
 
-If the work is not ready to execute, do **not** put it in `raw/` yet. Put it in
-`docs/cycle/issues/ideas/` or mark it as `priority: discuss` so the engine parks
+If the work is not ready to execute, do **not** put it in `inbox/` yet. Put it in
+`docs/cycle/issues/ideas/` or mark it as `priority: idea` so the engine parks
 it for human judgment.
 
 Examples of insufficient input:
@@ -84,7 +84,7 @@ Examples of insufficient input:
 id: idea-auth
 source: text
 title: "fix auth"
-priority: discuss
+priority: idea
 ---
 
 Something feels wrong with login. Need to talk through the actual symptom and

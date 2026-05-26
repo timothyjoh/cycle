@@ -44,7 +44,7 @@ workflows:
   const scriptPath = join(cycleDir, "scripts", "verify.sh");
   await writeFile(scriptPath, "#!/bin/bash\nexit 0\n", "utf8");
   await chmod(scriptPath, 0o755);
-  await mkdir(join(root, "docs/cycle/issues/raw"), { recursive: true });
+  await mkdir(join(root, "docs/cycle/issues/inbox"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/done"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/blocked"), { recursive: true });

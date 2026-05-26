@@ -368,7 +368,7 @@ test("normalizePriority: absent/null/unrecognized → medium", () => {
 });
 
 test("normalizePriority: enum strings pass through", () => {
-  const values: Priority[] = ["low", "medium", "high", "critical", "discuss"];
+  const values: Priority[] = ["low", "medium", "high", "critical", "idea"];
   for (const v of values) {
     assert.equal(normalizePriority(v), v);
   }
@@ -457,11 +457,11 @@ test("popNextPending: returns critical before high before medium before low", as
   }
 });
 
-test("popNextPending: discuss rows are filtered — mixed queue returns highest non-discuss", async () => {
+test("popNextPending: idea rows are filtered — mixed queue returns highest non-discuss", async () => {
   const root = await setupRoot();
   try {
     await writeQueue(root, [
-      row("D", { priority: "discuss" }),
+      row("D", { priority: "idea" }),
       row("M", { priority: "medium" }),
     ]);
     const next = await popNextPending(root);
@@ -475,8 +475,8 @@ test("popNextPending: returns null when all pending rows are discuss", async () 
   const root = await setupRoot();
   try {
     await writeQueue(root, [
-      row("D1", { priority: "discuss" }),
-      row("D2", { priority: "discuss" }),
+      row("D1", { priority: "idea" }),
+      row("D2", { priority: "idea" }),
     ]);
     const next = await popNextPending(root);
     assert.equal(next, null);

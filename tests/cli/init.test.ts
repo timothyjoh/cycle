@@ -23,10 +23,10 @@ test("init scaffolds .cycle/bin/cycle.js (exec), workflows, prompts, scripts", a
     );
     await stat(join(root, ".cycle/prompts/spec.md"));
     await stat(join(root, ".cycle/scripts/verify.sh"));
-    for (const sub of ["raw", "todo", "done", "blocked", "failed"]) {
+    for (const sub of ["ideas", "inbox", "todo", "done", "blocked", "failed"]) {
       await stat(join(root, "docs/cycle/issues", sub));
     }
-    for (const sub of ["tbd", "queued", "triaged"]) {
+    for (const sub of ["raw", "discuss", "tbd", "queued", "triaged"]) {
       await assert.rejects(
         () => stat(join(root, "docs/cycle/issues", sub)),
         (e: NodeJS.ErrnoException) => e.code === "ENOENT"

@@ -72,7 +72,7 @@ So cycle makes repo context and artifacts first-class. Each cycle writes durable
 - `.cycle/workflows.yml` — engine, triage, and workflow configuration
 - `.cycle/prompts/` — prompt templates for each workflow step and for triage
 - `.cycle/scripts/` — git / verification helpers
-- `docs/cycle/issues/` — `raw` / `todo` / `done` / `failed` / `blocked` issue folders
+- `docs/cycle/issues/` — `ideas` / `inbox` / `todo` / `done` / `failed` / `blocked` issue folders
 - optional `.claude/skills/cycle.md` — a Claude Code skill that teaches a parent agent how to invoke cycle
 
 The consuming repo does not need to become a Node project. After `init`, the committed `.cycle/bin/cycle.js` bundle is the engine — no `npm install` required.
@@ -120,7 +120,7 @@ Re-run triage as a read-only diagnostic (no state mutation):
 
 ## Workflows
 
-A workflow is an ordered list of steps defined in `.cycle/workflows.yml`; triage picks one per slice (or you force one with `--workflow`). Four ship by default:
+A workflow is an ordered list of steps defined in `.cycle/workflows.yml`; triage picks one per slice from the workflows configured in that file (or you force one with `--workflow`). See [`docs/workflows.md`](docs/workflows.md) for how to add repo-specific workflows. Four ship by default:
 
 | Workflow | Shape | For |
 |---|---|---|
@@ -143,7 +143,7 @@ Each step is executed by a configurable **agent**. `claudecode` (the `claude` CL
 - **Rate limits** trigger an in-process pause/retry loop: the engine emits `engine.paused { reason: "rate_limit", retry_at }`, sleeps `engine.rate_limit_backoff_ms` (default 1 hour = 3,600,000 ms), and retries the same step. On first clean success after a rate-limited attempt it emits `engine.resumed { reason: "rate_limit_cleared" }`. Rate-limit retries are invisible to the consecutive-failure counter — the engine never exits on rate-limit.
 - **Crash recovery** is automatic — re-invoking `cycle run` (or bare `cycle`) resumes any in-flight cycle from the log tail, then continues the pending queue.
 
-When every raw issue fails triage in a single pass, the engine emits `engine.paused {reason: "all_triage_failed", …}` and exits non-zero, leaving the work queue intact. Iterate with `cycle triage --dry-run` until it exits `0`, then re-fire the engine.
+When every inbox issue fails triage in a single pass, the engine emits `engine.paused {reason: "all_triage_failed", …}` and exits non-zero, leaving the work queue intact. Iterate with `cycle triage --dry-run` until it exits `0`, then re-fire the engine.
 
 ## Runtime requirements
 

@@ -9,8 +9,8 @@
 
 The MVP (cycles 0001–0009) forced `--workflow feature` on every input, never advanced files past `queued/` (superseded — see § 12 BB-1), never decomposed issues, and halted the entire engine on any cycle failure. That was fine for proving the loop. Real use needs:
 
-- A dedicated **inbox** (`raw/`) that an external agent / human / tracker fetch can drop into without engine ceremony.
-- A **triage** pass that enriches every raw issue with codebase context, decomposes large ones into vertical slices, and orders them.
+- A dedicated **inbox** (`inbox/`) that an external agent / human / tracker fetch can drop into without engine ceremony.
+- A **triage** pass that enriches every inbox issue with codebase context, decomposes large ones into vertical slices, and orders them.
 - A live **drain-on-success** queue (`tbd.jsonl`) — not the current append-only audit log.
 - Deterministic **cascade-and-continue** on failure — block only items whose `depends_on` actually depends on the failed item; keep working on the rest.
 - **Resume on restart** from `log.jsonl` — the engine knows what cycle was in-flight and picks up where it left off.
@@ -21,33 +21,29 @@ The MVP (cycles 0001–0009) forced `--workflow feature` on every input, never a
 
 ```
 docs/cycle/issues/
-├── raw/        # Inbox. Sparse drops from agents, CLI, tracker fetch, reflection.
-│               # Strives to be empty whenever the engine is running.
-├── ideas/      # Non-ingested backlog / discussion shelf. Human or parent agent
-│               # promotes items into raw/ once they are ready for triage.
+├── ideas/      # Non-ingested backlog and parked items awaiting human/agent discussion.
+│               # Promote by editing until actionable, then moving into inbox/.
+├── inbox/      # Ready-for-triage intake. Sparse drops from agents, CLI,
+│               # tracker fetch, or reflection. Strives to be empty while running.
 ├── todo/       # Triaged, enriched, vertical-slice work items. Each = one cycle's input.
 ├── done/       # Successful cycles' files land here. Decomposed parents land here too
 │               # with `_raw` suffix.
 ├── failed/     # Cycles that exhausted 3 attempts. Artifacts preserved alongside.
 ├── blocked/    # Items whose `depends_on` graph reached a failed item.
-│               # Human moves back to raw/ (or todo/) to retry.
-├── discuss/    # Items parked for human judgment. Engine routes any raw with
-│               # priority: discuss here before agent call. To release: edit
-│               # priority to a real value and move back to raw/.
-├── RAW_ISSUE_EXAMPLE.md
+│               # Human moves back to inbox/ (or todo/) to retry.
+├── INBOX_ISSUE_EXAMPLE.md
 └── TEMPLATE.md
 ```
 
-The previous `tbd/`, `queued/`, and `triaged/` folders are removed during bootstrap. Existing files migrate: `tbd/` → `raw/`, `queued/` → `todo/`, `triaged/` is dropped (was empty).
+The previous `tbd/`, `queued/`, and `triaged/` folders are removed during bootstrap. Existing files migrate: `tbd/` → `inbox/`, `queued/` → `todo/`, `triaged/` is dropped (was empty).
 
 ---
 
 ## 3. Files and their frontmatter
 
-### Raw drop (`raw/<id>.md`)
+### Inbox drop (`inbox/<id>.md`)
 
-Thin. May be one line; may be a copy of a Jira description. The body is whatever the source had.
-For a concrete ready-to-triage example, see [`RAW_ISSUE_EXAMPLE.md`](RAW_ISSUE_EXAMPLE.md).
+Thin. May be one line; may be a copy of a Jira description. The body is whatever the source had. For a concrete ready-to-triage example, see [`INBOX_ISSUE_EXAMPLE.md`](INBOX_ISSUE_EXAMPLE.md).
 
 ```yaml
 ---
@@ -56,18 +52,18 @@ source: jira          # jira | linear | github | text | reflection
 title: "Safari login broken"
 added_at: 2026-05-13T01:30:00Z
 triage_attempts: 0    # engine-managed
-priority: medium      # optional hint to triage: low | medium | high | critical | discuss
+priority: medium      # optional hint to triage: low | medium | high | critical | idea
 ---
 Description text from the upstream source.
 ```
 
-Values: `priority` is one of `low | medium | high | critical | discuss`; `cycle drop` (via `materializeFreeformIssue`) emits `medium` by default. The engine reads this field at triage time and propagates it to each child's todo frontmatter and queue row. Legacy numeric values (1–10) are normalized at read time: 7–10 → `critical`, 5–6 → `high`, 3–4 → `medium`, 1–2 → `low`.
+Values: `priority` is one of `low | medium | high | critical | idea`; `cycle drop` (via `materializeFreeformIssue`) emits `medium` by default. The engine reads this field at triage time and propagates it to each child's todo frontmatter and queue row. Legacy numeric values (1–10) are normalized at read time: 7–10 → `critical`, 5–6 → `high`, 3–4 → `medium`, 1–2 → `low`. Legacy `priority: discuss` is treated as `priority: idea`.
 
-Raw files are **source material**, not the normalized execution contract. Triage is the normalization boundary: it reads raw inputs, enriches them with repo context, chooses one of the configured workflow names, and writes machine-operable `todo/` files.
+Inbox files are **source material**, not the normalized execution contract. Triage is the normalization boundary: it reads inbox inputs, enriches them with repo context, chooses one of the configured workflow names, and writes machine-operable `todo/` files.
 
 ### Ideas / backlog (`ideas/<id>.md`)
 
-`ideas/` is intentionally outside the engine intake path. Use it for vague prompts, early backlog notes, human/agent discussion drafts, and anything that should not automatically enter the production lane. To promote an idea, revise it until the desired work is clear, then move it into `raw/` with a real priority.
+`ideas/` is intentionally outside the execution path. Use it for vague prompts, early backlog notes, human/agent discussion drafts, and anything that should not automatically enter the production lane. Triage also parks `priority: idea` inbox items here before any agent call. To promote an idea, revise it until the desired work is clear, then move it into `inbox/` with a real priority.
 
 ### Triaged todo (`todo/<parent>-<slug>.md`)
 
@@ -122,16 +118,16 @@ blocked_by:
 ---
 ```
 
-### Discuss (`discuss/<id>.md`)
+### Discuss (`ideas/<id>.md`)
 
 ```yaml
 ---
 # … original frontmatter unchanged …
-priority: discuss   # set by the issue author; engine routes on this value
+priority: idea   # set by the issue author; engine routes on this value
 ---
 ```
 
-**Release mechanism:** Set `priority` to `low | medium | high | critical` and move the file back to `raw/`. The next engine run will triage it normally via `processRawWithRetry`.
+**Release mechanism:** Set `priority` to `low | medium | high | critical` and move the file back to `inbox/`. The next engine run will triage it normally via `processRawWithRetry`.
 
 ---
 
@@ -185,13 +181,13 @@ Prompts stay **flat** under `prompts/`. When a workflow needs a divergent varian
 Engine-internal, not a workflow. Configurable agent. Runs at two trigger points:
 
 1. **engine.start**, if `log.jsonl` shows no in-flight cycle.
-2. **Between cycles**, before each pop, if `raw/` is non-empty.
+2. **Between cycles**, before each pop, if `inbox/` is non-empty.
 
 (If an in-flight cycle is detected at startup, the engine resumes that cycle first; triage runs after it completes.)
 
 ### Inputs
 
-- All files in `raw/`
+- All files in `inbox/`
 - Current `tbd.jsonl` (pending and in_progress lines)
 - All files in `todo/` (for context — what's already queued and in what order)
 - Codebase access via full claudecode tool set (Read, Grep, Glob, Bash, etc.)
@@ -207,7 +203,7 @@ Engine-internal, not a workflow. Configurable agent. Runs at two trigger points:
   ],
   "children": [
     {
-      "raw_id": "Jira-007",
+      "source_id": "Jira-007",
       "slug": "fix-login-cookie",
       "id": "Jira-007-fix-login-cookie",
       "title": "Fix login cookie expiry on Safari 17",
@@ -216,7 +212,7 @@ Engine-internal, not a workflow. Configurable agent. Runs at two trigger points:
       "body": "## Context\n…\n\n## Acceptance\n- …\n"
     },
     {
-      "raw_id": "Jira-007",
+      "source_id": "Jira-007",
       "slug": "add-2fa-flow",
       "id": "Jira-007-add-2fa-flow",
       "title": "Add 2FA fallback for sessions that fail cookie check",
@@ -249,7 +245,7 @@ Per-raw retry up to 3 attempts (BRIEF's existing `triage_attempts` frontmatter).
 - Move `raw/<id>.md` → `failed/<id>.md` with `triage_attempts: 3`
 - Continue triaging the other raw files
 
-If ALL raws fail triage in one pass (suggests broken prompt or API outage): emit `engine.paused` and exit. Don't start any cycle from a corrupted triage. Raws remain in `raw/`; no rename occurs on the all-fail path. `triage_attempts` is bumped per attempt via `bumpAttempts` and reflects the full 3 on `engine.paused`. See [Recovering from engine.paused](../README.md#recovering-from-enginepaused) for the operator recovery flow.
+If ALL inbox items fail triage in one pass (suggests broken prompt or API outage): emit `engine.paused` and exit. Don't start any cycle from a corrupted triage. Inbox items remain in `inbox/`; no rename occurs on the all-fail path. `triage_attempts` is bumped per attempt via `bumpAttempts` and reflects the full 3 on `engine.paused`. See [Recovering from engine.paused](../README.md#recovering-from-enginepaused) for the operator recovery flow.
 
 ---
 
@@ -293,7 +289,7 @@ One additional constraint:
 
 Deps in `failed/` or `blocked/` don't count as "unsatisfied" — they count as resolved-by-cascade. But by then `propagateBlocked()` will have moved the dependent rows out.
 
-**Note on `discuss` priority:** Raws with `priority: discuss` are routed to `discuss/` by the triage loop before the agent is called. They are never queued. See § 3 Discuss for the release mechanism.
+**Note on `discuss` priority:** Inbox items with `priority: idea` are routed to `ideas/` by the triage loop before the agent is called. They are never queued. See § 3 Discuss for the release mechanism.
 
 ---
 
@@ -355,7 +351,7 @@ Reflection is the **last step** in each workflow that wants it (declared in `wor
 }
 ```
 
-Engine writes each `sharp_edges[]` entry as a new file in `raw/` with `source: reflection` frontmatter and the body. These get triaged on the next pass like any other raw input. Triage decides whether they're worth front-of-queueing.
+Engine writes each `sharp_edges[]` entry as a new file in `inbox/` with `source: reflection` frontmatter and the body. These get triaged on the next pass like any other raw input. Triage decides whether they're worth front-of-queueing.
 
 If no sharp edges: empty array, no files written. Reflection step is short-circuit cheap.
 
@@ -376,7 +372,7 @@ engine.start
   │     └── No in-flight cycle ──┐
   │                              │
   │                              ▼
-  ├── Triage raw/ (if any) ──> writes todo/ + tbd.jsonl, may reorder pending
+  ├── Triage inbox/ (if any) ──> writes todo/ + tbd.jsonl, may reorder pending
   │
   ├── Loop while tbd.jsonl has eligible rows AND consecutive_failures < max:
   │     │
@@ -392,7 +388,7 @@ engine.start
   │     │                                          propagateBlocked, increment
   │     │                                          consecutive_failures
   │     │
-  │     └── Check raw/ for new drops; if any, run triage before next pop
+  │     └── Check inbox/ for new drops; if any, run triage before next pop
   │
   └── engine.stop (status: ok | halted | paused)
 ```
@@ -419,25 +415,25 @@ Edge case: if resume detects a cycle whose attempt counter has already increment
 
 ## 12. Bootstrap and migration plan
 
-> Folder names `tbd/`, `queued/`, `triaged/` below describe pre-RFC-001 lifecycle state. All renames completed by cycle 0014; current model is `raw/ → todo/ → done/`.
+> Folder names `tbd/`, `queued/`, `triaged/` below describe pre-RFC-001 lifecycle state. All renames completed by cycle 0014; current model is `inbox/ → todo/ → done/`.
 
 Cycles needed to land this design (in order). Bootstrap items run on the **current** engine via the existing `tbd/ → queued/` (superseded — see § 12 BB-1) path until each one updates the engine to know about its new piece.
 
-1. **BB-1: Rename `tbd/ → raw/`, `queued/ → todo/`.** Update `scan.ts` to scan `raw/`, move to `todo/`, dedup by id (also fixes the existing bug). Update `closes.sh` and other path references. Update tests. Drop the empty `triaged/` folder.
+1. **BB-1: Rename `tbd/ → inbox/`, `queued/ → todo/`.** Update `scan.ts` to scan `inbox/`, move to `todo/`, dedup by id (also fixes the existing bug). Update `closes.sh` and other path references. Update tests. Drop the empty `triaged/` folder.
 
 2. **BB-2: Consolidate `workflows.yml`.** Inline `engine:` and `triage:` config sections. Merge `workflows/feature.yaml` content into the `workflows[]` array. Update `src/engine/workflow.ts` loader.
 
 3. **BB-3: New `tbd.jsonl` row schema + drain semantics.** Status field, attempt counter, depends_on, triaged_at, cycle_id-when-in-progress. Drain rows on cycle.end ok/failed (per § 6). Engine reads workflow from file frontmatter at pop time.
 
-4. **BB-4: Triage subroutine.** New `src/engine/triage.ts`, new `src/defaults/prompts/triage.md`. Wire triage triggers at engine.start (when no in-flight) and between cycles when `raw/` is non-empty. Per-raw retry. JSON parse + schema validation.
+4. **BB-4: Triage subroutine.** New `src/engine/triage.ts`, new `src/defaults/prompts/triage.md`. Wire triage triggers at engine.start (when no in-flight) and between cycles when `inbox/` is non-empty. Per-raw retry. JSON parse + schema validation.
 
 5. **BB-5: Resume logic.** Read `log.jsonl` at engine.start; detect in-flight cycle; re-run from last incomplete step. Make each step's prompt/script restart-tolerant.
 
 6. **BB-6: `propagateBlocked` + engine halt policy.** Dependency graph walk on cycle exhaustion. `max_consecutive_failures` counter. `engine.halted` event.
 
-7. **BB-7: Reflection step.** Add to `workflows.yml` feature workflow. New `src/defaults/prompts/reflection.md`. Engine reads `sharp_edges[]` from stdout, writes new `raw/` files. **Status: landed (cycle 0018).** `src/engine/reflection.ts:ingestReflection` materializes each `sharp_edges[]` entry as `raw/refl-<cycleId>-<slug>.md` with `source: reflection` frontmatter. Reflection-step failures (`exec_failed`, `parse_error`, `invalid_entry`) emit `reflection.skipped` and do NOT flip `cycle.end` to failed. Idempotent on resume.
+7. **BB-7: Reflection step.** Add to `workflows.yml` feature workflow. New `src/defaults/prompts/reflection.md`. Engine reads `sharp_edges[]` from stdout, writes new `inbox/` files. **Status: landed (cycle 0018).** `src/engine/reflection.ts:ingestReflection` materializes each `sharp_edges[]` entry as `raw/refl-<cycleId>-<slug>.md` with `source: reflection` frontmatter. Reflection-step failures (`exec_failed`, `parse_error`, `invalid_entry`) emit `reflection.skipped` and do NOT flip `cycle.end` to failed. Idempotent on resume.
 
-Once BB-1 through BB-4 land, the engine's `raw/` inbox is active and triage will process all subsequent issues. BB-5 through BB-7 can themselves be processed by the new pipeline (they'll get enriched + ordered by triage).
+Once BB-1 through BB-4 land, the engine's `inbox/` inbox is active and triage will process all subsequent issues. BB-5 through BB-7 can themselves be processed by the new pipeline (they'll get enriched + ordered by triage).
 
 ---
 
@@ -447,8 +443,8 @@ These don't block bootstrap but are tracked as future issues:
 
 - **Multi-agent abstraction.** `agent: codex` / `agent: gemini` require new `exec-*.ts` modules. Config schema accepts the strings today; impl is staged.
 - **Triage's `depends_on` inference quality.** First pass: triage only marks explicit deps. Future: heuristics from codebase analysis. **Status: landed (cycle 0021).** Prompt now instructs the agent to infer chained `depends_on` between sibling children on decomposition; validator resolves every `depends_on` id against `siblings ∪ tbd.jsonl rows ∪ todo/<id>.md files` and rejects self-loops, with failures feeding the per-raw retry feedback loop.
-- **CLI surface alignment.** `cycle drop "<text>"` writes to `raw/` (today: `tbd/` — superseded — see § 12 BB-1). Add `cycle status` to show queue + in-flight + blocked counts.
-- **Re-triage of a `re_triage: true` raw item.** Children that turn out to need further decomposition get punted back to `raw/`.
+- **CLI surface alignment.** `cycle drop "<text>"` writes to `inbox/` (today: `tbd/` — superseded — see § 12 BB-1). Add `cycle status` to show queue + in-flight + blocked counts.
+- **Re-triage of a `re_triage: true` raw item.** Children that turn out to need further decomposition get punted back to `inbox/`.
 - **`engine.paused` recovery.** When all triage fails, engine.paused — what's the recovery flow?
 - **Step-level restart tolerance audit.** Walk each existing step (spec/research/plan/build/review/fix/verify/commit/pr) and confirm/improve restart behavior.
 
@@ -456,7 +452,7 @@ These don't block bootstrap but are tracked as future issues:
 
 ## 14. Backward compatibility
 
-- The `tbd/` and `queued/` folders are deleted after migration; any files still in them at bootstrap time get moved to `raw/` and `todo/` respectively.
+- The `tbd/` and `queued/` folders are deleted after migration; any files still in them at bootstrap time get moved to `inbox/` and `todo/` respectively.
 - The `triaged/` folder is deleted (was empty).
 - The existing `tbd.jsonl` is **archived** to `.cycle/tbd.jsonl.bootstrap-archive` and a fresh file is started under the new schema. Old append-only history is preserved for audit.
 - Skill template (`.claude/skills/cycle.md`) gets updated text describing the new flow.

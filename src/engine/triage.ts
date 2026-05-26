@@ -164,7 +164,7 @@ export async function runTriage(
 
   await bootstrapArchiveIfLegacy(repoRoot);
 
-  const rawDir = join(repoRoot, "docs/cycle/issues/raw");
+  const rawDir = join(repoRoot, "docs/cycle/issues/inbox");
   await mkdir(rawDir, { recursive: true });
 
   const raws = await loadRaws(rawDir, log);
@@ -191,8 +191,8 @@ export async function runTriage(
   // retry budget. SPEC §Requirements suggests a single batched prompt; we
   // deviate so a poison raw can't block its siblings. See BUILD.md §Deviations.
   for (const raw of raws) {
-    if (raw.fm.priority === "discuss") {
-      await parkForDiscussion(repoRoot, raw, log);
+    if (raw.fm.priority === "idea") {
+      await parkForIdeas(repoRoot, raw, log);
       continue;
     }
 
@@ -232,9 +232,9 @@ export async function runTriage(
     await rewriteOrdering(repoRoot, lastOrdering, log);
   }
 
-  const actionableCount = raws.filter((r) => r.fm.priority !== "discuss").length;
+  const actionableCount = raws.filter((r) => r.fm.priority !== "idea").length;
   if (actionableCount > 0 && failed.length === actionableCount) {
-    // All-fail path: raws stay in raw/ so `cycle triage --dry-run` can
+    // All-fail path: raws stay in inbox/ so `cycle triage --dry-run` can
     // re-evaluate them after operator edits without any manual `mv`.
 
     // Reset attempts so the next engine invocation is not a no-op.
@@ -277,7 +277,7 @@ export async function dryRunTriage(
   deps: TriageDeps = {},
 ): Promise<DryRunReport[]> {
   const runAgent = deps.runAgent ?? runAgentViaDispatch;
-  const rawDir = join(repoRoot, "docs/cycle/issues/raw");
+  const rawDir = join(repoRoot, "docs/cycle/issues/inbox");
   const silentLog: Logger = { async emit() {} };
   const raws = await loadRaws(rawDir, silentLog);
   if (raws.length === 0) return [];
@@ -297,7 +297,7 @@ export async function dryRunTriage(
 
   const reports: DryRunReport[] = [];
   for (const raw of raws) {
-    if (raw.fm.priority === "discuss") continue;
+    if (raw.fm.priority === "idea") continue;
     // Dry-run reports the agent invocation count for THIS pass; on-disk
     // triage_attempts (from prior real runs) must not shrink the retry
     // budget. Clone with attempts: 0 to count from scratch.
@@ -705,12 +705,12 @@ async function moveToFailed(repoRoot: string, raw: RawIssue): Promise<void> {
   }
 }
 
-async function parkForDiscussion(
+async function parkForIdeas(
   repoRoot: string,
   raw: RawIssue,
   log: Logger,
 ): Promise<void> {
-  const discussDir = join(repoRoot, "docs/cycle/issues/discuss");
+  const discussDir = join(repoRoot, "docs/cycle/issues/ideas");
   await mkdir(discussDir, { recursive: true });
   const destPath = join(discussDir, `${raw.id}.md`);
   let renamed = true;
@@ -721,9 +721,9 @@ async function parkForDiscussion(
     renamed = false;
   }
   if (renamed) {
-    await log.emit("issue.parked_for_discussion", {
+    await log.emit("issue.parked_for_ideas", {
       id: raw.id,
-      priority: "discuss",
+      priority: "idea",
       path: destPath,
     });
   }

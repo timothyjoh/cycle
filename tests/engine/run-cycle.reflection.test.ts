@@ -47,7 +47,7 @@ async function setupGitRepo(root: string): Promise<void> {
   git(root, ["commit", "--allow-empty", "-m", "init"]);
 }
 
-test("runCycle: successful reflection step ingests sharp_edges into raw/", async () => {
+test("runCycle: successful reflection step ingests sharp_edges into inbox/", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-refl-rc-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-refl-bin-"));
   try {
@@ -80,7 +80,7 @@ test("runCycle: successful reflection step ingests sharp_edges into raw/", async
     });
     assert.equal(r.status, "ok");
 
-    const reflFile = join(root, "docs/cycle/issues/raw", `refl-${r.cycleId}-hidden-coupling.md`);
+    const reflFile = join(root, "docs/cycle/issues/inbox", `refl-${r.cycleId}-hidden-coupling.md`);
     assert.ok(await fileExists(reflFile), `expected ${reflFile} to exist`);
     const body = await readFile(reflFile, "utf8");
     const { fm } = parseFrontmatter(body);
@@ -132,7 +132,7 @@ test("runCycle: empty sharp_edges array yields no raw file, only summary", async
     });
     assert.equal(r.status, "ok");
 
-    const rawDir = join(root, "docs/cycle/issues/raw");
+    const rawDir = join(root, "docs/cycle/issues/inbox");
     const entries = await readdir(rawDir).catch(() => []);
     assert.equal(entries.filter((n) => n.startsWith("refl-")).length, 0);
 
@@ -176,7 +176,7 @@ test("runCycle: reflection step exit-non-zero is non-fatal; cycle.end ok; reflec
     assert.match(log, /"event":"reflection.skipped".*"reason":"exec_failed"/);
     assert.match(log, /"event":"cycle.end","cycle_id":"\d+","status":"ok"/);
 
-    const rawDir = join(root, "docs/cycle/issues/raw");
+    const rawDir = join(root, "docs/cycle/issues/inbox");
     const entries = await readdir(rawDir).catch(() => []);
     assert.equal(entries.filter((n) => n.startsWith("refl-")).length, 0);
   } finally {

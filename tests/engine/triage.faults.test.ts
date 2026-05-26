@@ -51,7 +51,7 @@ function makeLog(): { log: Logger; events: Captured[] } {
 async function setupRepo(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "cycle-triage-faults-"));
   await mkdir(join(root, ".cycle/prompts"), { recursive: true });
-  await mkdir(join(root, "docs/cycle/issues/raw"), { recursive: true });
+  await mkdir(join(root, "docs/cycle/issues/inbox"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/done"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/failed"), { recursive: true });
@@ -87,13 +87,13 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-// ---- Test 1: runAgentViaDispatch fault — agent rejects on the all-fail path; raw stays in raw/
+// ---- Test 1: runAgentViaDispatch fault — agent rejects on the all-fail path; raw stays in inbox/
 
-test("fault: agent rejection across full retry budget leaves raw in raw/ on all-fail and emits triage.raw.failed", async () => {
+test("fault: agent rejection across full retry budget leaves raw in inbox/ on all-fail and emits triage.raw.failed", async () => {
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/agentfail.md"),
+      join(root, "docs/cycle/issues/inbox/agentfail.md"),
       rawBody("agentfail", "agent fault", 2),
       "utf8",
     );
@@ -110,9 +110,9 @@ test("fault: agent rejection across full retry budget leaves raw in raw/ on all-
     const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
     assert.deepEqual(failedFiles, []);
     assert.equal(
-      await exists(join(root, "docs/cycle/issues/raw/agentfail.md")),
+      await exists(join(root, "docs/cycle/issues/inbox/agentfail.md")),
       true,
-      "raw retained in raw/ on all-fail",
+      "raw retained in inbox/ on all-fail",
     );
 
     const queueExists = await exists(join(root, ".cycle/tbd.jsonl"));
@@ -135,13 +135,13 @@ test("fault: bumpAttempts swallows mutateFrontmatter failure; persisted triage_a
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/bumpfail.md"),
+      join(root, "docs/cycle/issues/inbox/bumpfail.md"),
       rawBody("bumpfail", "bump fault", 2),
       "utf8",
     );
-    // Pre-create raw/bumpfail.md.tmp as a non-empty directory so the inner
+    // Pre-create inbox/bumpfail.md.tmp as a non-empty directory so the inner
     // writeFile(tmp) in mutateFrontmatter fails with EISDIR.
-    const tmpDir = join(root, "docs/cycle/issues/raw/bumpfail.md.tmp");
+    const tmpDir = join(root, "docs/cycle/issues/inbox/bumpfail.md.tmp");
     await mkdir(tmpDir, { recursive: true });
     await writeFile(join(tmpDir, "sentinel"), "x", "utf8");
 
@@ -154,9 +154,9 @@ test("fault: bumpAttempts swallows mutateFrontmatter failure; persisted triage_a
     const result = await runTriage(root, makeConfig(), log, deps);
     assert.equal(result.status, "paused");
 
-    // All-fail path: raw stays in raw/ (moveToFailed is never called). The
+    // All-fail path: raw stays in inbox/ (moveToFailed is never called). The
     // bumpAttempts swallow path is still exercised through onAttemptFailed.
-    const rawPath = join(root, "docs/cycle/issues/raw/bumpfail.md");
+    const rawPath = join(root, "docs/cycle/issues/inbox/bumpfail.md");
     assert.equal(await exists(rawPath), true);
     assert.equal(
       await exists(join(root, "docs/cycle/issues/failed/bumpfail.md")),
@@ -188,16 +188,16 @@ test("fault: moveToFailed stamp-pass swallows mutateFrontmatter failure on parti
     // on the deferred failed list — exercising the stamp-pass swallow path
     // (still independently injected via the .tmp directory trick).
     await writeFile(
-      join(root, "docs/cycle/issues/raw/stampfail.md"),
+      join(root, "docs/cycle/issues/inbox/stampfail.md"),
       rawBody("stampfail", "stamp fault", 2),
       "utf8",
     );
     await writeFile(
-      join(root, "docs/cycle/issues/raw/ok.md"),
+      join(root, "docs/cycle/issues/inbox/ok.md"),
       rawBody("ok", "ok task"),
       "utf8",
     );
-    const tmpDir = join(root, "docs/cycle/issues/raw/stampfail.md.tmp");
+    const tmpDir = join(root, "docs/cycle/issues/inbox/stampfail.md.tmp");
     await mkdir(tmpDir, { recursive: true });
     await writeFile(join(tmpDir, "sentinel"), "x", "utf8");
 
@@ -236,9 +236,9 @@ test("fault: moveToFailed stamp-pass swallows mutateFrontmatter failure on parti
     const failedPath = join(root, "docs/cycle/issues/failed/stampfail.md");
     assert.equal(await exists(failedPath), true, "rename to failed/ succeeded");
     assert.equal(
-      await exists(join(root, "docs/cycle/issues/raw/stampfail.md")),
+      await exists(join(root, "docs/cycle/issues/inbox/stampfail.md")),
       false,
-      "raw moved out of raw/",
+      "raw moved out of inbox/",
     );
     const { fm } = parseFrontmatter(await readFile(failedPath, "utf8"));
     assert.equal(
@@ -268,7 +268,7 @@ test("fault: moveToFailed stamp-pass swallows mutateFrontmatter failure on parti
 test("fault: raw unlinked mid-flight on all-fail path; engine.paused completes cleanly with no failed/ artifact", async () => {
   const root = await setupRepo();
   try {
-    const rawPath = join(root, "docs/cycle/issues/raw/vanish.md");
+    const rawPath = join(root, "docs/cycle/issues/inbox/vanish.md");
     await writeFile(rawPath, rawBody("vanish", "vanish task", 2), "utf8");
 
     const deps: TriageDeps = {
@@ -331,7 +331,7 @@ test("fault: rewriteOrdering writeQueue failure leaves tbd.jsonl byte-for-byte u
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/rew.md"),
+      join(root, "docs/cycle/issues/inbox/rew.md"),
       rawBody("rew", "rewrite parent"),
       "utf8",
     );
@@ -394,13 +394,13 @@ test("fault: loadRaws isolates parseFrontmatter failure; surviving raw processed
   try {
     // broken.md — no frontmatter, will fail parseFrontmatter
     await writeFile(
-      join(root, "docs/cycle/issues/raw/broken.md"),
+      join(root, "docs/cycle/issues/inbox/broken.md"),
       "no frontmatter here\njust prose\n",
       "utf8",
     );
     // good.md — valid raw
     await writeFile(
-      join(root, "docs/cycle/issues/raw/good.md"),
+      join(root, "docs/cycle/issues/inbox/good.md"),
       rawBody("good", "A good issue"),
       "utf8",
     );
@@ -431,12 +431,12 @@ test("fault: loadRaws all-fail via parse error returns empty set; triage ends cl
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/broken1.md"),
+      join(root, "docs/cycle/issues/inbox/broken1.md"),
       "no frontmatter\n",
       "utf8",
     );
     await writeFile(
-      join(root, "docs/cycle/issues/raw/broken2.md"),
+      join(root, "docs/cycle/issues/inbox/broken2.md"),
       "also no frontmatter\n",
       "utf8",
     );
@@ -468,13 +468,13 @@ test("fault: loadRaws readFile error isolates; surviving raw processed, triage.r
   const root = await setupRepo();
   try {
     // aaa-unreadable.md — chmod 000 makes readFile throw EACCES; sorts before good.md
-    const unreadablePath = join(root, "docs/cycle/issues/raw/aaa-unreadable.md");
+    const unreadablePath = join(root, "docs/cycle/issues/inbox/aaa-unreadable.md");
     await writeFile(unreadablePath, rawBody("aaa-unreadable", "Unreadable"), "utf8");
     await chmod(unreadablePath, 0o000);
 
     // good.md — sorts after aaa-unreadable alphabetically
     await writeFile(
-      join(root, "docs/cycle/issues/raw/good.md"),
+      join(root, "docs/cycle/issues/inbox/good.md"),
       rawBody("good", "A good issue"),
       "utf8",
     );
@@ -495,12 +495,12 @@ test("fault: loadRaws readFile error isolates; surviving raw processed, triage.r
   }
 });
 
-// ---- Test 6b: loadRaws — missing raw/ directory returns empty (ENOENT swallow)
+// ---- Test 6b: loadRaws — missing inbox/ directory returns empty (ENOENT swallow)
 
-test("fault: loadRaws ENOENT on raw/ directory returns empty set, runTriage resolves cleanly", async () => {
+test("fault: loadRaws ENOENT on inbox/ directory returns empty set, runTriage resolves cleanly", async () => {
   const root = await setupRepo();
   try {
-    await rm(join(root, "docs/cycle/issues/raw"), { recursive: true, force: true });
+    await rm(join(root, "docs/cycle/issues/inbox"), { recursive: true, force: true });
     let agentCalls = 0;
     const deps: TriageDeps = {
       runAgent: async () => {
@@ -513,7 +513,7 @@ test("fault: loadRaws ENOENT on raw/ directory returns empty set, runTriage reso
     assert.equal(result.status, "ok");
     assert.deepEqual(result.processed, []);
     assert.deepEqual(result.failed, []);
-    assert.equal(agentCalls, 0, "no agent invocations when raw/ absent");
+    assert.equal(agentCalls, 0, "no agent invocations when inbox/ absent");
 
     const names = events.map((e) => e.event);
     assert.deepEqual(names.includes("triage.start") && names.includes("triage.end"), true);
@@ -546,7 +546,7 @@ test("fault: applyRaw rollback writeQueue catch swallows; row remains in tbd.jso
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/rollbackq.md"),
+      join(root, "docs/cycle/issues/inbox/rollbackq.md"),
       rawBody("rollbackq", "rollback queue", 2),
       "utf8",
     );

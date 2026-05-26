@@ -4,7 +4,7 @@ import { dryRunTriage, type TriageDeps } from "../engine/triage.ts";
 const HELP = `Usage: cycle triage --dry-run [--help]
 
 Re-run the configured triage agent against every file in
-docs/cycle/issues/raw/ and print a per-raw report as JSON.
+docs/cycle/issues/inbox/ and print a per-raw report as JSON.
 
 The --dry-run mode performs no engine-side filesystem mutations:
   - no writes under docs/cycle/issues/{raw,todo,done,failed}

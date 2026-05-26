@@ -83,7 +83,7 @@ async function bootstrapRepo(
   const promptsDir = join(cycleDir, "prompts");
   await mkdir(scriptsDir, { recursive: true });
   await mkdir(promptsDir, { recursive: true });
-  await mkdir(join(root, "docs/cycle/issues/raw"), { recursive: true });
+  await mkdir(join(root, "docs/cycle/issues/inbox"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/done"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/failed"), { recursive: true });
@@ -167,12 +167,12 @@ test("cycle triage --dry-run happy path: two raws, JSON report, exit 0", async (
   try {
     await bootstrapRepo(root, binDir, fakeClaudeOk);
     await writeFile(
-      join(root, "docs/cycle/issues/raw/r1.md"),
+      join(root, "docs/cycle/issues/inbox/r1.md"),
       rawFile("r1", "raw one"),
       "utf8",
     );
     await writeFile(
-      join(root, "docs/cycle/issues/raw/r2.md"),
+      join(root, "docs/cycle/issues/inbox/r2.md"),
       rawFile("r2", "raw two"),
       "utf8",
     );
@@ -208,7 +208,7 @@ test("cycle triage --dry-run validation failure: exit 1, last_error populated", 
   try {
     await bootstrapRepo(root, binDir, fakeClaudeBad);
     await writeFile(
-      join(root, "docs/cycle/issues/raw/oops.md"),
+      join(root, "docs/cycle/issues/inbox/oops.md"),
       rawFile("oops", "oops"),
       "utf8",
     );
@@ -230,14 +230,14 @@ test("cycle triage --dry-run validation failure: exit 1, last_error populated", 
   }
 });
 
-test("cycle triage --dry-run byte-identity: log.jsonl, tbd.jsonl, raw/, todo/ unchanged", async () => {
+test("cycle triage --dry-run byte-identity: log.jsonl, tbd.jsonl, inbox/, todo/ unchanged", async () => {
   const dist = await ensureDist();
   const root = await mkdtemp(join(tmpdir(), "cycle-triage-dry-bi-"));
   const binDir = await mkdtemp(join(tmpdir(), "cycle-triage-bin-"));
   try {
     await bootstrapRepo(root, binDir, fakeClaudeOk);
     await writeFile(
-      join(root, "docs/cycle/issues/raw/keep.md"),
+      join(root, "docs/cycle/issues/inbox/keep.md"),
       rawFile("keep", "keep me"),
       "utf8",
     );
@@ -261,7 +261,7 @@ test("cycle triage --dry-run byte-identity: log.jsonl, tbd.jsonl, raw/, todo/ un
     await writeFile(join(root, ".cycle/log.jsonl"), logBody, "utf8");
 
     const before = {
-      raw: await dirSnapshot(join(root, "docs/cycle/issues/raw")),
+      raw: await dirSnapshot(join(root, "docs/cycle/issues/inbox")),
       todo: await dirSnapshot(join(root, "docs/cycle/issues/todo")),
       done: await dirSnapshot(join(root, "docs/cycle/issues/done")),
       failed: await dirSnapshot(join(root, "docs/cycle/issues/failed")),
@@ -277,7 +277,7 @@ test("cycle triage --dry-run byte-identity: log.jsonl, tbd.jsonl, raw/, todo/ un
     assert.equal(res.status, 0, `exit ${res.status} stderr: ${res.stderr}`);
 
     const after = {
-      raw: await dirSnapshot(join(root, "docs/cycle/issues/raw")),
+      raw: await dirSnapshot(join(root, "docs/cycle/issues/inbox")),
       todo: await dirSnapshot(join(root, "docs/cycle/issues/todo")),
       done: await dirSnapshot(join(root, "docs/cycle/issues/done")),
       failed: await dirSnapshot(join(root, "docs/cycle/issues/failed")),

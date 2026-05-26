@@ -104,15 +104,15 @@ secrets, container env) is responsible for ensuring `claude`, `gh`, and any
 > **Authoritative spec:** [`docs/RFC-001-issue-lifecycle.md`](docs/RFC-001-issue-lifecycle.md).
 > This is a summary.
 
-Issues land in `docs/cycle/issues/raw/` (the inbox). Triage runs at engine
-start, and between cycles whenever `raw/` is non-empty: it enriches each
-raw issue with codebase context, decomposes large issues into
+Issues land in `docs/cycle/issues/inbox/` (the inbox). Triage runs at engine
+start, and between cycles whenever `inbox/` is non-empty: it enriches each
+inbox issue with codebase context, decomposes large issues into
 vertical-slice children, and writes them to `docs/cycle/issues/todo/` with
 a `workflow:` frontmatter field naming which workflow to run.
 
 The folder state machine:
 
-- **`raw/`** — inbox. Strives to be empty while the engine runs.
+- **`inbox/`** — inbox. Strives to be empty while the engine runs.
 - **`todo/`** — triaged, enriched, vertical-slice work items.
 - **`done/`** — successful cycles; decomposed parents land here with a
   `_raw` suffix.
@@ -123,7 +123,7 @@ The live queue lives in `.cycle/tbd.jsonl` — a priority-ordered,
 status-aware index that **drains** as cycles complete. The audit log is
 separate: `.cycle/log.jsonl`, append-only, never rewritten.
 
-CLI, tracker, and agent intake all materialize a file in `raw/` — one
+CLI, tracker, and agent intake all materialize a file in `inbox/` — one
 uniform input path.
 
 ## Triage
@@ -147,11 +147,11 @@ Triage **always enriches** (even when no decomposition is needed) and
 `done/<id>_raw.md` once triage emits children. Children land in `todo/` as
 `<parent>-<slug>.md` with `parent:` frontmatter linking them.
 
-Per-raw retry up to 3 attempts. On partial failure — some raws decompose
+Per-raw retry up to 3 attempts. On partial failure — some inbox items decompose
 cleanly while others exhaust attempts — the failed subset moves to
 `failed/<id>.md`. If *every* raw fails in one pass, the engine emits
 `engine.paused {reason: "all_triage_failed", …}` and exits, leaving the
-raws in place so `cycle triage --dry-run` can re-evaluate them after edits.
+inbox items in place so `cycle triage --dry-run` can re-evaluate them after edits.
 
 ## Workflows
 

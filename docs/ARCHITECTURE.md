@@ -49,13 +49,13 @@ Contracts:
 
 - **In:** one or more *issues*. An issue is any unit of work — free-text
   task, Jira card, GH issue, PRD, brief. Any entry point (positional
-  `"task text"`, or a file dropped into `docs/cycle/issues/raw/` by an
-  external agent) materializes as a markdown file in the `raw/` inbox. The
+  `"task text"`, or a file dropped into `docs/cycle/issues/inbox/` by an
+  external agent) materializes as a markdown file in the `inbox/` inbox. The
   engine's triage pass then picks it up.
 - **Out:** JSONL event stream on stdout (mirrored to `.cycle/log.jsonl`);
   durable per-cycle artifacts under `docs/cycle/<cycle-id>-<workflow>-<slug>/`;
   branches and commits (pushed when `push: true`); issue files advancing
-  through `raw/ → todo/ → done/` as state changes; a final exit code.
+  through `inbox/ → todo/ → done/` as state changes; a final exit code.
 - **Concurrency boundary:** one cycle engine owns one repository lane. The
   PID lock rejects concurrent engines in the same repo; factory-scale
   orchestration is expected to run separate cycle instances per repository,
@@ -144,7 +144,7 @@ The canonical invocation uses the committed shebang bundle:
 ./.cycle/bin/cycle.js run                    # no text → drain whatever is queued
 ./.cycle/bin/cycle.js run --workflow <name> "<task text>"
 ./.cycle/bin/cycle.js run --dry-run "<task text>"   # triage/queue preview, no execution
-./.cycle/bin/cycle.js drop "<task text>"     # materialize an issue into raw/, don't run
+./.cycle/bin/cycle.js drop "<task text>"     # materialize an issue into inbox/, don't run
 ./.cycle/bin/cycle.js status                 # log-derived queue snapshot
 ./.cycle/bin/cycle.js triage --dry-run       # re-run triage read-only
 ./.cycle/bin/cycle.js cleanup [--dry-run|--yes] [--force]  # prune orphaned cycle/* branches
@@ -167,9 +167,9 @@ Subcommands:
 | Subcommand | Purpose |
 |---|---|
 | `run` | Materialize any task text, then process the queue to completion (foreground, blocking) |
-| `drop` | Materialize a freeform task into `raw/` and exit without running the engine |
+| `drop` | Materialize a freeform task into `inbox/` and exit without running the engine |
 | `status` | One-shot snapshot derived from `.cycle/log.jsonl` (queue counts, in-flight cycle) |
-| `triage` | `--dry-run` re-runs triage against `raw/` without mutating state |
+| `triage` | `--dry-run` re-runs triage against `inbox/` without mutating state |
 | `cleanup` | List (or, with `--yes`, delete) local `cycle/*` branches that have no matching `in_progress` queue row |
 | `init` | Scaffold (or `--force` overwrite) the repo-local factory kit |
 
@@ -199,7 +199,7 @@ There is no per-run ID; engine lifecycle is bracketed by `engine.start` /
 
 ```jsonl
 {"ts":"…","event":"engine.start"}
-{"ts":"…","event":"issue.dropped","issue_id":"txt-20260522-120000-fix-login","path":"docs/cycle/issues/raw/…"}
+{"ts":"…","event":"issue.dropped","issue_id":"txt-20260522-120000-fix-login","path":"docs/cycle/issues/inbox/…"}
 {"ts":"…","event":"cycle.start","cycle_id":"0042","workflow":"feature","title":"…","issue_id":"…","attempt":1}
 {"ts":"…","event":"step.start","cycle_id":"0042","step":"spec","agent":"claudecode"}
 {"ts":"…","event":"step.end","cycle_id":"0042","step":"spec","status":"ok","duration_ms":12345,"artifact":"docs/cycle/0042-feature-…/SPEC.md"}
@@ -216,8 +216,8 @@ lieu of `step.start` / `step.end`.
 Triage-failure and rate-limit variants:
 
 ```jsonl
-{"ts":"…","event":"triage.raw.failed","raw_id":"…","attempt":1,"error":"…"}
-{"ts":"…","event":"engine.paused","reason":"all_triage_failed","raw_ids":["…"],"last_errors":[…]}
+{"ts":"…","event":"triage.raw.failed","source_id":"…","attempt":1,"error":"…"}
+{"ts":"…","event":"engine.paused","reason":"all_triage_failed","source_ids":["…"],"last_errors":[…]}
 {"ts":"…","event":"engine.paused","reason":"rate_limit","retry_at":"…"}
 {"ts":"…","event":"engine.resumed","reason":"rate_limit_cleared"}
 ```
@@ -227,10 +227,10 @@ Triage-failure and rate-limit variants:
 ### Engine lifecycle
 
 1. **Parse args.** For freeform task text, materialize a markdown file in
-   `docs/cycle/issues/raw/` (`txt-<YYYYMMDD-HHMMSS>-<slug>.md`).
+   `docs/cycle/issues/inbox/` (`txt-<YYYYMMDD-HHMMSS>-<slug>.md`).
 2. **Acquire the engine lock** (`.cycle/engine.lock`); refuse to start if a
    live engine already holds it. Emit `engine.start`.
-3. **Triage `raw/`.** Enrich each raw issue, decompose large ones into
+3. **Triage `inbox/`.** Enrich each inbox issue, decompose large ones into
    vertical-slice children, write `todo/<id>.md`, and append rows to
    `tbd.jsonl`. (See [§4 Triage](#triage).)
 4. **Process loop** (until `tbd.jsonl` has no runnable pending row):
@@ -248,7 +248,7 @@ Triage-failure and rate-limit variants:
      run blocked-propagation over dependents, and continue with the next
      issue.
    - **On success:** move `todo/ → done/`; the `tbd.jsonl` row drains.
-5. **Re-triage `raw/`** between cycles whenever new files have appeared.
+5. **Re-triage `inbox/`** between cycles whenever new files have appeared.
 6. **Finalize.** When nothing runnable remains, release the lock, emit
    `engine.stop`, and exit `0`.
 
@@ -262,9 +262,9 @@ tail to resume any in-flight cycle, then continues the pending rows.
 
 Triage is an **engine-internal subroutine** with a configurable agent — not
 a workflow (no cycle id, no branch, no artifact directory). It runs at
-`engine.start` and again before each pop when `raw/` is non-empty.
+`engine.start` and again before each pop when `inbox/` is non-empty.
 
-For each file in `raw/`, the agent enriches it with codebase context,
+For each file in `inbox/`, the agent enriches it with codebase context,
 decomposes large issues into vertical-slice children, picks a workflow, and
 emits structured JSON:
 
@@ -273,7 +273,7 @@ emits structured JSON:
   "ordering": ["Jira-007-fix-login-cookie", "Jira-007-add-2fa-flow"],
   "children": [
     {
-      "raw_id": "Jira-007",
+      "source_id": "Jira-007",
       "id": "Jira-007-fix-login-cookie",
       "slug": "fix-login-cookie",
       "title": "Fix login cookie expiry on Safari 17",
@@ -290,9 +290,9 @@ The engine atomically writes `todo/<id>.md` files, moves
 `raw/<id>.md → done/<id>_raw.md`, and appends ordered rows to `tbd.jsonl`.
 Configured in the top of `workflows.yml` (`agent`, `prompt`, `max_turns`).
 Per-raw retry up to 3 attempts. On partial failure the failed subset moves
-to `failed/<id>.md`; if *all* raws fail in one pass the engine emits
+to `failed/<id>.md`; if *all* inbox items fail in one pass the engine emits
 `engine.paused {reason: "all_triage_failed", …}` and exits, leaving the
-raws in place for `cycle triage --dry-run` to re-evaluate.
+inbox items in place for `cycle triage --dry-run` to re-evaluate.
 
 ### Workflows
 
@@ -441,7 +441,7 @@ state:
 
 ```
 docs/cycle/issues/
-├── raw/            # Inbox — new files dropped by agents, CLI, or reflection
+├── inbox/            # Inbox — new files dropped by agents, CLI, or reflection
 ├── todo/           # Triaged + enriched, vertical-slice, ready to cycle
 ├── done/           # Successful cycles' files; decomposed parents (suffix `_raw`)
 ├── failed/         # Cycles that exhausted their attempt budget
@@ -450,7 +450,7 @@ docs/cycle/issues/
 
 State transitions:
 
-- `raw/` → triage → `todo/` (enriched) + `done/<id>_raw.md` (original)
+- `inbox/` → triage → `todo/` (enriched) + `done/<id>_raw.md` (original)
 - `todo/` → `done/`: cycle ended ok; `tbd.jsonl` row removed
 - `todo/` → `failed/`: cycle exhausted `max_cycle_attempts`; `propagateBlocked` may move dependents
 - `todo/` → `blocked/`: `depends_on` chain reached a failed item; `blocked_by:` written into frontmatter
@@ -514,9 +514,9 @@ file is absent from the cycle's `touched.json` footprint.
 ## 8. Anatomy of a Typical Run
 
 1. A parent agent runs `./.cycle/bin/cycle.js run "fix safari login bug"`.
-2. cycle materializes the task into `docs/cycle/issues/raw/` and emits
+2. cycle materializes the task into `docs/cycle/issues/inbox/` and emits
    `engine.start` after acquiring `.cycle/engine.lock`.
-3. Triage enriches the raw issue and writes `todo/<id>.md` plus a
+3. Triage enriches the inbox issue and writes `todo/<id>.md` plus a
    `tbd.jsonl` row (decomposing into several rows if the issue is large).
 4. The process loop pops the row, scans `log.jsonl` for the highest cycle
    ID (say `0041`), allocates `0042`, and creates
@@ -525,7 +525,7 @@ file is absent from the cycle's `touched.json` footprint.
    `step.end`. On success the engine commits and pushes, emits `cycle.end`,
    and moves the issue file from `todo/` to `done/`.
 6. The loop continues until `tbd.jsonl` has no runnable row, re-triaging
-   `raw/` if new files appeared. Final: `engine.stop` with status `ok`,
+   `inbox/` if new files appeared. Final: `engine.stop` with status `ok`,
    exit `0`.
 
 **Crash recovery:** if the engine crashes mid-cycle, `tbd.jsonl` still holds
@@ -534,7 +534,7 @@ the pending rows and `log.jsonl` records what happened. Re-invoking
 from the log tail, then continues the queue.
 
 **External agent drop:** while the engine processes one cycle, another agent
-can drop a file into `raw/`; the engine picks it up on the next triage pass
+can drop a file into `inbox/`; the engine picks it up on the next triage pass
 instead of stopping.
 
 ## 9. Extensibility
@@ -574,7 +574,7 @@ Two layers of retry:
 | Push network error | Infrastructure | Backoff, retry up to 3 times. No attempt consumed. |
 | Push auth / git error | Environment | Fail fast — engine exits non-zero. |
 | Engine uncaught exception | Internal | Crash; resume on next invocation via `tbd.jsonl` + `log.jsonl`. |
-| All raws fail triage in one pass | — | `engine.paused {reason: "all_triage_failed"}`; raws stay in `raw/` for `cycle triage --dry-run`. |
+| All inbox items fail triage in one pass | — | `engine.paused {reason: "all_triage_failed"}`; inbox items stay in `inbox/` for `cycle triage --dry-run`. |
 
 The queue **halts** after `engine.max_consecutive_failures` consecutive
 terminal failures (default 2): the engine emits `engine.halted` then

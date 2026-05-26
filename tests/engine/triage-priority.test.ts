@@ -54,7 +54,7 @@ function makeLogCapturing(): { log: Logger; events: Captured[] } {
 async function setupRepo(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "cycle-triage-priority-"));
   await mkdir(join(root, ".cycle/prompts"), { recursive: true });
-  await mkdir(join(root, "docs/cycle/issues/raw"), { recursive: true });
+  await mkdir(join(root, "docs/cycle/issues/inbox"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/done"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/failed"), { recursive: true });
@@ -98,11 +98,11 @@ function enrichJson(rawId: string): string {
   });
 }
 
-test("triage: explicit priority:critical in raw → todo and QueueRow carry critical", async () => {
+test("triage: explicit priority:critical in inbox → todo and QueueRow carry critical", async () => {
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/crit.md"),
+      join(root, "docs/cycle/issues/inbox/crit.md"),
       rawBody("crit", "critical task", "critical"),
       "utf8",
     );
@@ -129,11 +129,11 @@ test("triage: explicit priority:critical in raw → todo and QueueRow carry crit
   }
 });
 
-test("triage: absent priority in raw → todo and QueueRow carry medium", async () => {
+test("triage: absent priority in inbox → todo and QueueRow carry medium", async () => {
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/nopri.md"),
+      join(root, "docs/cycle/issues/inbox/nopri.md"),
       rawBody("nopri", "no priority task"),
       "utf8",
     );
@@ -160,13 +160,13 @@ test("triage: absent priority in raw → todo and QueueRow carry medium", async 
   }
 });
 
-test("discuss raw: agent never called, file moved to discuss/, no todo, no queue row, event emitted", async () => {
+test("discuss raw: agent never called, file moved to ideas/, no todo, no queue row, event emitted", async () => {
   const root = await setupRepo();
   try {
     const id = "test-discuss-01";
     await writeFile(
-      join(root, "docs/cycle/issues/raw", `${id}.md`),
-      rawBody(id, "Discuss this", "discuss"),
+      join(root, "docs/cycle/issues/inbox", `${id}.md`),
+      rawBody(id, "Discuss this", "idea"),
       "utf8",
     );
 
@@ -181,9 +181,9 @@ test("discuss raw: agent never called, file moved to discuss/, no todo, no queue
 
     assert.equal(agentCalled, false, "agent must not be called for discuss raw");
 
-    const discussPath = join(root, "docs/cycle/issues/discuss", `${id}.md`);
+    const discussPath = join(root, "docs/cycle/issues/ideas", `${id}.md`);
     const content = await readFile(discussPath, "utf8");
-    assert.ok(content.includes("priority: discuss"), "discuss file content preserved");
+    assert.ok(content.includes("priority: idea"), "discuss file content preserved");
 
     const todoFiles = await readdir(join(root, "docs/cycle/issues/todo")).catch(() => []);
     assert.equal(todoFiles.filter((f) => f.startsWith(id)).length, 0, "no todo file");
@@ -191,12 +191,12 @@ test("discuss raw: agent never called, file moved to discuss/, no todo, no queue
     const queue = await readQueue(root);
     assert.equal(queue.filter((r) => r.id === id).length, 0, "no queue row");
 
-    const parked = events.filter((e) => e.event === "issue.parked_for_discussion");
+    const parked = events.filter((e) => e.event === "issue.parked_for_ideas");
     assert.equal(parked.length, 1, "exactly one parked event");
     assert.equal(parked[0].fields.id, id);
-    assert.equal(parked[0].fields.priority, "discuss");
+    assert.equal(parked[0].fields.priority, "idea");
     assert.ok(
-      (parked[0].fields.path as string).endsWith(`discuss/${id}.md`),
+      (parked[0].fields.path as string).endsWith(`ideas/${id}.md`),
       "path points to discuss dir",
     );
 
@@ -204,27 +204,27 @@ test("discuss raw: agent never called, file moved to discuss/, no todo, no queue
     assert.equal(parkFailed.length, 0, "no park_failed event on success path");
 
     await assert.rejects(
-      () => readFile(join(root, "docs/cycle/issues/raw", `${id}.md`), "utf8"),
+      () => readFile(join(root, "docs/cycle/issues/inbox", `${id}.md`), "utf8"),
       { code: "ENOENT" },
-      "raw file must not exist after parkForDiscussion",
+      "raw file must not exist after parkForIdeas",
     );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("discuss raw: parkForDiscussion rename fails → issue.park_failed emitted, raw file stays, no parked_for_discussion", async () => {
+test("discuss raw: parkForIdeas rename fails → issue.park_failed emitted, raw file stays, no parked_for_ideas", async () => {
   const root = await setupRepo();
   try {
     const id = "test-discuss-fail-01";
     await writeFile(
-      join(root, "docs/cycle/issues/raw", `${id}.md`),
-      rawBody(id, "Discuss this", "discuss"),
+      join(root, "docs/cycle/issues/inbox", `${id}.md`),
+      rawBody(id, "Discuss this", "idea"),
       "utf8",
     );
 
     // Pre-create destPath as a directory so rename(srcPath, destPath) fails with EISDIR.
-    const destPath = join(root, "docs/cycle/issues/discuss", `${id}.md`);
+    const destPath = join(root, "docs/cycle/issues/ideas", `${id}.md`);
     await mkdir(destPath, { recursive: true });
 
     const runAgent = async (): Promise<TriageAgentResult> => {
@@ -242,11 +242,11 @@ test("discuss raw: parkForDiscussion rename fails → issue.park_failed emitted,
       "park_failed error is a non-empty string",
     );
 
-    const parked = events.filter((e) => e.event === "issue.parked_for_discussion");
-    assert.equal(parked.length, 0, "no parked_for_discussion event on failure path");
+    const parked = events.filter((e) => e.event === "issue.parked_for_ideas");
+    assert.equal(parked.length, 0, "no parked_for_ideas event on failure path");
 
     const rawContent = await readFile(
-      join(root, "docs/cycle/issues/raw", `${id}.md`),
+      join(root, "docs/cycle/issues/inbox", `${id}.md`),
       "utf8",
     );
     assert.ok(rawContent.includes(`id: ${id}`), "raw file still present after rename failure");
@@ -260,7 +260,7 @@ test("non-discuss raw (priority: high) triages normally", async () => {
   try {
     const id = "test-high-01";
     await writeFile(
-      join(root, "docs/cycle/issues/raw", `${id}.md`),
+      join(root, "docs/cycle/issues/inbox", `${id}.md`),
       rawBody(id, "High priority task", "high"),
       "utf8",
     );
@@ -292,28 +292,28 @@ test("non-discuss raw (priority: high) triages normally", async () => {
   }
 });
 
-test("discuss raw moved back to raw/ with priority: medium is triaged on next run", async () => {
+test("discuss raw moved back to inbox/ with priority: medium is triaged on next run", async () => {
   const root = await setupRepo();
   try {
     const id = "test-roundtrip-01";
-    const rawPath = join(root, "docs/cycle/issues/raw", `${id}.md`);
-    await writeFile(rawPath, rawBody(id, "Roundtrip test", "discuss"), "utf8");
+    const rawPath = join(root, "docs/cycle/issues/inbox", `${id}.md`);
+    await writeFile(rawPath, rawBody(id, "Roundtrip test", "idea"), "utf8");
 
     const { log: log1 } = makeLog();
     await runTriage(root, makeConfig(), log1, {
       runAgent: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
     });
 
-    const discussPath = join(root, "docs/cycle/issues/discuss", `${id}.md`);
+    const discussPath = join(root, "docs/cycle/issues/ideas", `${id}.md`);
     await readFile(discussPath, "utf8"); // throws if not found
 
     await assert.rejects(
       () => readFile(rawPath, "utf8"),
       { code: "ENOENT" },
-      "raw file must not exist after first parkForDiscussion",
+      "raw file must not exist after first parkForIdeas",
     );
 
-    // Simulate human: move back to raw/ with real priority
+    // Simulate human: move back to inbox/ with real priority
     await writeFile(rawPath, rawBody(id, "Roundtrip test", "medium"), "utf8");
 
     let agentCalled = false;
@@ -324,7 +324,7 @@ test("discuss raw moved back to raw/ with priority: medium is triaged on next ru
     const { log: log2 } = makeLog();
     await runTriage(root, makeConfig(), log2, { runAgent });
 
-    assert.equal(agentCalled, true, "agent called after re-drop to raw/");
+    assert.equal(agentCalled, true, "agent called after re-drop to inbox/");
     const queue = await readQueue(root);
     assert.ok(
       queue.some((r) => r.id === id),
@@ -335,18 +335,18 @@ test("discuss raw moved back to raw/ with priority: medium is triaged on next ru
   }
 });
 
-test("discuss + all normal fail → engine.paused emitted, normal raw stays in raw/", async () => {
+test("discuss + all normal fail → engine.paused emitted, normal raw stays in inbox/", async () => {
   const root = await setupRepo();
   try {
     const discussId = "test-allfail-discuss";
     const normalId = "test-allfail-normal";
     await writeFile(
-      join(root, "docs/cycle/issues/raw", `${discussId}.md`),
-      rawBody(discussId, "Discuss item", "discuss"),
+      join(root, "docs/cycle/issues/inbox", `${discussId}.md`),
+      rawBody(discussId, "Discuss item", "idea"),
       "utf8",
     );
     await writeFile(
-      join(root, "docs/cycle/issues/raw", `${normalId}.md`),
+      join(root, "docs/cycle/issues/inbox", `${normalId}.md`),
       rawBody(normalId, "Normal item", "medium"),
       "utf8",
     );
@@ -369,19 +369,19 @@ test("discuss + all normal fail → engine.paused emitted, normal raw stays in r
       "engine.paused{all_triage_failed} must be emitted",
     );
 
-    const rawFiles = await readdir(join(root, "docs/cycle/issues/raw"));
+    const rawFiles = await readdir(join(root, "docs/cycle/issues/inbox"));
     assert.ok(
       rawFiles.some((f) => f.includes(normalId)),
-      "normal raw stays in raw/",
+      "normal raw stays in inbox/",
     );
 
-    const discussPath = join(root, "docs/cycle/issues/discuss", `${discussId}.md`);
+    const discussPath = join(root, "docs/cycle/issues/ideas", `${discussId}.md`);
     await readFile(discussPath, "utf8");
 
     await assert.rejects(
-      () => readFile(join(root, "docs/cycle/issues/raw", `${discussId}.md`), "utf8"),
+      () => readFile(join(root, "docs/cycle/issues/inbox", `${discussId}.md`), "utf8"),
       { code: "ENOENT" },
-      "raw file must not exist after parkForDiscussion",
+      "raw file must not exist after parkForIdeas",
     );
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -394,12 +394,12 @@ test("mixed batch: discuss raw parked, normal raw triaged", async () => {
     const discussId = "test-mixed-discuss";
     const normalId = "test-mixed-normal";
     await writeFile(
-      join(root, "docs/cycle/issues/raw", `${discussId}.md`),
-      rawBody(discussId, "Discuss item", "discuss"),
+      join(root, "docs/cycle/issues/inbox", `${discussId}.md`),
+      rawBody(discussId, "Discuss item", "idea"),
       "utf8",
     );
     await writeFile(
-      join(root, "docs/cycle/issues/raw", `${normalId}.md`),
+      join(root, "docs/cycle/issues/inbox", `${normalId}.md`),
       rawBody(normalId, "Normal item", "medium"),
       "utf8",
     );
@@ -419,17 +419,17 @@ test("mixed batch: discuss raw parked, normal raw triaged", async () => {
 
     assert.equal(calledFor.length, 1, "agent called exactly once (for normal raw)");
 
-    const parked = events.filter((e) => e.event === "issue.parked_for_discussion");
+    const parked = events.filter((e) => e.event === "issue.parked_for_ideas");
     assert.equal(parked.length, 1, "exactly one parked event");
     assert.equal(parked[0].fields.id, discussId);
 
-    const discussPath = join(root, "docs/cycle/issues/discuss", `${discussId}.md`);
+    const discussPath = join(root, "docs/cycle/issues/ideas", `${discussId}.md`);
     await readFile(discussPath, "utf8"); // throws if not found
 
     await assert.rejects(
-      () => readFile(join(root, "docs/cycle/issues/raw", `${discussId}.md`), "utf8"),
+      () => readFile(join(root, "docs/cycle/issues/inbox", `${discussId}.md`), "utf8"),
       { code: "ENOENT" },
-      "raw file must not exist after parkForDiscussion",
+      "raw file must not exist after parkForIdeas",
     );
 
     const todoFiles = await readdir(join(root, "docs/cycle/issues/todo"));

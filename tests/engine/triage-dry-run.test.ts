@@ -38,7 +38,7 @@ function makeConfig(): CycleConfig {
 async function setupRepo(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "cycle-triage-dry-"));
   await mkdir(join(root, ".cycle/prompts"), { recursive: true });
-  await mkdir(join(root, "docs/cycle/issues/raw"), { recursive: true });
+  await mkdir(join(root, "docs/cycle/issues/inbox"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/done"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/failed"), { recursive: true });
@@ -126,7 +126,7 @@ test("dryRun happy path: three raws, all ok, attempts=1", async () => {
   try {
     for (const id of ["alpha", "beta", "gamma"]) {
       await writeFile(
-        join(root, `docs/cycle/issues/raw/${id}.md`),
+        join(root, `docs/cycle/issues/inbox/${id}.md`),
         rawBody(id, id),
         "utf8",
       );
@@ -155,7 +155,7 @@ test("dryRun retry-then-succeed reports attempts=2", async () => {
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/r1.md"),
+      join(root, "docs/cycle/issues/inbox/r1.md"),
       rawBody("r1", "r1"),
       "utf8",
     );
@@ -182,7 +182,7 @@ test("dryRun all retries fail: status=failed, attempts=3, last_error set", async
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/bad.md"),
+      join(root, "docs/cycle/issues/inbox/bad.md"),
       rawBody("bad", "bad"),
       "utf8",
     );
@@ -209,7 +209,7 @@ test("dryRun agent non-zero exit: status=failed, last_error mentions exit code a
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/boom.md"),
+      join(root, "docs/cycle/issues/inbox/boom.md"),
       rawBody("boom", "boom"),
       "utf8",
     );
@@ -230,17 +230,17 @@ test("dryRun agent non-zero exit: status=failed, last_error mentions exit code a
   }
 });
 
-test("dryRun byte-identity: filesystem unchanged across raw/, todo/, done/, failed/, tbd.jsonl, log.jsonl", async () => {
+test("dryRun byte-identity: filesystem unchanged across inbox/, todo/, done/, failed/, tbd.jsonl, log.jsonl", async () => {
   const root = await setupRepo();
   try {
     // Pre-seed fixtures.
     await writeFile(
-      join(root, "docs/cycle/issues/raw/keep.md"),
+      join(root, "docs/cycle/issues/inbox/keep.md"),
       rawBody("keep", "keep me"),
       "utf8",
     );
     await writeFile(
-      join(root, "docs/cycle/issues/raw/fail.md"),
+      join(root, "docs/cycle/issues/inbox/fail.md"),
       rawBody("fail", "will fail"),
       "utf8",
     );
@@ -263,7 +263,7 @@ test("dryRun byte-identity: filesystem unchanged across raw/, todo/, done/, fail
     await writeFile(join(root, ".cycle/log.jsonl"), logBody, "utf8");
 
     const before = {
-      raw: await dirHash(join(root, "docs/cycle/issues/raw")),
+      raw: await dirHash(join(root, "docs/cycle/issues/inbox")),
       todo: await dirHash(join(root, "docs/cycle/issues/todo")),
       done: await dirHash(join(root, "docs/cycle/issues/done")),
       failed: await dirHash(join(root, "docs/cycle/issues/failed")),
@@ -284,7 +284,7 @@ test("dryRun byte-identity: filesystem unchanged across raw/, todo/, done/, fail
     assert.equal(reports.length, 2);
 
     const after = {
-      raw: await dirHash(join(root, "docs/cycle/issues/raw")),
+      raw: await dirHash(join(root, "docs/cycle/issues/inbox")),
       todo: await dirHash(join(root, "docs/cycle/issues/todo")),
       done: await dirHash(join(root, "docs/cycle/issues/done")),
       failed: await dirHash(join(root, "docs/cycle/issues/failed")),
@@ -292,7 +292,7 @@ test("dryRun byte-identity: filesystem unchanged across raw/, todo/, done/, fail
       log: await fileBytes(join(root, ".cycle/log.jsonl")),
     };
 
-    assert.deepEqual(after.raw, before.raw, "raw/ contents changed");
+    assert.deepEqual(after.raw, before.raw, "inbox/ contents changed");
     assert.deepEqual(after.todo, before.todo, "todo/ contents changed");
     assert.deepEqual(after.done, before.done, "done/ contents changed");
     assert.deepEqual(after.failed, before.failed, "failed/ contents changed");
@@ -305,7 +305,7 @@ test("dryRun byte-identity: filesystem unchanged across raw/, todo/, done/, fail
 
 test("dryRun empty raw dir: returns [] and creates no directories", async () => {
   // Use a temp root WITHOUT pre-creating any directories. The dryRunTriage
-  // path must tolerate a missing raw/ and never mkdir.
+  // path must tolerate a missing inbox/ and never mkdir.
   const root = await mkdtemp(join(tmpdir(), "cycle-triage-empty-"));
   try {
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
@@ -316,13 +316,13 @@ test("dryRun empty raw dir: returns [] and creates no directories", async () => 
     );
     const deps: TriageDeps = {
       runAgent: async (): Promise<TriageAgentResult> => {
-        throw new Error("runAgent must not be called for empty raw/");
+        throw new Error("runAgent must not be called for empty inbox/");
       },
     };
     const reports = await dryRunTriage(root, makeConfig(), deps);
     assert.deepEqual(reports, []);
 
-    // Verify raw/, todo/, etc. were NOT created.
+    // Verify inbox/, todo/, etc. were NOT created.
     for (const sub of ["raw", "todo", "done", "failed"]) {
       let exists = true;
       try {
@@ -341,7 +341,7 @@ test("dryRun ignores on-disk triage_attempts and runs full retry budget", async 
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/exhausted.md"),
+      join(root, "docs/cycle/issues/inbox/exhausted.md"),
       rawBody("exhausted", "already-tried", 3),
       "utf8",
     );
@@ -366,7 +366,7 @@ test("dryRun with prior triage_attempts succeeds on third dry-run attempt", asyn
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/r1.md"),
+      join(root, "docs/cycle/issues/inbox/r1.md"),
       rawBody("r1", "r1", 2),
       "utf8",
     );
@@ -393,7 +393,7 @@ test("dryRun unknown triage agent reports per-raw failure with UnknownAgentError
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/x.md"),
+      join(root, "docs/cycle/issues/inbox/x.md"),
       rawBody("x", "x"),
       "utf8",
     );
@@ -414,16 +414,16 @@ test("dryRun Case B: missing prompt template → throws 'prompt template missing
   const root = await mkdtemp(join(tmpdir(), "cycle-triage-nopromp-"));
   try {
     await mkdir(join(root, ".cycle"), { recursive: true });
-    await mkdir(join(root, "docs/cycle/issues/raw"), { recursive: true });
+    await mkdir(join(root, "docs/cycle/issues/inbox"), { recursive: true });
     await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
     await writeFile(
-      join(root, "docs/cycle/issues/raw/solo.md"),
+      join(root, "docs/cycle/issues/inbox/solo.md"),
       rawBody("solo", "solo"),
       "utf8",
     );
 
     const before = {
-      raw: await dirHash(join(root, "docs/cycle/issues/raw")),
+      raw: await dirHash(join(root, "docs/cycle/issues/inbox")),
       todo: await dirHash(join(root, "docs/cycle/issues/todo")),
       tbd: await fileBytes(join(root, ".cycle/tbd.jsonl")),
       log: await fileBytes(join(root, ".cycle/log.jsonl")),
@@ -447,12 +447,12 @@ test("dryRun Case B: missing prompt template → throws 'prompt template missing
     );
 
     const after = {
-      raw: await dirHash(join(root, "docs/cycle/issues/raw")),
+      raw: await dirHash(join(root, "docs/cycle/issues/inbox")),
       todo: await dirHash(join(root, "docs/cycle/issues/todo")),
       tbd: await fileBytes(join(root, ".cycle/tbd.jsonl")),
       log: await fileBytes(join(root, ".cycle/log.jsonl")),
     };
-    assert.deepEqual(after.raw, before.raw, "raw/ contents changed");
+    assert.deepEqual(after.raw, before.raw, "inbox/ contents changed");
     assert.deepEqual(after.todo, before.todo, "todo/ contents changed");
     assert.equal(after.tbd, before.tbd, "tbd.jsonl appeared");
     assert.equal(after.log, before.log, "log.jsonl appeared");
@@ -465,13 +465,13 @@ test("dryRun Case A: runAgent throws → status failed, attempts 3, last_error m
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/solo.md"),
+      join(root, "docs/cycle/issues/inbox/solo.md"),
       rawBody("solo", "solo"),
       "utf8",
     );
 
     const before = {
-      raw: await dirHash(join(root, "docs/cycle/issues/raw")),
+      raw: await dirHash(join(root, "docs/cycle/issues/inbox")),
       todo: await dirHash(join(root, "docs/cycle/issues/todo")),
       done: await dirHash(join(root, "docs/cycle/issues/done")),
       failed: await dirHash(join(root, "docs/cycle/issues/failed")),
@@ -503,14 +503,14 @@ test("dryRun Case A: runAgent throws → status failed, attempts 3, last_error m
     assert.equal(calls, 3, "runAgent invoked exactly MAX_ATTEMPTS times");
 
     const after = {
-      raw: await dirHash(join(root, "docs/cycle/issues/raw")),
+      raw: await dirHash(join(root, "docs/cycle/issues/inbox")),
       todo: await dirHash(join(root, "docs/cycle/issues/todo")),
       done: await dirHash(join(root, "docs/cycle/issues/done")),
       failed: await dirHash(join(root, "docs/cycle/issues/failed")),
       tbd: await fileBytes(join(root, ".cycle/tbd.jsonl")),
       log: await fileBytes(join(root, ".cycle/log.jsonl")),
     };
-    assert.deepEqual(after.raw, before.raw, "raw/ contents changed");
+    assert.deepEqual(after.raw, before.raw, "inbox/ contents changed");
     assert.deepEqual(after.todo, before.todo, "todo/ contents changed");
     assert.deepEqual(after.done, before.done, "done/ contents changed");
     assert.deepEqual(after.failed, before.failed, "failed/ contents changed");
@@ -525,7 +525,7 @@ test("dry-run after all-fail pause sees the same raws without manual mv", async 
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/p.md"),
+      join(root, "docs/cycle/issues/inbox/p.md"),
       rawBody("p", "task p"),
       "utf8",
     );
@@ -542,9 +542,9 @@ test("dry-run after all-fail pause sees the same raws without manual mv", async 
     };
     const r1 = await runTriage(root, makeConfig(), log, { runAgent: failingAgent });
     assert.equal(r1.status, "paused");
-    // Raw must still be in raw/ — no operator mv between paused and dry-run.
+    // Raw must still be in inbox/ — no operator mv between paused and dry-run.
     const rawFilesAfterPause = await readdir(
-      join(root, "docs/cycle/issues/raw"),
+      join(root, "docs/cycle/issues/inbox"),
     );
     assert.deepEqual(rawFilesAfterPause, ["p.md"]);
 
@@ -564,8 +564,8 @@ test("dryRun skips discuss-priority raw: returns empty reports, no agent call", 
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/disc1.md"),
-      rawBody("disc1", "discuss raw", 0, "discuss"),
+      join(root, "docs/cycle/issues/inbox/disc1.md"),
+      rawBody("disc1", "discuss raw", 0, "idea"),
       "utf8",
     );
     let calls = 0;
@@ -587,12 +587,12 @@ test("dryRun mixed batch: discuss skipped, normal raw processed once", async () 
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/disc2.md"),
-      rawBody("disc2", "discuss raw", 0, "discuss"),
+      join(root, "docs/cycle/issues/inbox/disc2.md"),
+      rawBody("disc2", "discuss raw", 0, "idea"),
       "utf8",
     );
     await writeFile(
-      join(root, "docs/cycle/issues/raw/norm1.md"),
+      join(root, "docs/cycle/issues/inbox/norm1.md"),
       rawBody("norm1", "normal raw"),
       "utf8",
     );

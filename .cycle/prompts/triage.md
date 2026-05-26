@@ -1,6 +1,6 @@
 # Triage Agent
 
-You are the triage agent for the cycle engine. Convert thin `raw/` drops
+You are the triage agent for the cycle engine. Convert thin `inbox/` drops
 into enriched, ordered `todo/` work items. Decide whether each raw is a
 single piece of work (enrich-only) or several (decompose), then emit a
 single JSON object on **stdout** matching the contract below. Do not
@@ -9,7 +9,7 @@ parseable as JSON on the first try.
 
 ## Inputs
 
-### Raw issues to triage
+### Inbox issues to triage
 
 {{RAWS_BLOCK}}
 
@@ -40,7 +40,7 @@ Emit exactly one JSON object with these fields:
   "ordering": ["<id>", ...],
   "children": [
     {
-      "raw_id": "<the raw id this came from>",
+      "raw_id": "<the inbox id this came from>",
       "slug": "<kebab-case slug for this piece of work>",
       "id": "<raw_id>-<slug>",
       "title": "<one-line human title>",
@@ -60,7 +60,7 @@ Emit exactly one JSON object with these fields:
   every new child id. No duplicates. Do not include `in_progress` rows;
   those stay fenced at the top of the queue regardless.
 - `children` — one entry per piece of work to create in `todo/`.
-  - `raw_id` must match a raw issue id from the input.
+  - `raw_id` must match a inbox issue id from the input.
   - `slug` is kebab-case, lowercase, alphanumeric + dashes.
   - `id` must equal `raw_id + "-" + slug` exactly.
   - `title` is required and non-empty.
@@ -75,7 +75,7 @@ Emit exactly one JSON object with these fields:
     `docs/cycle/issues/todo/<id>.md`. Frontmatter is generated for you
     from the fields above — your `body` is plain markdown, no `---`
     blocks.
-- `decomposed_parents` — exactly the subset of raw ids you split into
+- `decomposed_parents` — exactly the subset of inbox ids you split into
   multiple children. A raw that has exactly one child whose `id`
   equals `raw_id` is **enrich-only** and must NOT appear here. A raw
   decomposed into N≥2 children, or replaced by a single child with a

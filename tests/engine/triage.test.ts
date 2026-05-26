@@ -49,7 +49,7 @@ function makeLog(): { log: Logger; events: Captured[] } {
 async function setupRepo(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "cycle-triage-"));
   await mkdir(join(root, ".cycle/prompts"), { recursive: true });
-  await mkdir(join(root, "docs/cycle/issues/raw"), { recursive: true });
+  await mkdir(join(root, "docs/cycle/issues/inbox"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/done"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/failed"), { recursive: true });
@@ -125,7 +125,7 @@ test("happy path: decompose one raw into two todos, move raw to done, queue orde
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/parent.md"),
+      join(root, "docs/cycle/issues/inbox/parent.md"),
       rawBody("parent", "parent task"),
       "utf8",
     );
@@ -148,7 +148,7 @@ test("happy path: decompose one raw into two todos, move raw to done, queue orde
     assert.deepEqual(todoFiles, ["parent-a.md", "parent-b.md"]);
     const doneFiles = await readdir(join(root, "docs/cycle/issues/done"));
     assert.deepEqual(doneFiles, ["parent_raw.md"]);
-    const rawFiles = await readdir(join(root, "docs/cycle/issues/raw"));
+    const rawFiles = await readdir(join(root, "docs/cycle/issues/inbox"));
     assert.deepEqual(rawFiles, []);
 
     const aBody = await readFile(
@@ -185,7 +185,7 @@ test("happy path: enrich-only single child whose id equals raw_id", async () => 
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/solo.md"),
+      join(root, "docs/cycle/issues/inbox/solo.md"),
       rawBody("solo", "solo task"),
       "utf8",
     );
@@ -253,7 +253,7 @@ test("reordering preserves in_progress at top, applies agent ordering for pendin
       "utf8",
     );
     await writeFile(
-      join(root, "docs/cycle/issues/raw/newx.md"),
+      join(root, "docs/cycle/issues/inbox/newx.md"),
       rawBody("newx", "new task"),
       "utf8",
     );
@@ -312,7 +312,7 @@ test("ordering omission appends omitted row at end with triage.warning", async (
       "utf8",
     );
     await writeFile(
-      join(root, "docs/cycle/issues/raw/newy.md"),
+      join(root, "docs/cycle/issues/inbox/newy.md"),
       rawBody("newy", "new y"),
       "utf8",
     );
@@ -361,7 +361,7 @@ test("validator failure feeds error back to next attempt; success on attempt 2",
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/retry.md"),
+      join(root, "docs/cycle/issues/inbox/retry.md"),
       rawBody("retry", "retry task"),
       "utf8",
     );
@@ -439,12 +439,12 @@ test("3-attempt exhaustion: one raw fails all attempts, other succeeds", async (
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/A.md"),
+      join(root, "docs/cycle/issues/inbox/A.md"),
       rawBody("A", "raw A"),
       "utf8",
     );
     await writeFile(
-      join(root, "docs/cycle/issues/raw/B.md"),
+      join(root, "docs/cycle/issues/inbox/B.md"),
       rawBody("B", "raw B"),
       "utf8",
     );
@@ -488,7 +488,7 @@ test("whole-pass failure: only raw fails all attempts → engine.paused", async 
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/only.md"),
+      join(root, "docs/cycle/issues/inbox/only.md"),
       rawBody("only", "only task"),
       "utf8",
     );
@@ -520,13 +520,13 @@ test("whole-pass failure: only raw fails all attempts → engine.paused", async 
     assert.ok(lastErrors[0].error.length > 0);
     assert.equal("failed" in (paused?.fields as object), false);
 
-    // All-fail path: raw stays in raw/; failed/ is untouched.
-    const rawFiles = await readdir(join(root, "docs/cycle/issues/raw"));
+    // All-fail path: raw stays in inbox/; failed/ is untouched.
+    const rawFiles = await readdir(join(root, "docs/cycle/issues/inbox"));
     assert.deepEqual(rawFiles, ["only.md"]);
     const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
     assert.deepEqual(failedFiles, []);
     const rawBodyAfter = await readFile(
-      join(root, "docs/cycle/issues/raw/only.md"),
+      join(root, "docs/cycle/issues/inbox/only.md"),
       "utf8",
     );
     const { fm } = parseFrontmatter(rawBodyAfter);
@@ -538,16 +538,16 @@ test("whole-pass failure: only raw fails all attempts → engine.paused", async 
   }
 });
 
-test("all-fail: raws remain in raw/ with triage_attempts reset to 0 and no failure stamps", async () => {
+test("all-fail: raws remain in inbox/ with triage_attempts reset to 0 and no failure stamps", async () => {
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/a.md"),
+      join(root, "docs/cycle/issues/inbox/a.md"),
       rawBody("a", "task a"),
       "utf8",
     );
     await writeFile(
-      join(root, "docs/cycle/issues/raw/b.md"),
+      join(root, "docs/cycle/issues/inbox/b.md"),
       rawBody("b", "task b"),
       "utf8",
     );
@@ -560,7 +560,7 @@ test("all-fail: raws remain in raw/ with triage_attempts reset to 0 and no failu
     assert.deepEqual(result.failed.slice().sort(), ["a", "b"]);
 
     const rawFiles = (
-      await readdir(join(root, "docs/cycle/issues/raw"))
+      await readdir(join(root, "docs/cycle/issues/inbox"))
     ).sort();
     assert.deepEqual(rawFiles, ["a.md", "b.md"]);
 
@@ -569,7 +569,7 @@ test("all-fail: raws remain in raw/ with triage_attempts reset to 0 and no failu
 
     for (const id of ["a", "b"]) {
       const body = await readFile(
-        join(root, `docs/cycle/issues/raw/${id}.md`),
+        join(root, `docs/cycle/issues/inbox/${id}.md`),
         "utf8",
       );
       const { fm } = parseFrontmatter(body);
@@ -585,8 +585,8 @@ test("all-fail: raws remain in raw/ with triage_attempts reset to 0 and no failu
 test("all-fail reset: subsequent triage pass invokes agent for each retained raw", async () => {
   const root = await setupRepo();
   try {
-    await writeFile(join(root, "docs/cycle/issues/raw/a.md"), rawBody("a", "task a"), "utf8");
-    await writeFile(join(root, "docs/cycle/issues/raw/b.md"), rawBody("b", "task b"), "utf8");
+    await writeFile(join(root, "docs/cycle/issues/inbox/a.md"), rawBody("a", "task a"), "utf8");
+    await writeFile(join(root, "docs/cycle/issues/inbox/b.md"), rawBody("b", "task b"), "utf8");
 
     let callCount = 0;
     const deps: TriageDeps = {
@@ -602,7 +602,7 @@ test("all-fail reset: subsequent triage pass invokes agent for each retained raw
     assert.equal(result1.status, "paused");
 
     for (const id of ["a", "b"]) {
-      const body = await readFile(join(root, `docs/cycle/issues/raw/${id}.md`), "utf8");
+      const body = await readFile(join(root, `docs/cycle/issues/inbox/${id}.md`), "utf8");
       const { fm } = parseFrontmatter(body);
       assert.equal(fm.triage_attempts, 0);
     }
@@ -622,12 +622,12 @@ test("engine.paused last_errors order matches raw_ids order across multiple fail
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/raw-a.md"),
+      join(root, "docs/cycle/issues/inbox/raw-a.md"),
       rawBody("raw-a", "A task"),
       "utf8",
     );
     await writeFile(
-      join(root, "docs/cycle/issues/raw/raw-b.md"),
+      join(root, "docs/cycle/issues/inbox/raw-b.md"),
       rawBody("raw-b", "B task"),
       "utf8",
     );
@@ -664,7 +664,7 @@ test("engine.paused last_errors truncates errors longer than 2000 chars", async 
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/big.md"),
+      join(root, "docs/cycle/issues/inbox/big.md"),
       rawBody("big", "big task"),
       "utf8",
     );
@@ -701,7 +701,7 @@ test("engine.paused last_errors at boundary length 2000 is not truncated", async
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/edge.md"),
+      join(root, "docs/cycle/issues/inbox/edge.md"),
       rawBody("edge", "edge task"),
       "utf8",
     );
@@ -738,7 +738,7 @@ test("engine.paused last_errors at boundary length 2000 is not truncated", async
   }
 });
 
-test("empty raw/: returns ok with zero processed and no exec call", async () => {
+test("empty inbox/: returns ok with zero processed and no exec call", async () => {
   const root = await setupRepo();
   try {
     let calls = 0;
@@ -767,7 +767,7 @@ test("atomic apply rolls back when appendRow fails (tbd.jsonl readonly)", async 
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/atomic.md"),
+      join(root, "docs/cycle/issues/inbox/atomic.md"),
       rawBody("atomic", "atomic task"),
       "utf8",
     );
@@ -793,8 +793,8 @@ test("atomic apply rolls back when appendRow fails (tbd.jsonl readonly)", async 
       false,
       "todo file should be removed by rollback",
     );
-    // All-fail path: raw stays in raw/ after 3 exhausted attempts.
-    const rawFiles = await readdir(join(root, "docs/cycle/issues/raw"));
+    // All-fail path: raw stays in inbox/ after 3 exhausted attempts.
+    const rawFiles = await readdir(join(root, "docs/cycle/issues/inbox"));
     assert.deepEqual(rawFiles, ["atomic.md"]);
     const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
     assert.deepEqual(failedFiles, []);
@@ -812,7 +812,7 @@ test("atomic apply rolls back when raw rename fails (done/ unwritable)", async (
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/multi.md"),
+      join(root, "docs/cycle/issues/inbox/multi.md"),
       rawBody("multi", "multi task"),
       "utf8",
     );
@@ -856,7 +856,7 @@ test("atomicWrite cleans up .tmp when rename fails", async () => {
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/leak.md"),
+      join(root, "docs/cycle/issues/inbox/leak.md"),
       rawBody("leak", "leak task"),
       "utf8",
     );
@@ -892,7 +892,7 @@ test("unknown triage agent surfaces via engine.paused all_triage_failed", async 
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/x.md"),
+      join(root, "docs/cycle/issues/inbox/x.md"),
       rawBody("x", "x"),
       "utf8",
     );
@@ -920,7 +920,7 @@ test("persisted triage_attempts carries into next run for retry budget", async (
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/persist.md"),
+      join(root, "docs/cycle/issues/inbox/persist.md"),
       rawBody("persist", "persisted", 2),
       "utf8",
     );
@@ -936,8 +936,8 @@ test("persisted triage_attempts carries into next run for retry budget", async (
     const result = await runTriage(root, makeConfig(), log, deps);
     assert.equal(result.status, "paused");
     assert.equal(calls, 1, "only one attempt left when attempts=2");
-    // All-fail path: raw stays in raw/.
-    const rawFiles = await readdir(join(root, "docs/cycle/issues/raw"));
+    // All-fail path: raw stays in inbox/.
+    const rawFiles = await readdir(join(root, "docs/cycle/issues/inbox"));
     assert.deepEqual(rawFiles, ["persist.md"]);
     const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
     assert.deepEqual(failedFiles, []);
@@ -950,7 +950,7 @@ test("agent that throws is treated as a failed attempt", async () => {
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/throwy.md"),
+      join(root, "docs/cycle/issues/inbox/throwy.md"),
       rawBody("throwy", "t", 2),
       "utf8",
     );
@@ -973,7 +973,7 @@ test("agent with non-zero exit code is treated as a failed attempt", async () =>
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/exit.md"),
+      join(root, "docs/cycle/issues/inbox/exit.md"),
       rawBody("exit", "t", 2),
       "utf8",
     );
@@ -1034,7 +1034,7 @@ test("happy path: chained siblings — three children with chained depends_on ac
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/login.md"),
+      join(root, "docs/cycle/issues/inbox/login.md"),
       rawBody("login", "Add login"),
       "utf8",
     );
@@ -1102,7 +1102,7 @@ test("dangling depends_on id rejected; retry sees validator error in next prompt
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/r1.md"),
+      join(root, "docs/cycle/issues/inbox/r1.md"),
       rawBody("r1", "raw 1"),
       "utf8",
     );
@@ -1176,7 +1176,7 @@ test("self-loop in depends_on rejected with self-loop-specific message; retry su
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/r2.md"),
+      join(root, "docs/cycle/issues/inbox/r2.md"),
       rawBody("r2", "raw 2"),
       "utf8",
     );
@@ -1241,7 +1241,7 @@ test("depends_on resolves against existing tbd.jsonl row and todo/ file", async 
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/r3.md"),
+      join(root, "docs/cycle/issues/inbox/r3.md"),
       rawBody("r3", "raw 3"),
       "utf8",
     );
@@ -1306,7 +1306,7 @@ test("validator rejects each missing/wrong field with a specific message", async
   const root = await setupRepo();
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/vp.md"),
+      join(root, "docs/cycle/issues/inbox/vp.md"),
       rawBody("vp", "v"),
       "utf8",
     );
@@ -1347,7 +1347,7 @@ test("dispatch path: runAgentViaDispatch routes through resolveAgent('claudecode
   const originalPath = process.env.PATH;
   try {
     await writeFile(
-      join(root, "docs/cycle/issues/raw/disp.md"),
+      join(root, "docs/cycle/issues/inbox/disp.md"),
       rawBody("disp", "dispatch task"),
       "utf8",
     );
@@ -1373,7 +1373,7 @@ test("dispatch path: runAgentViaDispatch routes through resolveAgent('claudecode
     assert.deepEqual(todoFiles, ["disp.md"]);
     const doneFiles = await readdir(join(root, "docs/cycle/issues/done"));
     assert.deepEqual(doneFiles, ["disp_raw.md"]);
-    const rawFiles = await readdir(join(root, "docs/cycle/issues/raw"));
+    const rawFiles = await readdir(join(root, "docs/cycle/issues/inbox"));
     assert.deepEqual(rawFiles, []);
 
     const queue = await readFile(join(root, ".cycle/tbd.jsonl"), "utf8");

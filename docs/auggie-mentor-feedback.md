@@ -93,7 +93,7 @@ This is a latent bug that will corrupt issue metadata the moment a real ticket c
 
 **Recommendation:** Move these into `engine:` section of `workflows.yml` with the current values as defaults.
 
-### 4.4 `cycle status` ignores `discuss/` items
+### 4.4 `cycle status` ignores `ideas/` items
 `src/cli/status.ts` counts `raw`, `todo`, `done`, `failed`, `blocked` but not `discuss`. A repo with 20 parked discuss items looks empty. Operators will forget parked work exists.
 
 **Recommendation:** Add `discuss:` count to status output.

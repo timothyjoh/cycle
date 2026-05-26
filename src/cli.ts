@@ -156,7 +156,7 @@ const log = await createLogger(cwd);
 const todoDir = join(cwd, "docs/cycle/issues/todo");
 const doneDir = join(cwd, "docs/cycle/issues/done");
 const failedDir = join(cwd, "docs/cycle/issues/failed");
-const rawDir = join(cwd, "docs/cycle/issues/raw");
+const rawDir = join(cwd, "docs/cycle/issues/inbox");
 await mkdir(doneDir, { recursive: true });
 await mkdir(failedDir, { recursive: true });
 

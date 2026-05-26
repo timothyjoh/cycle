@@ -8,14 +8,14 @@ import { stripFences } from "./log-fmt.ts";
 export type SharpEdge = {
   title: string;
   body: string;
-  bucket: "fix_now" | "defer" | "discuss";
+  bucket: "fix_now" | "defer" | "idea";
   priority?: string;
 };
 export type IngestResult = { written: string[]; skipped: number; fixNow: number };
 
 const TRUNC_BUDGET = 8192;
 const TRUNC_MARKER = "\n…\n";
-const VALID_BUCKETS = new Set(["fix_now", "defer", "discuss"]);
+const VALID_BUCKETS = new Set(["fix_now", "defer", "idea"]);
 const VALID_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
 const DEFERRED_CAP = 2;
 
@@ -28,11 +28,11 @@ export async function ingestReflection(
   artifactDir: string,
   touchedJsonPath: string,
 ): Promise<IngestResult> {
-  const rawDir = join(repoRoot, "docs/cycle/issues/raw");
+  const rawDir = join(repoRoot, "docs/cycle/issues/inbox");
   const todoDir = join(repoRoot, "docs/cycle/issues/todo");
-  const discussDir = join(repoRoot, "docs/cycle/issues/discuss");
+  const discussDir = join(repoRoot, "docs/cycle/issues/ideas");
 
-  // Idempotent cleanup: remove prior refl-<cycleId>-*.md from raw/
+  // Idempotent cleanup: remove prior refl-<cycleId>-*.md from inbox/
   await mkdir(rawDir, { recursive: true });
   const existing = await readdir(rawDir);
   const re = new RegExp(`^refl-${cycleId}-.+\\.md$`);
@@ -96,7 +96,7 @@ export async function ingestReflection(
     priority: "low",
   }));
 
-  // Build dedup map AFTER cleanup so raw/ is fresh
+  // Build dedup map AFTER cleanup so inbox/ is fresh
   const dedupeMap = await buildDedupeMap(rawDir, todoDir, discussDir);
 
   const written: string[] = [];
@@ -175,8 +175,8 @@ export async function ingestReflection(
       continue;
     }
 
-    // Write raw issue
-    const priority = e.bucket === "discuss" ? "discuss" : (e.priority ?? "medium");
+    // Write inbox issue
+    const priority = e.bucket === "idea" ? "idea" : (e.priority ?? "medium");
     const content = serializeFrontmatter(
       {
         id,
@@ -259,7 +259,7 @@ async function buildDedupeMap(
   for (const [dir, label] of [
     [rawDir, "raw"],
     [todoDir, "todo"],
-    [discussDir, "discuss"],
+    [discussDir, "idea"],
   ] as [string, string][]) {
     try {
       const entries = await readdir(dir, { withFileTypes: true });
@@ -305,7 +305,7 @@ function buildReflectionContent(
     "| Category | Count |",
     "|---|---|",
     `| fix_now | ${routing.fixNow} |`,
-    `| deferred to raw/ | ${routing.deferred} |`,
+    `| deferred to inbox/ | ${routing.deferred} |`,
     `| dedup skipped | ${routing.dedupSkipped} |`,
     `| cap dropped | ${routing.capDropped} |`,
     `| validation skipped | ${routing.validationSkipped} |`,

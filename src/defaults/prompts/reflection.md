@@ -114,5 +114,5 @@ Hope that helps!
 
 The engine first tries a one-shot trailing-prose repair pass, but
 prose-wrapped fenced output is fragile and can still escalate to a
-`refl-<cycleId>-parse-error.md` raw issue. Output JSON only — no
+`refl-<cycleId>-parse-error.md` inbox issue. Output JSON only — no
 fences, no leading prose, no trailing prose.

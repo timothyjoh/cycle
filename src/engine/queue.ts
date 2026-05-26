@@ -3,14 +3,15 @@ import { join } from "node:path";
 
 export type QueueRowStatus = "pending" | "in_progress";
 
-export type Priority = "low" | "medium" | "high" | "critical" | "discuss";
+export type Priority = "low" | "medium" | "high" | "critical" | "idea";
 
 const PRIORITY_ORDER: Record<Priority, number> = {
-  critical: 0, high: 1, medium: 2, low: 3, discuss: 4,
+  critical: 0, high: 1, medium: 2, low: 3, idea: 4,
 };
 
 export function normalizePriority(raw: unknown): Priority {
-  if (raw === "low" || raw === "medium" || raw === "high" || raw === "critical" || raw === "discuss") return raw;
+  if (raw === "discuss") return "idea";
+  if (raw === "low" || raw === "medium" || raw === "high" || raw === "critical" || raw === "idea") return raw;
   if (typeof raw === "number") {
     if (raw >= 7) return "critical";
     if (raw >= 5) return "high";
@@ -57,7 +58,7 @@ function isQueueRow(parsed: unknown): parsed is QueueRow {
   if (!Array.isArray(obj.depends_on)) return false;
   if (typeof obj.triaged_at !== "string") return false;
   if (obj.priority !== "low" && obj.priority !== "medium" && obj.priority !== "high" &&
-      obj.priority !== "critical" && obj.priority !== "discuss") return false;
+      obj.priority !== "critical" && obj.priority !== "idea") return false;
   return true;
 }
 
@@ -161,10 +162,10 @@ export async function bootstrapArchiveIfLegacy(repoRoot: string): Promise<boolea
 export async function popNextPending(repoRoot: string): Promise<QueueRow | null> {
   const rows = await readQueue(repoRoot);
   const allIds = new Set(rows.map((r) => r.id));
-  // Stopgap: discuss rows are held for human review and must not be auto-executed.
+  // Stopgap: idea rows are held for human review and must not be auto-executed.
   // Full lifecycle: redesign-05-discuss-folder-lifecycle.
   const pending = rows
-    .filter((r) => r.status === "pending" && r.priority !== "discuss")
+    .filter((r) => r.status === "pending" && r.priority !== "idea")
     .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
   for (const row of pending) {
     const blocked = row.depends_on.some((dep) => allIds.has(dep) && dep !== row.id);
