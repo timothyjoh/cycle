@@ -259,7 +259,7 @@ test("halt: propagateBlocked moves dependent to blocked/ when parent fails, no h
     const blockedFiles = await readdir(join(root, "docs/cycle/issues/blocked"));
     assert.deepEqual(blockedFiles, ["B.md"]);
     const blockedBody = await readFile(join(root, "docs/cycle/issues/blocked/B.md"), "utf8");
-    assert.match(blockedBody, /blocked_by: \[A\]/);
+    assert.match(blockedBody, /blocked_by:\n  - A/);
 
     const failedBody = await readFile(join(root, "docs/cycle/issues/failed/A.md"), "utf8");
     const cycleStart = events.find((e) => e.event === "cycle.start") as Record<string, unknown>;
@@ -298,8 +298,8 @@ test("halt: propagateBlocked stamps immediate-only blocked_by on 3-node chain A 
     assert.deepEqual(blockedFiles, ["B.md", "C.md"]);
     const b = await readFile(join(root, "docs/cycle/issues/blocked/B.md"), "utf8");
     const c = await readFile(join(root, "docs/cycle/issues/blocked/C.md"), "utf8");
-    assert.match(b, /^blocked_by: \[A\]$/m);
-    assert.match(c, /^blocked_by: \[B\]$/m);
+    assert.match(b, /blocked_by:\n  - A/);
+    assert.match(c, /blocked_by:\n  - B/);
     assert.match(b, /^blocked_at: /m);
     assert.match(c, /^blocked_at: /m);
 

@@ -93,7 +93,7 @@ test("propagateBlocked: direct dependent moves to blocked/", async () => {
     assert.equal(await fileExists(join(root, "docs/cycle/issues/todo/B.md")), false);
     assert.equal(await fileExists(join(root, "docs/cycle/issues/blocked/B.md")), true);
     const movedBody = await readFile(join(root, "docs/cycle/issues/blocked/B.md"), "utf8");
-    assert.match(movedBody, /blocked_by: \[A\]/);
+    assert.match(movedBody, /blocked_by:\n  - A/);
     assert.match(movedBody, /blocked_at: /);
     const rows = await readQueue(root);
     assert.equal(rows.length, 0);
@@ -123,8 +123,8 @@ test("propagateBlocked: transitive A→B→C uses immediate predecessor", async 
     assert.deepEqual(r.blocked, ["B", "C"]);
     const bBody = await readFile(join(root, "docs/cycle/issues/blocked/B.md"), "utf8");
     const cBody = await readFile(join(root, "docs/cycle/issues/blocked/C.md"), "utf8");
-    assert.match(bBody, /blocked_by: \[A\]/);
-    assert.match(cBody, /blocked_by: \[B\]/);
+    assert.match(bBody, /blocked_by:\n  - A/);
+    assert.match(cBody, /blocked_by:\n  - B/);
     assert.equal((await readQueue(root)).length, 0);
     const blockedEvents = events.filter((e) => e.event === "issue.blocked");
     assert.equal(blockedEvents.length, 2);
@@ -148,7 +148,7 @@ test("propagateBlocked: diamond merges predecessors deduplicated", async () => {
     const r = await propagateBlocked(root, "A", logger);
     assert.deepEqual(r.blocked.sort(), ["B", "C", "D"]);
     const dBody = await readFile(join(root, "docs/cycle/issues/blocked/D.md"), "utf8");
-    assert.match(dBody, /blocked_by: \[B, C\]/);
+    assert.match(dBody, /blocked_by:\n  - B\n  - C/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -188,7 +188,7 @@ test("propagateBlocked: in_progress row honored, cycle_id not stamped on blocked
     const r = await propagateBlocked(root, "A", logger);
     assert.deepEqual(r.blocked, ["B"]);
     const body = await readFile(join(root, "docs/cycle/issues/blocked/B.md"), "utf8");
-    assert.match(body, /blocked_by: \[A\]/);
+    assert.match(body, /blocked_by:\n  - A/);
     assert.doesNotMatch(body, /cycle_id:/);
     assert.equal((await readQueue(root)).length, 0);
   } finally {

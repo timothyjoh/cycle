@@ -7,6 +7,7 @@ import {
   parseFrontmatter,
   serializeFrontmatter,
   mutateFrontmatter,
+  type Frontmatter,
 } from "../../src/engine/frontmatter.ts";
 
 test("parses scalar, quoted, and numeric values", () => {
@@ -58,7 +59,7 @@ test("mutateFrontmatter adds new keys preserving existing order", async () => {
     await writeFile(p, body, "utf8");
     await mutateFrontmatter(p, (fm) => ({ ...fm, failed_at: "2026-05-13T00:00:00Z", failed_attempts: 3 }));
     const out = await readFile(p, "utf8");
-    assert.match(out, /id: X\ntitle: simple\nfailed_at: "2026-05-13T00:00:00Z"\nfailed_attempts: 3/);
+    assert.match(out, /id: X\ntitle: simple\nfailed_at: 2026-05-13T00:00:00Z\nfailed_attempts: 3/);
     assert.match(out, /\n---\n\nbody\n$/);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -83,7 +84,7 @@ test("mutateFrontmatter is idempotent for same patch", async () => {
 
 test("serialize array values", () => {
   const out = serializeFrontmatter({ id: "X", depends_on: ["a", "b"] }, "\nbody\n");
-  assert.match(out, /depends_on: \[a, b\]/);
+  assert.match(out, /depends_on:\n  - a\n  - b/);
 });
 
 test("serialize handles no body after", () => {
@@ -96,4 +97,38 @@ test("all-digit string round-trips as string (preserves zero-padding)", () => {
   assert.match(out, /origin_cycle_id: "0042"/);
   const { fm } = parseFrontmatter(out);
   assert.equal(fm.origin_cycle_id, "0042");
+});
+
+test("title with comma parses as single string, not array", () => {
+  const body = `---\nid: X\ntitle: "Fix login, cookie, and session"\n---\n\nbody\n`;
+  const { fm } = parseFrontmatter(body);
+  assert.equal(fm.title, "Fix login, cookie, and session");
+  assert.equal(typeof fm.title, "string");
+});
+
+test("title with double-quote character preserved", () => {
+  const body = `---\nid: X\ntitle: 'He said "hello"'\n---\n\nbody\n`;
+  const { fm } = parseFrontmatter(body);
+  assert.equal(fm.title, 'He said "hello"');
+});
+
+test("multi-line value via block scalar parses as single string", () => {
+  const body = `---\nid: X\ntitle: |\n  line one\n  line two\n---\n\nbody\n`;
+  const { fm } = parseFrontmatter(body);
+  assert.equal(typeof fm.title, "string");
+  assert.match(fm.title as string, /line one/);
+  assert.match(fm.title as string, /line two/);
+});
+
+test("serializeFrontmatter round-trip: parse(serialize(fm)) deep-equals fm", () => {
+  const fm: Frontmatter = {
+    id: "0099",
+    title: "Fix login, cookie, and session",
+    attempt: 2,
+    depends_on: ["id-a", "id-b"],
+    origin_cycle_id: "0042",
+  };
+  const serialized = serializeFrontmatter(fm, "\nbody\n");
+  const { fm: reparsed } = parseFrontmatter(serialized);
+  assert.deepEqual(reparsed, fm);
 });

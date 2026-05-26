@@ -107,7 +107,8 @@ Cycle artifacts (SPEC/PLAN/RESEARCH/BUILD/REVIEW/MUST-FIX/FIX) for the failed cy
 ---
 # … original frontmatter …
 blocked_at: 2026-05-13T03:45:01Z
-blocked_by: [Jira-007-fix-login-cookie]   # transitive chain captured
+blocked_by:
+  - Jira-007-fix-login-cookie   # transitive chain captured
 ---
 ```
 
@@ -295,7 +296,7 @@ propagateBlocked(failedId):
   for each row in tbd.jsonl (pending or in_progress):
     if failedId in row.depends_on:
       move todo/<row.id>.md → blocked/<row.id>.md
-      write blocked_by: [failedId] into the file's frontmatter
+      write blocked_by: [failedId] (YAML block sequence) into the file's frontmatter
       remove row from tbd.jsonl
       emit issue.blocked event
       recursively call propagateBlocked(row.id)

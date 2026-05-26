@@ -1,0 +1,8 @@
+{
+  "files": [
+    "src/engine/frontmatter.ts",
+    "tests/cli/halt.test.ts",
+    "tests/engine/blocked.test.ts",
+    "tests/engine/frontmatter.test.ts"
+  ]
+}
