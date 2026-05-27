@@ -7,6 +7,10 @@ triaged_at: "2026-05-25T22:04:57.360Z"
 source: triage
 priority: medium
 parent: mentor-rate-limit-docs-vs-code
+failed_at: "2026-05-27T15:35:23.410Z"
+failed_step: build
+failed_attempts: 3
+last_cycle_id: "0257"
 ---
 ## Problem
 
