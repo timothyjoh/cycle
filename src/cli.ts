@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import { readFile, readdir, rename, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -152,6 +153,17 @@ process.on("SIGINT", () => process.exit(130));
 process.on("SIGTERM", () => process.exit(143));
 
 const log = await createLogger(cwd);
+const logPath = join(cwd, ".cycle", "log.jsonl");
+let activeCycleId: string | undefined;
+process.prependListener("SIGTERM", () => {
+  try {
+    const line = JSON.stringify({ ts: new Date().toISOString(), event: "cycle.killed", cycle_id: activeCycleId });
+    appendFileSync(logPath, line + "\n", "utf8");
+  } catch {
+    // write failure must not prevent exit
+  }
+  process.exit(143);
+});
 
 const todoDir = join(cwd, "docs/cycle/issues/todo");
 const doneDir = join(cwd, "docs/cycle/issues/done");
@@ -431,6 +443,7 @@ async function runResumeOnce(
 if (cfg) {
   const tail = await readLogTail(cwd);
   if (tail) {
+    activeCycleId = tail.cycleId;
     const result = await runResumeOnce(cwd, log, cfg, args, tail, todoDir, doneDir, failedDir);
     cyclesProcessed += result.processed;
     if (result.outcome === "ok") {
@@ -446,6 +459,7 @@ if (cfg) {
         haltReason = "max_consecutive_failures";
       }
     }
+    activeCycleId = undefined;
   }
 }
 
@@ -465,6 +479,8 @@ while (!halted) {
   if (!row) break;
 
   const todoPath = join(todoDir, `${row.id}.md`);
+  const cycleId = row.cycle_id ?? (await allocateCycleId(cwd));
+  activeCycleId = cycleId;
   await log.emit("issue.ingested", { issue_id: row.id, path: todoPath });
 
   let workflowName = args.workflow;
@@ -486,7 +502,6 @@ while (!halted) {
   const rawMax = wfCfg?.max_cycle_attempts ?? 3;
   const maxAttempts = rawMax < 1 ? 1 : rawMax;
 
-  const cycleId = row.cycle_id ?? (await allocateCycleId(cwd));
   await markInProgress(cwd, row.id, cycleId);
 
   const exitCode = await spawnRunOne({
@@ -524,6 +539,7 @@ while (!halted) {
         if (consecutiveFailures >= maxConsecutiveFailures) {
           halted = true;
           haltReason = "max_consecutive_failures";
+          activeCycleId = undefined;
           break;
         }
       }
@@ -545,9 +561,11 @@ while (!halted) {
     if (consecutiveFailures >= maxConsecutiveFailures) {
       halted = true;
       haltReason = "max_consecutive_failures";
+      activeCycleId = undefined;
       break;
     }
   }
+  activeCycleId = undefined;
 }
 
 if (halted && haltReason === "max_consecutive_failures" && failedCycles.length > 0) {

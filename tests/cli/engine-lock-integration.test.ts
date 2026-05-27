@@ -168,6 +168,26 @@ async function waitForLock(lockPath: string, timeoutMs = 10_000): Promise<void> 
   }
 }
 
+async function waitForLogEvent(
+  logPath: string,
+  eventName: string,
+  timeoutMs = 20_000,
+): Promise<void> {
+  let waited = 0;
+  while (waited < timeoutMs) {
+    try {
+      const raw = await readFile(logPath, "utf8");
+      const events = raw.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+      if (events.some((e: { event: string }) => e.event === eventName)) return;
+    } catch {
+      /* log not yet created */
+    }
+    await new Promise((r) => setTimeout(r, 100));
+    waited += 100;
+  }
+  throw new Error(`waitForLogEvent: "${eventName}" not found within ${timeoutMs}ms`);
+}
+
 async function waitForAbsence(
   filePath: string,
   { timeout = 2_000, interval = 50 }: { timeout?: number; interval?: number } = {},
@@ -225,9 +245,10 @@ test("SIGINT → supervisor exits, lock cleaned up", async () => {
   }
 });
 
-test("SIGTERM → supervisor exits, lock cleaned up", async () => {
+test("SIGTERM → supervisor exits, lock cleaned up, cycle.killed logged", async () => {
   const dist = await ensureDist();
   const root = await mkdtemp(join(tmpdir(), "cycle-lock-sigterm-"));
+  let child!: ReturnType<typeof spawn>;
   try {
     await bootstrapRepo(root);
     await writeFile(join(root, ".cycle", "workflows.yml"), slowWorkflowYml, "utf8");
@@ -240,19 +261,95 @@ test("SIGTERM → supervisor exits, lock cleaned up", async () => {
     await appendFile(join(root, ".cycle/tbd.jsonl"), JSON.stringify(queueRow(todoId, "sigterm test")) + "\n", "utf8");
 
     const lockPath = join(root, ".cycle", "engine.lock");
-    const child = spawn("node", [dist, "run"], { cwd: root, stdio: "ignore" });
-    await waitForLock(lockPath);
+    const logPath = join(root, ".cycle", "log.jsonl");
+    child = spawn("node", [dist, "run"], { cwd: root, stdio: "ignore" });
+    // issue.ingested is emitted by the supervisor after activeCycleId is set (both happen
+    // before run-one is spawned), so waiting for it is sufficient to guarantee the handler
+    // will write a populated cycle_id without requiring subprocess startup.
+    await waitForLock(lockPath, 30_000);
+    await waitForLogEvent(logPath, "issue.ingested", 30_000);
 
+    let exitCode: number | null = null;
     child.kill("SIGTERM");
     await Promise.race([
-      new Promise<void>((r) => child.on("exit", () => r())),
+      new Promise<void>((r) => child.on("exit", (code) => { exitCode = code; r(); })),
       new Promise<void>((_, reject) =>
-        setTimeout(() => reject(new Error("child did not exit after SIGTERM")), 5_000),
+        setTimeout(() => reject(new Error("child did not exit after SIGTERM")), 10_000),
       ),
     ]);
 
+    assert.strictEqual(exitCode, 143, "should exit 143 on SIGTERM");
     await waitForAbsence(lockPath);
+
+    const rawLog = await readFile(join(root, ".cycle", "log.jsonl"), "utf8");
+    const events = rawLog.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const killed = events.filter((e: { event: string }) => e.event === "cycle.killed");
+    assert.strictEqual(killed.length, 1, "exactly one cycle.killed event");
+    assert.ok(typeof killed[0].ts === "string", "ts is a string");
+    assert.ok(typeof killed[0].cycle_id === "string", "cycle_id populated when cycle was in progress");
   } finally {
+    child?.kill();
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("SIGTERM idle engine: cycle.killed written with cycle_id undefined", async () => {
+  const dist = await ensureDist();
+  const root = await mkdtemp(join(tmpdir(), "cycle-sigterm-idle-"));
+  const fakeBinDir = await mkdtemp(join(tmpdir(), "cycle-fake-bin-"));
+  let child!: ReturnType<typeof spawn>;
+  try {
+    await bootstrapRepo(root);
+    await writeFile(join(root, ".cycle", "workflows.yml"), slowWorkflowYml, "utf8");
+
+    // Fake claude binary that sleeps — keeps engine alive in triage phase
+    const fakeClaude = join(fakeBinDir, "claude");
+    await writeFile(fakeClaude, "#!/bin/bash\nsleep 30\n", "utf8");
+    await chmod(fakeClaude, 0o755);
+
+    // Triage prompt required by runTriage before agent is invoked
+    await mkdir(join(root, ".cycle", "prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle", "prompts", "triage.md"), "triage prompt", "utf8");
+
+    // Raw inbox file triggers triage (no queue items, so no cycle starts)
+    await writeFile(
+      join(root, "docs/cycle/issues/inbox", "idle-raw-issue.md"),
+      "---\nid: idle-raw-issue\n---\nidle test issue\n",
+      "utf8",
+    );
+
+    const lockPath = join(root, ".cycle", "engine.lock");
+    const logPath = join(root, ".cycle", "log.jsonl");
+    child = spawn("node", [dist, "run"], {
+      cwd: root,
+      stdio: "ignore",
+      env: { ...process.env, PATH: `${fakeBinDir}:${process.env.PATH ?? ""}` },
+    });
+    // waitForLock guarantees engine has been running since lock creation;
+    // engine.start is emitted shortly after, before runTriage is invoked.
+    await waitForLock(lockPath, 30_000);
+    await waitForLogEvent(logPath, "engine.start", 30_000);
+
+    let exitCode: number | null = null;
+    child.kill("SIGTERM");
+    await Promise.race([
+      new Promise<void>((r) => child.on("exit", (code) => { exitCode = code; r(); })),
+      new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error("child did not exit after SIGTERM (idle)")), 10_000),
+      ),
+    ]);
+
+    assert.strictEqual(exitCode, 143, "should exit 143 on SIGTERM");
+
+    const rawLog = await readFile(join(root, ".cycle", "log.jsonl"), "utf8");
+    const events = rawLog.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const killed = events.filter((e: { event: string }) => e.event === "cycle.killed");
+    assert.strictEqual(killed.length, 1, "exactly one cycle.killed event");
+    assert.ok(typeof killed[0].ts === "string", "ts is a string");
+    assert.strictEqual(killed[0].cycle_id, undefined, "cycle_id undefined when no cycle was in progress");
+  } finally {
+    child?.kill();
+    await rm(root, { recursive: true, force: true });
+    await rm(fakeBinDir, { recursive: true, force: true });
   }
 });
