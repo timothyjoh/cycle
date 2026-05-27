@@ -5,7 +5,7 @@ workflow: feature
 depends_on: []
 triaged_at: "2026-05-26T11:08:27.501Z"
 source: triage
-priority: medium
+priority: critical
 parent: refl-0256-unbounded-rate-limit-retry-loop-creates
 ---
 ## Context

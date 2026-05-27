@@ -5,7 +5,7 @@ workflow: feature
 depends_on: [mentor-rate-limit-docs-vs-code-engine-integration]
 triaged_at: "2026-05-25T22:04:57.360Z"
 source: triage
-priority: medium
+priority: high
 parent: mentor-rate-limit-docs-vs-code
 failed_at: "2026-05-27T15:35:23.410Z"
 failed_step: build

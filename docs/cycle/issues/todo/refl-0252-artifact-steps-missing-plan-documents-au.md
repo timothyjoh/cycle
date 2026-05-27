@@ -5,7 +5,7 @@ workflow: feature
 depends_on: []
 triaged_at: "2026-05-26T01:43:07.404Z"
 source: triage
-priority: medium
+priority: high
 ---
 ## Problem
 
