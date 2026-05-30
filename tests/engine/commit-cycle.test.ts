@@ -4,9 +4,39 @@ import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { commitCycle, buildClosesBlock } from "../../src/engine/commit-cycle.ts";
+import { commitCycle, buildClosesBlock, defaultSpawn } from "../../src/engine/commit-cycle.ts";
+import type { SpawnFn, SpawnResult } from "../../src/engine/commit-cycle.ts";
 import { createLogger } from "../../src/engine/log.ts";
 import { expectExactlyOne } from "../helpers.ts";
+
+/**
+ * Build a deterministic SpawnFn for tests. Delegates to the real spawn
+ * ({@link defaultSpawn}) so all genuine git work (init, add, commit, status,
+ * ls-files, rev-parse, diff) runs against a real temp repo — preserving every
+ * assertion about commit contents, gitlink exclusion, and outcomes. The
+ * `intercept` hook lets a test override specific (cmd, args) invocations
+ * (e.g. force `git push` outcomes, fake `gh repo view`, or inject a 160000
+ * gitlink line into `ls-files --stage`) WITHOUT a real remote, network, PATH
+ * ordering luck, or a fake-bin shell shim. The fault is injected into the
+ * exact call site the production path uses, so the real retry/error branches
+ * still execute.
+ */
+function makeSpawn(
+  intercept: (
+    cmd: string,
+    args: string[],
+    real: () => SpawnResult,
+  ) => SpawnResult | undefined,
+): SpawnFn {
+  return (cmd, args, opts) => {
+    const real = () => defaultSpawn(cmd, args, opts);
+    const overridden = intercept(cmd, args, real);
+    return overridden ?? real();
+  };
+}
+
+const ok = (stdout = ""): SpawnResult => ({ status: 0, stdout, stderr: "" });
+const fail = (stderr = ""): SpawnResult => ({ status: 1, stdout: "", stderr });
 
 const WORKFLOWS_YML = `engine:
   max_consecutive_failures: 2
@@ -38,43 +68,31 @@ async function setupRepo(root: string): Promise<void> {
   spawnSync("git", ["commit", "-m", "init"], { cwd: root, shell: false });
 }
 
-async function writeFakeBin(binDir: string, name: string, script: string): Promise<void> {
-  const path = join(binDir, name);
-  await writeFile(path, `#!/bin/sh\n${script}\n`, { mode: 0o755 });
-}
-
-function fakeEnv(binDir: string): Record<string, string> {
-  return { PATH: `${binDir}:${process.env.PATH ?? ""}` };
-}
-
 test("trunk mode — commits and pushes", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-commit-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
   try {
     await setupRepo(root);
     await writeFile(join(root, "change.txt"), "hello", "utf8");
 
-    const callLog = join(root, "git-calls.txt");
-    await writeFakeBin(binDir, "git", `
-echo "$@" >> "${callLog}"
-if [ "$1" = "push" ]; then exit 0; fi
-exec /usr/bin/git "$@"
-`);
-    await writeFakeBin(binDir, "gh", `echo "owner/repo"`);
+    const calls: string[] = [];
+    const spawnFn = makeSpawn((cmd, args) => {
+      calls.push(`${cmd} ${args.join(" ")}`);
+      if (cmd === "git" && args[0] === "push") return ok();
+      if (cmd === "gh") return ok("owner/repo");
+      return undefined; // delegate to real git for everything else
+    });
 
     const result = await commitCycle(root, {
       cycleId: "0001",
       title: "test commit",
       config: { mode: "trunk", push: true },
       baseBranch: "master",
-      envExtra: fakeEnv(binDir),
+      spawnFn,
     });
     assert.equal(result.status, "ok");
     assert.ok("sha" in result && result.sha.length > 0);
-    const calls = await readFile(callLog, "utf8");
-    assert.ok(calls.includes("push"), "git push should have been called");
-    assert.ok(calls.includes("commit"), "git commit should have been called");
+    assert.ok(calls.some((c) => c.startsWith("git push")), "git push should have been called");
+    assert.ok(calls.some((c) => c.startsWith("git commit")), "git commit should have been called");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -82,30 +100,26 @@ exec /usr/bin/git "$@"
 
 test("local-only mode — commits, no push", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-commit-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
   try {
     await setupRepo(root);
     await writeFile(join(root, "change.txt"), "hello", "utf8");
 
-    const callLog = join(root, "git-calls.txt");
-    await writeFakeBin(binDir, "git", `
-echo "$@" >> "${callLog}"
-if [ "$1" = "push" ]; then echo "push called unexpectedly" >> "${callLog}"; exit 1; fi
-exec /usr/bin/git "$@"
-`);
-    await writeFakeBin(binDir, "gh", `exit 1`);
+    const calls: string[] = [];
+    const spawnFn = makeSpawn((cmd, args) => {
+      calls.push(`${cmd} ${args.join(" ")}`);
+      if (cmd === "gh") return fail();
+      return undefined;
+    });
 
     const result = await commitCycle(root, {
       cycleId: "0001",
       title: "local only",
       config: { mode: "local-only", push: false },
       baseBranch: "master",
-      envExtra: fakeEnv(binDir),
+      spawnFn,
     });
     assert.equal(result.status, "ok");
-    const calls = await readFile(callLog, "utf8").catch(() => "");
-    assert.ok(!calls.includes("push"), "git push must NOT be called in local-only mode");
+    assert.ok(!calls.some((c) => c.startsWith("git push")), "git push must NOT be called in local-only mode");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -113,30 +127,26 @@ exec /usr/bin/git "$@"
 
 test("local-only mode with push:true — mode wins, no push", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-commit-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
   try {
     await setupRepo(root);
     await writeFile(join(root, "change.txt"), "hello", "utf8");
 
-    const callLog = join(root, "git-calls.txt");
-    await writeFakeBin(binDir, "git", `
-echo "$@" >> "${callLog}"
-if [ "$1" = "push" ]; then echo "push called unexpectedly" >> "${callLog}"; exit 1; fi
-exec /usr/bin/git "$@"
-`);
-    await writeFakeBin(binDir, "gh", `exit 1`);
+    const calls: string[] = [];
+    const spawnFn = makeSpawn((cmd, args) => {
+      calls.push(`${cmd} ${args.join(" ")}`);
+      if (cmd === "gh") return fail();
+      return undefined;
+    });
 
     const result = await commitCycle(root, {
       cycleId: "0001",
       title: "local only contradictory",
       config: { mode: "local-only", push: true },
       baseBranch: "master",
-      envExtra: fakeEnv(binDir),
+      spawnFn,
     });
     assert.equal(result.status, "ok");
-    const calls = await readFile(callLog, "utf8").catch(() => "");
-    assert.ok(!calls.includes("push"), "mode:local-only must suppress push even when push:true");
+    assert.ok(!calls.some((c) => c.startsWith("git push")), "mode:local-only must suppress push even when push:true");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -161,24 +171,22 @@ test("nothing staged — returns skipped", async () => {
 
 test("commit fails — returns failed/commit_failed", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-commit-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
   try {
     await setupRepo(root);
     await writeFile(join(root, "change.txt"), "hello", "utf8");
 
-    await writeFakeBin(binDir, "git", `
-if [ "$1" = "commit" ]; then exit 1; fi
-exec /usr/bin/git "$@"
-`);
-    await writeFakeBin(binDir, "gh", `exit 1`);
+    const spawnFn = makeSpawn((cmd, args) => {
+      if (cmd === "git" && args[0] === "commit") return fail("commit refused");
+      if (cmd === "gh") return fail();
+      return undefined;
+    });
 
     const result = await commitCycle(root, {
       cycleId: "0001",
       title: "fail test",
       config: { mode: "trunk", push: true },
       baseBranch: "master",
-      envExtra: fakeEnv(binDir),
+      spawnFn,
     });
     assert.equal(result.status, "failed");
     assert.equal((result as { reason: string }).reason, "commit_failed");
@@ -189,27 +197,30 @@ exec /usr/bin/git "$@"
 
 test("push retry — 3 failures returns failed/push_failed", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-commit-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
   try {
     await setupRepo(root);
     await writeFile(join(root, "change.txt"), "hello", "utf8");
 
-    await writeFakeBin(binDir, "git", `
-if [ "$1" = "push" ]; then exit 1; fi
-exec /usr/bin/git "$@"
-`);
-    await writeFakeBin(binDir, "gh", `exit 1`);
+    let pushCount = 0;
+    const spawnFn = makeSpawn((cmd, args) => {
+      if (cmd === "git" && args[0] === "push") {
+        pushCount += 1;
+        return fail("no remote"); // every push attempt fails
+      }
+      if (cmd === "gh") return fail();
+      return undefined;
+    });
 
     const result = await commitCycle(root, {
       cycleId: "0001",
       title: "push fail",
       config: { mode: "trunk", push: true },
       baseBranch: "master",
-      envExtra: fakeEnv(binDir),
+      spawnFn,
     });
     assert.equal(result.status, "failed");
     assert.equal((result as { reason: string }).reason, "push_failed");
+    assert.equal(pushCount, 3, "push should have been attempted 3 times");
     assert.equal((result as { attempt: number }).attempt, 3);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -218,34 +229,31 @@ exec /usr/bin/git "$@"
 
 test("push retry — succeeds on 2nd attempt", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-commit-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
   try {
     await setupRepo(root);
     await writeFile(join(root, "change.txt"), "hello", "utf8");
 
-    const callLog = join(root, "push-count.txt");
-    await writeFile(callLog, "0", "utf8");
-    await writeFakeBin(binDir, "git", `
-if [ "$1" = "push" ]; then
-  count=$(cat "${callLog}")
-  count=$((count+1))
-  echo $count > "${callLog}"
-  if [ "$count" -lt 2 ]; then exit 1; fi
-  exit 0
-fi
-exec /usr/bin/git "$@"
-`);
-    await writeFakeBin(binDir, "gh", `exit 1`);
+    let pushCount = 0;
+    const spawnFn = makeSpawn((cmd, args) => {
+      if (cmd === "git" && args[0] === "push") {
+        pushCount += 1;
+        // Transient failure on first attempt, success on the second —
+        // exercises the real retry loop in commitCycle.
+        return pushCount < 2 ? fail("transient") : ok();
+      }
+      if (cmd === "gh") return fail();
+      return undefined;
+    });
 
     const result = await commitCycle(root, {
       cycleId: "0001",
       title: "retry succeed",
       config: { mode: "trunk", push: true },
       baseBranch: "master",
-      envExtra: fakeEnv(binDir),
+      spawnFn,
     });
     assert.equal(result.status, "ok");
+    assert.equal(pushCount, 2, "push should have been attempted exactly twice");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -253,32 +261,30 @@ exec /usr/bin/git "$@"
 
 test("commit message format matches 'cycle {id}: {title}'", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-commit-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
   try {
     await setupRepo(root);
     await writeFile(join(root, "change.txt"), "hello", "utf8");
 
-    const commitMsgLog = join(root, "commit-msg.txt");
-    await writeFakeBin(binDir, "git", `
-if [ "$1" = "commit" ]; then
-  echo "$3" > "${commitMsgLog}"
-  exit 0
-fi
-if [ "$1" = "push" ]; then exit 0; fi
-exec /usr/bin/git "$@"
-`);
-    await writeFakeBin(binDir, "gh", `exit 1`);
+    let commitSubject: string | undefined;
+    const spawnFn = makeSpawn((cmd, args) => {
+      if (cmd === "git" && args[0] === "commit") {
+        // args are ["commit", "-m", subject, ...]; capture the subject.
+        commitSubject = args[2];
+        return ok();
+      }
+      if (cmd === "git" && args[0] === "push") return ok();
+      if (cmd === "gh") return fail();
+      return undefined;
+    });
 
     await commitCycle(root, {
       cycleId: "0042",
       title: "my feature title",
       config: { mode: "trunk", push: true },
       baseBranch: "master",
-      envExtra: fakeEnv(binDir),
+      spawnFn,
     });
-    const msg = (await readFile(commitMsgLog, "utf8")).trim();
-    assert.equal(msg, "cycle 0042: my feature title");
+    assert.equal(commitSubject, "cycle 0042: my feature title");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -286,8 +292,6 @@ exec /usr/bin/git "$@"
 
 test("closes block — appended when gh returns slug and issue file exists", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-commit-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
   try {
     await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
     await writeFile(
@@ -295,9 +299,9 @@ test("closes block — appended when gh returns slug and issue file exists", asy
       "# My Issue\nhttps://github.com/owner/repo/issues/42\n",
       "utf8",
     );
-    await writeFakeBin(binDir, "gh", `echo "owner/repo"`);
+    const spawnFn = makeSpawn((cmd) => (cmd === "gh" ? ok("owner/repo") : undefined));
 
-    const result = await buildClosesBlock("my-issue", root, fakeEnv(binDir));
+    const result = await buildClosesBlock("my-issue", root, undefined, spawnFn);
     assert.equal(result, "Closes #42");
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -306,11 +310,9 @@ test("closes block — appended when gh returns slug and issue file exists", asy
 
 test("closes block — skipped when issue file missing", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-commit-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
   try {
-    await writeFakeBin(binDir, "gh", `echo "owner/repo"`);
-    const result = await buildClosesBlock("nonexistent-issue", root, fakeEnv(binDir));
+    const spawnFn = makeSpawn((cmd) => (cmd === "gh" ? ok("owner/repo") : undefined));
+    const result = await buildClosesBlock("nonexistent-issue", root, undefined, spawnFn);
     assert.equal(result, "");
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -319,8 +321,6 @@ test("closes block — skipped when issue file missing", async () => {
 
 test("closes block — skipped when gh fails", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-commit-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
   try {
     await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
     await writeFile(
@@ -328,8 +328,8 @@ test("closes block — skipped when gh fails", async () => {
       "https://github.com/owner/repo/issues/42",
       "utf8",
     );
-    await writeFakeBin(binDir, "gh", `exit 1`);
-    const result = await buildClosesBlock("my-issue", root, fakeEnv(binDir));
+    const spawnFn = makeSpawn((cmd) => (cmd === "gh" ? fail() : undefined));
+    const result = await buildClosesBlock("my-issue", root, undefined, spawnFn);
     assert.equal(result, "");
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -384,31 +384,33 @@ test("stageFiles — staged deletion: deleted file absent from HEAD after commit
 
 test("stageFiles — gitlink (mode 160000) excluded from staging", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-commit-test-"));
-  const binDir = join(root, "bin");
-  await mkdir(binDir);
   try {
     await setupRepo(root);
     // Create a regular file named like a submodule path and a real changed file
     await writeFile(join(root, "submodule-dir"), "submodule content", "utf8");
     await writeFile(join(root, "change.txt"), "real change", "utf8");
 
-    // Inject a fake 160000 entry for submodule-dir into ls-files --stage output
-    await writeFakeBin(binDir, "git", `
-if [ "$1" = "ls-files" ] && [ "$2" = "--stage" ]; then
-  echo "160000 abc123abc123abc123abc123abc123abc123abc123 0\tsubmodule-dir"
-  /usr/bin/git ls-files --stage
-  exit 0
-fi
-exec /usr/bin/git "$@"
-`);
-    await writeFakeBin(binDir, "gh", `exit 1`);
+    // Inject a fake 160000 entry for submodule-dir into ls-files --stage output,
+    // prepended to the real ls-files output. All other git calls run for real.
+    const spawnFn = makeSpawn((cmd, args, real) => {
+      if (cmd === "git" && args[0] === "ls-files" && args[1] === "--stage") {
+        const r = real();
+        return {
+          status: 0,
+          stdout: `160000 abc123abc123abc123abc123abc123abc123abc1 0\tsubmodule-dir\n${r.stdout}`,
+          stderr: "",
+        };
+      }
+      if (cmd === "gh") return fail();
+      return undefined;
+    });
 
     const result = await commitCycle(root, {
       cycleId: "0001",
       title: "gitlink exclusion",
       config: { mode: "trunk", push: false },
       baseBranch: "master",
-      envExtra: fakeEnv(binDir),
+      spawnFn,
     });
     assert.equal(result.status, "ok");
     const show = spawnSync("git", ["show", "--name-only", "--format=", "HEAD"], {

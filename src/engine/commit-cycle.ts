@@ -12,25 +12,60 @@ export type CommitResult =
   | { status: "skipped"; reason: "nothing_to_commit" }
   | { status: "failed"; reason: "commit_failed" | "push_failed"; attempt?: number };
 
+/**
+ * Result shape consumed from a spawned subprocess. Mirrors the relevant
+ * fields of `child_process.spawnSync`'s return value.
+ */
+export interface SpawnResult {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+}
+
+/**
+ * Injectable subprocess runner. Defaults to {@link defaultSpawn} (real
+ * `spawnSync`). Tests inject a deterministic stand-in so git/gh behavior
+ * (push success/transient-failure/retry) is reproducible without a real
+ * remote, network, or PATH-ordering luck. The seam wraps the SAME call sites
+ * the production path uses, so the real error-handling branches (commit
+ * failure, push retry, gitlink exclusion, closes-block) still execute.
+ */
+export type SpawnFn = (
+  cmd: string,
+  args: string[],
+  opts: { cwd: string; env: NodeJS.ProcessEnv },
+) => SpawnResult;
+
+/** Production subprocess runner: real `spawnSync`, array args, no shell. */
+export const defaultSpawn: SpawnFn = (cmd, args, opts) => {
+  const r = spawnSync(cmd, args, {
+    cwd: opts.cwd,
+    shell: false,
+    encoding: "utf8",
+    env: opts.env,
+  });
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+};
+
 function spawnGit(
   args: string[],
   cwd: string,
-  envExtra?: Record<string, string>,
+  envExtra: Record<string, string> | undefined,
+  spawn: SpawnFn,
 ): { ok: boolean; stdout: string; stderr: string } {
   const env = buildChildEnv(envExtra ?? {});
-  const r = spawnSync("git", args, { cwd, shell: false, encoding: "utf8", env });
+  const r = spawn("git", args, { cwd, env });
   return { ok: r.status === 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 
 async function stageFiles(
   repoRoot: string,
-  envExtra?: Record<string, string>,
+  envExtra: Record<string, string> | undefined,
+  spawn: SpawnFn,
 ): Promise<boolean> {
   const env = buildChildEnv(envExtra ?? {});
 
-  const lsStage = spawnSync("git", ["ls-files", "--stage"], {
-    cwd: repoRoot, shell: false, encoding: "utf8", env,
-  });
+  const lsStage = spawn("git", ["ls-files", "--stage"], { cwd: repoRoot, env });
   const gitlinkPaths = new Set<string>();
   for (const line of (lsStage.stdout ?? "").split("\n")) {
     if (line.startsWith("160000 ")) {
@@ -39,8 +74,8 @@ async function stageFiles(
     }
   }
 
-  const status = spawnSync("git", ["status", "--porcelain", "--untracked-files=all"], {
-    cwd: repoRoot, shell: false, encoding: "utf8", env,
+  const status = spawn("git", ["status", "--porcelain", "--untracked-files=all"], {
+    cwd: repoRoot, env,
   });
 
   for (const raw of (status.stdout ?? "").split("\n")) {
@@ -57,13 +92,13 @@ async function stageFiles(
     const full = join(repoRoot, p);
     if (!existsSync(full)) {
       if (xy[0] === "D") continue;
-      spawnSync("git", ["add", "-u", "--", p], { cwd: repoRoot, shell: false, env });
+      spawn("git", ["add", "-u", "--", p], { cwd: repoRoot, env });
     } else {
-      spawnSync("git", ["add", "--", p], { cwd: repoRoot, shell: false, env });
+      spawn("git", ["add", "--", p], { cwd: repoRoot, env });
     }
   }
 
-  const diff = spawnGit(["diff", "--cached", "--quiet"], repoRoot, envExtra);
+  const diff = spawnGit(["diff", "--cached", "--quiet"], repoRoot, envExtra, spawn);
   return !diff.ok;
 }
 
@@ -71,6 +106,7 @@ export async function buildClosesBlock(
   issueId: string | undefined,
   repoRoot: string,
   envExtra?: Record<string, string>,
+  spawn: SpawnFn = defaultSpawn,
 ): Promise<string> {
   if (!issueId) return "";
   const issuePath = join(repoRoot, "docs/cycle/issues/todo", `${issueId}.md`);
@@ -82,9 +118,9 @@ export async function buildClosesBlock(
   }
 
   const env = buildChildEnv(envExtra ?? {});
-  const ghResult = spawnSync(
+  const ghResult = spawn(
     "gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
-    { cwd: repoRoot, shell: false, encoding: "utf8", env },
+    { cwd: repoRoot, env },
   );
   const repoSlug = (ghResult.stdout ?? "").trim();
   if (!repoSlug) return "";
@@ -114,9 +150,16 @@ export async function commitCycle(
     envExtra?: Record<string, string>;
     log?: Logger;
     artifactDir?: string;
+    /**
+     * Injectable subprocess runner. Defaults to the real `spawnSync`-backed
+     * {@link defaultSpawn}. Tests inject a deterministic stand-in. Production
+     * call sites never set this, so behavior is unchanged.
+     */
+    spawnFn?: SpawnFn;
   },
 ): Promise<CommitResult> {
   const { envExtra } = opts;
+  const spawn = opts.spawnFn ?? defaultSpawn;
 
   // Read touched.json from cycle artifact dir (fallback: empty set if absent or artifactDir not provided)
   let touchedFiles = new Set<string>();
@@ -129,7 +172,7 @@ export async function commitCycle(
   }
 
   // Warn (non-blocking) about src/ and scripts/ files absent from touched.json
-  const statusOut = spawnGit(["status", "--porcelain"], repoRoot, envExtra);
+  const statusOut = spawnGit(["status", "--porcelain"], repoRoot, envExtra, spawn);
   const warnFiles: string[] = [];
   for (const raw of statusOut.stdout.split("\n")) {
     if (!raw) continue;
@@ -149,26 +192,26 @@ export async function commitCycle(
     await opts.log?.emit("commit.scope_warning", { cycle_id: opts.cycleId, files: warnFiles });
   }
 
-  const hasChanges = await stageFiles(repoRoot, envExtra);
+  const hasChanges = await stageFiles(repoRoot, envExtra, spawn);
   if (!hasChanges) return { status: "skipped", reason: "nothing_to_commit" };
 
-  const closes = await buildClosesBlock(opts.issueId, repoRoot, envExtra);
+  const closes = await buildClosesBlock(opts.issueId, repoRoot, envExtra, spawn);
   const subject = `cycle ${opts.cycleId}: ${opts.title}`;
   const commitArgs = closes
     ? ["commit", "-m", subject, "-m", closes]
     : ["commit", "-m", subject];
 
-  const commitResult = spawnGit(commitArgs, repoRoot, envExtra);
+  const commitResult = spawnGit(commitArgs, repoRoot, envExtra, spawn);
   if (!commitResult.ok) return { status: "failed", reason: "commit_failed" };
 
-  const shaResult = spawnGit(["rev-parse", "HEAD"], repoRoot, envExtra);
+  const shaResult = spawnGit(["rev-parse", "HEAD"], repoRoot, envExtra, spawn);
   const sha = shaResult.stdout.trim();
 
   if (!opts.config.push || opts.config.mode === "local-only") return { status: "ok", sha };
 
   const BACKOFF_MS = [1000, 2000, 4000];
   for (let attempt = 0; attempt < 3; attempt++) {
-    const pushResult = spawnGit(["push", "origin", opts.baseBranch], repoRoot, envExtra);
+    const pushResult = spawnGit(["push", "origin", opts.baseBranch], repoRoot, envExtra, spawn);
     if (pushResult.ok) return { status: "ok", sha };
     if (attempt < 2) {
       await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));

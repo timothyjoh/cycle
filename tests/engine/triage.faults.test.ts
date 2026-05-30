@@ -7,7 +7,6 @@ import {
   readFile,
   readdir,
   rm,
-  chmod,
   unlink,
   stat,
 } from "node:fs/promises";
@@ -18,6 +17,7 @@ import {
   type TriageAgentResult,
   type TriageDeps,
 } from "../../src/engine/triage.ts";
+import { defaultQueueFsOps, type QueueFsOps } from "../../src/engine/queue.ts";
 import type { CycleConfig } from "../../src/engine/workflow.ts";
 import type { Logger } from "../../src/engine/log.ts";
 import { parseFrontmatter } from "../../src/engine/frontmatter.ts";
@@ -467,10 +467,9 @@ test("fault: loadRaws all-fail via parse error returns empty set; triage ends cl
 test("fault: loadRaws readFile error isolates; surviving raw processed, triage.raw.load_error emitted", async () => {
   const root = await setupRepo();
   try {
-    // aaa-unreadable.md — chmod 000 makes readFile throw EACCES; sorts before good.md
+    // aaa-unreadable.md — sorts before good.md; readFile fault injected below.
     const unreadablePath = join(root, "docs/cycle/issues/inbox/aaa-unreadable.md");
     await writeFile(unreadablePath, rawBody("aaa-unreadable", "Unreadable"), "utf8");
-    await chmod(unreadablePath, 0o000);
 
     // good.md — sorts after aaa-unreadable alphabetically
     await writeFile(
@@ -478,8 +477,26 @@ test("fault: loadRaws readFile error isolates; surviving raw processed, triage.r
       rawBody("good", "A good issue"),
       "utf8",
     );
+
+    // Inject an EACCES readFile fault for the unreadable raw through the fs-ops
+    // seam (chmod is a no-op under root). loadRaws' real per-file try/catch
+    // runs: it logs triage.raw.load_error for the throwing file and continues,
+    // so the surviving good.md is still processed.
+    const realReadFile = defaultQueueFsOps.readFile;
+    const fs: QueueFsOps = {
+      ...defaultQueueFsOps,
+      readFile: (async (path: string, ...rest: unknown[]) => {
+        if (String(path).endsWith("aaa-unreadable.md")) {
+          throw Object.assign(new Error("EACCES: permission denied, open"), {
+            code: "EACCES",
+          });
+        }
+        return (realReadFile as (...a: unknown[]) => Promise<string>)(path, ...rest);
+      }) as typeof defaultQueueFsOps.readFile,
+    };
     const deps: TriageDeps = {
       runAgent: async () => ({ exitCode: 0, stdout: enrichJson("good"), stderr: "" }),
+      fs,
     };
     const { log, events } = makeLog();
     const result = await runTriage(root, makeConfig(), log, deps);
@@ -550,13 +567,34 @@ test("fault: applyRaw rollback writeQueue catch swallows; row remains in tbd.jso
       rawBody("rollbackq", "rollback queue", 2),
       "utf8",
     );
-    // Force the outer rename(raw → done/) to fail so applyRaw enters the
-    // rollback path.
-    await chmod(join(root, "docs/cycle/issues/done"), 0o500);
-    // Force writeQueue inside the rollback to fail (EISDIR on tmp).
-    const queueTmpDir = join(root, ".cycle/tbd.jsonl.tmp");
-    await mkdir(queueTmpDir, { recursive: true });
-    await writeFile(join(queueTmpDir, "sentinel"), "x", "utf8");
+
+    // Inject two rename faults through the fs-ops seam (chmod/EISDIR are no-ops
+    // / unreliable under root):
+    //   1. raw → done/ : forces applyRaw into its rollback path after the row
+    //      was already appended to tbd.jsonl.
+    //   2. tbd.jsonl tmp → tbd.jsonl : makes the rollback's writeQueue rename
+    //      fail, so the atomic swap never happens and the appended row stays on
+    //      disk. applyRaw's inner rollback try/catch swallows this error.
+    // The todo atomicWrite rename (tmp → todo/<id>.md) is left intact so the
+    // real code path up to the failure executes unchanged.
+    const realRename = defaultQueueFsOps.rename;
+    const fs: QueueFsOps = {
+      ...defaultQueueFsOps,
+      rename: (async (src: string, dest: string, ...rest: unknown[]) => {
+        const d = String(dest);
+        if (d.includes("docs/cycle/issues/done")) {
+          throw Object.assign(new Error("EACCES: permission denied, rename done/"), {
+            code: "EACCES",
+          });
+        }
+        if (d.endsWith(".cycle/tbd.jsonl")) {
+          throw Object.assign(new Error("EACCES: permission denied, rename tbd.jsonl"), {
+            code: "EACCES",
+          });
+        }
+        return (realRename as (...a: unknown[]) => Promise<void>)(src, dest, ...rest);
+      }) as typeof defaultQueueFsOps.rename,
+    };
 
     const deps: TriageDeps = {
       runAgent: async () => ({
@@ -564,6 +602,7 @@ test("fault: applyRaw rollback writeQueue catch swallows; row remains in tbd.jso
         stdout: enrichJson("rollbackq"),
         stderr: "",
       }),
+      fs,
     };
     const { log, events } = makeLog();
     const result = await runTriage(root, makeConfig(), log, deps);
@@ -582,11 +621,6 @@ test("fault: applyRaw rollback writeQueue catch swallows; row remains in tbd.jso
     assert.ok(failedEvt, "triage.raw.failed emitted after rollback rethrow");
     assert.match(String(failedEvt!.fields.reason), /apply failed:/);
   } finally {
-    try {
-      await chmod(join(root, "docs/cycle/issues/done"), 0o755);
-    } catch {
-      // ignore
-    }
     await rm(root, { recursive: true, force: true });
   }
 });

@@ -13,7 +13,9 @@ import {
   appendRow,
   bootstrapArchiveIfLegacy,
   normalizePriority,
+  defaultQueueFsOps,
   type QueueRow,
+  type QueueFsOps,
 } from "./queue.ts";
 import { resolveAgent } from "./exec.ts";
 import type { CycleConfig, TriageConfig } from "./workflow.ts";
@@ -28,8 +30,22 @@ export type TriageAgentRunner = (
   repoRoot: string,
 ) => Promise<TriageAgentResult>;
 
+/**
+ * Injectable filesystem-operation seam for triage.
+ *
+ * Reuses {@link QueueFsOps} (readFile/writeFile/rename/appendFile) so the seam
+ * is coherent across triage and the queue functions triage calls (readQueue,
+ * writeQueue, appendRow, bootstrapArchiveIfLegacy). Production code never passes
+ * this — it defaults to {@link defaultQueueFsOps}, which delegates to
+ * `node:fs/promises`. Tests inject EACCES/EISDIR/rename faults *into* the real
+ * function's existing try/catch (rollback, load-error isolation) so error
+ * branches stay covered without chmod, which is a no-op under root.
+ */
+export type TriageFsOps = QueueFsOps;
+
 export type TriageDeps = {
   runAgent?: TriageAgentRunner;
+  fs?: TriageFsOps;
 };
 
 export type TriageStatus = "ok" | "paused" | "empty";
@@ -73,6 +89,7 @@ interface ProcessCtx {
   cfg: CycleConfig;
   promptTemplate: string;
   runAgent: TriageAgentRunner;
+  fs: TriageFsOps;
   apply?: (raw: RawIssue, parsed: TriageOutput) => Promise<void>;
   onAttemptFailed?: (attemptNumber: number, reason: string) => Promise<void>;
 }
@@ -96,7 +113,7 @@ async function processRawWithRetry(
 
   for (let attempt = raw.attempts; attempt < MAX_ATTEMPTS; attempt++) {
     attemptsRun++;
-    const queueRows = await readQueue(ctx.repoRoot);
+    const queueRows = await readQueue(ctx.repoRoot, ctx.fs);
     const todoListing = await listTodos(ctx.repoRoot);
     const feedback = lastError
       ? `PREVIOUS ATTEMPT FAILED VALIDATION:\n${lastError}`
@@ -161,13 +178,14 @@ export async function runTriage(
   deps: TriageDeps = {},
 ): Promise<TriageResult> {
   const runAgent = deps.runAgent ?? runAgentViaDispatch;
+  const fs = deps.fs ?? defaultQueueFsOps;
 
-  await bootstrapArchiveIfLegacy(repoRoot);
+  await bootstrapArchiveIfLegacy(repoRoot, fs);
 
   const rawDir = join(repoRoot, "docs/cycle/issues/inbox");
   await mkdir(rawDir, { recursive: true });
 
-  const raws = await loadRaws(rawDir, log);
+  const raws = await loadRaws(rawDir, log, fs);
 
   await log.emit("triage.start", { count: raws.length });
 
@@ -201,7 +219,8 @@ export async function runTriage(
       cfg,
       promptTemplate,
       runAgent,
-      apply: (r, parsed) => applyRaw(repoRoot, r, parsed),
+      fs,
+      apply: (r, parsed) => applyRaw(repoRoot, r, parsed, fs),
       onAttemptFailed: async (attemptNumber, reason) => {
         await bumpAttempts(raw.srcPath, attemptNumber);
         await log.emit("triage.raw.failed", {
@@ -229,7 +248,7 @@ export async function runTriage(
   }
 
   if (lastOrdering) {
-    await rewriteOrdering(repoRoot, lastOrdering, log);
+    await rewriteOrdering(repoRoot, lastOrdering, log, fs);
   }
 
   const actionableCount = raws.filter((r) => r.fm.priority !== "idea").length;
@@ -277,9 +296,10 @@ export async function dryRunTriage(
   deps: TriageDeps = {},
 ): Promise<DryRunReport[]> {
   const runAgent = deps.runAgent ?? runAgentViaDispatch;
+  const fs = deps.fs ?? defaultQueueFsOps;
   const rawDir = join(repoRoot, "docs/cycle/issues/inbox");
   const silentLog: Logger = { async emit() {} };
-  const raws = await loadRaws(rawDir, silentLog);
+  const raws = await loadRaws(rawDir, silentLog, fs);
   if (raws.length === 0) return [];
 
   // dryRunTriage contract: a missing prompt template throws synchronously
@@ -308,6 +328,7 @@ export async function dryRunTriage(
         cfg,
         promptTemplate,
         runAgent,
+        fs,
       },
     );
     if (outcome.status === "ok") {
@@ -331,7 +352,11 @@ export async function dryRunTriage(
   return reports;
 }
 
-async function loadRaws(rawDir: string, log: Logger): Promise<RawIssue[]> {
+async function loadRaws(
+  rawDir: string,
+  log: Logger,
+  fs: TriageFsOps = defaultQueueFsOps,
+): Promise<RawIssue[]> {
   let files: string[] = [];
   try {
     files = (await readdir(rawDir)).filter((f) => f.endsWith(".md")).sort();
@@ -342,7 +367,7 @@ async function loadRaws(rawDir: string, log: Logger): Promise<RawIssue[]> {
   for (const f of files) {
     const srcPath = join(rawDir, f);
     try {
-      const body = await readFile(srcPath, "utf8");
+      const body = await fs.readFile(srcPath, "utf8");
       const { fm, bodyAfter } = parseFrontmatter(body);
       const id = String(fm.id);
       const attempts =
@@ -589,6 +614,7 @@ async function applyRaw(
   repoRoot: string,
   raw: RawIssue,
   parsed: TriageOutput,
+  fs: TriageFsOps = defaultQueueFsOps,
 ): Promise<void> {
   const children = parsed.children.filter((c) => c.raw_id === raw.id);
   const appliedTodos: string[] = [];
@@ -616,7 +642,7 @@ async function applyRaw(
 
       const bodyTail = child.body.endsWith("\n") ? child.body : child.body + "\n";
       const todoContent = serializeFrontmatter(fm, bodyTail);
-      await atomicWrite(todoPath, todoContent);
+      await atomicWrite(todoPath, todoContent, fs);
       appliedTodos.push(todoPath);
 
       const row: QueueRow = {
@@ -630,12 +656,12 @@ async function applyRaw(
       };
       if (child.id !== raw.id) row.parent = raw.id;
 
-      await appendRow(repoRoot, row);
+      await appendRow(repoRoot, row, fs);
       appliedIds.push(child.id);
     }
 
     await mkdir(doneDir, { recursive: true });
-    await rename(raw.srcPath, join(doneDir, `${raw.id}_raw.md`));
+    await fs.rename(raw.srcPath, join(doneDir, `${raw.id}_raw.md`));
   } catch (e) {
     for (const todo of appliedTodos) {
       try {
@@ -646,10 +672,10 @@ async function applyRaw(
     }
     if (appliedIds.length > 0) {
       try {
-        const rows = await readQueue(repoRoot);
+        const rows = await readQueue(repoRoot, fs);
         const idSet = new Set(appliedIds);
         const next = rows.filter((r) => !idSet.has(r.id));
-        await writeQueue(repoRoot, next);
+        await writeQueue(repoRoot, next, fs);
       } catch {
         // best-effort
       }
@@ -658,12 +684,16 @@ async function applyRaw(
   }
 }
 
-async function atomicWrite(path: string, content: string): Promise<void> {
+async function atomicWrite(
+  path: string,
+  content: string,
+  fs: TriageFsOps = defaultQueueFsOps,
+): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const tmp = path + ".tmp";
-  await writeFile(tmp, content, "utf8");
+  await fs.writeFile(tmp, content, "utf8");
   try {
-    await rename(tmp, path);
+    await fs.rename(tmp, path);
   } catch (e) {
     try {
       await unlink(tmp);
@@ -733,8 +763,9 @@ async function rewriteOrdering(
   repoRoot: string,
   ordering: string[],
   log: Logger,
+  fs: TriageFsOps = defaultQueueFsOps,
 ): Promise<void> {
-  const rows = await readQueue(repoRoot);
+  const rows = await readQueue(repoRoot, fs);
   const inProgress = rows.filter((r) => r.status === "in_progress");
   const pending = rows.filter((r) => r.status === "pending");
   const byId = new Map(pending.map((r) => [r.id, r]));
@@ -753,7 +784,7 @@ async function rewriteOrdering(
     ordered.push(row);
   }
 
-  await writeQueue(repoRoot, [...inProgress, ...ordered]);
+  await writeQueue(repoRoot, [...inProgress, ...ordered], fs);
 }
 
 // Default TriageAgentRunner. Materializes the rendered prompt to a tmp file

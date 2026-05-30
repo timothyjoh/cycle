@@ -11,6 +11,7 @@ export async function propagateBlocked(
   repoRoot: string,
   failedId: string,
   log?: Logger,
+  renameFn: (src: string, dst: string) => Promise<void> = rename,
 ): Promise<{ blocked: string[] }> {
   const todoDir = join(repoRoot, "docs/cycle/issues/todo");
   const blockedDir = join(repoRoot, "docs/cycle/issues/blocked");
@@ -44,10 +45,10 @@ export async function propagateBlocked(
         blocked_at: new Date().toISOString(),
         blocked_by: predecessors,
       }));
-      await rename(src, dst);
+      await renameFn(src, dst);
       rollback.push(async () => {
         try {
-          await rename(dst, src);
+          await renameFn(dst, src);
         } catch {
           // best-effort rollback; original todo path may already be partially restored
         }

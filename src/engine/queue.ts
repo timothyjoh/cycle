@@ -1,6 +1,25 @@
 import { readFile, writeFile, rename, appendFile, mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
+/**
+ * Injectable filesystem-operation seam for the queue layer.
+ *
+ * Production code never passes this — every public function defaults to
+ * {@link defaultQueueFsOps}, which delegates to `node:fs/promises`. Tests pass
+ * a partial override to inject EACCES/EISDIR/rename faults *into* the real
+ * function's existing try/catch, so error branches stay covered without relying
+ * on chmod (which is a no-op under root). Defaulting to the real ops means no
+ * call site outside tests changes behavior.
+ */
+export type QueueFsOps = {
+  readFile: typeof readFile;
+  writeFile: typeof writeFile;
+  rename: typeof rename;
+  appendFile: typeof appendFile;
+};
+
+export const defaultQueueFsOps: QueueFsOps = { readFile, writeFile, rename, appendFile };
+
 export type QueueRowStatus = "pending" | "in_progress";
 
 export type Priority = "low" | "medium" | "high" | "critical" | "idea";
@@ -62,11 +81,14 @@ function isQueueRow(parsed: unknown): parsed is QueueRow {
   return true;
 }
 
-export async function readQueue(repoRoot: string): Promise<QueueRow[]> {
+export async function readQueue(
+  repoRoot: string,
+  ops: QueueFsOps = defaultQueueFsOps,
+): Promise<QueueRow[]> {
   const path = queuePath(repoRoot);
   let raw: string;
   try {
-    raw = await readFile(path, "utf8");
+    raw = await ops.readFile(path, "utf8");
   } catch (e: unknown) {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw e;
@@ -91,18 +113,26 @@ export async function readQueue(repoRoot: string): Promise<QueueRow[]> {
   return rows;
 }
 
-export async function writeQueue(repoRoot: string, rows: QueueRow[]): Promise<void> {
+export async function writeQueue(
+  repoRoot: string,
+  rows: QueueRow[],
+  ops: QueueFsOps = defaultQueueFsOps,
+): Promise<void> {
   await ensureCycleDir(repoRoot);
   const path = queuePath(repoRoot);
   const body = rows.map((r) => JSON.stringify(r)).join("\n") + (rows.length ? "\n" : "");
   const tmp = path + ".tmp";
-  await writeFile(tmp, body, "utf8");
-  await rename(tmp, path);
+  await ops.writeFile(tmp, body, "utf8");
+  await ops.rename(tmp, path);
 }
 
-export async function appendRow(repoRoot: string, row: QueueRow): Promise<void> {
+export async function appendRow(
+  repoRoot: string,
+  row: QueueRow,
+  ops: QueueFsOps = defaultQueueFsOps,
+): Promise<void> {
   await ensureCycleDir(repoRoot);
-  await appendFile(queuePath(repoRoot), JSON.stringify(row) + "\n", "utf8");
+  await ops.appendFile(queuePath(repoRoot), JSON.stringify(row) + "\n", "utf8");
 }
 
 async function pickArchivePath(repoRoot: string): Promise<string> {
@@ -123,11 +153,14 @@ async function pickArchivePath(repoRoot: string): Promise<string> {
   throw new Error("too many bootstrap archives");
 }
 
-export async function bootstrapArchiveIfLegacy(repoRoot: string): Promise<boolean> {
+export async function bootstrapArchiveIfLegacy(
+  repoRoot: string,
+  ops: QueueFsOps = defaultQueueFsOps,
+): Promise<boolean> {
   const path = queuePath(repoRoot);
   let raw: string;
   try {
-    raw = await readFile(path, "utf8");
+    raw = await ops.readFile(path, "utf8");
   } catch (e: unknown) {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") return false;
     throw e;
@@ -149,7 +182,7 @@ export async function bootstrapArchiveIfLegacy(repoRoot: string): Promise<boolea
   if (!hasLegacy) return false;
   const archive = await pickArchivePath(repoRoot);
   try {
-    await rename(path, archive);
+    await ops.rename(path, archive);
   } catch (e: unknown) {
     throw Object.assign(
       new Error(`bootstrapArchiveIfLegacy: rename failed: ${(e as Error).message}`),

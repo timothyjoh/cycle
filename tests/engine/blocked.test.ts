@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { mkdtemp, mkdir, writeFile, readFile, rm, stat, chmod } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { propagateBlocked } from "../../src/engine/blocked.ts";
@@ -244,11 +244,12 @@ test("propagateBlocked: first-move failure does not write queue or leave artifac
     await seedTodo(root, "B");
     await seedTodo(root, "C");
     const queueBefore = await readQueue(root);
-    // make blocked/ read-only so the rename will fail mid-walk
-    const blockedDir = join(root, "docs/cycle/issues/blocked");
-    await chmod(blockedDir, 0o500);
-    await assert.rejects(propagateBlocked(root, "A"));
-    await chmod(blockedDir, 0o700);
+    // inject a rename failure on the first move (simulates mid-walk failure)
+    // via the seam rather than chmod, which root bypasses
+    const failingRename = async (): Promise<void> => {
+      throw Object.assign(new Error("EACCES: rename failed"), { code: "EACCES" });
+    };
+    await assert.rejects(propagateBlocked(root, "A", undefined, failingRename));
     // queue unchanged (writeQueue is only called after all moves succeed)
     const queueAfter = await readQueue(root);
     assert.deepEqual(queueAfter, queueBefore);
@@ -258,11 +259,6 @@ test("propagateBlocked: first-move failure does not write queue or leave artifac
     assert.equal(await fileExists(join(root, "docs/cycle/issues/blocked/B.md")), false);
     assert.equal(await fileExists(join(root, "docs/cycle/issues/blocked/C.md")), false);
   } finally {
-    try {
-      await chmod(join(root, "docs/cycle/issues/blocked"), 0o700);
-    } catch {
-      // dir may have been removed
-    }
     await rm(root, { recursive: true, force: true });
   }
 });

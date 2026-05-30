@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { mkdtemp, mkdir, writeFile, readFile, rm, stat, chmod } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -17,6 +17,8 @@ import {
   drainFailedTerminal,
   isLegacyLine,
   normalizePriority,
+  defaultQueueFsOps,
+  type QueueFsOps,
 } from "../../src/engine/queue.ts";
 
 async function setupRoot() {
@@ -156,20 +158,26 @@ test("bootstrapArchiveIfLegacy: numeric suffix on collision", async () => {
   }
 });
 
-test("bootstrapArchiveIfLegacy: non-ENOENT rename error is wrapped with context", async (t) => {
-  if (process.getuid?.() === 0) {
-    t.skip("chmod-based EACCES injection unreliable as root");
-    return;
-  }
+test("bootstrapArchiveIfLegacy: non-ENOENT rename error is wrapped with context", async () => {
   const root = await setupRoot();
   const seed =
     JSON.stringify({ id: "OLD", source: "text", title: "t", path: "/p", added_at: "y" }) + "\n";
   await writeFile(join(root, ".cycle/tbd.jsonl"), seed, "utf8");
-  // Remove write permission from .cycle/ so rename fails with EACCES
-  await chmod(join(root, ".cycle"), 0o555);
+  // Inject an EACCES rename fault through the fs-ops seam instead of chmod
+  // (chmod is a no-op under root). The real bootstrapArchiveIfLegacy try/catch
+  // still runs: it reads the legacy line, picks an archive path, then the
+  // injected rename throws — exercising the wrap-with-context branch.
+  const ops: QueueFsOps = {
+    ...defaultQueueFsOps,
+    rename: async () => {
+      throw Object.assign(new Error("EACCES: permission denied, rename"), {
+        code: "EACCES",
+      });
+    },
+  };
   try {
     await assert.rejects(
-      () => bootstrapArchiveIfLegacy(root),
+      () => bootstrapArchiveIfLegacy(root, ops),
       (err: unknown) => {
         assert.ok(err instanceof Error);
         assert.ok((err as Error).message.includes("bootstrapArchiveIfLegacy: rename failed:"));
@@ -178,7 +186,6 @@ test("bootstrapArchiveIfLegacy: non-ENOENT rename error is wrapped with context"
       }
     );
   } finally {
-    await chmod(join(root, ".cycle"), 0o755);
     await rm(root, { recursive: true, force: true });
   }
 });

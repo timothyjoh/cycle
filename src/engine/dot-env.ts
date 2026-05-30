@@ -1,9 +1,17 @@
 import { readFileSync } from "node:fs";
 
-export function loadDotEnv(filePath: string): void {
+/** Reads a file as UTF-8 text. Injectable seam for fault tests; defaults to the real fs read. */
+export type ReadFileFn = (filePath: string) => string;
+
+const defaultReadFile: ReadFileFn = (filePath) => readFileSync(filePath, "utf8");
+
+export function loadDotEnv(
+  filePath: string,
+  readFile: ReadFileFn = defaultReadFile
+): void {
   let content: string;
   try {
-    content = readFileSync(filePath, "utf8");
+    content = readFile(filePath);
   } catch (e) {
     const err = e as NodeJS.ErrnoException;
     if (err.code !== "ENOENT") {

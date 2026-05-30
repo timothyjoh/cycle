@@ -16,6 +16,7 @@ import {
   type TriageAgentResult,
   type TriageDeps,
 } from "../../src/engine/triage.ts";
+import { defaultQueueFsOps, type QueueFsOps } from "../../src/engine/queue.ts";
 import type { CycleConfig } from "../../src/engine/workflow.ts";
 import type { Logger } from "../../src/engine/log.ts";
 import { parseFrontmatter } from "../../src/engine/frontmatter.ts";
@@ -771,16 +772,27 @@ test("atomic apply rolls back when appendRow fails (tbd.jsonl readonly)", async 
       rawBody("atomic", "atomic task"),
       "utf8",
     );
-    // pre-seed empty new-schema tbd.jsonl, then make it read-only so appendFile fails
+    // pre-seed empty new-schema tbd.jsonl
     await writeFile(join(root, ".cycle/tbd.jsonl"), "", "utf8");
-    await chmod(join(root, ".cycle/tbd.jsonl"), 0o400);
 
+    // Inject an EACCES appendFile fault through the fs-ops seam (chmod is a
+    // no-op under root). appendRow's appendFile throws → applyRaw's real
+    // try/catch runs the rollback (unlink todo, restore queue) and rethrows.
+    const fs: QueueFsOps = {
+      ...defaultQueueFsOps,
+      appendFile: async () => {
+        throw Object.assign(new Error("EACCES: permission denied, open tbd.jsonl"), {
+          code: "EACCES",
+        });
+      },
+    };
     const deps: TriageDeps = {
       runAgent: async () => ({
         exitCode: 0,
         stdout: enrichJson("atomic"),
         stderr: "",
       }),
+      fs,
     };
     const { log } = makeLog();
     const result = await runTriage(root, makeConfig(), log, deps);
@@ -799,11 +811,6 @@ test("atomic apply rolls back when appendRow fails (tbd.jsonl readonly)", async 
     const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
     assert.deepEqual(failedFiles, []);
   } finally {
-    try {
-      await chmod(join(root, ".cycle/tbd.jsonl"), 0o644);
-    } catch {
-      // ignore
-    }
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -816,14 +823,30 @@ test("atomic apply rolls back when raw rename fails (done/ unwritable)", async (
       rawBody("multi", "multi task"),
       "utf8",
     );
-    await chmod(join(root, "docs/cycle/issues/done"), 0o500);
 
+    // Inject an EACCES fault on the raw → done/ rename through the fs-ops seam
+    // (chmod is a no-op under root). Path-selective: only the done-move throws,
+    // so todo atomicWrite renames and the rollback writeQueue rename still work.
+    // applyRaw's real try/catch runs: unlink todos, restore queue, rethrow.
+    const realRename = defaultQueueFsOps.rename;
+    const fs: QueueFsOps = {
+      ...defaultQueueFsOps,
+      rename: (async (src: string, dest: string, ...rest: unknown[]) => {
+        if (String(dest).includes(`docs/cycle/issues/done`)) {
+          throw Object.assign(new Error("EACCES: permission denied, rename done/"), {
+            code: "EACCES",
+          });
+        }
+        return (realRename as (...a: unknown[]) => Promise<void>)(src, dest, ...rest);
+      }) as typeof defaultQueueFsOps.rename,
+    };
     const deps: TriageDeps = {
       runAgent: async () => ({
         exitCode: 0,
         stdout: decomposeJson("multi"),
         stderr: "",
       }),
+      fs,
     };
     const { log, events } = makeLog();
     const result = await runTriage(root, makeConfig(), log, deps);
@@ -843,11 +866,6 @@ test("atomic apply rolls back when raw rename fails (done/ unwritable)", async (
     const rawFailed = events.filter((e) => e.event === "triage.raw.failed");
     assert.ok(rawFailed.length >= 1);
   } finally {
-    try {
-      await chmod(join(root, "docs/cycle/issues/done"), 0o755);
-    } catch {
-      // ignore
-    }
     await rm(root, { recursive: true, force: true });
   }
 });
