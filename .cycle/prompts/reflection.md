@@ -34,6 +34,15 @@ Anything a future cycle will trip over if left unaddressed:
 - Design smells: duplicated logic, leaky abstractions, growing
   helper modules that want to be a domain.
 - Undertested code paths flagged in REVIEW.md and not covered by FIX.md.
+- Resilience gaps in the shipped diff that review did not already catch:
+  errors swallowed silently (empty `catch`, ignored rejected Promises,
+  discarded non-zero exit codes), new failure/error branches with no
+  failure-path test, retried operations that are not idempotent, or new
+  failure paths that emit no log/observable signal. Surface these even
+  when REVIEW.md is silent — inspect `git diff` directly. Route
+  no-silent-failure and missing failure-path tests to `defer` (medium+)
+  or `fix_now` if mechanical; route idempotency/observability trade-offs
+  to `discuss`.
 - Documentation drift: CLAUDE.md / RFC docs that the diff makes stale.
 - Mechanical corrections in files already touched this cycle that require
   no design decision (candidates for `fix_now`).

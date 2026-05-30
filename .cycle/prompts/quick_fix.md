@@ -12,6 +12,8 @@ Make only that change — nothing else.
 
 - Change only what PLAN.md specifies.
 - Do not refactor, rename, or tidy anything outside the fix scope.
+- Do not introduce a silent failure while fixing. Do not add a bare `catch` that swallows an error, and do not replace an explicit error/throw with a silent fallback unless PLAN.md explicitly says so.
+- Preserve observability on the code path you touch: if the edited path emits a log, error, or diagnostic, keep it. If the bug being fixed was a missing or swallowed signal, surfacing it IS the fix — make the failure visible rather than masking it.
 - Run `npm run typecheck` after editing. Fix any type errors your change introduced.
 - Do NOT run tests here — that is the test_fix step.
 

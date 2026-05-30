@@ -30,7 +30,10 @@ This step runs only when a MUST-FIX.md exists from the review step
 6. Run the project's coverage command (in this repo: `npm run test:coverage`;
    otherwise per `CLAUDE.md`). Coverage must **not decrease** vs the
    pre-fix baseline reported in BUILD.md. If a fix landed without a
-   matching test, add one before declaring done.
+   matching test, add one before declaring done — and for a bug fix
+   that test must reproduce the original failure mode (the
+   input/condition that triggered the defect) and assert the
+   now-correct behavior, not merely cover the happy path.
 
 ## Rules
 
@@ -42,6 +45,17 @@ This step runs only when a MUST-FIX.md exists from the review step
   differently in the status note for that task.
 - **Every fix must pass its "Verify" check.**
 - **If a fix breaks something else**, fix the regression too.
+- **Fix the failure mode, do not hide it.** A fix must not pass its
+  Verify check by suppressing the underlying error — no empty `catch`,
+  no swallowed promise rejection, no downgrading a thrown error to a
+  logged warning, no returning a default value on failure unless that
+  is the explicitly specified behavior. If the correct fix is to fail
+  loudly (throw, non-zero exit, surfaced error), do that. Silent
+  failure that makes the symptom disappear is a worse defect than the
+  bug being fixed.
+- **Do not weaken observability to pass a check.** Do not delete or
+  downgrade existing error logging, error propagation, or non-zero
+  exit codes while making a Verify check or test go green.
 - **When all fixes are done, run the full test suite one final time.**
 
 ## File Artifact Mode

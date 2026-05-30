@@ -48,16 +48,18 @@ already part of the branch name (`cycle/<workflow>/<slug>`).
 - [Functional requirement 1]
 - [Functional requirement 2]
 - [Non-functional requirement (performance, accessibility, etc.)]
+- **Failure behavior**: [What this deliverable does on bad/missing input, on an unavailable dependency or external service, and on a partially-completed operation. Errors must surface (logged, raised, or returned) — never swallowed silently. Where a degraded-but-working response is preferable to failing hard, state it.]
 
 ## Acceptance Criteria
 - [ ] [Verifiable criterion 1]
 - [ ] [Verifiable criterion 2]
+- [ ] [Failure-path criterion: an observable outcome when something goes wrong — e.g. "on invalid input X, returns error E and leaves state unchanged" or "when dependency Y is unavailable, degrades to Z and logs a warning rather than crashing"]
 - [ ] All existing tests still pass
 - [ ] No compiler/linter warnings introduced
 
 ## Testing Strategy
 - [What test framework / approach]
-- [Key scenarios to cover (happy path, edge cases, regressions)]
+- [Key scenarios to cover: happy path, failure paths (bad input, unavailable dependency, interrupted operation), edge cases, regressions]
 - [E2E tests required for any UI changes — Playwright or similar]
 
 ## Documentation Updates
@@ -79,6 +81,12 @@ something verifiable by running a test, reading a file, or executing a
 command. Vague assertions ("the code is improved", "the feature works") are
 not acceptable. If you cannot write a testable bullet, narrow the scope until
 you can. Each bullet must use checkbox format: `- [ ] <observable condition>`.
+
+At least one acceptance criterion must be a failure-path criterion — an
+observable outcome when an input is invalid, a dependency is unavailable, or an
+operation is interrupted. A spec with only happy-path criteria is incomplete. If
+the deliverable genuinely has no failure surface (e.g. a pure-docs change), state
+that explicitly in `## Requirements` rather than omitting it.
 
 ## Cycle Sizing — Read This Carefully
 

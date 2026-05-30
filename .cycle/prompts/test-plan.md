@@ -41,6 +41,13 @@ For each gap, design one or more test scenarios. Each scenario:
   CSS or text fragments that drift.
 - Reuses existing fixtures, page objects, or helpers where possible.
 - Avoids cross-test state coupling.
+- Covers failure paths, not just success. For each flow, design at least
+  one scenario that exercises an error or degraded condition: invalid/empty
+  input and validation rejection, a dependency returning 4xx/5xx or timing
+  out (use network-layer interception per Guideline 4), and missing/absent
+  data. Assert the app surfaces the failure visibly (error message, retry
+  affordance, disabled control) rather than hanging or silently swallowing
+  it.
 
 ### Step 4: Write the Plan
 
@@ -79,7 +86,9 @@ writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/PLAN.md`.
 - [User actions; click / fill / navigate]
 
 ### Assert
-- [Concrete checks — URL, text, role state, network response, etc.]
+- [Concrete checks — URL, text, role state, network response, AND for
+  failure scenarios: visible error message / retry control / non-crashing
+  degraded state.]
 
 ### Selectors
 - `[selector]` — [why this one is stable]
@@ -107,6 +116,9 @@ writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/PLAN.md`.
 ## Risk Assessment
 - [Flake risk]: [mitigation — retries, explicit waits over implicit, etc.]
 - [Cross-test state]: [mitigation]
+
+## Failure-Path Coverage
+- [Flow]: [error/degraded condition tested] — [expected user-visible behavior]
 ```
 
 ## Important Guidelines
@@ -124,6 +136,9 @@ writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/PLAN.md`.
    `expect(...).toHaveText(...)` patterns. No bare `waitForTimeout`.
 6. **Vertical scenarios.** Each scenario is a complete user flow, not a
    single click in isolation.
-7. **Respect scope.** Tests in the plan; no production code changes
+7. **Negative paths are in scope.** A plan that tests only success paths
+   is incomplete. Inject dependency failures at the network layer to
+   confirm the app degrades gracefully and never fails silently.
+8. **Respect scope.** Tests in the plan; no production code changes
    unless the build step turns out to truly need them — in which case
    call them out in the build summary as a deviation.

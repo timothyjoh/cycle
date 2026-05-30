@@ -33,8 +33,17 @@ You are a documentarian, not an evaluator.
 2. Analyze the relevant slice of the codebase:
    - What existing code does the change touch?
    - What patterns exist that the planner should follow?
+   - How does the touched code handle failure today — errors, timeouts,
+     retries, fallbacks, partial-failure paths? Document the existing
+     approach, not a desired one.
+   - What observability exists in the change area — logging, structured
+     events (e.g. `.cycle/log.jsonl`), metrics? Note the conventions a
+     planner must match.
+   - What idempotency / retry-safety mechanisms exist (locks, dedup keys,
+     guards) that the planner must respect?
    - What dependencies and integration points are involved?
-   - What test infrastructure is in place?
+   - What test infrastructure is in place — including whether
+     failure-path / error-case tests exist for the change area?
 3. Document everything with **file paths and line numbers**.
 
 ## File Artifact Mode
@@ -81,6 +90,9 @@ and writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/RESEARCH.md`.
 ### Existing Patterns to Follow
 - [Pattern name]: [how it works] — `path/to/file.ext:line`
 - [Convention]: [description]
+- Failure handling: [how errors/timeouts/retries/fallbacks work today] — `path/to/file.ext:line`
+- Observability: [logging/event/metric conventions] — `path/to/file.ext:line`
+- Idempotency / retry-safety: [locks, dedup, guards present] — `path/to/file.ext:line`
 
 ### Dependencies & Integration Points
 - [Dependency]: [how it connects] — `path/to/file.ext`
@@ -89,6 +101,7 @@ and writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/RESEARCH.md`.
 - Test framework: [what's used]
 - Test conventions: [naming, directory layout, mocking approach]
 - Current coverage of the change area: [if discoverable]
+- Failure-path test coverage: [do error-case / failure tests exist for the change area? where?]
 
 ## Code References
 - `path/to/file.ext:123` — Description of what's there
@@ -106,3 +119,8 @@ answers here.]
   whom).
 - Be thorough but focused — only document things relevant to the SPEC.
 - Document what IS, not what SHOULD BE.
+- When the change area touches error handling, retries, persistence, or
+  external calls, document the *existing* failure-handling and
+  observability conventions verbatim — the planner relies on this to keep
+  new code consistent. Report facts only; do not critique or propose
+  changes.

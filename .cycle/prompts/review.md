@@ -50,7 +50,24 @@ Check:
   one-for-one against the implementation.
 - **Code quality** — clean, readable, follows existing patterns from
   RESEARCH.md?
-- **Error handling** — edge cases covered? Failures handled gracefully?
+- **Failure handling (fail-safe, no silent failure).** Flag each of:
+  - **Swallowed errors** — empty/bare `catch {}`, `catch (e) {}` that
+    neither rethrows, logs, nor emits; ignored Promise rejections;
+    unchecked subprocess exit codes / return values.
+  - **Silent failure** — a failure that is caught but produces no log,
+    event, or surfaced error, so callers cannot tell it happened.
+    Errors must be observable: logged or emitted with the cause and
+    enough identifiers (id/path/operation) to diagnose.
+  - **Fail-open vs fail-safe** — when a dependency, check, or guard
+    fails, does the code default to the safe outcome (deny / halt /
+    propagate) or silently proceed as if it succeeded? Flag fail-open
+    defaults.
+  - **Idempotency** — for any operation that can be retried or re-run
+    (file writes, queue/state mutations, external calls), is repeating
+    it safe (no duplicate or corrupt effect)? Flag retried operations
+    that are not idempotent.
+  - **Edge cases** — empty inputs, missing files, partial/interrupted
+    writes, concurrent runs.
 - **Architecture** — does it fit the existing architecture? Any
   concerning patterns?
 - **Missing pieces** — anything in SPEC that wasn't implemented?
@@ -149,8 +166,9 @@ writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/REVIEW.md`.
 NEEDS-FIX triggers: code-quality findings, missing tests, coverage
 regressions, missing SPEC requirements, any unbacked doc-vs-code
 claim from Pass 3, a missing or empty `## Acceptance Criteria` section
-in SPEC.md, OR a missing or incomplete SPEC→PLAN traceability
-section in PLAN.md.
+in SPEC.md, swallowed/silent errors, fail-open failure defaults, or
+non-idempotent retried operations, OR a missing or incomplete SPEC→PLAN
+traceability section in PLAN.md.
 
 ## Code Quality Review
 

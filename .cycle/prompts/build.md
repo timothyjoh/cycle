@@ -18,9 +18,10 @@ plan.
 
 ## How to Build
 
-1. **Tests first when feasible.** Write the failing test for a slice,
-   then implement, then verify the test passes. This is the cheapest
-   way to catch SPEC drift.
+1. **Tests first when feasible — cover the failure path too.** Write the
+   failing test for a slice (including at least one error/edge case the
+   SPEC names), then implement, then verify. Happy-path-only tests that
+   merely satisfy the coverage gate are not sufficient.
 2. **Vertical slice at a time.** Land one slice end-to-end (test +
    implementation + any wiring) before moving to the next. Do not
    half-finish multiple slices in parallel.
@@ -36,7 +37,15 @@ plan.
 5. **Follow existing patterns.** Use the conventions RESEARCH.md
    identified. Do not invent new abstractions when an existing one
    fits.
-6. **Update docs as part of "done."** CLAUDE.md / AGENTS.md / README.md
+6. **Implement the failure paths, not just the happy path.** For each
+   slice, handle the failure modes the SPEC's acceptance criteria call
+   for: validate inputs, handle timeouts / non-zero exits / rejected
+   promises, and degrade gracefully where the SPEC specifies a fallback.
+   Never swallow an error silently — no empty `catch {}`, no ignored
+   promise rejection, no discarded non-zero exit code. Surface or log
+   it so a failure is observable. If an operation is re-run on retry
+   (queue/commit/init flows), make it idempotent.
+7. **Update docs as part of "done."** CLAUDE.md / AGENTS.md / README.md
    updates required by SPEC are part of this step.
 
 ## Quality Gates Before You Finish
@@ -45,6 +54,10 @@ plan.
 - [ ] Coverage report run via the project's coverage command; line /
       branch / function percentages captured and **none regressed**
       vs the cycle's base branch. (In this repo: `npm run test:coverage`.)
+- [ ] Failure paths are tested, not just happy paths — at least one
+      test exercises each error/edge case the SPEC names.
+- [ ] No silently swallowed errors introduced (no empty catch, ignored
+      rejection, or discarded non-zero exit).
 - [ ] Code follows existing patterns from RESEARCH.md.
 - [ ] CLAUDE.md / AGENTS.md updated with any new commands, conventions,
       or architecture decisions.
@@ -100,6 +113,8 @@ describing:
 - The coverage command you ran and the line / branch / function
   percentages (plus any per-file regressions and how you addressed
   them).
+- The failure modes you handled this cycle and how (validation, timeout,
+  fallback, idempotency), plus the failure-path tests that cover them.
 - Any deviations from PLAN.md and why.
 - Any deferred work or follow-up notes.
 - The `## Touched Files` YAML list: every file you created, modified, or deleted — exact repo-relative paths, no globs. Format:

@@ -62,6 +62,20 @@ and writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/PLAN.md`.
 ## Implementation Approach
 [High-level strategy and reasoning for the chosen approach]
 
+## Failure & Resilience Decisions
+For each task that performs I/O, subprocess execution, network, or filesystem
+writes, state the design decision (not "be resilient"):
+- **Failure modes**: what can fail here and how the code responds (propagate,
+  retry, fall back, degrade).
+- **Idempotency**: is the operation safe to re-run? If it mutates state/files
+  or spawns subprocesses, say how re-runs are made safe (or why re-run cannot
+  happen). The engine retries/restarts steps, so re-run safety is a real constraint.
+- **Observability**: what is logged/emitted on the failure path so the failure
+  is diagnosable.
+- **No silent failure**: confirm no error is swallowed; errors surface to a
+  caller, a log event, or a non-zero exit.
+If a task is pure/in-memory with no failure surface, write "N/A — pure".
+
 ---
 
 ## Task 1: [Descriptive Name]
@@ -77,6 +91,7 @@ and writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/PLAN.md`.
 - [ ] Compiles/builds cleanly
 - [ ] Tests pass
 - [ ] [Specific verification]
+- [ ] Failure paths behave as designed (errors surfaced, no silent catch)
 
 ---
 
@@ -102,6 +117,8 @@ explicit waiver.
 
 ### Unit Tests
 - [What to test, key edge cases]
+- [Failure-path tests: for each failure mode named above, the scenario that
+  exercises it — bad input, I/O error, subprocess non-zero exit, missing file]
 - [Mocking strategy — prefer real implementations over heavy mocking]
 
 ### Integration / E2E Tests
@@ -119,14 +136,17 @@ explicit waiver.
 4. **Vertical Slices.** Each task delivers testable functionality, not
    just "backend" or "frontend".
 5. **Tests Are Required.** Every task includes test criteria.
-6. **Follow Existing Patterns.** Use conventions found in RESEARCH.md.
-7. **Respect Scope.** What's in SPEC is in scope. Everything else is
+6. **Resilience Is a Design Decision.** Every task with a failure surface
+   must state its failure-mode, idempotency, observability, and no-silent-
+   failure decisions in the `## Failure & Resilience Decisions` section.
+7. **Follow Existing Patterns.** Use conventions found in RESEARCH.md.
+8. **Respect Scope.** What's in SPEC is in scope. Everything else is
    explicitly NOT.
-8. **Anti-Mock Bias.** Prefer real implementations in tests. Flag where
+9. **Anti-Mock Bias.** Prefer real implementations in tests. Flag where
    mocking is truly necessary.
-9. **Include "What We're NOT Doing."** Prevent scope creep by being
+10. **Include "What We're NOT Doing."** Prevent scope creep by being
    explicit.
-10. **SPEC→PLAN Traceability.** The PLAN.md output MUST include a
+11. **SPEC→PLAN Traceability.** The PLAN.md output MUST include a
     `## SPEC Acceptance Traceability` section enumerating every bullet
     from SPEC.md's `## Acceptance Criteria` section verbatim, paired
     with a covering plan-task id or an explicit

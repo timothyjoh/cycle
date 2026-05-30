@@ -26,6 +26,16 @@ You are the Final Fix agent. Apply the in-cycle remediations listed in
   files and documentation files. Do not touch files outside this
   footprint without a clear requirement in `FINAL_FIXES.md`.
 - Do not finish this step until the full test suite passes (`npm test`).
+- **Do not fake a green suite.** Make tests pass by correcting the
+  code, not by weakening or deleting assertions, `.skip`/`.only`-ing
+  tests, removing a failing test, loosening a coverage floor, or
+  wrapping a failing path in an error-swallowing `catch`. If a test
+  must change, the change must reflect corrected expected behavior, and
+  you must say so in the summary.
+- **Each fix must address the underlying failure mode, not just silence
+  the symptom.** Where a `FINAL_FIXES.md` item concerns an error or edge
+  path, confirm that path is exercised by a test that would fail without
+  your fix.
 
 ## File Artifact Mode
 
@@ -53,3 +63,9 @@ Output a brief summary to stdout describing which tasks from
 `FINAL_FIXES.md` you addressed, the final test-suite outcome, and any
 tasks you could not fix. The engine captures stdout and writes it to
 `FINAL_FIX.md` in the same artifact directory.
+
+Finish only when `npm test` passes for every fix you applied. If a fix
+genuinely cannot be made to pass, leave that file in a clean, consistent
+state (revert the partial attempt rather than committing broken code)
+and report it explicitly in the summary as unfixed with the reason — do
+not hide it behind a green run achieved by disabling the relevant test.
