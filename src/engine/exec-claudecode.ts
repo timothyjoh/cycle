@@ -4,7 +4,12 @@ import type { ExecModule } from "./exec.ts";
 
 export const claudecodeExec: ExecModule = {
   async runStep({ appendSystemPrompt, ...args }) {
-    const argv: string[] = ["--dangerously-skip-permissions"];
+    // `--permission-mode auto` (classifier-based approval) rather than
+    // `--dangerously-skip-permissions`: the latter is refused by the claude CLI
+    // when running as root (containers/CI/WSL) unless IS_SANDBOX=1 is set. `auto`
+    // has no root guard and is the safer long-term default. A configurable
+    // permission mode is tracked in feat-configurable-permission-mode.
+    const argv: string[] = ["--permission-mode", "auto"];
     if (appendSystemPrompt) argv.push("--append-system-prompt", appendSystemPrompt);
     argv.push("-p");
     const r = await runAgent({ binary: "claude", argv, promptDelivery: "argv", ...args });
