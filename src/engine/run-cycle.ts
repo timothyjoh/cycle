@@ -230,6 +230,7 @@ export type RunCycleOpts = {
   skipCompletedOnRetry?: boolean;
   baseBranch?: string;
   sleepFn?: (ms: number) => Promise<void>;
+  nowFn?: () => number;
 };
 
 export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
@@ -273,6 +274,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
   };
 
   const sleepFn = opts.sleepFn ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
+  const nowFn = opts.nowFn ?? (() => Date.now());
 
   try {
     const startIdx = opts.resume?.startStepIndex ?? 0;
@@ -280,6 +282,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
     const skipEnabled = opts.skipCompletedOnRetry !== false;
     for (let i = startIdx; i < wf.steps.length; i++) {
       const step = wf.steps[i];
+      const stepStart = nowFn();
 
       let headSha: string | null = null;
       const isResetEligible = RESET_ELIGIBLE_STEPS.has(step.name);
@@ -314,6 +317,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
             status: "skipped",
             reason: "skip_unless_artifact_missing",
             artifact: step.skip_unless,
+            duration_ms: Math.max(0, Math.round(nowFn() - stepStart)),
           });
           continue;
         }
@@ -491,6 +495,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         step: step.name,
         status: r.status,
         exit_code: r.exitCode,
+        duration_ms: Math.max(0, Math.round(nowFn() - stepStart)),
         ...(r.status === "failed"
           ? { stderr: truncateHeadCapped(r.stderr, MAX_STEP_END_STDERR) }
           : {}),

@@ -308,3 +308,34 @@ The retry loop is unbounded — it exits only when the step returns a non-rate-l
 `RunCycleOpts.sleepFn?: (ms: number) => Promise<void>` allows tests to inject a no-op sleep so tests do not wait 1 hour. The production default is `setTimeout`-based.
 
 **Known limitation:** The retry loop is unbounded — if the agent is permanently rate-limited (invalid API key, banned account, wrong endpoint), the engine will emit `engine.paused` every `rate_limit_backoff_ms` forever with no automatic exit. A configurable `max_rate_limit_retries` cap is tracked in `inbox/`. Manual escape hatch: `cycle stop` (or kill the process) — the queue row stays `in_progress` and can be manually reset to `pending` in `tbd.jsonl`.
+
+## Iteration-Too-Fast Guard (instant-failure fast-bail)
+
+A rate-based guard layered on top of the count-based `max_cycle_attempts` budget. When a step fails almost instantly — e.g. a misconfigured agent binary that exits 1 in milliseconds — the count-based budget alone burns every attempt in a tight, near-zero-duration loop. This guard fails such a cycle fast and tells the operator *why*.
+
+### Measurement point (`run-cycle.ts`)
+
+`runCycle` measures each step's wall-clock duration via an injectable clock and includes an integer `duration_ms ≥ 0` on **every** `step.end` event (agent, bash, and the `skip_unless`-miss emission). A per-step `stepStart = nowFn()` is captured at the top of the step loop; each `step.end` emits `duration_ms: Math.max(0, Math.round(nowFn() - stepStart))` (clamped/rounded — never negative or fractional). The window spans the full exec block including any in-process rate-limit backoff. `RunCycleOpts.nowFn?: () => number` is the test-injection seam (mirrors `sleepFn`); production default is `Date.now`.
+
+### Supervisor counter & fast-bail (`cli.ts`)
+
+The supervisor resolves `thresholdMs` from `engine.min_step_duration_ms` at the read site: `typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0`. A value of `0`/absent/malformed resolves to `0` ⇒ guard disabled (the threshold check is skipped, retry behavior is byte-for-byte identical to the count-based path, and the supervisor never throws on a bad config value).
+
+A single in-memory pair `(fastFailKey, fastFailCount)` — keyed by `${cycleId}::${failingStep}` — persists across an issue's retries in the single long-running supervisor process (exactly like `consecutiveFailures`). On each exec failure (`exitCode !== 0`):
+
+- If the guard is enabled, a failing step is identified, and its `duration_ms` (read from the failing `step.end` in the log tail) is a finite number `< thresholdMs`: increment the counter when the key matches, else start a new key at `1`. When the count reaches `ITERATION_TOO_FAST_K` (`= 2`), set `fastBail`.
+- Otherwise (≥-threshold, unreadable/absent `duration_ms`, a *different* failing step, or guard disabled): **reset** the counter to zero — degrade to normal count-based retry. An unreadable duration therefore never causes a spurious bail.
+
+On `fastBail`, the supervisor emits exactly one `step.warning { cycle_id, step, reason: "iteration_too_fast", duration_ms, threshold_ms }` and then routes the cycle through the existing `terminalDrain` flow (issue → `docs/cycle/issues/failed/`, `consecutiveFailures += 1`) — **no** further `drainRetry`/`cycle.start` for that issue, and **no** new `engine.halted` reason. The fast-bailed cycle counts toward `max_consecutive_failures` like any terminal failure.
+
+### Counter reset triggers
+
+The counter resets to zero on: a successful cycle (`drainSuccess`), any terminal drain (fast-bail, budget-exhausted, or commit-failure), a failure whose `duration_ms` is at or above the threshold, an unreadable/absent `duration_ms`, and a failure of a *different* step than the one being tracked. The guard is scoped to the primary exec-failure retry branch only — not `runResumeOnce` or the commit-failure retry path.
+
+### Observability
+
+Every retry-suppressing decision surfaces via the `iteration_too_fast` `step.warning` before termination — the guard never silently kills a cycle. The subsequent `queue.drained`/`issue.failed`/`engine.halted` sequence is unchanged.
+
+### Configuration
+
+`engine.min_step_duration_ms` in `workflows.yml` (default `2000`). `0`/absent/malformed disables the guard. The consecutive-attempt threshold `K` is the named constant `ITERATION_TOO_FAST_K = 2` in `src/cli.ts`.

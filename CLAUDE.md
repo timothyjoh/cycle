@@ -74,6 +74,8 @@ Registered step agents (via resolveAgent): `claudecode` (first-class; `model` ma
 
 `src/engine/path-utils.ts` — shared `isDenied(p)` denylist helper used by commit-cycle and run-cycle.
 
+`src/engine/iteration-guard.ts` — iteration-too-fast guard machinery used by the `src/cli.ts` supervisor: `readCycleEndFailure(repoRoot, cycleId)` (bottom-up log-tail read returning the failed cycle's `failing_step` and the matching `step.end.duration_ms`; missing/unreadable ⇒ `undefined`, degrade to normal retry) and the pure `advanceFastFailCounter(prev, opts)` state transition (same-step sub-threshold ⇒ increment; different step / `≥`-threshold / unreadable duration / guard disabled ⇒ reset; `fastBail` once count reaches `K`).
+
 `src/engine/engine-lock.ts` — shared `acquireLock(lockPath)` / `releaseLock(lockPath)` PID-lockfile helpers used by the supervisor to enforce single-engine exclusion.
 
 `src/engine/child-env.ts` — `buildChildEnv(extra)` builds the subprocess env: strips all `CYCLE_*` vars by prefix, prepends the parent Node's bin dir to PATH, then overlays `extra`. Callers must re-inject any `CYCLE_*` vars subprocesses legitimately need (e.g. `CYCLE_BASE`, `CYCLE_ID`, `CYCLE_TITLE`) via `extra`.
@@ -95,6 +97,7 @@ Issue lifecycle: `docs/cycle/issues/{raw,todo,done,blocked,failed}/` — see [do
 - Force `--workflow feature` until triage + multi-cycle decomposition land.
 - Queue halts after `engine.max_consecutive_failures` consecutive terminal failures (default 2).
 - `engine.rate_limit_backoff_ms` — milliseconds to sleep between rate-limit retries (default 3,600,000 = 1 hour).
+- `engine.min_step_duration_ms` — iteration-too-fast guard threshold (default 2,000). After `K=2` consecutive failures of the *same* step, each completing in under this many milliseconds of wall-clock, the supervisor fast-bails the cycle to `terminalDrain` instead of burning the remaining `max_cycle_attempts` budget on a tight instant-failure loop. A value of `0` (or absent/malformed) disables the guard. Each fast-bail emits exactly one `step.warning { reason: "iteration_too_fast", duration_ms, threshold_ms }` before terminating — never a silent kill. Routes through the existing terminal-failure path (counts toward `max_consecutive_failures`); no new halt reason.
 - See `BRIEF.md` and `docs/ARCHITECTURE.md` for the full system design.
 
 ## Publishing

@@ -24,6 +24,7 @@ import type { InFlightCycle } from "./engine/log-tail.ts";
 import { checkoutBase, pullBase, resolveBaseBranch } from "./engine/branch.ts";
 import { commitCycle } from "./engine/commit-cycle.ts";
 import { terminalDrain } from "./engine/issue-lifecycle.ts";
+import { readCycleEndFailure, advanceFastFailCounter } from "./engine/iteration-guard.ts";
 import { emitStaleDistWarning } from "./engine/stale-dist.ts";
 import { acquireLock, releaseLock } from "./engine/engine-lock.ts";
 import { loadDotEnv } from "./engine/dot-env.ts";
@@ -212,6 +213,16 @@ let haltReason: "max_consecutive_failures" | "triage_failed" | null = null;
 let lastHaltContext: HaltContext | undefined;
 const maxConsecutiveFailures = cfg?.engine?.max_consecutive_failures ?? 2;
 
+// Iteration-too-fast guard: after ITERATION_TOO_FAST_K consecutive failures of
+// the same step, each completing in under engine.min_step_duration_ms wall-clock,
+// the supervisor fast-bails the cycle to terminalDrain instead of burning the
+// remaining attempt budget on a tight instant-failure loop. Counter is keyed by
+// `${cycleId}::${failingStep}` and persists across an issue's retries in this
+// single long-running process (like consecutiveFailures).
+const ITERATION_TOO_FAST_K = 2;
+let fastFailKey: string | null = null;
+let fastFailCount = 0;
+
 async function drainSuccess(
   cwd: string,
   log: Logger,
@@ -279,31 +290,6 @@ function spawnRunOne(params: RunOneParams): Promise<number> {
     child.on("close", (code) => resolve(code ?? 1));
     child.on("error", reject);
   });
-}
-
-async function readCycleEndFailingStep(
-  repoRoot: string,
-  cycleId: string,
-): Promise<string | undefined> {
-  try {
-    const text = await readFile(join(repoRoot, ".cycle", "log.jsonl"), "utf8");
-    const lines = text.split("\n");
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      try {
-        const ev = JSON.parse(line) as Record<string, unknown>;
-        if (
-          ev.event === "cycle.end" &&
-          ev.cycle_id === cycleId &&
-          ev.status === "failed"
-        ) {
-          return typeof ev.failing_step === "string" ? ev.failing_step : undefined;
-        }
-      } catch { /* skip malformed */ }
-    }
-  } catch { /* ENOENT or read error */ }
-  return undefined;
 }
 
 async function runResumeOnce(
@@ -406,7 +392,7 @@ async function runResumeOnce(
     resumeFromStep: startStepIndex,
   });
   const failingStep = exitCode !== 0
-    ? await readCycleEndFailingStep(cwd, tail.cycleId)
+    ? (await readCycleEndFailure(cwd, tail.cycleId)).failingStep
     : undefined;
 
   const todoPath = join(todoDir, `${tail.issueId}.md`);
@@ -513,9 +499,18 @@ while (!halted) {
     skipCompletedOnRetry,
     baseBranch: fmBaseBranch,
   });
-  const failingStep = exitCode !== 0
-    ? await readCycleEndFailingStep(cwd, cycleId)
-    : undefined;
+  const failure = exitCode !== 0
+    ? await readCycleEndFailure(cwd, cycleId)
+    : { failingStep: undefined, durationMs: undefined };
+  const failingStep = failure.failingStep;
+
+  // Resolve the iteration-too-fast threshold at the read site (never crash on a
+  // bad config value): a non-finite or non-positive min_step_duration_ms disables
+  // the guard entirely, matching the SPEC's 0/absent/malformed semantics.
+  const rawMin = cfg?.engine?.min_step_duration_ms;
+  const thresholdMs =
+    typeof rawMin === "number" && Number.isFinite(rawMin) && rawMin > 0 ? rawMin : 0;
+  const guardEnabled = thresholdMs > 0;
 
   if (exitCode === 0) {
     const artifactDir = join(cwd, "docs", "cycle", `${cycleId}-${workflowName}-${slugify(row.title)}`);
@@ -536,6 +531,8 @@ while (!halted) {
         consecutiveFailures += 1;
         failedCycles.push(cycleId);
         lastHaltContext = { issueId: row.id, failingStep: "commit" };
+        fastFailKey = null;
+        fastFailCount = 0;
         if (consecutiveFailures >= maxConsecutiveFailures) {
           halted = true;
           haltReason = "max_consecutive_failures";
@@ -549,20 +546,64 @@ while (!halted) {
       consecutiveFailures = 0;
       failedCycles = [];
       lastHaltContext = undefined;
+      fastFailKey = null;
+      fastFailCount = 0;
     }
-  } else if (row.attempt + 1 < maxAttempts) {
-    await drainRetry(cwd, log, cycleId, row.id, failingStep);
-    // retry-drain: counter unchanged; popNextPending will see the row again with attempt++.
   } else {
-    await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, failingStep, row.attempt + 1);
-    consecutiveFailures += 1;
-    failedCycles.push(cycleId);
-    lastHaltContext = { issueId: row.id, failingStep };
-    if (consecutiveFailures >= maxConsecutiveFailures) {
-      halted = true;
-      haltReason = "max_consecutive_failures";
-      activeCycleId = undefined;
-      break;
+    // exec failure (exitCode !== 0). Track consecutive sub-threshold failures of
+    // the same step; after ITERATION_TOO_FAST_K of them, fast-bail to terminal.
+    const key = `${cycleId}::${failingStep ?? ""}`;
+    const advanced = advanceFastFailCounter(
+      { key: fastFailKey, count: fastFailCount },
+      {
+        key,
+        guardEnabled,
+        failingStep,
+        durationMs: failure.durationMs,
+        thresholdMs,
+        k: ITERATION_TOO_FAST_K,
+      },
+    );
+    fastFailKey = advanced.state.key;
+    fastFailCount = advanced.state.count;
+    const fastBail = advanced.fastBail;
+
+    if (fastBail) {
+      await log.emit("step.warning", {
+        cycle_id: cycleId,
+        step: failingStep,
+        reason: "iteration_too_fast",
+        duration_ms: failure.durationMs,
+        threshold_ms: thresholdMs,
+      });
+      await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, failingStep, row.attempt + 1);
+      consecutiveFailures += 1;
+      failedCycles.push(cycleId);
+      lastHaltContext = { issueId: row.id, failingStep };
+      fastFailKey = null;
+      fastFailCount = 0;
+      if (consecutiveFailures >= maxConsecutiveFailures) {
+        halted = true;
+        haltReason = "max_consecutive_failures";
+        activeCycleId = undefined;
+        break;
+      }
+    } else if (row.attempt + 1 < maxAttempts) {
+      await drainRetry(cwd, log, cycleId, row.id, failingStep);
+      // retry-drain: counter unchanged; popNextPending will see the row again with attempt++.
+    } else {
+      await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, failingStep, row.attempt + 1);
+      consecutiveFailures += 1;
+      failedCycles.push(cycleId);
+      lastHaltContext = { issueId: row.id, failingStep };
+      fastFailKey = null;
+      fastFailCount = 0;
+      if (consecutiveFailures >= maxConsecutiveFailures) {
+        halted = true;
+        haltReason = "max_consecutive_failures";
+        activeCycleId = undefined;
+        break;
+      }
     }
   }
   activeCycleId = undefined;

@@ -34,6 +34,10 @@ export type EngineConfig = {
   /** Per-step wall-clock timeout (ms); 0/undefined disables. Guards against a
    * step subprocess that completes its work but never exits (claude -p exit hang). */
   step_timeout_ms?: number;
+  /** Minimum acceptable step wall-clock (ms) before the iteration-too-fast
+   * guard counts a failure as "instant". Default 2000; 0/absent/malformed
+   * disables the guard (never fast-bails). Resolved at the supervisor read site. */
+  min_step_duration_ms?: number;
 };
 
 export type TriageConfig = {

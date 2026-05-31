@@ -209,9 +209,14 @@ There is no per-run ID; engine lifecycle is bracketed by `engine.start` /
 ```
 
 Failed `step.end` events (any agent) carry a head-capped `stderr` field
-(2000-char cap). Successful events omit it. A skipped pre-build step on
-retry emits `step.skipped {reason: "artifact_present", artifact_path}` in
-lieu of `step.start` / `step.end`.
+(2000-char cap). Successful events omit it. Every `step.end` (and a
+`skip_unless`-miss emission) also carries an integer `duration_ms ≥ 0`
+wall-clock measurement. A skipped pre-build step on retry emits
+`step.skipped {reason: "artifact_present", artifact_path}` in lieu of
+`step.start` / `step.end`. When the iteration-too-fast guard fast-bails a
+cycle, the supervisor emits `step.warning {cycle_id, step, reason:
+"iteration_too_fast", duration_ms, threshold_ms}` immediately before the
+terminal drain (see [docs/ENGINE.md](ENGINE.md) → *Iteration-Too-Fast Guard*).
 
 Triage-failure and rate-limit variants:
 

@@ -1,0 +1,13 @@
+{
+  "files": [
+    ".cycle/workflows.yml",
+    "CLAUDE.md",
+    "README.md",
+    "docs/ENGINE.md",
+    "src/cli.ts",
+    "src/defaults/workflows.yml",
+    "src/engine/iteration-guard.ts",
+    "src/engine/run-cycle.ts",
+    "src/engine/workflow.ts"
+  ]
+}
