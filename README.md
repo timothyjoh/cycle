@@ -183,5 +183,6 @@ The engine today commits and pushes; the broader factory model is still landing.
 - [`docs/runtime-environment.md`](docs/runtime-environment.md) — host prerequisites, setup checks, and future doctor/preflight direction.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system architecture, state model, and integration surfaces.
 - [`docs/ENGINE.md`](docs/ENGINE.md) — engine implementation reference for contributors.
+- [`docs/models.md`](docs/models.md) — supported agent models per CLI, the `defaults:`/per-step `model` syntax, and the live-discovery commands.
 - [`docs/RFC-001-issue-lifecycle.md`](docs/RFC-001-issue-lifecycle.md) — issue lifecycle, triage, queue, and blocked-work semantics.
 - [`docs/RFC-003-in-cycle-remediation-and-priority-routing.md`](docs/RFC-003-in-cycle-remediation-and-priority-routing.md) — in-cycle remediation and priority routing.

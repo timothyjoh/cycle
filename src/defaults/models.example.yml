@@ -1,0 +1,18 @@
+# models.example.yml — illustrative defaults + per-step model overrides.
+# NOT loaded by the engine. Copy the blocks you want into .cycle/workflows.yml.
+# Model IDs are a snapshot (accurate as of 2026-05); verify against each CLI's
+# live discovery command (see docs/models.md) before relying on them.
+
+# Run-wide defaults: every step inherits these unless it overrides them.
+defaults:
+  agent: claudecode      # default agent for all steps
+  model: opus            # claudecode alias; see docs/models.md for the full list
+  # thinking: ...        # claudecode ignores --thinking; omit it here
+
+workflows:
+  feature:
+    steps:
+      - { name: spec,   prompt: prompts/spec.md }                   # inherits claudecode + opus
+      - { name: build,  prompt: prompts/build.md, model: sonnet }   # per-step model override
+      - { name: review, prompt: prompts/review.md, agent: codex, model: gpt-5.5, thinking: high }  # override agent+model+thinking
+      - { name: verify, agent: bash, run: scripts/verify.sh }       # bash ignores model/thinking

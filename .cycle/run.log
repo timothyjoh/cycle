@@ -63,3 +63,18 @@
 {"ts":"2026-05-31T01:32:35.112Z","event":"cycle.end","cycle_id":"0007","status":"ok"}
 {"ts":"2026-05-31T01:32:35.169Z","event":"cycle.checkout","cycle_id":"0007","status":"skipped","base":"master","head_before":"master","reason":"trunk"}
 {"ts":"2026-05-31T01:32:36.106Z","event":"cycle.base_pull","cycle_id":"0007","status":"ok","base":"master","sha_before":"bbc1b9feacf94f92976a9ca3d2ec05da55d856e9","sha_after":"bbc1b9feacf94f92976a9ca3d2ec05da55d856e9"}
+{"ts":"2026-05-31T01:32:43.180Z","event":"queue.drained","cycle_id":"0007","issue_id":"feat-agent-model-forwarding","outcome":"ok"}
+{"ts":"2026-05-31T01:32:43.190Z","event":"issue.ingested","issue_id":"docs-supported-models-reference","path":"/mnt/c/Users/butters/wrk/cycle/docs/cycle/issues/todo/docs-supported-models-reference.md"}
+{"ts":"2026-05-31T01:32:43.278Z","event":"cycle.start","cycle_id":"0008","workflow":"document","title":"Add a supported-models reference/example file for cycle users","issue_id":"docs-supported-models-reference"}
+{"ts":"2026-05-31T01:32:43.283Z","event":"step.start","cycle_id":"0008","step":"plan_documents","agent":"claudecode"}
+{"ts":"2026-05-31T01:34:27.701Z","event":"step.end","cycle_id":"0008","step":"plan_documents","status":"ok","exit_code":0}
+{"ts":"2026-05-31T01:34:27.703Z","event":"step.start","cycle_id":"0008","step":"authoring","agent":"claudecode"}
+{"ts":"2026-05-31T01:43:51.061Z","event":"step.end","cycle_id":"0008","step":"authoring","status":"ok","exit_code":0}
+{"ts":"2026-05-31T01:43:51.063Z","event":"step.start","cycle_id":"0008","step":"review_documents","agent":"claudecode"}
+{"ts":"2026-05-31T01:44:59.411Z","event":"step.end","cycle_id":"0008","step":"review_documents","status":"ok","exit_code":0}
+{"ts":"2026-05-31T01:44:59.413Z","event":"step.start","cycle_id":"0008","step":"verify","agent":"bash"}
+{"ts":"2026-05-31T01:47:31.407Z","event":"step.end","cycle_id":"0008","step":"verify","status":"ok","exit_code":0}
+{"ts":"2026-05-31T01:47:31.409Z","event":"cycle.end","cycle_id":"0008","status":"ok"}
+{"ts":"2026-05-31T01:47:31.467Z","event":"cycle.checkout","cycle_id":"0008","status":"skipped","base":"master","head_before":"master","reason":"trunk"}
+{"ts":"2026-05-31T01:47:32.292Z","event":"cycle.base_pull","cycle_id":"0008","status":"ok","base":"master","sha_before":"62a8af56bf63baff52ceacb239c15ec732c48892","sha_after":"62a8af56bf63baff52ceacb239c15ec732c48892"}
+{"ts":"2026-05-31T01:47:33.630Z","event":"commit.scope_warning","cycle_id":"0008","files":["src/defaults/models.example.yml"]}
