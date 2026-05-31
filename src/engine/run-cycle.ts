@@ -175,6 +175,7 @@ export async function shouldSkipForArtifact(
 export const SPEC_MIN_BYTES = 200;
 
 export const MAX_STEP_END_STDERR = 2000;
+export const MAX_STEP_END_STDOUT = 2000;
 export function formatSpecGuardError(path: string, bytes: number, threshold: number): string {
   return `spec post-condition failed: ${path} is ${bytes} bytes (< ${threshold})`;
 }
@@ -490,6 +491,29 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           } catch { /* best-effort; never fail the cycle */ }
         }
       }
+      // Failed bash steps print their failure cause to stdout (test runners,
+      // build tools), which the stderr-only excerpt above misses. Capture a
+      // head-capped stdout excerpt for the event plus the full stdout+stderr
+      // to a per-cycle `<step>.out` artifact pointed at by `stdout_artifact`.
+      // Best-effort: a write failure degrades via `step.output_capture_failed`
+      // and never masks the original step failure or its exit_code.
+      let stdoutArtifact: string | undefined;
+      const isFailedBash = step.agent === "bash" && r.status === "failed";
+      if (isFailedBash) {
+        const outPath = join(artifactDir, `${step.name}.out`);
+        const fullOutput = `=== stdout ===\n${r.stdout}\n=== stderr ===\n${r.stderr}\n`;
+        try {
+          await writeFile(outPath, fullOutput, "utf8");
+          stdoutArtifact = outPath;
+        } catch (err) {
+          await log.emit("step.output_capture_failed", {
+            cycle_id: cycleId,
+            step: step.name,
+            artifact: outPath,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
       await log.emit("step.end", {
         cycle_id: cycleId,
         step: step.name,
@@ -499,6 +523,10 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         ...(r.status === "failed"
           ? { stderr: truncateHeadCapped(r.stderr, MAX_STEP_END_STDERR) }
           : {}),
+        ...(isFailedBash
+          ? { stdout: truncateHeadCapped(r.stdout, MAX_STEP_END_STDOUT) }
+          : {}),
+        ...(stdoutArtifact ? { stdout_artifact: stdoutArtifact } : {}),
       });
       if (r.status === "failed") {
         if (step.name === "reflection") {

@@ -209,7 +209,14 @@ There is no per-run ID; engine lifecycle is bracketed by `engine.start` /
 ```
 
 Failed `step.end` events (any agent) carry a head-capped `stderr` field
-(2000-char cap). Successful events omit it. Every `step.end` (and a
+(2000-char cap). Successful events omit it. A failed `bash` step
+additionally carries a head-capped `stdout` excerpt (2000-char cap) and a
+`stdout_artifact` pointer to a per-cycle `<artifactDir>/<step>.out` file
+holding the full stdout+stderr; if that artifact write fails the engine
+emits `step.output_capture_failed {cycle_id, step, artifact, error}`,
+omits the pointer, and preserves the original `exit_code` and
+terminal-failure routing (see [docs/ENGINE.md](ENGINE.md) → *Failed
+bash-step stdout capture*). Every `step.end` (and a
 `skip_unless`-miss emission) also carries an integer `duration_ms ≥ 0`
 wall-clock measurement. A skipped pre-build step on retry emits
 `step.skipped {reason: "artifact_present", artifact_path}` in lieu of

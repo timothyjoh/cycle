@@ -184,6 +184,15 @@ The commit is never blocked — staging and commit always proceed regardless of 
 
 Failed `step.end` events carry a head-capped `stderr` field (2000-char, via `MAX_STEP_END_STDERR` + `truncateHeadCapped` in `run-cycle.ts`). Successful events omit the field. Gate is `r.status === "failed"` across all agents, not `r.stderr` truthiness. Five emission sites set `r.stderr` before the gate fires: (1) `UnknownAgentError` during dispatch (`run-cycle.ts:~219`) — error message verbatim; (2) spec post-condition guard (`run-cycle.ts:~231`) — `formatSpecGuardError(path, bytes, SPEC_MIN_BYTES)`; (3) fix post-condition guard (`run-cycle.ts:~244`) — `formatFixGuardError(fixPath, mustFixPath, count)`; (4) empty-diff post-condition guard (`run-cycle.ts:~261`) — `formatEmptyDiffGuardError(stepName)`; (5) provider-module non-zero exit in `exec-claudecode.ts`, `exec-codex.ts`, `exec-gemini.ts` — captured stderr stream, head-capped at 2000 chars.
 
+## Failed bash-step stdout capture
+
+Test runners and build tools print their failure cause to **stdout**, not stderr, so a failed `bash` step (e.g. `verify` → `scripts/verify.sh` → `npm test`) would otherwise surface as `exit_code: 1, stderr: ""` with the real cause invisible. To make a failed bash step self-diagnosable from the log alone, `run-cycle.ts` adds — only when `step.agent === "bash" && r.status === "failed"` — two fields to `step.end`:
+
+- `stdout`: a head-capped excerpt (2000-char, via `MAX_STEP_END_STDOUT` + `truncateHeadCapped`).
+- `stdout_artifact`: an absolute path to a per-cycle `<artifactDir>/<step>.out` file holding the full, uncapped output in a header-delimited layout: `=== stdout ===\n<stdout>\n=== stderr ===\n<stderr>\n`. When both streams are empty the header-only file is still written so the pointer never dangles.
+
+The success path is untouched — a passing bash step's `step.end` gains no `stdout`/`stdout_artifact` field and no `.out` file is written. Agent (non-`bash`) steps are unaffected (they already write `<STEP>.md` artifacts under the completion-proof contract). The artifact write is a best-effort observability side-effect: if `writeFile` fails (unwritable/missing dir, ENOSPC, EISDIR), the engine emits `step.output_capture_failed { cycle_id, step, artifact, error }`, omits the `stdout_artifact` pointer, and proceeds — the original `exit_code`, the capped `stdout` excerpt, the `step.end` event, and the terminal-failure routing are all preserved, so the write error can never mask the real step failure. The write is idempotent (deterministic path, last-write-wins); bash steps are excluded from all skip/proof machinery, so the `.out` file never gates control flow.
+
 ## Review step Pass 3
 
 `src/defaults/prompts/review.md` carries `## Pass 3: Doc-vs-Code Claim Verification` — enumerates command/flag/path/event/frontmatter/behavioral claims in `README.md`, `CLAUDE.md`, `AGENTS.md`, `docs/**/*.md` (excluding `docs/cycle/*`), pairs each with a `file:line` reference, treats unbacked claims as NEEDS-FIX. The installed `.cycle/prompts/review.md` copy is byte-identical (pinned by `tests/defaults/review-prompt-doc-claim-pass.test.ts`).
