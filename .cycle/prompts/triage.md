@@ -81,63 +81,97 @@ Emit exactly one JSON object with these fields:
   decomposed into N≥2 children, or replaced by a single child with a
   different id, must appear here.
 
+### Sizing — read this first
+
+**Default to enrich-only.** One raw → one child is the common case, and when
+you are unsure you must NOT split. A child is a full, expensive SDLC cycle —
+spec → research → plan → build → review → verify → reflection → documentation,
+each with its own commit — **not** a task. Decompose only when a single raw
+bundles **multiple independently-shippable deliverables** that cannot
+reasonably land in one cycle. Two or three children is already unusual and
+needs clear justification; more than that almost always means you are splitting
+too finely.
+
+**A child is one vertical slice** — a coherent, independently valuable change a
+competent engineer would land as a single PR. Do **NOT** split one change into
+separate "build X" / "test X" / "document X" children: testing, review, and
+documentation are *steps inside every cycle*, not separate cycles. Splitting by
+phase or by layer multiplies cost for zero benefit.
+
 ### Rules of thumb
 
 - Enrich-only: one raw → one child. Use `id == raw_id` and leave
   `decomposed_parents` empty for it.
-- Decompose: one raw → multiple children with new ids. List the raw in
-  `decomposed_parents`.
+- Decompose: one raw → multiple children with new ids — only for genuinely
+  separable deliverables. List the raw in `decomposed_parents`.
+- Do not add scope the raw did not ask for. Enrich and clarify the existing
+  ask; never invent new requirements or "nice to have" extensions.
 - Order children to maximize useful work: foundational pieces first,
-  dependents after. Use `depends_on` for hard ordering constraints
-  only.
-- When decomposing one raw into multiple children, infer ordering: if
-  child B builds on child A's output (e.g. UI built on a new endpoint,
-  test fixture used by a later step), set `B.depends_on = [A.id]`.
-  Chain through C if C builds on B. Use `depends_on` for true causal /
-  sequential constraints, not for "this would be nicer second."
+  dependents after. Use `depends_on` for true causal / sequential constraints
+  only — not for "this would be nicer second," and not to manufacture a chain
+  of small pieces. If B genuinely builds on A's output (e.g. UI on a new
+  endpoint), set `B.depends_on = [A.id]`.
 - Do not reorder `in_progress` rows. Do not invent new raws. Do not
   delete existing pending rows.
 
-## Example
+## Examples
 
-Input raw with `id: txt-001`, title "Add login":
+### Example 1 — enrich-only (the common case)
+
+A thin raw with `id: txt-009`, title "Login times out on slow networks". This
+is **one** coherent change, so it stays a single child (`id == raw_id`,
+`decomposed_parents` empty) — even though delivering it involves
+reproducing, fixing, and testing. Those are steps within the cycle, not
+separate children:
 
 ```json
 {
-  "ordering": [
-    "txt-001-auth-middleware",
-    "txt-001-login-form",
-    "txt-001-2fa-flow"
-  ],
+  "ordering": ["txt-009"],
   "children": [
     {
-      "raw_id": "txt-001",
-      "slug": "auth-middleware",
-      "id": "txt-001-auth-middleware",
-      "title": "Add session auth middleware",
+      "raw_id": "txt-009",
+      "slug": "login-timeout",
+      "id": "txt-009",
+      "title": "Fix login timeout on slow networks",
       "workflow": "feature",
       "depends_on": [],
-      "body": "Build session-cookie middleware behind /api routes.\n"
-    },
-    {
-      "raw_id": "txt-001",
-      "slug": "login-form",
-      "id": "txt-001-login-form",
-      "title": "Add login form UI",
-      "workflow": "feature",
-      "depends_on": ["txt-001-auth-middleware"],
-      "body": "Add /login route + form posting to /api/session.\n"
-    },
-    {
-      "raw_id": "txt-001",
-      "slug": "2fa-flow",
-      "id": "txt-001-2fa-flow",
-      "title": "Add optional 2FA on login",
-      "workflow": "feature",
-      "depends_on": ["txt-001-login-form"],
-      "body": "Layer TOTP challenge onto the login form path.\n"
+      "body": "Login requests time out on slow connections. Reproduce the slow-network failure, fix the timeout/retry gap, and cover the failure path with a test.\n"
     }
   ],
-  "decomposed_parents": ["txt-001"]
+  "decomposed_parents": []
+}
+```
+
+### Example 2 — decompose (only when a raw bundles separable deliverables)
+
+A raw with `id: txt-014`, title "Add data export: CSV download and a weekly
+email digest". These are **two independently-shippable deliverables** that can
+land in either order, so they become two full-slice children with no
+manufactured dependency between them:
+
+```json
+{
+  "ordering": ["txt-014-csv-export", "txt-014-email-digest"],
+  "children": [
+    {
+      "raw_id": "txt-014",
+      "slug": "csv-export",
+      "id": "txt-014-csv-export",
+      "title": "Add CSV export download",
+      "workflow": "feature",
+      "depends_on": [],
+      "body": "Add a CSV export endpoint and a download control. Full slice: endpoint, UI, tests.\n"
+    },
+    {
+      "raw_id": "txt-014",
+      "slug": "email-digest",
+      "id": "txt-014-email-digest",
+      "title": "Add weekly email digest",
+      "workflow": "feature",
+      "depends_on": [],
+      "body": "Add a scheduled weekly digest email summarizing activity. Full slice: scheduler, template, tests.\n"
+    }
+  ],
+  "decomposed_parents": ["txt-014"]
 }
 ```
