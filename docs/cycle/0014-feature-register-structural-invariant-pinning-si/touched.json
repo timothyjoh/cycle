@@ -1,0 +1,6 @@
+{
+  "files": [
+    "scripts/structural-invariants.mjs",
+    "tests/scripts/structural-invariants.test.ts"
+  ]
+}

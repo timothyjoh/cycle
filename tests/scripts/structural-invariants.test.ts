@@ -8,10 +8,12 @@ import { spawnSync } from "node:child_process";
 const SCRIPT = join(process.cwd(), "scripts/structural-invariants.mjs");
 const FIXTURES = join(process.cwd(), "tests/fixtures/structural-invariants");
 
-async function setup(cwd: string, content: string) {
+// Default cli stub carries the single sanctioned `consecutiveFailures += 1`
+// occurrence so two-arg callers satisfy the cli single-implementation rule.
+async function setup(cwd: string, content: string, cliContent = "// stub\nconsecutiveFailures += 1;\n") {
   await mkdir(join(cwd, "src/engine"), { recursive: true });
   await writeFile(join(cwd, "src/engine/triage.ts"), content);
-  await writeFile(join(cwd, "src/cli.ts"), "// stub");
+  await writeFile(join(cwd, "src/cli.ts"), cliContent);
   await writeFile(join(cwd, "src/engine/commit-cycle.ts"), "// stub");
 }
 
@@ -40,6 +42,37 @@ test("structural-invariants: clean fixture -> exit 0, no stderr", async () => {
   try {
     const content = await readFile(join(FIXTURES, "triage-clean.ts"), "utf8");
     await setup(root, content);
+    const result = run(root);
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, "");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("structural-invariants: cli bookkeeping re-inlined -> exit 1, stderr names src/cli.ts + reason + expected/got", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-si-cli-fail-"));
+  try {
+    const triage = await readFile(join(FIXTURES, "triage-clean.ts"), "utf8");
+    const cli = await readFile(join(FIXTURES, "cli-violation.ts"), "utf8");
+    await setup(root, triage, cli);
+    const result = run(root);
+    assert.equal(result.status, 1);
+    assert.ok(result.stderr.includes("src/cli.ts"));
+    assert.match(result.stderr, /terminal-failure bookkeeping single-implementation/);
+    assert.match(result.stderr, /expected 1/);
+    assert.match(result.stderr, /got 2/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("structural-invariants: cli single-implementation layout -> exit 0, no stderr", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-si-cli-pass-"));
+  try {
+    const triage = await readFile(join(FIXTURES, "triage-clean.ts"), "utf8");
+    const cli = await readFile(join(FIXTURES, "cli-clean.ts"), "utf8");
+    await setup(root, triage, cli);
     const result = run(root);
     assert.equal(result.status, 0);
     assert.equal(result.stderr, "");

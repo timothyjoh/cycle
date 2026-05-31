@@ -34,6 +34,13 @@ const INVARIANTS = [
     expected: 0,
     reason: 'blocking scopeGuard removed in cycle 0227',
   },
+  {
+    file: 'src/cli.ts',
+    pattern: /consecutiveFailures \+= 1/g,
+    expected: 1,
+    reason:
+      'terminal-failure bookkeeping single-implementation: the inlined consecutiveFailures += 1 mutation is sanctioned only in the resume block; all other supervisor branches must delegate to recordTerminalFailure',
+  },
 ];
 
 let failed = 0;
