@@ -1,0 +1,9 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "scripts/coverage-gate.mjs",
+    "src/cli.ts",
+    "src/engine/halt-accounting.ts",
+    "tests/scripts/coverage-gate.test.ts"
+  ]
+}

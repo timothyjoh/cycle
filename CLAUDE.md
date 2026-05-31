@@ -35,7 +35,7 @@ Project conventions for cycle. Read before touching code or running the workflow
 
 - **Coverage must not decrease** vs master baseline (as of 2026-05-13): Line ≥ 95%, Branch ≥ 75%, Function ≥ 90%.
 - Report numbers in `BUILD.md` / `FIX.md`. Add tests in the same cycle, not as follow-up.
-- **Per-file floors**: `src/engine/triage.ts` (95%), `src/engine/issue-lifecycle.ts` (95%), `src/engine/commit-cycle.ts` (95%), `src/engine/branch.ts` (90%), `src/engine/stale-dist.ts` (95%), `src/cli/run-one.ts` (70%), `scripts/sync-defaults.mjs` (90%), `src/cli/cleanup.ts` (70%), `src/engine/path-utils.ts` (100%), `src/engine/engine-lock.ts` (100%), `src/engine/child-env.ts` (100%), `src/engine/log-fmt.ts` (100%), `src/engine/dot-env.ts` (100%), `src/engine/queue.ts` (90%), `src/engine/run-cycle.ts` (90%). Enforced by `scripts/coverage-gate.mjs` (LCOV-driven). `scripts/**` no longer excluded from `test:coverage`. Extend the `FLOORS` table inside that script to add more floors.
+- **Per-file floors**: `src/engine/triage.ts` (95%), `src/engine/issue-lifecycle.ts` (95%), `src/engine/commit-cycle.ts` (95%), `src/engine/branch.ts` (90%), `src/engine/stale-dist.ts` (95%), `src/cli/run-one.ts` (70%), `scripts/sync-defaults.mjs` (90%), `src/cli/cleanup.ts` (70%), `src/engine/path-utils.ts` (100%), `src/engine/engine-lock.ts` (100%), `src/engine/child-env.ts` (100%), `src/engine/log-fmt.ts` (100%), `src/engine/halt-accounting.ts` (100%), `src/engine/dot-env.ts` (100%), `src/engine/queue.ts` (90%), `src/engine/run-cycle.ts` (90%). Enforced by `scripts/coverage-gate.mjs` (LCOV-driven). `scripts/**` no longer excluded from `test:coverage`. Extend the `FLOORS` table inside that script to add more floors.
 
 ## Test conventions
 
@@ -77,6 +77,8 @@ Registered step agents (via resolveAgent): `claudecode` (first-class; `model` ma
 `src/engine/path-utils.ts` — shared `isDenied(p)` denylist helper used by commit-cycle and run-cycle.
 
 `src/engine/iteration-guard.ts` — iteration-too-fast guard machinery used by the `src/cli.ts` supervisor: `readCycleEndFailure(repoRoot, cycleId)` (bottom-up log-tail read returning the failed cycle's `failing_step` and the matching `step.end.duration_ms`; missing/unreadable ⇒ `undefined`, degrade to normal retry) and the pure `advanceFastFailCounter(prev, opts)` state transition (same-step sub-threshold ⇒ increment; different step / `≥`-threshold / unreadable duration / guard disabled ⇒ reset; `fastBail` once count reaches `K`).
+
+`src/engine/halt-accounting.ts` — pure `recordTerminalFailure(prev, opts)` used by the `src/cli.ts` supervisor's commit-failure, fast-bail, and budget-exhausted branches: the single source of truth for terminal-failure bookkeeping (increment `consecutiveFailures`, append `failedCycles` as a new array, set `lastHaltContext`, reset the fast-fail counter) returning a `{ halt }` decision the caller acts on. `break`/`terminalDrain` stay at the call site. Owns the exported `HaltContext` type (imported back into `cli.ts`).
 
 `src/engine/engine-lock.ts` — shared `acquireLock(lockPath)` / `releaseLock(lockPath)` PID-lockfile helpers used by the supervisor to enforce single-engine exclusion.
 

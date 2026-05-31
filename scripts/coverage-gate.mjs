@@ -24,6 +24,7 @@ const FLOORS = {
   "src/engine/engine-lock.ts": 100,
   "src/engine/child-env.ts": 100,
   "src/engine/log-fmt.ts": 100,
+  "src/engine/halt-accounting.ts": 100,
   "src/engine/dot-env.ts": 100,
   "src/engine/queue.ts": 90,
   "src/engine/run-cycle.ts": 90,

@@ -25,6 +25,7 @@ import { checkoutBase, pullBase, resolveBaseBranch } from "./engine/branch.ts";
 import { commitCycle } from "./engine/commit-cycle.ts";
 import { terminalDrain } from "./engine/issue-lifecycle.ts";
 import { readCycleEndFailure, advanceFastFailCounter } from "./engine/iteration-guard.ts";
+import { recordTerminalFailure, type HaltContext } from "./engine/halt-accounting.ts";
 import { emitStaleDistWarning } from "./engine/stale-dist.ts";
 import { acquireLock, releaseLock } from "./engine/engine-lock.ts";
 import { loadDotEnv } from "./engine/dot-env.ts";
@@ -32,7 +33,6 @@ import { slugify } from "./issue/id.ts";
 import type { Logger } from "./engine/log.ts";
 import type { RunArgs } from "./cli/parse-args.ts";
 
-type HaltContext = { issueId: string; failingStep: string | undefined };
 type ResumeOutcome = "ok" | "retry" | "terminal" | "skipped";
 type ResumeResult = {
   processed: number;
@@ -528,12 +528,16 @@ while (!halted) {
         await drainRetry(cwd, log, cycleId, row.id, "commit");
       } else {
         await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, "commit", row.attempt + 1);
-        consecutiveFailures += 1;
-        failedCycles.push(cycleId);
-        lastHaltContext = { issueId: row.id, failingStep: "commit" };
-        fastFailKey = null;
-        fastFailCount = 0;
-        if (consecutiveFailures >= maxConsecutiveFailures) {
+        const acct = recordTerminalFailure(
+          { consecutiveFailures, failedCycles },
+          { cycleId, issueId: row.id, failingStep: "commit", maxConsecutiveFailures },
+        );
+        consecutiveFailures = acct.consecutiveFailures;
+        failedCycles = acct.failedCycles;
+        lastHaltContext = acct.lastHaltContext;
+        fastFailKey = acct.fastFail.key;
+        fastFailCount = acct.fastFail.count;
+        if (acct.halt) {
           halted = true;
           haltReason = "max_consecutive_failures";
           activeCycleId = undefined;
@@ -577,12 +581,16 @@ while (!halted) {
         threshold_ms: thresholdMs,
       });
       await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, failingStep, row.attempt + 1);
-      consecutiveFailures += 1;
-      failedCycles.push(cycleId);
-      lastHaltContext = { issueId: row.id, failingStep };
-      fastFailKey = null;
-      fastFailCount = 0;
-      if (consecutiveFailures >= maxConsecutiveFailures) {
+      const acct = recordTerminalFailure(
+        { consecutiveFailures, failedCycles },
+        { cycleId, issueId: row.id, failingStep, maxConsecutiveFailures },
+      );
+      consecutiveFailures = acct.consecutiveFailures;
+      failedCycles = acct.failedCycles;
+      lastHaltContext = acct.lastHaltContext;
+      fastFailKey = acct.fastFail.key;
+      fastFailCount = acct.fastFail.count;
+      if (acct.halt) {
         halted = true;
         haltReason = "max_consecutive_failures";
         activeCycleId = undefined;
@@ -593,12 +601,16 @@ while (!halted) {
       // retry-drain: counter unchanged; popNextPending will see the row again with attempt++.
     } else {
       await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, failingStep, row.attempt + 1);
-      consecutiveFailures += 1;
-      failedCycles.push(cycleId);
-      lastHaltContext = { issueId: row.id, failingStep };
-      fastFailKey = null;
-      fastFailCount = 0;
-      if (consecutiveFailures >= maxConsecutiveFailures) {
+      const acct = recordTerminalFailure(
+        { consecutiveFailures, failedCycles },
+        { cycleId, issueId: row.id, failingStep, maxConsecutiveFailures },
+      );
+      consecutiveFailures = acct.consecutiveFailures;
+      failedCycles = acct.failedCycles;
+      lastHaltContext = acct.lastHaltContext;
+      fastFailKey = acct.fastFail.key;
+      fastFailCount = acct.fastFail.count;
+      if (acct.halt) {
         halted = true;
         haltReason = "max_consecutive_failures";
         activeCycleId = undefined;
