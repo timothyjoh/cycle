@@ -31,6 +31,9 @@ export type EngineConfig = {
   skip_completed_on_retry?: boolean;
   commit: CommitConfig;
   rate_limit_backoff_ms?: number;
+  /** Per-step wall-clock timeout (ms); 0/undefined disables. Guards against a
+   * step subprocess that completes its work but never exits (claude -p exit hang). */
+  step_timeout_ms?: number;
 };
 
 export type TriageConfig = {

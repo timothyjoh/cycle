@@ -377,6 +377,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
               model: step.model,
               thinking: step.thinking,
               appendSystemPrompt: appendSP,
+              timeoutMs: cfg.engine.step_timeout_ms,
             });
           } catch (err) {
             if (err instanceof UnknownAgentError) {
@@ -399,8 +400,11 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
       if (wasRateLimited && r.status === "ok") {
         await log.emit("engine.resumed", { reason: "rate_limit_cleared" });
       }
+      if (r.timedOut) {
+        await log.emit("step.timeout", { cycle_id: cycleId, step: step.name, limit_ms: cfg.engine.step_timeout_ms ?? null });
+      }
       if (step.agent !== "bash") {
-        if (r.status === "ok" && step.name) {
+        if ((r.status === "ok" || r.timedOut) && step.name) {
           const sanitized = sanitizeArtifactStdout(r.stdout);
           const artifactPath = join(artifactDir, `${step.name.toUpperCase()}.md`);
           await writeFile(artifactPath, sanitized, "utf8");
@@ -439,6 +443,12 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
               r.status = "failed";
               r.exitCode = r.exitCode || 1;
               r.stderr = proofError;
+            } else if (r.timedOut) {
+              // The step timed out, but its turn had completed and the declared
+              // artifact passed its proof — the process just hung on exit
+              // (claude -p exit hang). Accept the work instead of discarding it.
+              r.status = "ok";
+              await log.emit("step.timeout_salvaged", { cycle_id: cycleId, step: step.name, artifact: artifactPath });
             }
           }
           if (r.status === "ok" && (step.name === "build" || step.name === "fix")) {

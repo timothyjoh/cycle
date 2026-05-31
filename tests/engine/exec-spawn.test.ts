@@ -104,3 +104,58 @@ test("runAgent non-zero exit: resolves status:failed and captures stderr", async
     await rm(bin, { recursive: true, force: true });
   }
 });
+
+test("runAgent timeout: kills a hung child and resolves status:failed timedOut", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/prompts/spec.md"), "body", "utf8");
+    const fake = join(bin, "fake-agent");
+    // Hangs for 30s; the timeout must kill it well before that.
+    await writeFile(fake, "#!/bin/bash\nsleep 30\n", "utf8");
+    await chmod(fake, 0o755);
+    const t0 = Date.now();
+    const r = await runAgent({
+      binary: "fake-agent",
+      argv: [],
+      promptDelivery: "stdin",
+      promptPath: "prompts/spec.md",
+      repoRoot: root,
+      env: { PATH: `${bin}:${process.env.PATH}` },
+      timeoutMs: 300,
+    });
+    assert.equal(r.status, "failed");
+    assert.equal(r.timedOut, true);
+    assert.ok(Date.now() - t0 < 10_000, "resolved promptly after the timeout, not after the 30s sleep");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("runAgent timeout: a fast child completes normally and is not marked timedOut", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await writeFile(join(root, ".cycle/prompts/spec.md"), "body", "utf8");
+    const fake = join(bin, "fake-agent");
+    await writeFile(fake, "#!/bin/bash\necho hi\n", "utf8");
+    await chmod(fake, 0o755);
+    const r = await runAgent({
+      binary: "fake-agent",
+      argv: [],
+      promptDelivery: "stdin",
+      promptPath: "prompts/spec.md",
+      repoRoot: root,
+      env: { PATH: `${bin}:${process.env.PATH}` },
+      timeoutMs: 5_000,
+    });
+    assert.equal(r.status, "ok");
+    assert.equal(r.timedOut, undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});

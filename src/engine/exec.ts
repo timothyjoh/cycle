@@ -25,6 +25,8 @@ export interface ExecModule {
     model?: string;
     thinking?: string;
     appendSystemPrompt?: string;
+    /** Per-step wall-clock timeout (ms); 0/undefined disables. Forwarded to runAgent. */
+    timeoutMs?: number;
   }): Promise<StepResult>;
 }
 

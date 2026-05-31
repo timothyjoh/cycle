@@ -13,12 +13,20 @@ export interface RunAgentOptions {
   repoRoot: string;
   env?: Record<string, string>;
   signal?: AbortSignal;
+  /** Per-step wall-clock timeout (ms). When exceeded, the child is killed
+   * (SIGTERM, then SIGKILL after a grace period) and the result is marked
+   * `timedOut`. 0/undefined disables. */
+  timeoutMs?: number;
 }
 
 export async function runAgent(opts: RunAgentOptions): Promise<StepResult> {
-  const { binary, argv, promptDelivery, promptPath, repoRoot, env, signal } = opts;
+  const { binary, argv, promptDelivery, promptPath, repoRoot, env, signal, timeoutMs } = opts;
   const abs = join(repoRoot, ".cycle", promptPath);
-  const base = { cwd: repoRoot, env: buildChildEnv(env ?? {}), shell: false, signal };
+  // `detached: true` puts the child in its own process group so the timeout
+  // path can kill the whole tree (a grandchild holding the stdout pipe open
+  // otherwise prevents `close` from ever firing). We never unref — the parent
+  // still waits for the child via the `close` event.
+  const base = { cwd: repoRoot, env: buildChildEnv(env ?? {}), shell: false, signal, detached: true };
 
   let finalArgv: string[];
   let prompt: string | undefined;
@@ -36,14 +44,47 @@ export async function runAgent(opts: RunAgentOptions): Promise<StepResult> {
 
     let stdout = "";
     let stderr = "";
+    let timedOut = false;
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let killTimer: ReturnType<typeof setTimeout> | undefined;
+    const done = (r: StepResult) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
+      resolve(r);
+    };
     child.stdout.on("data", (d) => { stdout += d.toString(); });
     child.stderr.on("data", (d) => { stderr += d.toString(); });
     child.on("close", (code) => {
-      resolve({ status: code === 0 ? "ok" : "failed", exitCode: code ?? -1, stdout, stderr });
+      done(timedOut
+        ? { status: "failed", exitCode: code ?? -1, stdout, stderr, timedOut: true }
+        : { status: code === 0 ? "ok" : "failed", exitCode: code ?? -1, stdout, stderr });
     });
     child.on("error", (err) => {
-      resolve({ status: "failed", exitCode: -1, stdout: "", stderr: (err as Error).message });
+      done({ status: "failed", exitCode: -1, stdout: "", stderr: (err as Error).message });
     });
+    // Kill the child's whole process group (negative pid). A grandchild that
+    // inherited the stdout pipe would otherwise keep it open and prevent the
+    // `close` event from firing even after the direct child is signalled.
+    const killTree = (sig: NodeJS.Signals) => {
+      try { if (child.pid) process.kill(-child.pid, sig); }
+      catch { try { child.kill(sig); } catch { /* already gone */ } }
+    };
+    if (timeoutMs && timeoutMs > 0) {
+      // The claude CLI intermittently completes its turn but never exits the
+      // process (lingering handles), so `close` never fires. Bound the wait:
+      // on timeout, kill the process group so `close` fires and the step is
+      // marked timedOut (run-cycle may salvage it if the artifact is complete).
+      timer = setTimeout(() => {
+        timedOut = true;
+        killTree("SIGTERM");
+        killTimer = setTimeout(() => killTree("SIGKILL"), 5_000);
+        if (killTimer.unref) killTimer.unref();
+      }, timeoutMs);
+      if (timer.unref) timer.unref();
+    }
     if (promptDelivery === "stdin") {
       child.stdin!.on("error", () => {});
       child.stdin!.write(prompt!);
