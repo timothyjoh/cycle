@@ -13,48 +13,54 @@ triage:
   prompt: prompts/triage.md
   max_turns: 10
 
+# Top-level defaults are resolved into every step at config-load time.
+# Per-step fields override: effective X = step.X ?? defaults.X (agent/model/thinking).
+# bash steps must declare `agent: bash` explicitly; they ignore default model/thinking.
+defaults:
+  agent: claudecode
+
 workflows:
   - name: feature
     description: Full SDLC pass for a single cycle of work.
     max_cycle_attempts: 3
     steps:
-      - { name: spec,     agent: claudecode, prompt: prompts/spec.md }
-      - { name: research, agent: claudecode, prompt: prompts/research.md }
-      - { name: plan,     agent: claudecode, prompt: prompts/plan.md }
-      - { name: build,    agent: claudecode, prompt: prompts/build.md }
-      - { name: review,   agent: claudecode, prompt: prompts/review.md }
-      - { name: fix,      agent: claudecode, prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
+      - { name: spec,     prompt: prompts/spec.md }
+      - { name: research, prompt: prompts/research.md }
+      - { name: plan,     prompt: prompts/plan.md }
+      - { name: build,    prompt: prompts/build.md }
+      - { name: review,   prompt: prompts/review.md }
+      - { name: fix,      prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
       - { name: verify,   agent: bash,       command: scripts/verify.sh }
-      - { name: reflection,    agent: claudecode, prompt: prompts/reflection.md }
-      - { name: final_fix,     agent: claudecode, prompt: prompts/final_fix.md, skip_unless: FINAL_FIXES.md }
+      - { name: reflection,    prompt: prompts/reflection.md }
+      - { name: final_fix,     prompt: prompts/final_fix.md, skip_unless: FINAL_FIXES.md }
       - { name: final_verify,  agent: bash,       command: scripts/verify.sh }
-      - { name: documentation, agent: claudecode, prompt: prompts/documentation.md }
+      - { name: documentation, prompt: prompts/documentation.md }
 
   - name: document
     description: Documentation- and prompt-only edits. No code, no tests, no reflection.
     max_cycle_attempts: 3
     steps:
-      - { name: plan_documents,   agent: claudecode, prompt: prompts/plan_documents.md }
-      - { name: authoring,        agent: claudecode, prompt: prompts/authoring.md }
-      - { name: review_documents, agent: claudecode, prompt: prompts/review_documents.md }
+      - { name: plan_documents,   prompt: prompts/plan_documents.md }
+      - { name: authoring,        prompt: prompts/authoring.md }
+      - { name: review_documents, prompt: prompts/review_documents.md }
       - { name: verify,           agent: bash,       command: scripts/verify.sh }
 
   - name: quickfix
     description: Surgical fix for a well-scoped issue. Plan to fix to test. No spec, no research, no PR review.
     max_cycle_attempts: 3
     steps:
-      - { name: plan_fix,  agent: claudecode, prompt: prompts/plan_fix.md }
-      - { name: quick_fix, agent: claudecode, prompt: prompts/quick_fix.md }
-      - { name: test_fix,  agent: claudecode, prompt: prompts/test_fix.md }
+      - { name: plan_fix,  prompt: prompts/plan_fix.md }
+      - { name: quick_fix, prompt: prompts/quick_fix.md }
+      - { name: test_fix,  prompt: prompts/test_fix.md }
       - { name: verify,    agent: bash,       command: scripts/verify.sh }
 
   - name: e2e-tests
     description: Write or extend Playwright end-to-end tests against the running app. Works directly on the base branch.
     max_cycle_attempts: 3
     steps:
-      - { name: research,   agent: claudecode, prompt: prompts/research.md }
-      - { name: test_plan,  agent: claudecode, prompt: prompts/test-plan.md }
-      - { name: test_build, agent: claudecode, prompt: prompts/test-build.md }
-      - { name: review,     agent: claudecode, prompt: prompts/review.md }
-      - { name: fix,        agent: claudecode, prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
+      - { name: research,   prompt: prompts/research.md }
+      - { name: test_plan,  prompt: prompts/test-plan.md }
+      - { name: test_build, prompt: prompts/test-build.md }
+      - { name: review,     prompt: prompts/review.md }
+      - { name: fix,        prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
       - { name: verify,     agent: bash,       command: scripts/verify.sh }

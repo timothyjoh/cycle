@@ -1,0 +1,12 @@
+{
+  "files": [
+    ".cycle/workflows.yml",
+    "CLAUDE.md",
+    "docs/workflows.md",
+    "src/defaults/workflows.yml",
+    "src/engine/exec.ts",
+    "src/engine/workflow.ts",
+    "tests/engine/run-cycle.step-end-stderr-dispatch.test.ts",
+    "tests/engine/run-cycle.test.ts"
+  ]
+}

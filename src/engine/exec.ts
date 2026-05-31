@@ -45,6 +45,10 @@ const REGISTRY: Record<string, ExecModule> = {
   pi: piExec,
 };
 
+export function knownAgents(): string[] {
+  return Object.keys(REGISTRY);
+}
+
 export function resolveAgent(name: string): ExecModule {
   const mod = REGISTRY[name];
   if (!mod) throw new UnknownAgentError(name, Object.keys(REGISTRY));

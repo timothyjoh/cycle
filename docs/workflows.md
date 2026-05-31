@@ -10,7 +10,7 @@ The default install ships a general `feature` workflow, but a consuming reposito
 .cycle/workflows.yml
 ```
 
-That file has three top-level sections:
+That file has four top-level sections — `engine`, `triage`, `defaults` (optional), and `workflows`:
 
 ```yaml
 engine:
@@ -22,23 +22,48 @@ triage:
   prompt: prompts/triage.md
   max_turns: 10
 
+defaults:
+  agent: claudecode
+
 workflows:
   - name: feature
     description: Full SDLC pass for a new feature
     max_cycle_attempts: 3
     steps:
-      - { name: spec, agent: claudecode, prompt: prompts/spec.md }
-      - { name: research, agent: claudecode, prompt: prompts/research.md }
-      - { name: plan, agent: claudecode, prompt: prompts/plan.md }
-      - { name: build, agent: claudecode, prompt: prompts/build.md }
-      - { name: review, agent: claudecode, prompt: prompts/review.md }
-      - { name: fix, agent: claudecode, prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
+      - { name: spec, prompt: prompts/spec.md }       # agent inherited from defaults
+      - { name: research, prompt: prompts/research.md }
+      - { name: plan, prompt: prompts/plan.md }
+      - { name: build, prompt: prompts/build.md }
+      - { name: review, prompt: prompts/review.md }
+      - { name: fix, prompt: prompts/fix.md, skip_unless: MUST-FIX.md }
       - { name: verify, agent: bash, command: scripts/verify.sh }
 ```
+
+Per-step `agent:` is optional once `defaults.agent` is set — each step inherits it unless it declares its own. The `defaults` block itself is optional; see [Top-level `defaults`](#top-level-defaults) below.
 
 The important rule: **the workflow names in `workflows[]` are the allowed operational categories for this repo.** Triage reads the configured list and must choose one of those names for every child work item it creates.
 
 There is no fixed engine-level issue-kind taxonomy. If a repo wants a `bugfix` path, define a `bugfix` workflow. If another repo wants `frontend-bug`, `api-change`, and `copy-only`, define those instead.
+
+## Top-level `defaults`
+
+`workflows.yml` also accepts an optional top-level `defaults: { agent, model, thinking }` block. At config-load time each field is resolved per step as `effective X = step.X ?? defaults.X`, so you can set a run-wide agent (and optional `model`/`thinking`) once and override it on individual steps:
+
+```yaml
+defaults:
+  agent: claudecode
+  model: opus
+  thinking: high
+
+workflows:
+  - name: feature
+    steps:
+      - { name: spec, prompt: prompts/spec.md }                 # inherits agent: claudecode
+      - { name: build, agent: codex, prompt: prompts/build.md } # overrides to codex
+      - { name: verify, agent: bash, command: scripts/verify.sh }
+```
+
+One exception: **bash steps must declare `agent: bash` explicitly.** `defaults.agent` never coerces a step into bash, and a bash step ignores any resolved `model`/`thinking`. A step with neither `step.agent` nor `defaults.agent`, or an unknown resolved agent, fails config load. Configs with no `defaults:` block load unchanged.
 
 ## How triage uses custom workflows
 

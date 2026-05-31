@@ -331,6 +331,17 @@ workflows:
       - { name: documentation, agent: claudecode, prompt: prompts/documentation.md }
 ```
 
+An optional top-level `defaults: { agent, model, thinking }` block supplies
+fallbacks: at config load `loadConfig` resolves `effective X = step.X ??
+defaults.X` per field for every step, so steps can omit `agent`/`model`/
+`thinking` and inherit them. bash steps must still declare `agent: bash`
+explicitly — `defaults.agent` never coerces a step into bash, and a bash step
+ignores any resolved `model`/`thinking`. The valid-agent set is derived from
+the `exec.ts` REGISTRY keys (via `knownAgents()`) plus `bash`; a step with no
+resolved agent, an unknown resolved agent, or a non-object `defaults` halts
+config load with a `workflows.yml malformed` error. See
+[`docs/workflows.md`](workflows.md) for examples.
+
 Per-step fields:
 
 | Field | Meaning |

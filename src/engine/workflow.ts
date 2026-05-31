@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import YAML from "yaml";
+import { knownAgents } from "./exec.ts";
 
 export type Step = {
   name: string;
@@ -38,10 +39,17 @@ export type TriageConfig = {
   max_turns: number;
 };
 
+export type Defaults = {
+  agent?: Step["agent"];
+  model?: string;
+  thinking?: string;
+};
+
 export type CycleConfig = {
   engine: EngineConfig;
   triage: TriageConfig;
   workflows: Workflow[];
+  defaults?: Defaults;
 };
 
 export async function loadConfig(repoRoot: string, env: Record<string, string | undefined> = process.env as Record<string, string | undefined>): Promise<CycleConfig> {
@@ -88,6 +96,36 @@ export async function loadConfig(repoRoot: string, env: Record<string, string | 
     commitConfig.mode = "trunk";
   }
   parsed.engine.commit = commitConfig;
+
+  // Resolve top-level defaults into every step (step.X overrides defaults.X).
+  const rawDefaults = parsed.defaults;
+  if (
+    rawDefaults !== undefined &&
+    (rawDefaults === null || typeof rawDefaults !== "object" || Array.isArray(rawDefaults))
+  ) {
+    throw new Error(`workflows.yml malformed: defaults must be an object (${path})`);
+  }
+  const defaults: Defaults = rawDefaults ?? {};
+  const validAgents = new Set<string>([...knownAgents(), "bash"]);
+  for (const w of parsed.workflows) {
+    for (const step of w.steps) {
+      const agent = step.agent ?? defaults.agent;
+      if (!agent) {
+        throw new Error(
+          `workflows.yml malformed: workflow "${w.name}" step "${step.name}" has no agent and no defaults.agent (${path})`
+        );
+      }
+      if (!validAgents.has(agent)) {
+        throw new Error(
+          `workflows.yml malformed: workflow "${w.name}" step "${step.name}" has unknown agent "${agent}" (${path})`
+        );
+      }
+      step.agent = agent;
+      if (step.model === undefined && defaults.model !== undefined) step.model = defaults.model;
+      if (step.thinking === undefined && defaults.thinking !== undefined) step.thinking = defaults.thinking;
+    }
+  }
+
   return parsed as CycleConfig;
 }
 

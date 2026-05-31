@@ -1663,7 +1663,7 @@ test("quick_fix step accumulates touched.json footprint", async () => {
   }
 });
 
-test("step with unregistered agent fails the step and ends the cycle", async () => {
+test("unregistered agent in config is rejected at load time before the cycle runs", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
   try {
@@ -1684,19 +1684,19 @@ test("step with unregistered agent fails the step and ends the cycle", async () 
     await writeFile(fake, "#!/bin/bash\nyes FAKED | head -50\n", "utf8");
     await chmod(fake, 0o755);
 
-    const r = await runCycle(root, {
-      issueId: "TEST-1",
-      title: "unknown agent",
-      workflow: "feature",
-      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
-    });
-    assert.equal(r.status, "failed");
-    assert.equal(r.failingStep, "bogus");
-
-    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
-    assert.match(log, /"event":"step.start","cycle_id":"0001","step":"bogus","agent":"made-up"/);
-    assert.match(log, /"event":"step.end","cycle_id":"0001","step":"bogus","status":"failed","exit_code":-1/);
-    assert.match(log, /"event":"cycle.end","cycle_id":"0001","status":"failed","failing_step":"bogus"/);
+    // Since cycle 0006, loadConfig validates every resolved agent against the
+    // registry and throws a malformed-config error before runCycle dispatches
+    // any step, so the unknown agent never reaches the runtime dispatch path.
+    await assert.rejects(
+      () =>
+        runCycle(root, {
+          issueId: "TEST-1",
+          title: "unknown agent",
+          workflow: "feature",
+          env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main", CYCLE_TRUNK_BASED: "" },
+        }),
+      /workflow "feature" step "bogus" has unknown agent "made-up"/,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(bin, { recursive: true, force: true });

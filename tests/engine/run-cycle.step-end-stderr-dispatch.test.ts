@@ -61,15 +61,10 @@ function findStepEnd(log: string, stepName: string): Record<string, unknown> {
   return JSON.parse(line!);
 }
 
-test("failed dispatch step.end carries verbatim UnknownAgentError stderr", async () => {
-  let expectedMessage = "";
-  try {
-    resolveAgent("bogus");
-  } catch (e) {
-    assert.ok(e instanceof UnknownAgentError);
-    expectedMessage = (e as Error).message;
-  }
-  assert.ok(expectedMessage.length > 0 && expectedMessage.length < MAX_STEP_END_STDERR);
+test("unknown agent in config is rejected at load time before the cycle runs", async () => {
+  // The load-time validator borrows the same registry resolveAgent uses, so an
+  // agent rejected here is rejected by loadConfig too (cycle 0006 defaults work).
+  assert.throws(() => resolveAgent("bogus"), UnknownAgentError);
 
   const root = await setupRepo(
     `      - name: dispatch_fail
@@ -81,20 +76,18 @@ test("failed dispatch step.end carries verbatim UnknownAgentError stderr", async
     await mkdir(join(root, ".cycle/prompts"), { recursive: true });
     await writeFile(join(root, ".cycle/prompts/x.md"), "noop", "utf8");
 
-    const r = await runCycle(root, {
-      issueId: "SE-DISPATCH",
-      title: "dispatch fail step",
-      workflow: "feature",
-      env: { CYCLE_BASE: "main" },
-    });
-    assert.equal(r.status, "failed");
-    assert.equal(r.failingStep, "dispatch_fail");
-
-    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
-    const parsed = findStepEnd(log, "dispatch_fail");
-    assert.equal(parsed.status, "failed");
-    assert.equal(parsed.exit_code, -1);
-    assert.equal(parsed.stderr, expectedMessage);
+    // loadConfig now throws a malformed-config error before any step dispatches,
+    // so no step.end/cycle.start is emitted — the run aborts at config load.
+    await assert.rejects(
+      () =>
+        runCycle(root, {
+          issueId: "SE-DISPATCH",
+          title: "dispatch fail step",
+          workflow: "feature",
+          env: { CYCLE_BASE: "main" },
+        }),
+      /workflow "feature" step "dispatch_fail" has unknown agent "bogus"/,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
