@@ -350,8 +350,8 @@ Per-step fields:
 | `agent` | One of `claudecode`, `codex`, `gemini`, `auggie`, `opencode`, `pi`, `bash` |
 | `prompt` | Path (relative to `.cycle/`) to the prompt template (AI agents) |
 | `command` | Shell command (for the `bash` agent) |
-| `model` | Override model for this step (`codex`/`auggie`/`opencode`/`pi` → `--model`) |
-| `thinking` | Thinking level for this step (`codex`/`auggie`/`opencode`/`pi` → `--thinking`) |
+| `model` | Override model for this step (`claudecode`/`codex`/`gemini`/`auggie`/`opencode`/`pi` → `--model`) |
+| `thinking` | Thinking level for this step (`codex`/`opencode`/`pi` → `--thinking`; ignored by `claudecode`/`gemini`/`auggie`, whose CLIs have no thinking flag) |
 | `skip_unless` | Only run if the named artifact exists in the cycle's artifact dir |
 | `on_fail` | `exit` (default) \| `continue` \| `retry:N` |
 
@@ -359,9 +359,9 @@ Per-step fields:
 
 | Agent | Execution | Use for |
 |---|---|---|
-| `claudecode` | `claude -p` (piped) | All AI steps by default |
+| `claudecode` | `claude -p` (piped; optional `--model`, `--model` before `-p`) | All AI steps by default |
 | `codex` | `codex` subprocess (optional `--model`/`--thinking`) | Alternative for build / fix / review |
-| `gemini` | `gemini` subprocess | Alternative AI agent |
+| `gemini` | `gemini` subprocess (optional `--model`; prompt via stdin) | Alternative AI agent |
 | `auggie` | `auggie` subprocess (optional `--model`/`--thinking`) | Alternative for build / fix / review |
 | `opencode` | `opencode` subprocess (optional `--model`/`--thinking`) | Alternative for build / fix / review |
 | `pi` | `pi` subprocess (optional `--model`/`--thinking`) | Alternative for build / fix / review |

@@ -1,0 +1,10 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "docs/ENGINE.md",
+    "src/engine/exec-claudecode.ts",
+    "src/engine/exec-gemini.ts",
+    "tests/engine/exec-claudecode.test.ts",
+    "tests/engine/exec-gemini.test.ts"
+  ]
+}
