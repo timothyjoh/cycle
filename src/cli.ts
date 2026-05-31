@@ -85,6 +85,26 @@ if (argv[0] === "cleanup") {
   process.exit(result.exitCode);
 }
 
+if (argv[0] === "compress-output") {
+  const { runCompressOutput } = await import("./cli/compress-output.ts");
+  const result = runCompressOutput(argv.slice(1));
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  process.exit(result.exitCode);
+}
+
+if (argv[0] === "compress-output-hook") {
+  const { runCompressOutputHook } = await import("./cli/compress-output-hook.ts");
+  const chunks: Buffer[] = [];
+  for await (const c of process.stdin) chunks.push(c as Buffer);
+  const result = runCompressOutputHook(Buffer.concat(chunks).toString("utf8"), {
+    execPath: process.execPath,
+    cliPath: process.argv[1],
+  });
+  if (result.stdout) process.stdout.write(result.stdout);
+  process.exit(result.exitCode);
+}
+
 if (argv[0] === "help" || argv[0] === "--help" || argv.includes("--help")) {
   console.log(`cycle — issue-driven workflow engine for autonomous code changes
 
@@ -95,6 +115,7 @@ Usage:
   cycle triage [--dry-run]      Re-run triage diagnostics
   cycle cleanup [--dry-run] [--yes] [--force]
                                 List or delete orphaned cycle/* branches
+  cycle compress-output -- <cmd>   Run <cmd> and density-filter its stdout (token saver)
   cycle help                    Show this help
 
 Flags for run:

@@ -38,6 +38,10 @@ export type EngineConfig = {
    * guard counts a failure as "instant". Default 2000; 0/absent/malformed
    * disables the guard (never fast-bails). Resolved at the supervisor read site. */
   min_step_duration_ms?: number;
+  /** Opt-in: route claudecode Bash read-commands through `cycle compress-output`.
+   * Default false; absent/non-boolean/malformed ⇒ false (resolved defensively at
+   * the read site as `=== true`). claudecode-only, fail-open. */
+  compress_output?: boolean;
 };
 
 export type TriageConfig = {

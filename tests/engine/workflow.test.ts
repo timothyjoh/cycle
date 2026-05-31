@@ -219,6 +219,81 @@ test("engine.commit absent — defaults to mode:trunk push:true", async () => {
   }
 });
 
+test("compress_output: true loads through (read-site resolves the boolean)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await writeConfig(root,
+      `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+  compress_output: true
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`);
+    const cfg = await loadConfig(root);
+    assert.equal(cfg.engine.compress_output, true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("compress_output absent → undefined, loads without throwing", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await writeConfig(root,
+      `${ENGINE_TRIAGE}workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`);
+    const cfg = await loadConfig(root);
+    assert.equal(cfg.engine.compress_output, undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("compress_output non-boolean value loads without throwing (coercion is the read site's job)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await writeConfig(root,
+      `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+  compress_output: "yes"
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`);
+    const cfg = await loadConfig(root);
+    // No throw at load time; the supervisor read site resolves via `=== true`,
+    // so a non-boolean is treated as disabled.
+    assert.notEqual(cfg.engine.compress_output, true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("engine.commit present — parsed correctly", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   const prev = process.env.CYCLE_TRUNK_BASED;

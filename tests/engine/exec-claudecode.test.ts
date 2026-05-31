@@ -249,6 +249,67 @@ test("never emits --thinking even when thinking is passed", async () => {
   }
 });
 
+test("omits --settings from argv when settingsPath is not provided (default-off baseline)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    const prompts = join(root, ".cycle/prompts");
+    await mkdir(prompts, { recursive: true });
+    await writeFile(join(prompts, "spec.md"), "PROMPTBODY", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho ARGS $@\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await resolveAgent("claudecode").runStep({
+      repoRoot: root,
+      promptPath: "prompts/spec.md",
+      env: { PATH: `${bin}:${process.env.PATH}` },
+    });
+    assert.equal(r.status, "ok");
+    assert.ok(!r.stdout.includes("--settings"), "expected --settings absent from argv (byte-identical baseline)");
+    // baseline argv: --permission-mode auto -p PROMPTBODY
+    const argv = r.stdout.trim().split(/\s+/);
+    assert.deepEqual(argv, ["ARGS", "--permission-mode", "auto", "-p", "PROMPTBODY"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("inserts --settings <path> immediately before -p when settingsPath is provided", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
+  try {
+    const prompts = join(root, ".cycle/prompts");
+    await mkdir(prompts, { recursive: true });
+    await writeFile(join(prompts, "spec.md"), "PROMPTBODY", "utf8");
+
+    const fake = join(bin, "claude");
+    await writeFile(fake, "#!/bin/bash\necho ARGS $@\n", "utf8");
+    await chmod(fake, 0o755);
+
+    const r = await resolveAgent("claudecode").runStep({
+      repoRoot: root,
+      promptPath: "prompts/spec.md",
+      env: { PATH: `${bin}:${process.env.PATH}` },
+      settingsPath: "/tmp/settings.json",
+    });
+    assert.equal(r.status, "ok");
+    const argv = r.stdout.trim().split(/\s+/);
+    const sIdx = argv.indexOf("--settings");
+    const pIdx = argv.indexOf("-p");
+    assert.ok(sIdx >= 0, "expected --settings in argv");
+    assert.equal(argv[sIdx + 1], "/tmp/settings.json", "--settings followed by the path");
+    assert.equal(sIdx + 2, pIdx, "--settings <path> must sit immediately before -p");
+    assert.equal(argv[pIdx + 1], "PROMPTBODY", "-p remains last builder token");
+    assert.equal(argv.length, pIdx + 2, "nothing follows the prompt body");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
 test("sets rateLimited:true when binary exits 1 with rate-limit signal in stderr", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));

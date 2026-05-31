@@ -21,6 +21,7 @@ import { slugify } from "../issue/id.ts";
 import { writeFile, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { truncateHeadCapped } from "./log-fmt.ts";
+import { buildCompressHookSettings } from "./compress-filter.ts";
 import { spawnSync } from "node:child_process";
 import { isDenied } from "./path-utils.ts";
 
@@ -367,6 +368,27 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           agent: step.agent,
         });
       }
+      // Compress-output hook (opt-in, claudecode-only). When enabled, materialize
+      // the claude --settings file registering the PreToolUse Bash hook. Fail
+      // open: a write failure logs a step.warning and the step runs without the
+      // hook (compression simply doesn't apply that step).
+      let settingsPath: string | undefined;
+      if (cfg.engine.compress_output === true && step.agent === "claudecode") {
+        try {
+          const obj = buildCompressHookSettings({ execPath: process.execPath, cliPath: process.argv[1] });
+          const p = join(repoRoot, ".cycle", "compress-hook-settings.json");
+          await writeFile(p, JSON.stringify(obj, null, 2), "utf8");
+          settingsPath = p;
+        } catch (err) {
+          await log.emit("step.warning", {
+            cycle_id: cycleId,
+            step: step.name,
+            reason: "compress_hook_settings_failed",
+            error: (err as Error).message,
+          });
+          // fail open: proceed without --settings
+        }
+      }
       let r: StepResult = { status: "failed", exitCode: -1, stdout: "", stderr: "" };
       let wasRateLimited = false;
       while (true) {
@@ -383,6 +405,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
               thinking: step.thinking,
               appendSystemPrompt: appendSP,
               timeoutMs: cfg.engine.step_timeout_ms,
+              settingsPath,
             });
           } catch (err) {
             if (err instanceof UnknownAgentError) {

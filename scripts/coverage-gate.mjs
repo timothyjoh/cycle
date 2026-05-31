@@ -30,6 +30,9 @@ const FLOORS = {
   "src/engine/run-cycle.ts": 90,
   "src/engine/reflection.ts": 95,
   "src/engine/rate-limit.ts": 100,
+  "src/engine/compress-filter.ts": 100,
+  "src/cli/compress-output.ts": 70,
+  "src/cli/compress-output-hook.ts": 70,
 };
 
 const LCOV_PATH = process.argv[2] ?? ".cycle/coverage.lcov";

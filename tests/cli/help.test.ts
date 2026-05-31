@@ -71,6 +71,13 @@ test("usage output lists all six subcommands", async () => {
   }
 });
 
+test("usage output lists the compress-output subcommand", async () => {
+  const dist = await ensureDist();
+  const r = spawnSync("node", [dist, "help"], { encoding: "utf8" });
+  assert.equal(r.status, 0);
+  assert.ok(r.stdout.includes("compress-output"), "expected 'compress-output' in usage output");
+});
+
 test("cycle with no args begins queue drain — emits engine.start and exits 0", async () => {
   const dist = await ensureDist();
   const root = await mkdtemp(join(tmpdir(), "cycle-no-args-"));

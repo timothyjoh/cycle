@@ -6,6 +6,7 @@ engine:
   rate_limit_backoff_ms: 3600000
   step_timeout_ms: 2700000
   min_step_duration_ms: 2000
+  compress_output: false
   commit:
     mode: worktree-pr
     push: true

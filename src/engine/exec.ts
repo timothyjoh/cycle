@@ -27,6 +27,10 @@ export interface ExecModule {
     appendSystemPrompt?: string;
     /** Per-step wall-clock timeout (ms); 0/undefined disables. Forwarded to runAgent. */
     timeoutMs?: number;
+    /** Honored only by claudecodeExec: absolute path to a generated claude
+     * `--settings` file (compress-output PreToolUse hook). Inserted before `-p`.
+     * Other agents destructure-strip it. */
+    settingsPath?: string;
   }): Promise<StepResult>;
 }
 

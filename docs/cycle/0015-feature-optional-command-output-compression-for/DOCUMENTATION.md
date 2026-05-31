@@ -1,0 +1,3 @@
+## Summary
+
+Verified that CLAUDE.md (Commands table row, per-file coverage floors, registered-agents claudecode entry, and the `engine.compress_output` Workflow-defaults entry), README.md (the opt-in "Command-output compression" resilience bullet), and docs/ENGINE.md (the new "Command-output compression (opt-in)" section covering the filter contract and `PreToolUse` hook) were already brought in sync with the cycle-0015 diff. Added one surgical Known-limitation caveat to the fail-open bullet in docs/ENGINE.md noting that the hook's degrade paths emit no diagnostic, so a systematic failure (e.g. `PreToolUse` schema drift) silently disables compression — mapping the deferred reflection sharp edge now tracked in `inbox/`.
