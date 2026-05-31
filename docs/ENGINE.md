@@ -132,6 +132,18 @@ After a successful run, `run-cycle.ts` diffs a pre-step `git status --porcelain`
 
 `src/engine/sanitize-artifact.ts:sanitizeArtifactStdout(stdout)` applied at the single artifact-write seam in `run-cycle.ts`: strips leading narration and confirmation lines matching `^(?:(?:Now|Next|Here is|Output)\b|[A-Za-z0-9_.]+\.md written to|Single deliverable:)…`, then unwraps a single outer ``` fence. Pure/idempotent/no I/O. `log.jsonl` payloads are untouched.
 
+## Completion-proof post-condition
+
+A per-step completion-proof contract closes the exit-0-but-produced-nothing class of silent failure for agent steps. `STEP_ARTIFACTS` (`src/engine/run-cycle.ts`) is the single declarative source of truth mapping each artifact-producing agent step to its artifact basename and a `proof` policy (`"nonempty" | "spec-min-bytes" | "fix-conditional"`); `ARTIFACT_STEPS` (used for File-Artifact-Mode prompt suppression) is derived from its keys, not hand-maintained separately.
+
+**When it runs:** after an agent step exits `status:ok` and its artifact is written, for every step present in `STEP_ARTIFACTS`. Bash steps and agent steps not in the table (e.g. `reflection`) are never subject to the contract.
+
+**What counts as empty:** the shared `classifyArtifact(path)` helper reads the artifact and classifies it `"empty"` when it is missing/unreadable (catch branch — fails closed), 0 bytes, or whitespace-only (`content.trim().length === 0`); otherwise `"nonempty"`. `shouldSkipForArtifact` (the retry-skip gate) uses this same definition, so a whitespace-only artifact left by a failed attempt is re-run rather than wrongly treated as complete.
+
+**Policies:** the `spec` step's `"spec-min-bytes"` and the `fix` step's `"fix-conditional"` guards are folded in as table policies (preserving `formatSpecGuardError` / `formatFixGuardError` messages and semantics — see the Spec and Fix post-condition sections); every other artifact step uses the generic `"nonempty"` policy, which fails with `formatCompletionProofError(step, artifact)` — message format: `<step> exited 0 but <artifact> is empty — treating as failure`.
+
+**Event + failure routing:** each checked step emits exactly one `step.completion_check { cycle_id, step, artifact, status }` event with `status` ∈ `"pass" | "fail"`. On `"fail"` the engine mutates `r.status = "failed"`, `r.exitCode = r.exitCode || 1`, `r.stderr = <policy message>` — identical to the other post-condition guards — so the failure falls through the standard `cycle.end status:"failed" failing_step` machinery and increments the same failure/attempt counters a non-zero exit would, eligible for retry under `max_cycle_attempts`. A non-empty artifact emits `status:"pass"` and the cycle proceeds unchanged. The empty-diff post-condition (build/fix only) still runs after this check.
+
 ## Spec post-condition
 
 `SPEC_MIN_BYTES` (currently 200) gates the `spec` step. After artifact write, engine measures `Buffer.byteLength(sanitizeArtifactStdout(stdout), "utf8")` — if `< SPEC_MIN_BYTES`, mutates `r.status = "failed"` with stderr from `formatSpecGuardError`. Falls through standard `cycle.end status:"failed" failing_step:"spec"` branch. Bash `spec` steps bypass the guard.

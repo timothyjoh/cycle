@@ -32,7 +32,25 @@ export const RESET_ELIGIBLE_STEPS = new Set(["build", "fix", "final_fix", "quick
 // <artifactDir>/<STEP>.md from agent stdout, so the artifact IS the work.
 const SKIP_ELIGIBLE_STEPS = new Set(["spec", "research", "plan"]);
 
-const ARTIFACT_STEPS = new Set(["spec", "research", "plan", "build", "review", "fix", "final_fix", "documentation"]);
+// Single declarative source of truth for which agent steps declare an output
+// artifact, the artifact basename, and the completion-proof policy applied after
+// the step exits 0. ARTIFACT_STEPS (used for File-Artifact-Mode prompt
+// suppression) is derived from its keys — no second hand-maintained list. The
+// derived basenames equal `name.toUpperCase()+".md"`, matching the canonical
+// artifact-path derivation used when the artifact is written.
+type ProofPolicy = "nonempty" | "spec-min-bytes" | "fix-conditional";
+export const STEP_ARTIFACTS = new Map<string, { artifact: string; proof: ProofPolicy }>([
+  ["spec",          { artifact: "SPEC.md",          proof: "spec-min-bytes" }],
+  ["research",      { artifact: "RESEARCH.md",      proof: "nonempty" }],
+  ["plan",          { artifact: "PLAN.md",          proof: "nonempty" }],
+  ["build",         { artifact: "BUILD.md",         proof: "nonempty" }],
+  ["review",        { artifact: "REVIEW.md",        proof: "nonempty" }],
+  ["fix",           { artifact: "FIX.md",           proof: "fix-conditional" }],
+  ["final_fix",     { artifact: "FINAL_FIX.md",     proof: "nonempty" }],
+  ["documentation", { artifact: "DOCUMENTATION.md", proof: "nonempty" }],
+]);
+
+const ARTIFACT_STEPS = new Set(STEP_ARTIFACTS.keys());
 
 const ARTIFACT_SUPPRESS_PROMPT =
   "You are in File Artifact Mode for this invocation. Output only the requested document content as clean structured Markdown. Do not include insight blocks, star-marker commentary, educational explanations, contribution requests, confirmation sentences, narration, or trailing commentary. Produce the file — nothing else.";
@@ -130,18 +148,27 @@ async function accumulateTouchedFiles(
   await writeFile(touchedPath, JSON.stringify({ files: merged }, null, 2) + "\n", "utf8");
 }
 
+// Shared emptiness definition for the completion-proof contract and the
+// retry-skip gate. A file is "empty" when it is missing/unreadable, 0 bytes, or
+// whitespace-only. Fails closed: an unreadable artifact cannot be proven
+// non-empty, so it is classified "empty" (which drives a visible step failure /
+// a refusal to skip) rather than swallowed into a pass.
+export async function classifyArtifact(artifactPath: string): Promise<"empty" | "nonempty"> {
+  try {
+    const content = await readFile(artifactPath, "utf8");
+    return content.trim().length === 0 ? "empty" : "nonempty";
+  } catch {
+    return "empty"; // missing / unreadable — cannot prove non-empty
+  }
+}
+
 export async function shouldSkipForArtifact(
   artifactDir: string,
   stepName: string,
 ): Promise<{ skip: false } | { skip: true; artifactPath: string }> {
   if (!SKIP_ELIGIBLE_STEPS.has(stepName)) return { skip: false };
   const artifactPath = join(artifactDir, `${stepName.toUpperCase()}.md`);
-  try {
-    const st = await stat(artifactPath);
-    if (st.isFile() && st.size > 0) return { skip: true, artifactPath };
-  } catch {
-    // ENOENT or unreadable — fall through
-  }
+  if ((await classifyArtifact(artifactPath)) === "nonempty") return { skip: true, artifactPath };
   return { skip: false };
 }
 
@@ -158,6 +185,10 @@ export function formatFixGuardError(fixPath: string, mustFixPath: string, count:
 
 export function formatEmptyDiffGuardError(stepName: string): string {
   return `${stepName} post-condition failed: no code changes detected (step reported ok but git status --porcelain -- src scripts tests is empty)`;
+}
+
+export function formatCompletionProofError(stepName: string, artifactPath: string): string {
+  return `${stepName} exited 0 but ${artifactPath} is empty — treating as failure`;
 }
 
 export async function findPriorStepHeadSha(
@@ -373,23 +404,41 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           const sanitized = sanitizeArtifactStdout(r.stdout);
           const artifactPath = join(artifactDir, `${step.name.toUpperCase()}.md`);
           await writeFile(artifactPath, sanitized, "utf8");
-          if (step.name === "spec") {
-            const bytes = Buffer.byteLength(sanitized, "utf8");
-            if (bytes < SPEC_MIN_BYTES) {
-              r.status = "failed";
-              r.exitCode = r.exitCode || 1;
-              r.stderr = formatSpecGuardError(artifactPath, bytes, SPEC_MIN_BYTES);
+          // Completion-proof contract: one table-driven check per artifact step.
+          // After exit 0 and the artifact write, verify the declared artifact is
+          // non-empty per its proof policy; an empty artifact becomes a
+          // retryable step failure (routed through the unchanged failure path
+          // below) rather than a silent pass. The spec min-bytes and
+          // fix-vs-MUST-FIX guards are folded in as proof policies here.
+          if (STEP_ARTIFACTS.has(step.name)) {
+            const { proof } = STEP_ARTIFACTS.get(step.name)!;
+            let proofError: string | null = null;
+            if (proof === "spec-min-bytes") {
+              const bytes = Buffer.byteLength(sanitized, "utf8");
+              if (bytes < SPEC_MIN_BYTES) proofError = formatSpecGuardError(artifactPath, bytes, SPEC_MIN_BYTES);
+            } else if (proof === "fix-conditional") {
+              const mustFixPath = join(artifactDir, "MUST-FIX.md");
+              let mustFixContent = "";
+              try { mustFixContent = await readFile(mustFixPath, "utf8"); } catch { /* absent */ }
+              const taskCount = mustFixContent.split("\n").filter(l => /^\s*[-*]\s*\[/.test(l)).length;
+              if (taskCount >= 1 && sanitized.trim().length === 0) {
+                proofError = formatFixGuardError(artifactPath, mustFixPath, taskCount);
+              }
+            } else { // "nonempty"
+              if ((await classifyArtifact(artifactPath)) === "empty") {
+                proofError = formatCompletionProofError(step.name, artifactPath);
+              }
             }
-          }
-          if (r.status === "ok" && step.name === "fix") {
-            const mustFixPath = join(artifactDir, "MUST-FIX.md");
-            let mustFixContent = "";
-            try { mustFixContent = await readFile(mustFixPath, "utf8"); } catch { /* absent */ }
-            const taskCount = mustFixContent.split("\n").filter(l => /^\s*[-*]\s*\[/.test(l)).length;
-            if (taskCount >= 1 && sanitized.trim().length === 0) {
+            await log.emit("step.completion_check", {
+              cycle_id: cycleId,
+              step: step.name,
+              artifact: artifactPath,
+              status: proofError ? "fail" : "pass",
+            });
+            if (proofError) {
               r.status = "failed";
               r.exitCode = r.exitCode || 1;
-              r.stderr = formatFixGuardError(artifactPath, mustFixPath, taskCount);
+              r.stderr = proofError;
             }
           }
           if (r.status === "ok" && (step.name === "build" || step.name === "fix")) {
