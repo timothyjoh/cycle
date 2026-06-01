@@ -196,6 +196,10 @@ export function formatCompletionProofError(stepName: string, artifactPath: strin
   return `${stepName} exited 0 but ${artifactPath} is empty — treating as failure`;
 }
 
+export function formatTimeoutProofError(stepName: string, artifactPath: string, exitCode: number): string {
+  return `${stepName} timed out (exit ${exitCode}) and left ${artifactPath} empty — treating as failure`;
+}
+
 export async function findPriorStepHeadSha(
   repoRoot: string,
   cycleId: string,
@@ -507,7 +511,9 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
               }
             } else { // "nonempty"
               if ((await classifyArtifact(artifactPath)) === "empty") {
-                proofError = formatCompletionProofError(step.name, artifactPath);
+                proofError = r.timedOut
+                  ? formatTimeoutProofError(step.name, artifactPath, r.exitCode)
+                  : formatCompletionProofError(step.name, artifactPath);
               }
             }
             await log.emit("step.completion_check", {
