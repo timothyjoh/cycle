@@ -277,3 +277,5 @@
 {"ts":"2026-06-01T06:43:39.724Z","event":"cycle.end","cycle_id":"0023","status":"ok"}
 {"ts":"2026-06-01T06:43:39.779Z","event":"cycle.checkout","cycle_id":"0023","status":"skipped","base":"master","head_before":"master","reason":"trunk"}
 {"ts":"2026-06-01T06:43:40.674Z","event":"cycle.base_pull","cycle_id":"0023","status":"ok","base":"master","sha_before":"48591608b4cc9ec825735b570a18a06f20baacf1","sha_after":"48591608b4cc9ec825735b570a18a06f20baacf1"}
+{"ts":"2026-06-01T06:43:47.606Z","event":"queue.drained","cycle_id":"0023","issue_id":"refl-0251-no-args-integration-test-pins-to-jsonl-s","outcome":"ok"}
+{"ts":"2026-06-01T06:43:47.612Z","event":"engine.stop","status":"ok","dry_run":false,"cycles_processed":7}
