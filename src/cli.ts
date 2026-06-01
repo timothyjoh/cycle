@@ -102,6 +102,7 @@ if (argv[0] === "compress-output-hook") {
     cliPath: process.argv[1],
   });
   if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr + "\n");
   process.exit(result.exitCode);
 }
 
