@@ -46,6 +46,11 @@ export type EngineConfig = {
    * default 24 when absent/malformed (0/negative/non-integer). Bounds the
    * otherwise-unbounded rate-limit retry loop under a permanent rate-limit. */
   max_rate_limit_retries?: number;
+  /** Optional project walkthrough-capture hook: a script path (relative to repo
+   * root, else absolute) run via /bin/bash at the end of the feature workflow.
+   * Absent/empty/non-string ⇒ falls back to the `.cycle/walkthrough.sh`
+   * convention, else the step is inert. Resolved defensively at the read site. */
+  walkthrough_hook?: string;
 };
 
 export type TriageConfig = {

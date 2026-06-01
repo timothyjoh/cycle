@@ -11,7 +11,7 @@ test("default workflows.yml loads via the engine", async () => {
     await mkdir(join(root, ".cycle"), { recursive: true });
     await copyFile("src/defaults/workflows.yml", join(root, ".cycle/workflows.yml"));
     const w = await loadWorkflow(root, "feature");
-    assert.equal(w.steps.length, 11);
+    assert.equal(w.steps.length, 12);
     assert.equal(w.steps[0].agent, "claudecode");
     assert.equal(w.steps[6].agent, "bash");
     assert.equal(w.steps[7].name, "reflection");
@@ -22,6 +22,8 @@ test("default workflows.yml loads via the engine", async () => {
     assert.equal(w.steps[9].agent, "bash");
     assert.equal(w.steps[10].name, "documentation");
     assert.equal(w.steps[10].agent, "claudecode");
+    assert.equal(w.steps[11].name, "walkthrough_capture");
+    assert.equal(w.steps[11].agent, "bash");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

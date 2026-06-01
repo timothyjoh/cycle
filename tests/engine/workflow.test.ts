@@ -265,6 +265,52 @@ test("compress_output absent → undefined, loads without throwing", async () =>
   }
 });
 
+test("walkthrough_hook present loads through as a string field", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await writeConfig(root,
+      `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+  walkthrough_hook: bin/capture.sh
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`);
+    const cfg = await loadConfig(root);
+    assert.equal(cfg.engine.walkthrough_hook, "bin/capture.sh");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("walkthrough_hook absent → undefined, loads without throwing", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await writeConfig(root,
+      `${ENGINE_TRIAGE}workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`);
+    const cfg = await loadConfig(root);
+    assert.equal(cfg.engine.walkthrough_hook, undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("compress_output non-boolean value loads without throwing (coercion is the read site's job)", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {

@@ -1,0 +1,10 @@
+---
+id: txt-20260601-162549-add-an-end-of-feature-workflow-walkthrou
+source: text
+title: "Add an end-of-feature-workflow walkthrough-capture step that records screenshots and a short video walkthrough of the delivered feature and stores them as first-class cycle artifacts in the cycle artifact dir (docs/cycle/NNNN-.../), alongside SPEC/PLAN/BUILD. Add the step to the END of the 'feature' workflow in src/defaults/workflows.yml (after documentation) and run sync-defaults. The capture MUST be repo-agnostic: drive an OPTIONAL project-provided walkthrough hook (e.g. a configured command or .cycle/walkthrough.sh) that knows how to boot and exercise the app; reuse the headless-shell + Playwright approach for web apps. If no walkthrough hook is configured for the repo, the step MUST skip cleanly (skip_unless-style) and never fail the cycle — cycle's own repo is a CLI with no hook configured. Treat produced media as cycle artifacts (like the failed-bash .out capture) and reference them in the completion record. Include tests and meet coverage floors."
+added_at: 2026-06-01T16:25:49.623Z
+triage_attempts: 0
+priority: medium
+---
+
+Add an end-of-feature-workflow walkthrough-capture step that records screenshots and a short video walkthrough of the delivered feature and stores them as first-class cycle artifacts in the cycle artifact dir (docs/cycle/NNNN-.../), alongside SPEC/PLAN/BUILD. Add the step to the END of the 'feature' workflow in src/defaults/workflows.yml (after documentation) and run sync-defaults. The capture MUST be repo-agnostic: drive an OPTIONAL project-provided walkthrough hook (e.g. a configured command or .cycle/walkthrough.sh) that knows how to boot and exercise the app; reuse the headless-shell + Playwright approach for web apps. If no walkthrough hook is configured for the repo, the step MUST skip cleanly (skip_unless-style) and never fail the cycle — cycle's own repo is a CLI with no hook configured. Treat produced media as cycle artifacts (like the failed-bash .out capture) and reference them in the completion record. Include tests and meet coverage floors.

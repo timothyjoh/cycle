@@ -39,6 +39,7 @@ workflows:
       - { name: final_fix,     prompt: prompts/final_fix.md, skip_unless: FINAL_FIXES.md }
       - { name: final_verify,  agent: bash,       command: scripts/verify.sh }
       - { name: documentation, prompt: prompts/documentation.md }
+      - { name: walkthrough_capture, agent: bash }
 
   - name: document
     description: Documentation- and prompt-only edits. No code, no tests, no reflection.

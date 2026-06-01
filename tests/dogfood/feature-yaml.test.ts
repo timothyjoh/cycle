@@ -10,8 +10,8 @@ test("dogfood feature workflow has expected step sequence", async () => {
   const feature = y.workflows.find((w: WorkflowEntry) => w.name === "feature");
   assert.ok(feature, "workflows.yml should contain a feature workflow");
   const names = feature.steps.map((s: WorkflowEntry["steps"][number]) => s.name);
-  assert.deepEqual(names, ["spec", "research", "plan", "build", "review", "fix", "verify", "reflection", "final_fix", "final_verify", "documentation"]);
-  assert.equal(feature.steps.length, 11, "regression guard: step count should be 11");
+  assert.deepEqual(names, ["spec", "research", "plan", "build", "review", "fix", "verify", "reflection", "final_fix", "final_verify", "documentation", "walkthrough_capture"]);
+  assert.equal(feature.steps.length, 12, "regression guard: step count should be 12");
 });
 
 test("dogfood feature workflow has engine-managed commit (no commit step, no no_branch)", async () => {

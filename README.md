@@ -143,12 +143,14 @@ A workflow is an ordered list of steps defined in `.cycle/workflows.yml`; triage
 
 | Workflow | Shape | For |
 |---|---|---|
-| `feature` | `spec → research → plan → build → review → fix → verify → reflection → final_fix → final_verify → documentation` | Full single-pass SDLC on a scoped slice |
+| `feature` | `spec → research → plan → build → review → fix → verify → reflection → final_fix → final_verify → documentation → walkthrough_capture` | Full single-pass SDLC on a scoped slice |
 | `quickfix` | `plan_fix → quick_fix → test_fix → verify` | Surgical fix for a well-scoped issue; no spec, no review |
 | `document` | `plan_documents → authoring → review_documents → verify` | Documentation- and prompt-only edits; no code, no reflection |
 | `e2e-tests` | `research → test_plan → test_build → review → fix → verify` | Write or extend Playwright end-to-end tests against the running app |
 
 `fix` and `final_fix` are conditional — they run only when an earlier step produced work for them. `reflection` and `documentation` are non-fatal: a failure is logged but does not fail the cycle.
+
+`walkthrough_capture` is the optional final step of `feature`: a delivered feature can emit screenshot/video walkthrough artifacts via a project-provided hook (`.cycle/walkthrough.sh`, or an `engine.walkthrough_hook` path in `.cycle/workflows.yml`). When a hook is present it runs at the end of the cycle, and any media it writes into the cycle's `walkthrough/` artifact dir is collected and referenced from the cycle's completion record. Repos with no hook (cycle's own CLI repo included) are unaffected — the step skips cleanly with no artifact and no failure. Note: the hook currently runs with no engine-enforced timeout, so a hook that boots browsers or waits on dev servers must self-bound its own runtime or it can hang the cycle indefinitely.
 
 There is no separate `epic` workflow. An issue that needs multiple cycles is simply one whose triage returned multiple queue entries, each a standalone workflow run.
 

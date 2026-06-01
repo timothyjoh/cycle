@@ -25,6 +25,13 @@ import { truncateHeadCapped } from "./log-fmt.ts";
 import { buildCompressHookSettings } from "./compress-filter.ts";
 import { spawnSync } from "node:child_process";
 import { isDenied } from "./path-utils.ts";
+import {
+  resolveWalkthroughHook,
+  execWalkthroughHook,
+  collectWalkthroughMedia,
+  writeWalkthroughManifest,
+  WALKTHROUGH_MANIFEST,
+} from "./walkthrough.ts";
 
 export const RESET_ELIGIBLE_STEPS = new Set(["build", "fix", "final_fix", "quick_fix", "test_fix", "test_build"]);
 
@@ -331,6 +338,71 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           });
           continue;
         }
+      }
+
+      // Walkthrough-capture step: a name-keyed intercept that fully handles the
+      // step and `continue`s, so it never reaches the generic exec dispatch,
+      // execBashStep, completion-proof machinery, or the shared step.end tail.
+      // Discovery is repo-agnostic (`.cycle/walkthrough.sh` convention or the
+      // engine.walkthrough_hook config); with no hook the step is inert (a clean
+      // skipped success). When active it spawns the hook (array args, curated
+      // env, CYCLE_ARTIFACT_DIR re-injected), collects media from
+      // <artifactDir>/walkthrough/, and attaches a walkthrough_artifacts pointer.
+      // A non-zero hook exit routes through the normal fatal step-failure path;
+      // a post-success collect/manifest-write failure degrades via
+      // step.walkthrough_capture_failed without masking the cycle outcome.
+      if (step.name === "walkthrough_capture") {
+        const hook = await resolveWalkthroughHook(repoRoot, cfg);
+        if (!hook) {
+          await log.emit("step.end", {
+            cycle_id: cycleId,
+            step: step.name,
+            status: "skipped",
+            reason: "walkthrough_hook_absent",
+            duration_ms: Math.max(0, Math.round(nowFn() - stepStart)),
+          });
+          continue;
+        }
+        await log.emit("step.start", { cycle_id: cycleId, step: step.name, agent: "bash" });
+        const wr = await execWalkthroughHook(repoRoot, hook, {
+          ...cycleEnv,
+          CYCLE_ARTIFACT_DIR: artifactDir,
+        });
+        if (wr.status === "failed") {
+          await log.emit("step.end", {
+            cycle_id: cycleId,
+            step: step.name,
+            status: "failed",
+            exit_code: wr.exitCode,
+            duration_ms: Math.max(0, Math.round(nowFn() - stepStart)),
+            stderr: truncateHeadCapped(wr.stderr, MAX_STEP_END_STDERR),
+          });
+          await log.emit("cycle.end", { cycle_id: cycleId, status: "failed", failing_step: step.name });
+          return { cycleId, artifactDir, status: "failed" as const, failingStep: step.name };
+        }
+        let walkthroughArtifact: string | undefined;
+        try {
+          const media = await collectWalkthroughMedia(artifactDir);
+          if (media.length > 0) {
+            walkthroughArtifact = await writeWalkthroughManifest(artifactDir, media);
+          }
+        } catch (err) {
+          await log.emit("step.walkthrough_capture_failed", {
+            cycle_id: cycleId,
+            step: step.name,
+            artifact: join(artifactDir, WALKTHROUGH_MANIFEST),
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        await log.emit("step.end", {
+          cycle_id: cycleId,
+          step: step.name,
+          status: "ok",
+          exit_code: wr.exitCode,
+          duration_ms: Math.max(0, Math.round(nowFn() - stepStart)),
+          ...(walkthroughArtifact ? { walkthrough_artifacts: walkthroughArtifact } : {}),
+        });
+        continue;
       }
 
       if (isResetEligible && cfg.engine.commit.mode === "worktree-pr") {
