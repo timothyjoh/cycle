@@ -186,9 +186,11 @@ Subcommands:
   merge/state conflicts.
 - **stdout = JSONL** (mirrored to `.cycle/log.jsonl`). **stderr = freeform**
   human-legible log output, errors, stack traces.
-- **Exit code.** `0` on success, non-zero on failure. The engine does not
-  exit on rate-limit — it retries in-process until the step succeeds or
-  encounters a non-rate-limit failure.
+- **Exit code.** `0` on success, non-zero on failure. On rate-limit the
+  engine retries in-process until the step succeeds, encounters a
+  non-rate-limit failure, or exceeds `engine.max_rate_limit_retries`
+  (default 24) — at which point it halts the cycle with `engine.halted
+  { reason: "rate_limit_max_retries" }`.
 
 ### JSONL event schema
 
@@ -232,6 +234,7 @@ Triage-failure and rate-limit variants:
 {"ts":"…","event":"engine.paused","reason":"all_triage_failed","source_ids":["…"],"last_errors":[…]}
 {"ts":"…","event":"engine.paused","reason":"rate_limit","retry_at":"…"}
 {"ts":"…","event":"engine.resumed","reason":"rate_limit_cleared"}
+{"ts":"…","event":"engine.halted","reason":"rate_limit_max_retries","retries":25,"step_index":0}
 ```
 
 ## 4. Execution Model
@@ -593,7 +596,7 @@ Two layers of retry:
 | `review` produces unresolvable must-fixes after `fix` | Code-level gate | Attempt failure. |
 | `build` fails after step-level retries | Code-level gate | Attempt failure. |
 | Attempt budget exhausted | — | Stamp + move issue to `blocked/`; skip its remaining planned cycles; `propagateBlocked` moves dependents. Queue continues with the next issue. |
-| Rate limit | External transient | Emit `engine.paused { reason: "rate_limit", retry_at }`; sleep `engine.rate_limit_backoff_ms` (default 1 h); retry same step in-process. On first clean success emit `engine.resumed { reason: "rate_limit_cleared" }`. No attempt consumed; `consecutive_failures` not incremented; engine does not exit. |
+| Rate limit | External transient | Emit `engine.paused { reason: "rate_limit", retry_at }`; sleep `engine.rate_limit_backoff_ms` (default 1 h); retry same step in-process. On first clean success emit `engine.resumed { reason: "rate_limit_cleared" }`. No attempt consumed; `consecutive_failures` not incremented. Bounded by `engine.max_rate_limit_retries` (default 24): exceeding the cap on one step emits `engine.halted { reason: "rate_limit_max_retries", retries, step_index }` and fails the cycle via the terminal-failure path. |
 | Push network error | Infrastructure | Backoff, retry up to 3 times. No attempt consumed. |
 | Push auth / git error | Environment | Fail fast — engine exits non-zero. |
 | Engine uncaught exception | Internal | Crash; resume on next invocation via `tbd.jsonl` + `log.jsonl`. |

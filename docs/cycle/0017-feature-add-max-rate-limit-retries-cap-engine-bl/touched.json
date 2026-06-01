@@ -1,0 +1,11 @@
+{
+  "files": [
+    ".cycle/workflows.yml",
+    "CLAUDE.md",
+    "docs/ENGINE.md",
+    "src/defaults/workflows.yml",
+    "src/engine/run-cycle.ts",
+    "src/engine/workflow.ts",
+    "tests/engine/rate-limit-integration.test.ts"
+  ]
+}

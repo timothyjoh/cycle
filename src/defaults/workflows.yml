@@ -4,6 +4,7 @@ engine:
   max_consecutive_failures: 2
   base_branch: master
   rate_limit_backoff_ms: 3600000
+  max_rate_limit_retries: 24
   step_timeout_ms: 2700000
   min_step_duration_ms: 2000
   compress_output: false

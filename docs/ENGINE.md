@@ -309,34 +309,41 @@ The step dispatch is wrapped in an inner `while(true)` loop:
 
 1. Dispatch the step (bash or agent).
 2. If `r.rateLimited` is `true`:
-   - Read `cfg.engine.rate_limit_backoff_ms` (default `3_600_000` ms = 1 hour).
-   - Emit `engine.paused { reason: "rate_limit", retry_at: <ISO string> }`.
-   - Sleep `backoffMs` ms (via injectable `sleepFn`).
-   - Set `wasRateLimited = true` and `continue` (same step index, same `i`).
+   - Increment a per-step `rateLimitRetries` counter (declared inside the per-step body alongside `wasRateLimited`, so it resets each step and on a resume entry to a new `startIdx`).
+   - **If `rateLimitRetries > maxRateLimitRetries`** (the effective cap; see *Cap*): emit `engine.halted { reason: "rate_limit_max_retries", retries, step_index }`, emit `cycle.end { status: "failed" }`, and `return { status: "failed", failingStep: step.name }` **before** sleeping/retrying again. The `return` is inside the `try`, so the `finally` checkout/base-pull cleanup still runs.
+   - Otherwise: read `cfg.engine.rate_limit_backoff_ms` (default `3_600_000` ms = 1 hour), emit `engine.paused { reason: "rate_limit", retry_at: <ISO string> }`, sleep `backoffMs` ms (via injectable `sleepFn`), set `wasRateLimited = true` and `continue` (same step index, same `i`).
 3. Otherwise `break`.
 
 After the loop:
 - If `wasRateLimited && r.status === "ok"`, emit `engine.resumed { reason: "rate_limit_cleared" }`.
 - If a retry produces `status: "failed"` without `rateLimited`, `engine.resumed` is **not** emitted and the normal failure path runs.
 
-The retry loop is unbounded — it exits only when the step returns a non-rate-limit result. The 1-hour default backoff is the natural throttle.
+### Cap (`max_rate_limit_retries`)
+
+The retry loop is **bounded** by `engine.max_rate_limit_retries` (default `24`), counting consecutive rate-limited attempts of the *current* step within one `runCycle` call. The check is increment-then-compare:
+
+- Rate-limiting **exactly `cap`** times leaves the counter at `cap` (never `> cap`), so the loop keeps retrying — a subsequent success completes the cycle normally and emits `engine.resumed`.
+- The **`cap + 1`-th** rate-limited attempt pushes the counter past the cap and halts with `retries: cap + 1`, `step_index: i` (the rate-limited step's index), and a `status: "failed"` return routed through the normal terminal-failure path (counted by the supervisor's `max_consecutive_failures` accounting).
+
+**Read-site coercion:** a `0`/negative/non-integer/non-number/`NaN`/`Infinity` configured cap is treated as the default `24` (`typeof v === "number" && Number.isInteger(v) && v > 0 ? v : 24`) — never an unbounded or zero-length loop. No `loadConfig` validation; coercion lives at the read site in `run-cycle.ts`, matching the iteration-too-fast guard convention.
 
 ### Events
 
 ```json
 { "event": "engine.paused", "reason": "rate_limit", "retry_at": "2026-01-01T02:00:00.000Z" }
 { "event": "engine.resumed", "reason": "rate_limit_cleared" }
+{ "event": "engine.halted", "reason": "rate_limit_max_retries", "retries": 25, "step_index": 0 }
 ```
+
+This `engine.halted` shape (`{ reason, retries, step_index }`) is independent of the supervisor's `{ failed_cycles, reason: "max_consecutive_failures", threshold }`; the `reason` value distinguishes the two emission sites.
 
 ### Configuration
 
-`engine.rate_limit_backoff_ms` in `workflows.yml` (default `3600000`). Override per-repo in `.cycle/workflows.yml`.
+`engine.rate_limit_backoff_ms` in `workflows.yml` (default `3600000`) and `engine.max_rate_limit_retries` (default `24`). Override per-repo in `.cycle/workflows.yml`.
 
 ### Test injection
 
 `RunCycleOpts.sleepFn?: (ms: number) => Promise<void>` allows tests to inject a no-op sleep so tests do not wait 1 hour. The production default is `setTimeout`-based.
-
-**Known limitation:** The retry loop is unbounded — if the agent is permanently rate-limited (invalid API key, banned account, wrong endpoint), the engine will emit `engine.paused` every `rate_limit_backoff_ms` forever with no automatic exit. A configurable `max_rate_limit_retries` cap is tracked in `inbox/`. Manual escape hatch: `cycle stop` (or kill the process) — the queue row stays `in_progress` and can be manually reset to `pending` in `tbd.jsonl`.
 
 ## Iteration-Too-Fast Guard (instant-failure fast-bail)
 

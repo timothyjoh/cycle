@@ -391,6 +391,17 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
       }
       let r: StepResult = { status: "failed", exitCode: -1, stdout: "", stderr: "" };
       let wasRateLimited = false;
+      // Per-step, per-runCycle, non-persistent counter of consecutive
+      // rate-limited attempts of the current step. Resets each step iteration
+      // (and on a resume entry to a new startIdx) because it is declared here.
+      let rateLimitRetries = 0;
+      // Defensive read-site default: a 0/negative/non-integer/non-number/NaN/
+      // Infinity configured cap is treated as the default 24 — never an
+      // unbounded or zero-length loop. Matches the iteration-too-fast guard
+      // coercion convention in src/cli.ts.
+      const rawCap = cfg.engine.max_rate_limit_retries;
+      const maxRateLimitRetries =
+        typeof rawCap === "number" && Number.isInteger(rawCap) && rawCap > 0 ? rawCap : 24;
       while (true) {
         if (step.agent === "bash") {
           r = await execBashStep(repoRoot, step.command!, cycleEnv);
@@ -416,6 +427,22 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           }
         }
         if (r.rateLimited) {
+          rateLimitRetries++;
+          // Increment-then-compare: rate-limiting exactly `cap` times leaves the
+          // counter at `cap` (never `> cap`), so the loop keeps retrying and a
+          // subsequent success completes the cycle; the `cap + 1`-th rate-limited
+          // attempt pushes the counter past the cap and halts before sleeping
+          // again. Surfaced via engine.halted + a failed return — never a silent
+          // kill. The return is inside the same try, so the finally cleanup runs.
+          if (rateLimitRetries > maxRateLimitRetries) {
+            await log.emit("engine.halted", {
+              reason: "rate_limit_max_retries",
+              retries: rateLimitRetries,
+              step_index: i,
+            });
+            await log.emit("cycle.end", { cycle_id: cycleId, status: "failed", failing_step: step.name });
+            return { cycleId, artifactDir, status: "failed" as const, failingStep: step.name };
+          }
           const backoffMs = cfg.engine.rate_limit_backoff_ms ?? 3_600_000;
           const retryAt = new Date(Date.now() + backoffMs).toISOString();
           await log.emit("engine.paused", { reason: "rate_limit", retry_at: retryAt });

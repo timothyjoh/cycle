@@ -1,0 +1,20 @@
+## Summary
+
+Bounded the previously-unbounded rate-limit retry loop in `runCycle` with a configurable `engine.max_rate_limit_retries` cap (default `24`). Modified `src/engine/workflow.ts` (+4 lines: optional `max_rate_limit_retries?: number` on `EngineConfig`), `src/defaults/workflows.yml` and the synced `.cycle/workflows.yml` (+1 line each: `max_rate_limit_retries: 24` in the `engine:` block), `src/engine/run-cycle.ts` (+25 lines: per-step `rateLimitRetries` counter, defensive read-site cap coercion, and an increment-then-compare gate in the `r.rateLimited` branch that emits `engine.halted { reason: "rate_limit_max_retries", retries, step_index }` + `cycle.end { status: "failed" }` and returns a failed result before sleeping when the count exceeds the cap), `tests/engine/rate-limit-integration.test.ts` (+~140 lines: parameterized `workflowYml`/`setupRepo` for an optional cap and a second step, plus 5 new boundary tests), `CLAUDE.md` (Workflow-defaults bullet + run-cycle architecture note updated from "unbounded" to "bounded"), and `docs/ENGINE.md` (replaced the "Known limitation: unbounded" note with a "Cap" subsection covering boundary semantics, read-site coercion, the new `engine.halted` event shape, and configuration). PLAN.md Tasks 1–5 are all complete.
+
+Full suite: `npm test` → `tests 870, pass 870, fail 0`. Coverage: `npm run test:coverage` → all per-file gates pass, including `src/engine/run-cycle.ts` at **99.68% ≥ 90%** floor (overall the gate runner reports every floor "ok" and all structural invariants "ok"; the new halt branch is exercised by the boundary-above scenario). `npm run typecheck` is clean (no warnings). `npm run sync-defaults` is idempotent — re-running leaves `.cycle/workflows.yml` with only the single intended `max_rate_limit_retries: 24` addition and no further diff.
+
+Failure modes handled this cycle: (1) **malformed config** — a `0`/negative/non-integer/`NaN`/`Infinity` cap is coerced to the default `24` at the read site (`typeof rawCap === "number" && Number.isInteger(rawCap) && rawCap > 0 ? rawCap : 24`), never yielding a zero-length or unbounded loop; covered by the parameterized malformed-cap test (`0`, `-1`, `"2.5"`) asserting 5 rate-limited retries do **not** halt and the cycle completes (effective cap is `24`, not `0`). (2) **Cap exceeded** — surfaced as an observable `engine.halted` event plus a `status: "failed"` return routed through the existing terminal-failure path (never a silent kill); covered by the boundary-above test asserting exactly one `engine.halted { reason: "rate_limit_max_retries" }` (cardinality-pinned with `filter(...).length === 1`), `retries === 4`, `step_index === 0`, `status: "failed"`, and **no** later `step.start` for the second step. (3) **Idempotency / no skipped cleanup** — the counter is per-`runCycle`/per-step and non-persistent (declared inside the per-step body alongside `wasRateLimited`, so retries/resume start fresh), and the early `return` is inside the existing `try`, so the `finally` checkout/base-pull bookkeeping still runs (verified by the test logs showing `cycle.checkout`/`cycle.base_pull` after the halt). The boundary-below test confirms rate-limiting exactly `cap` times still keeps retrying and a subsequent success completes the cycle with exactly one `engine.resumed`, and the pre-existing single/double-retry regression tests remain green — non-rate-limit control flow is untouched.
+
+No deviations from PLAN.md. The coercion stayed inline at the read site (no extracted pure helper), so per PLAN's testing strategy it is validated through behavior rather than a separate table test. No deferred work or follow-up notes; the out-of-scope `RATE_LIMIT_PATTERNS` detection tightening remains tracked in `inbox/` as the SPEC specifies.
+
+## Touched Files
+- src/engine/workflow.ts
+- src/defaults/workflows.yml
+- .cycle/workflows.yml
+- src/engine/run-cycle.ts
+- tests/engine/rate-limit-integration.test.ts
+- CLAUDE.md
+- docs/ENGINE.md
+- README.md
+- docs/ARCHITECTURE.md

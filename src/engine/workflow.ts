@@ -42,6 +42,10 @@ export type EngineConfig = {
    * Default false; absent/non-boolean/malformed ⇒ false (resolved defensively at
    * the read site as `=== true`). claudecode-only, fail-open. */
   compress_output?: boolean;
+  /** Per-step consecutive rate-limit retry cap before engine.halted; read-site
+   * default 24 when absent/malformed (0/negative/non-integer). Bounds the
+   * otherwise-unbounded rate-limit retry loop under a permanent rate-limit. */
+  max_rate_limit_retries?: number;
 };
 
 export type TriageConfig = {
