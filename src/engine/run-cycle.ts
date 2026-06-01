@@ -435,6 +435,25 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           // again. Surfaced via engine.halted + a failed return — never a silent
           // kill. The return is inside the same try, so the finally cleanup runs.
           if (rateLimitRetries > maxRateLimitRetries) {
+            // This terminal path returns early (below) before the shared
+            // step.end emission at the loop bottom, which would otherwise leave
+            // this step's step.start unmatched. Emit step.end here so the
+            // rate-limit-exhaustion halt produces the same step.start/step.end
+            // pairing and step.end -> engine.halted -> cycle.end ordering as
+            // every other failure path. duration_ms clamps to 0 if
+            // nowFn/stepStart yield a negative delta (never negative, never
+            // omitted). stderr is always present here (the path is
+            // unconditionally a failed agent step), so it is emitted
+            // unconditionally; the bash-only stdout/stdout_artifact fields do
+            // not apply to a rate-limited agent step.
+            await log.emit("step.end", {
+              cycle_id: cycleId,
+              step: step.name,
+              status: "failed",
+              exit_code: r.exitCode,
+              duration_ms: Math.max(0, Math.round(nowFn() - stepStart)),
+              stderr: truncateHeadCapped(r.stderr, MAX_STEP_END_STDERR),
+            });
             await log.emit("engine.halted", {
               reason: "rate_limit_max_retries",
               retries: rateLimitRetries,

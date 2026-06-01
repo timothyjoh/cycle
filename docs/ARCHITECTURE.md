@@ -234,6 +234,7 @@ Triage-failure and rate-limit variants:
 {"ts":"…","event":"engine.paused","reason":"all_triage_failed","source_ids":["…"],"last_errors":[…]}
 {"ts":"…","event":"engine.paused","reason":"rate_limit","retry_at":"…"}
 {"ts":"…","event":"engine.resumed","reason":"rate_limit_cleared"}
+{"ts":"…","event":"step.end","cycle_id":"0042","step":"spec","status":"failed","exit_code":1,"duration_ms":12,"stderr":"…"}
 {"ts":"…","event":"engine.halted","reason":"rate_limit_max_retries","retries":25,"step_index":0}
 ```
 
@@ -596,7 +597,7 @@ Two layers of retry:
 | `review` produces unresolvable must-fixes after `fix` | Code-level gate | Attempt failure. |
 | `build` fails after step-level retries | Code-level gate | Attempt failure. |
 | Attempt budget exhausted | — | Stamp + move issue to `blocked/`; skip its remaining planned cycles; `propagateBlocked` moves dependents. Queue continues with the next issue. |
-| Rate limit | External transient | Emit `engine.paused { reason: "rate_limit", retry_at }`; sleep `engine.rate_limit_backoff_ms` (default 1 h); retry same step in-process. On first clean success emit `engine.resumed { reason: "rate_limit_cleared" }`. No attempt consumed; `consecutive_failures` not incremented. Bounded by `engine.max_rate_limit_retries` (default 24): exceeding the cap on one step emits `engine.halted { reason: "rate_limit_max_retries", retries, step_index }` and fails the cycle via the terminal-failure path. |
+| Rate limit | External transient | Emit `engine.paused { reason: "rate_limit", retry_at }`; sleep `engine.rate_limit_backoff_ms` (default 1 h); retry same step in-process. On first clean success emit `engine.resumed { reason: "rate_limit_cleared" }`. No attempt consumed; `consecutive_failures` not incremented. Bounded by `engine.max_rate_limit_retries` (default 24): exceeding the cap on one step emits a paired `step.end { status: "failed", duration_ms }` for the rate-limited step, then `engine.halted { reason: "rate_limit_max_retries", retries, step_index }` (ordering `step.end → engine.halted → cycle.end`), and fails the cycle via the terminal-failure path. |
 | Push network error | Infrastructure | Backoff, retry up to 3 times. No attempt consumed. |
 | Push auth / git error | Environment | Fail fast — engine exits non-zero. |
 | Engine uncaught exception | Internal | Crash; resume on next invocation via `tbd.jsonl` + `log.jsonl`. |

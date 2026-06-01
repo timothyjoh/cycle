@@ -246,6 +246,14 @@ test("rate-limit cap: boundary-below — rate-limit exactly cap times then succe
 
     const cycleEnd = expectExactlyOne(events, "cycle.end");
     assert.equal((cycleEnd as unknown as { status: string }).status, "ok");
+
+    // The step completes via the normal success path: exactly one step.end for
+    // "research" with status "ok" — no spurious halt-path step.end.
+    const researchEnds = events.filter(e =>
+      e.event === "step.end" && (e as unknown as { step: string }).step === "research");
+    assert.equal(researchEnds.length, 1,
+      `expected exactly 1 success-path step.end for research, got ${researchEnds.length}`);
+    assert.equal((researchEnds[0] as unknown as { status: string }).status, "ok");
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(bin, { recursive: true, force: true });
@@ -285,6 +293,36 @@ test("rate-limit cap: boundary-above — rate-limit cap+1 times halts with rate_
 
     const cycleEnd = expectExactlyOne(events, "cycle.end");
     assert.equal((cycleEnd as unknown as { status: string }).status, "failed");
+
+    // The halt path now emits exactly one step.end for the rate-limited
+    // "research" step, mirroring every other terminal path's step.start/step.end
+    // pairing. Cardinality-pinned via filter(...).length === 1.
+    const researchEnds = events.filter(e =>
+      e.event === "step.end" && (e as unknown as { step: string }).step === "research");
+    assert.equal(researchEnds.length, 1,
+      `expected exactly 1 halt-path step.end for research, got ${researchEnds.length}`);
+    assert.equal((researchEnds[0] as unknown as { status: string }).status, "failed");
+    const haltDuration = (researchEnds[0] as unknown as { duration_ms: number }).duration_ms;
+    assert.equal(Number.isInteger(haltDuration), true,
+      `halt-path step.end duration_ms must be an integer, got ${haltDuration}`);
+    assert.ok(haltDuration >= 0, "halt-path step.end duration_ms must be non-negative");
+
+    // Ordering: step.end -> engine.halted -> cycle.end (by event index).
+    const iStepEnd = events.findIndex(e =>
+      e.event === "step.end" && (e as unknown as { step: string }).step === "research");
+    const iHalted = events.findIndex(e =>
+      e.event === "engine.halted" &&
+      (e as unknown as { reason: string }).reason === "rate_limit_max_retries");
+    const iCycleEnd = events.findIndex(e =>
+      e.event === "cycle.end" && (e as unknown as { status: string }).status === "failed");
+    assert.ok(iStepEnd >= 0 && iStepEnd < iHalted && iHalted < iCycleEnd,
+      `expected step.end (${iStepEnd}) < engine.halted (${iHalted}) < cycle.end (${iCycleEnd})`);
+
+    // start/end pairing for the rate-limited step: both 1 on the halt path.
+    const researchStarts = events.filter(e =>
+      e.event === "step.start" && (e as unknown as { step: string }).step === "research").length;
+    assert.equal(researchStarts, researchEnds.length,
+      "rate-limited step must have matching step.start and step.end counts");
 
     // No later step (the "build" step at index 1) ever started.
     assert.ok(!events.some(e =>

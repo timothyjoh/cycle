@@ -310,7 +310,7 @@ The step dispatch is wrapped in an inner `while(true)` loop:
 1. Dispatch the step (bash or agent).
 2. If `r.rateLimited` is `true`:
    - Increment a per-step `rateLimitRetries` counter (declared inside the per-step body alongside `wasRateLimited`, so it resets each step and on a resume entry to a new `startIdx`).
-   - **If `rateLimitRetries > maxRateLimitRetries`** (the effective cap; see *Cap*): emit `engine.halted { reason: "rate_limit_max_retries", retries, step_index }`, emit `cycle.end { status: "failed" }`, and `return { status: "failed", failingStep: step.name }` **before** sleeping/retrying again. The `return` is inside the `try`, so the `finally` checkout/base-pull cleanup still runs.
+   - **If `rateLimitRetries > maxRateLimitRetries`** (the effective cap; see *Cap*): emit `step.end { status: "failed", duration_ms, exit_code, stderr }` for the rate-limited step **first** (so this terminal path produces the same `step.start`/`step.end` pairing as every other failure path — without it the step's `step.start` is left unmatched), then emit `engine.halted { reason: "rate_limit_max_retries", retries, step_index }`, emit `cycle.end { status: "failed" }`, and `return { status: "failed", failingStep: step.name }` **before** sleeping/retrying again. Ordering on this path is `step.end → engine.halted → cycle.end`. The `step.end` `duration_ms` is `Math.max(0, Math.round(nowFn() - stepStart))` (clamped non-negative); `stderr` is the head-capped excerpt (`MAX_STEP_END_STDERR`). The `return` is inside the `try`, so the `finally` checkout/base-pull cleanup still runs.
    - Otherwise: read `cfg.engine.rate_limit_backoff_ms` (default `3_600_000` ms = 1 hour), emit `engine.paused { reason: "rate_limit", retry_at: <ISO string> }`, sleep `backoffMs` ms (via injectable `sleepFn`), set `wasRateLimited = true` and `continue` (same step index, same `i`).
 3. Otherwise `break`.
 
@@ -332,6 +332,7 @@ The retry loop is **bounded** by `engine.max_rate_limit_retries` (default `24`),
 ```json
 { "event": "engine.paused", "reason": "rate_limit", "retry_at": "2026-01-01T02:00:00.000Z" }
 { "event": "engine.resumed", "reason": "rate_limit_cleared" }
+{ "event": "step.end", "step": "research", "status": "failed", "exit_code": 1, "duration_ms": 12 }
 { "event": "engine.halted", "reason": "rate_limit_max_retries", "retries": 25, "step_index": 0 }
 ```
 
