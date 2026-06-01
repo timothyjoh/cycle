@@ -5,7 +5,19 @@ workflow: feature
 depends_on: []
 triaged_at: "2026-05-26T06:20:48.810Z"
 source: triage
-priority: medium
+priority: low
+---
+## RESCOPE (audit 2026-06-01) — read first
+
+`verify.sh` has **no `npx` branch** — do NOT add a "missing npx" test (that path
+does not exist). Cover the three REAL guard branches in
+`src/defaults/scripts/verify.sh`: (a) a Node project (package.json with a `test`
+script) but `node_modules` absent → guard exit; (b) a Python project
+(pyproject.toml) with `pytest` absent → guard exit; (c) no recognized test runner
+→ message + exit. Add execution-based (`spawnSync`) tests to
+`tests/defaults/scripts.test.ts` (currently grep-only) asserting exit code +
+stderr for each. The rest of the issue's approach stands.
+
 ---
 ## Context
 

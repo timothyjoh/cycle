@@ -8,6 +8,18 @@ source: triage
 priority: critical
 parent: refl-0256-unbounded-rate-limit-retry-loop-creates
 ---
+## RESCOPE (audit 2026-06-01) — read first
+
+Config-location correction: there is **no `src/defaults/engine.json`**. Engine
+config lives in the `engine:` block of `workflows.yml` (typed by `EngineConfig`
+in `src/engine/workflow.ts`). Add `max_rate_limit_retries` to `EngineConfig` and
+to the `engine:` block of `src/defaults/workflows.yml` (next to
+`rate_limit_backoff_ms` / `step_timeout_ms`), then `npm run sync-defaults`.
+Priority is **medium** (the `cycle stop` escape hatch is already documented in
+ENGINE.md, bounding the blast radius — this is a long-tail abnormal-throttle
+guard, not a routine path). Everything else below stands.
+
+---
 ## Context
 
 The `while(true)` rate-limit retry loop in `src/engine/run-cycle.ts` is unbounded — it exits only on clean success or a non-rate-limit failure. Under a permanent rate-limit condition (invalid API key, banned account, wrong endpoint), the engine hangs indefinitely, emitting `engine.paused { reason: "rate_limit" }` every hour with no automatic termination.

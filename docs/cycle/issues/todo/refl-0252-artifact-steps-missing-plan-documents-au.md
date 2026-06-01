@@ -5,7 +5,27 @@ workflow: feature
 depends_on: []
 triaged_at: "2026-05-26T01:43:07.404Z"
 source: triage
-priority: high
+priority: low
+---
+## RESCOPE (audit 2026-06-01) — read first
+
+This issue's prescribed edit is STALE. `ARTIFACT_STEPS` is no longer a
+hand-written literal — it is now derived: `ARTIFACT_STEPS = new Set(STEP_ARTIFACTS.keys())`
+(`src/engine/run-cycle.ts`). **Do NOT edit an `ARTIFACT_STEPS` array** (the code
+block below is obsolete).
+
+Correct change: add three entries to the `STEP_ARTIFACTS` Map —
+`plan_documents → { artifact:"PLAN_DOCUMENTS.md", proof:"nonempty" }`,
+`authoring → { artifact:"AUTHORING.md", proof:"nonempty" }`,
+`review_documents → { artifact:"REVIEW_DOCUMENTS.md", proof:"nonempty" }`.
+
+**Intended behavior change (approved):** adding these to STEP_ARTIFACTS also
+brings them under the **completion-proof contract** — an empty artifact from
+these document-workflow steps becomes a *retryable step failure*, not just
+prompt suppression. This defense-in-depth is the goal (matches feature-workflow
+steps). Add/adjust tests for BOTH the suppression-prompt membership AND the
+completion-proof behavior on these three steps.
+
 ---
 ## Problem
 
