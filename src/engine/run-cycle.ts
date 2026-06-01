@@ -49,9 +49,12 @@ export const STEP_ARTIFACTS = new Map<string, { artifact: string; proof: ProofPo
   ["fix",           { artifact: "FIX.md",           proof: "fix-conditional" }],
   ["final_fix",     { artifact: "FINAL_FIX.md",     proof: "nonempty" }],
   ["documentation", { artifact: "DOCUMENTATION.md", proof: "nonempty" }],
+  ["plan_documents",   { artifact: "PLAN_DOCUMENTS.md",   proof: "nonempty" }],
+  ["authoring",        { artifact: "AUTHORING.md",        proof: "nonempty" }],
+  ["review_documents", { artifact: "REVIEW_DOCUMENTS.md", proof: "nonempty" }],
 ]);
 
-const ARTIFACT_STEPS = new Set(STEP_ARTIFACTS.keys());
+export const ARTIFACT_STEPS = new Set(STEP_ARTIFACTS.keys());
 
 const ARTIFACT_SUPPRESS_PROMPT =
   "You are in File Artifact Mode for this invocation. Output only the requested document content as clean structured Markdown. Do not include insight blocks, star-marker commentary, educational explanations, contribution requests, confirmation sentences, narration, or trailing commentary. Produce the file — nothing else.";
