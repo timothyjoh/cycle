@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildChildEnv } from "./child-env.ts";
-import type { StepResult } from "./exec-bash.ts";
+import type { StepResult } from "./exec-types.ts";
 
 export interface RunAgentOptions {
   binary: string;

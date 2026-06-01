@@ -2,15 +2,8 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { buildChildEnv } from "./child-env.ts";
 
-export type StepResult = {
-  status: "ok" | "failed";
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-  rateLimited?: true;
-  /** Set when the step was killed by the per-step wall-clock timeout. */
-  timedOut?: true;
-};
+export type { StepResult } from "./exec-types.ts";
+import type { StepResult } from "./exec-types.ts";
 
 export function execBashStep(repoRoot: string, command: string, env: Record<string, string>): Promise<StepResult> {
   return new Promise(resolve => {

@@ -1,0 +1,11 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "docs/ENGINE.md",
+    "src/engine/exec-bash.ts",
+    "src/engine/exec-spawn.ts",
+    "src/engine/exec-types.ts",
+    "src/engine/exec.ts",
+    "src/engine/run-cycle.ts"
+  ]
+}

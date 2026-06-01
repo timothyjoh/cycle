@@ -1,4 +1,4 @@
-import type { StepResult } from "./exec-bash.ts";
+import type { StepResult } from "./exec-types.ts";
 import { auggieExec } from "./exec-auggie.ts";
 import { claudecodeExec } from "./exec-claudecode.ts";
 import { codexExec } from "./exec-codex.ts";

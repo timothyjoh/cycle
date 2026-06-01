@@ -4,7 +4,7 @@ Detailed notes on each engine subsystem. For high-level architecture see [`docs/
 
 ## Source layout
 
-- Engine modules: `src/engine/` — run-cycle, log, log-tail, branch, exec, exec-bash, exec-claudecode, exec-codex, exec-gemini, exec-auggie, exec-opencode, exec-pi, exec-spawn, child-env, dot-env, engine-lock, path-utils, log-fmt, workflow, cycle-id, queue, frontmatter, triage, blocked, reflection, sanitize-artifact, commit-cycle, issue-lifecycle
+- Engine modules: `src/engine/` — run-cycle, log, log-tail, branch, exec, exec-types, exec-bash, exec-claudecode, exec-codex, exec-gemini, exec-auggie, exec-opencode, exec-pi, exec-spawn, child-env, dot-env, engine-lock, path-utils, log-fmt, workflow, cycle-id, queue, frontmatter, triage, blocked, reflection, sanitize-artifact, commit-cycle, issue-lifecycle
 - CLI: `src/cli.ts`, `src/cli/{parse-args,init,status,triage,cleanup,run-one}.ts`
 - Defaults (shipped into consumer repos): `src/defaults/` — single `workflows.yml`, `prompts/`, `scripts/`
 
@@ -306,7 +306,7 @@ When an agent step returns a rate-limit signal, the engine pauses, sleeps a conf
 
 ### `StepResult.rateLimited`
 
-`StepResult` (defined in `src/engine/exec-bash.ts`) has an optional `rateLimited?: true` field. Each of the six agent exec modules (`exec-claudecode.ts`, `exec-codex.ts`, `exec-auggie.ts`, `exec-gemini.ts`, `exec-opencode.ts`, `exec-pi.ts`) calls `isRateLimitError(r)` after `runAgent` returns; if it returns `true`, the module produces `{ ...r, status: "failed", rateLimited: true }`. `exec-bash.ts` never sets `rateLimited` — bash steps are excluded from rate-limit detection.
+`StepResult` (defined in `src/engine/exec-types.ts`, re-exported from `exec-bash.ts` for backwards compatibility) has an optional `rateLimited?: true` field. Each of the six agent exec modules (`exec-claudecode.ts`, `exec-codex.ts`, `exec-auggie.ts`, `exec-gemini.ts`, `exec-opencode.ts`, `exec-pi.ts`) calls `isRateLimitError(r)` after `runAgent` returns; if it returns `true`, the module produces `{ ...r, status: "failed", rateLimited: true }`. `exec-bash.ts` never sets `rateLimited` — bash steps are excluded from rate-limit detection.
 
 ### Retry loop in `run-cycle.ts`
 

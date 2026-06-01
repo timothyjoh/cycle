@@ -1,7 +1,8 @@
 import { allocateCycleId } from "./cycle-id.ts";
 import { loadConfig } from "./workflow.ts";
 import { createLogger, type Logger } from "./log.ts";
-import { execBashStep, type StepResult } from "./exec-bash.ts";
+import { execBashStep } from "./exec-bash.ts";
+import type { StepResult } from "./exec-types.ts";
 import { resolveAgent, UnknownAgentError } from "./exec.ts";
 import {
   createCycleBranch,
