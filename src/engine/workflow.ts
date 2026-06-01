@@ -51,6 +51,12 @@ export type EngineConfig = {
    * Absent/empty/non-string ⇒ falls back to the `.cycle/walkthrough.sh`
    * convention, else the step is inert. Resolved defensively at the read site. */
   walkthrough_hook?: string;
+  /** Bounded-kill wall-clock timeout (ms) for the walkthrough_capture hook spawn.
+   * Absent / 0 / negative / non-integer / NaN / Infinity / non-number ⇒ disabled
+   * (no timer armed; hook runs to completion). A valid positive integer arms a
+   * SIGTERM→SIGKILL escalation. Coerced defensively at the run-cycle read site.
+   * Documented recommended value: 600000 (10 min). */
+  walkthrough_hook_timeout_ms?: number;
 };
 
 export type TriageConfig = {

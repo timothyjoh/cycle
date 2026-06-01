@@ -54,10 +54,12 @@ workflows:
     description: Surgical fix for a well-scoped issue. Plan to fix to test. No spec, no research, no PR review.
     max_cycle_attempts: 3
     steps:
-      - { name: plan_fix,  prompt: prompts/plan_fix.md }
-      - { name: quick_fix, prompt: prompts/quick_fix.md }
-      - { name: test_fix,  prompt: prompts/test_fix.md }
-      - { name: verify,    agent: bash,       command: scripts/verify.sh }
+      - { name: plan_fix,            prompt: prompts/plan_fix.md }
+      - { name: walkthrough_before,  agent: bash }
+      - { name: quick_fix,           prompt: prompts/quick_fix.md }
+      - { name: test_fix,            prompt: prompts/test_fix.md }
+      - { name: verify,              agent: bash,       command: scripts/verify.sh }
+      - { name: walkthrough_after,   agent: bash }
 
   - name: e2e-tests
     description: Write or extend Playwright end-to-end tests against the running app. Works directly on the base branch.

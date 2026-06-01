@@ -3,7 +3,7 @@ id: refl-0024-walkthrough-hook-spawn-has-no-timeout-ca
 source: reflection
 title: walkthrough-hook-spawn-has-no-timeout-can-hang-engine
 added_at: 2026-06-01T17:39:42.620Z
-triage_attempts: 0
+triage_attempts: 1
 priority: high
 origin_cycle_id: "0024"
 ---

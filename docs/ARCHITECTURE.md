@@ -403,10 +403,14 @@ and `documentation` are non-fatal terminal steps — a failure emits a
 ### `quickfix` — surgical fix
 
 ```
-plan_fix → quick_fix → test_fix → verify
+plan_fix → walkthrough_before → quick_fix → test_fix → verify → walkthrough_after
 ```
 
-For a well-scoped issue. No spec, no research, no review.
+For a well-scoped issue. No spec, no research, no review. The two
+`walkthrough_*` steps reuse the optional walkthrough hook (see *Walkthrough
+capture* in [ENGINE.md](ENGINE.md)) with `CYCLE_WALKTHROUGH_PHASE=before|after`
+to record the broken behavior before the fix and the corrected behavior after
+`verify`; with no hook configured each skips cleanly.
 
 ### `document` — docs / prompt edits
 

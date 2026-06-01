@@ -30,10 +30,23 @@ import {
   execWalkthroughHook,
   collectWalkthroughMedia,
   writeWalkthroughManifest,
-  WALKTHROUGH_MANIFEST,
+  walkthroughManifestName,
 } from "./walkthrough.ts";
 
 export const RESET_ELIGIBLE_STEPS = new Set(["build", "fix", "final_fix", "quick_fix", "test_fix", "test_build"]);
+
+/** Walkthrough steps and the phase label each scopes its media/manifest under.
+ * `undefined` = un-phased (the feature walkthrough_capture step; byte-for-byte
+ * legacy behavior — no CYCLE_WALKTHROUGH_PHASE, media under `walkthrough/`,
+ * manifest `walkthrough-artifacts.json`). `before`/`after` = the quickfix
+ * phases: media under `walkthrough/<phase>/`, manifest
+ * `walkthrough-<phase>-artifacts.json`, and CYCLE_WALKTHROUGH_PHASE passed to
+ * the hook. Membership in this map is the intercept condition. */
+const WALKTHROUGH_PHASES = new Map<string, string | undefined>([
+  ["walkthrough_capture", undefined],
+  ["walkthrough_before", "before"],
+  ["walkthrough_after", "after"],
+]);
 
 // SKIP_ELIGIBLE_STEPS must stay disjoint from any step that mutates the working
 // tree on success — skipping such a step would lose the mutation. Pre-build
@@ -208,6 +221,10 @@ export function formatTimeoutProofError(stepName: string, artifactPath: string, 
   return `${stepName} timed out (exit ${exitCode}) and left ${artifactPath} empty — treating as failure`;
 }
 
+export function formatWalkthroughTimeoutError(stepName: string, exitCode: number): string {
+  return `${stepName} timed out (exit ${exitCode}) — hook killed (SIGTERM→SIGKILL) — treating as failure`;
+}
+
 export async function findPriorStepHeadSha(
   repoRoot: string,
   cycleId: string,
@@ -340,18 +357,25 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         }
       }
 
-      // Walkthrough-capture step: a name-keyed intercept that fully handles the
-      // step and `continue`s, so it never reaches the generic exec dispatch,
-      // execBashStep, completion-proof machinery, or the shared step.end tail.
-      // Discovery is repo-agnostic (`.cycle/walkthrough.sh` convention or the
+      // Walkthrough-capture steps: a name-keyed, phase-aware intercept that
+      // fully handles the step and `continue`s, so it never reaches the generic
+      // exec dispatch, execBashStep, completion-proof machinery, or the shared
+      // step.end tail. Membership in WALKTHROUGH_PHASES is the gate; the mapped
+      // value is the phase label — `undefined` for the feature walkthrough_capture
+      // step (legacy un-phased path, byte-for-byte) and `before`/`after` for the
+      // quickfix walkthrough_before / walkthrough_after steps. Discovery is
+      // repo-agnostic (`.cycle/walkthrough.sh` convention or the
       // engine.walkthrough_hook config); with no hook the step is inert (a clean
       // skipped success). When active it spawns the hook (array args, curated
-      // env, CYCLE_ARTIFACT_DIR re-injected), collects media from
-      // <artifactDir>/walkthrough/, and attaches a walkthrough_artifacts pointer.
-      // A non-zero hook exit routes through the normal fatal step-failure path;
-      // a post-success collect/manifest-write failure degrades via
-      // step.walkthrough_capture_failed without masking the cycle outcome.
-      if (step.name === "walkthrough_capture") {
+      // env, CYCLE_ARTIFACT_DIR re-injected, plus CYCLE_WALKTHROUGH_PHASE when
+      // phased so one hook can branch on phase), collects media from
+      // <artifactDir>/walkthrough/[<phase>/], and attaches a walkthrough_artifacts
+      // pointer to the per-phase manifest. A non-zero hook exit or timeout routes
+      // through the normal fatal step-failure path; a post-success
+      // collect/manifest-write failure degrades via step.walkthrough_capture_failed
+      // without masking the cycle outcome.
+      if (WALKTHROUGH_PHASES.has(step.name)) {
+        const phase = WALKTHROUGH_PHASES.get(step.name);
         const hook = await resolveWalkthroughHook(repoRoot, cfg);
         if (!hook) {
           await log.emit("step.end", {
@@ -364,33 +388,47 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           continue;
         }
         await log.emit("step.start", { cycle_id: cycleId, step: step.name, agent: "bash" });
-        const wr = await execWalkthroughHook(repoRoot, hook, {
-          ...cycleEnv,
-          CYCLE_ARTIFACT_DIR: artifactDir,
-        });
+        // Defensive read-site coercion (mirrors max_rate_limit_retries): an
+        // absent/0/negative/non-integer/NaN/Infinity/non-number value disables
+        // the timeout (no timer armed; hook runs to completion). A valid
+        // positive integer arms the SIGTERM→SIGKILL bounded-kill in
+        // execWalkthroughHook. The default constant is documented, not auto-applied.
+        const rawWtTimeout = cfg.engine.walkthrough_hook_timeout_ms;
+        const walkthroughTimeoutMs =
+          typeof rawWtTimeout === "number" && Number.isInteger(rawWtTimeout) && rawWtTimeout > 0
+            ? rawWtTimeout : 0;
+        const wr = await execWalkthroughHook(
+          repoRoot,
+          hook,
+          { ...cycleEnv, CYCLE_ARTIFACT_DIR: artifactDir, ...(phase ? { CYCLE_WALKTHROUGH_PHASE: phase } : {}) },
+          { timeoutMs: walkthroughTimeoutMs },
+        );
         if (wr.status === "failed") {
+          const failStderr = wr.timedOut
+            ? truncateHeadCapped(`${formatWalkthroughTimeoutError(step.name, wr.exitCode)}\n${wr.stderr}`, MAX_STEP_END_STDERR)
+            : truncateHeadCapped(wr.stderr, MAX_STEP_END_STDERR);
           await log.emit("step.end", {
             cycle_id: cycleId,
             step: step.name,
             status: "failed",
             exit_code: wr.exitCode,
             duration_ms: Math.max(0, Math.round(nowFn() - stepStart)),
-            stderr: truncateHeadCapped(wr.stderr, MAX_STEP_END_STDERR),
+            stderr: failStderr,
           });
           await log.emit("cycle.end", { cycle_id: cycleId, status: "failed", failing_step: step.name });
           return { cycleId, artifactDir, status: "failed" as const, failingStep: step.name };
         }
         let walkthroughArtifact: string | undefined;
         try {
-          const media = await collectWalkthroughMedia(artifactDir);
+          const media = await collectWalkthroughMedia(artifactDir, phase);
           if (media.length > 0) {
-            walkthroughArtifact = await writeWalkthroughManifest(artifactDir, media);
+            walkthroughArtifact = await writeWalkthroughManifest(artifactDir, media, phase);
           }
         } catch (err) {
           await log.emit("step.walkthrough_capture_failed", {
             cycle_id: cycleId,
             step: step.name,
-            artifact: join(artifactDir, WALKTHROUGH_MANIFEST),
+            artifact: join(artifactDir, walkthroughManifestName(phase)),
             error: err instanceof Error ? err.message : String(err),
           });
         }
