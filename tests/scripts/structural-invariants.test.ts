@@ -15,6 +15,27 @@ async function setup(cwd: string, content: string, cliContent = "// stub\nconsec
   await writeFile(join(cwd, "src/engine/triage.ts"), content);
   await writeFile(join(cwd, "src/cli.ts"), cliContent);
   await writeFile(join(cwd, "src/engine/commit-cycle.ts"), "// stub");
+
+  // Agent-binary hermeticity invariant targets: each lane must carry its
+  // CYCLE_<AGENT>_BIN override, and each per-agent exec test must not PATH-stub.
+  await mkdir(join(cwd, "tests/engine"), { recursive: true });
+  const lanes: Array<[string, string, string]> = [
+    ["claudecode", "CLAUDE", "claude"],
+    ["codex", "CODEX", "codex"],
+    ["gemini", "GEMINI", "gemini"],
+    ["opencode", "OPENCODE", "opencode"],
+    ["auggie", "AUGGIE", "auggie"],
+    ["pi", "PI", "pi"],
+  ];
+  for (const [file, env, bin] of lanes) {
+    await writeFile(
+      join(cwd, `src/engine/exec-${file}.ts`),
+      `const binary = process.env.CYCLE_${env}_BIN ?? "${bin}";\n`,
+    );
+  }
+  for (const agent of ["codex", "gemini", "opencode", "auggie", "pi"]) {
+    await writeFile(join(cwd, `tests/engine/exec-${agent}.test.ts`), "// hermetic stub: no PATH-stub here\n");
+  }
 }
 
 function run(cwd: string) {

@@ -19,7 +19,12 @@ export const claudecodeExec: ExecModule = {
     // identical to the pre-change baseline (default-off contract).
     if (settingsPath) argv.push("--settings", settingsPath);
     argv.push("-p");
-    const r = await runAgent({ binary: "claude", argv, promptDelivery: "argv", ...args });
+    // CYCLE_CLAUDE_BIN lets tests inject an absolute path to a fake binary so a
+    // real `claude` on PATH cannot shadow the stub. Mirrors the other agent lanes
+    // (CYCLE_CODEX_BIN / CYCLE_GEMINI_BIN / CYCLE_OPENCODE_BIN / CYCLE_AUGGIE_BIN /
+    // CYCLE_PI_BIN).
+    const binary = process.env.CYCLE_CLAUDE_BIN ?? "claude";
+    const r = await runAgent({ binary, argv, promptDelivery: "argv", ...args });
     if (isRateLimitError(r)) return { ...r, status: "failed", rateLimited: true as const };
     return r;
   },
