@@ -415,6 +415,7 @@ workflows:
     const fake = join(bin, "gemini");
     await writeFile(fake, script, "utf8");
     await chmod(fake, 0o755);
+    process.env.CYCLE_GEMINI_BIN = fake;
 
     const r = await runCycle(root, {
       issueId: "RL-5",
@@ -438,6 +439,7 @@ workflows:
     expectExactlyOne(events, "engine.paused");
     expectExactlyOne(events, "engine.resumed");
   } finally {
+    delete process.env.CYCLE_GEMINI_BIN;
     await rm(root, { recursive: true, force: true });
     await rm(bin, { recursive: true, force: true });
   }

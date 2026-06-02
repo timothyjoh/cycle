@@ -100,6 +100,7 @@ test("runCycle dispatches agent:gemini through resolveAgent, step.end status:ok"
     const fake = join(bin, "gemini");
     await writeFile(fake, "#!/bin/bash\ncat\nprintf 'fix\\n' >> src/stub.ts\n", "utf8");
     await chmod(fake, 0o755);
+    process.env.CYCLE_GEMINI_BIN = fake;
 
     const r = await runCycle(root, {
       issueId: "TEST-GEMINI",
@@ -113,6 +114,7 @@ test("runCycle dispatches agent:gemini through resolveAgent, step.end status:ok"
     const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
     assert.match(log, /"event":"step\.end","cycle_id":"0001","step":"build","status":"ok"/);
   } finally {
+    delete process.env.CYCLE_GEMINI_BIN;
     await rm(root, { recursive: true, force: true });
     await rm(bin, { recursive: true, force: true });
   }

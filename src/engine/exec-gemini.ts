@@ -8,7 +8,11 @@ export const geminiExec: ExecModule = {
     if (model) argv.push("--model", model);
     // gemini CLI has no thinking flag here; `thinking` is destructured only to
     // strip it from `...args` (so it never reaches runAgent) and is intentionally unused.
-    const r = await runAgent({ binary: "gemini", argv, promptDelivery: "stdin", ...args });
+    // CYCLE_GEMINI_BIN lets tests inject an absolute path to a fake binary so a
+    // real `gemini` on PATH (e.g. node's bin dir, which buildChildEnv prepends)
+    // cannot shadow the stub. Mirrors CYCLE_AUGGIE_BIN / CYCLE_PI_BIN.
+    const binary = process.env.CYCLE_GEMINI_BIN ?? "gemini";
+    const r = await runAgent({ binary, argv, promptDelivery: "stdin", ...args });
     if (isRateLimitError(r)) return { ...r, status: "failed", rateLimited: true as const };
     return r;
   },

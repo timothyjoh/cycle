@@ -9,7 +9,11 @@ export const opencodeExec: ExecModule = {
     const argv: string[] = [];
     if (model) argv.push("--model", model);
     if (thinking) argv.push("--thinking", thinking);
-    const r = await runAgent({ binary: "opencode", argv, promptDelivery: "stdin", ...args });
+    // CYCLE_OPENCODE_BIN lets tests inject an absolute path to a fake binary so
+    // a real `opencode` on PATH (e.g. node's bin dir, which buildChildEnv
+    // prepends) cannot shadow the stub. Mirrors CYCLE_AUGGIE_BIN / CYCLE_PI_BIN.
+    const binary = process.env.CYCLE_OPENCODE_BIN ?? "opencode";
+    const r = await runAgent({ binary, argv, promptDelivery: "stdin", ...args });
     if (isRateLimitError(r)) return { ...r, status: "failed", rateLimited: true as const };
     return r;
   },
