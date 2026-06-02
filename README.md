@@ -131,6 +131,31 @@ Re-run triage as a read-only diagnostic (no state mutation):
 
 `run` flags: `--workflow <name>`, `--dry-run` (triage/queue preview only), `--no-skip-completed` (force re-derivation of pre-build artifacts on retry), `--trunk` (commit straight to the base branch instead of per-cycle branches).
 
+## Upgrading
+
+`cycle init` is for first-time scaffolding in a fresh repo — it unconditionally writes every artifact, so re-running it would clobber any prompts, workflows, or scripts you have customized. To refresh the engine in a repo that is *already* initialized, use `cycle upgrade` instead:
+
+```sh
+./.cycle/bin/cycle.js upgrade
+```
+
+`cycle upgrade` makes the safe choice the default:
+
+- **Always refreshed** (never user-edited): `.cycle/bin/cycle.js` and `.cycle/package.json` are overwritten from the shipped engine bundle every run.
+- **Preserved by default** (user-editable): `.cycle/workflows.yml`, `.cycle/prompts/**`, and `.cycle/scripts/**` are left byte-for-byte untouched.
+- **Never touched** (state): `.cycle/.env`, `.cycle/tbd.jsonl`, `.cycle/log.jsonl`, and everything under `docs/cycle/issues/**`.
+
+To pull a category back to the shipped defaults, opt in per category — the flags compose:
+
+```sh
+./.cycle/bin/cycle.js upgrade --overwrite-prompts        # refresh prompts only
+./.cycle/bin/cycle.js upgrade --overwrite-workflows      # refresh workflows.yml only
+./.cycle/bin/cycle.js upgrade --overwrite-scripts        # refresh scripts only
+./.cycle/bin/cycle.js upgrade --overwrite-all            # all three of the above
+```
+
+For directory categories (`prompts/`, `scripts/`) an opt-in overwrite is a clean replace: the destination is removed first, so stray user-added files do not survive. Running `cycle upgrade` against a directory with no `.cycle/` errors out (pointing you to `cycle init`) and writes nothing. See [docs/upgrade.md](docs/upgrade.md) for the full contract.
+
 ## Ideas and inbox
 
 Use `docs/cycle/issues/ideas/` for rough backlog notes, ambiguous asks, and work that needs human/agent discussion before execution. cycle does not drain `ideas/` automatically.

@@ -55,6 +55,14 @@ if (argv[0] === "init") {
   process.exit(0);
 }
 
+if (argv[0] === "upgrade") {
+  const { runUpgrade } = await import("./cli/upgrade.ts");
+  const result = await runUpgrade({ targetRoot: process.cwd(), argv: argv.slice(1) });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr + String.fromCharCode(10));
+  process.exit(result.exitCode);
+}
+
 if (argv[0] === "status") {
   const { runStatus } = await import("./cli/status.ts");
   const out = await runStatus({ cwd: process.cwd() });
@@ -117,6 +125,9 @@ Usage:
   cycle cleanup [--dry-run] [--yes] [--force]
                                 List or delete orphaned cycle/* branches
   cycle compress-output -- <cmd>   Run <cmd> and density-filter its stdout (token saver)
+  cycle upgrade [--overwrite-prompts] [--overwrite-workflows]
+                [--overwrite-scripts] [--overwrite-all]
+                                Refresh engine bundle in place; preserve user config by default
   cycle help                    Show this help
 
 Flags for run:

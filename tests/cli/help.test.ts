@@ -87,6 +87,21 @@ test("usage output lists the compress-output subcommand", async () => {
   assert.ok(r.stdout.includes("compress-output"), "expected 'compress-output' in usage output");
 });
 
+test("usage output lists the upgrade subcommand and all overwrite flags", async () => {
+  const dist = await ensureDist();
+  const r = spawnSync("node", [dist, "help"], { encoding: "utf8" });
+  assert.equal(r.status, 0);
+  for (const s of [
+    "cycle upgrade",
+    "--overwrite-prompts",
+    "--overwrite-workflows",
+    "--overwrite-scripts",
+    "--overwrite-all",
+  ]) {
+    assert.ok(r.stdout.includes(s), `expected '${s}' in usage output`);
+  }
+});
+
 test("cycle with no args runs a queue drain — exits 0 with no argument-parse error", async () => {
   const dist = await ensureDist();
   const root = await mkdtemp(join(tmpdir(), "cycle-no-args-"));

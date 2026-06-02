@@ -1,0 +1,12 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "README.md",
+    "scripts/coverage-gate.mjs",
+    "src/cli.ts",
+    "src/cli/init.ts",
+    "src/cli/upgrade.ts",
+    "tests/cli/help.test.ts",
+    "tests/scripts/coverage-gate.test.ts"
+  ]
+}

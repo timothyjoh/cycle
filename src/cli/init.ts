@@ -33,7 +33,7 @@ export async function runInit(opts: { targetRoot: string; force: boolean }) {
   }
 }
 
-async function locateEngineBundle(): Promise<string> {
+export async function locateEngineBundle(): Promise<string> {
   const candidates = [
     join(HERE, "..", "..", "dist", "cycle.js"),
     join(HERE, "..", "dist", "cycle.js"),
@@ -45,7 +45,7 @@ async function locateEngineBundle(): Promise<string> {
   throw new Error("init: could not locate dist/cycle.js");
 }
 
-async function locateDefaultsDir(): Promise<string> {
+export async function locateDefaultsDir(): Promise<string> {
   // When running from a bundled dist/cycle.js: dist/defaults sits beside it.
   // When running from local source (src/cli/init.ts): src/defaults is two up.
   // When running from npm-installed @cycleai/cli: dist/defaults too.

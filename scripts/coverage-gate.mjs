@@ -19,6 +19,7 @@ const FLOORS = {
   "scripts/sync-defaults.mjs": 90,
   "scripts/structural-invariants.mjs": 90,
   "src/cli/cleanup.ts": 70,
+  "src/cli/upgrade.ts": 70,
   "src/engine/exec-spawn.ts": 90,
   "src/engine/path-utils.ts": 100,
   "src/engine/engine-lock.ts": 100,
