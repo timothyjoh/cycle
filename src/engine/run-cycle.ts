@@ -28,6 +28,7 @@ import { buildCompressHookSettings } from "./compress-filter.ts";
 import { spawnSync } from "node:child_process";
 import { isDenied } from "./path-utils.ts";
 import { classifyNoopMarker, type NoopClassification } from "./noop-marker.ts";
+import { parseFrontmatter } from "./frontmatter.ts";
 import {
   resolveWalkthroughHook,
   execWalkthroughHook,
@@ -102,6 +103,39 @@ export function parseSnapshotPaths(snapshot: string): Set<string> {
     paths.add(p);
   }
   return paths;
+}
+
+/** Per-issue opt-out: only an explicit `expects_code: false` relaxes the
+ * build-phase empty-diff guard. Absent / non-boolean / malformed / `true`
+ * ⇒ `true` (fail-closed — behaves exactly as today). The param is typed
+ * `Record<string, unknown>` so the `=== false` structural check is legal
+ * (no TS2367) and a non-boolean YAML value (e.g. the string `"maybe"`)
+ * resolves to the safe default. */
+export function resolveExpectsCode(fm: Record<string, unknown>): boolean {
+  return fm?.expects_code === false ? false : true;
+}
+
+/** Parse `git status --porcelain -- docs` output into the in-scope doc
+ * deliverable paths: under `docs/`, not denied, and not under the
+ * per-cycle artifact tree (`docs/cycle/**`), which is always present and
+ * must not trivially satisfy the deliverable check. Handles untracked
+ * (`??`), modified, and rename/copy (`R`/`C`) porcelain entries. Pure. */
+export function parseDocDeliverablePaths(stdout: string): string[] {
+  const out: string[] = [];
+  for (const raw of (stdout ?? "").split("\n")) {
+    if (!raw.trim()) continue;
+    const xy = raw.slice(0, 2);
+    let p = raw.slice(3);
+    if (xy[0] === "R" || xy[0] === "C") {
+      const arrow = p.lastIndexOf(" -> ");
+      if (arrow !== -1) p = p.slice(arrow + 4);
+    }
+    p = p.replace(/^"/, "").replace(/"$/, "");
+    if (!p.startsWith("docs/")) continue;
+    if (isDenied(p) || p.startsWith("docs/cycle/")) continue;
+    out.push(p);
+  }
+  return out;
 }
 
 /** Parse the `## Touched Files` bullet block of a BUILD.md body. Exact-trim
@@ -746,27 +780,70 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
               shell: false,
             });
             if (!changed.stdout || !changed.stdout.trim()) {
-              // Marker-gated no-op resolution: an empty diff is normally an
-              // anti-slop failure, but if the agent wrote a well-formed NOOP.md
-              // (recognized reason category + ≥1 file:line evidence line) it is
-              // a recognized "already-satisfied / no-op" terminal outcome, not a
-              // failure. classifyNoopMarker fails closed (absent/unreadable ⇒
-              // invalid); wrap in try/catch so any internal error degrades to the
-              // existing failure path rather than masking the outcome.
-              let marker: NoopClassification = { valid: false };
+              // Per-issue opt-out (expects_code: false): a research/doc-only
+              // issue whose deliverable is a non-empty in-scope docs/** change
+              // (outside the per-cycle docs/cycle/** artifact tree) is a
+              // legitimate ok completion, not an empty-diff failure. Resolve the
+              // flag lazily here — the only place it matters — from the source
+              // issue file still in todo/. Any read/parse error degrades to the
+              // safe default (expects_code: true); the resolution never throws
+              // out of the guard and never coerces to a silent ok (the only way
+              // the guard relaxes is an explicit expects_code === false AND a
+              // confirmed non-empty doc deliverable).
+              let expectsCode = true;
               try {
-                marker = await classifyNoopMarker(join(artifactDir, "NOOP.md"));
+                const issueBody = await readFile(
+                  join(repoRoot, "docs/cycle/issues/todo", `${opts.issueId}.md`),
+                  "utf8",
+                );
+                expectsCode = resolveExpectsCode(parseFrontmatter(issueBody).fm);
               } catch {
-                marker = { valid: false };
+                expectsCode = true;
               }
-              if (marker.valid) {
-                noopOutcome = { reason: marker.reason, step: step.name };
-                // leave r.status === "ok" — step.end fires "ok"; the cycle.noop
-                // return is handled after the step.end emission below.
+
+              let docDeliverable = false;
+              if (!expectsCode) {
+                // A failed git status (non-zero / spawn error) is the safe
+                // direction: no deliverable, so the relaxation is withheld and
+                // the existing no-op/failure path proceeds — a scan error never
+                // fabricates an ok.
+                const docs = spawnSync("git", ["status", "--porcelain", "--untracked-files=all", "--", "docs"], {
+                  cwd: repoRoot,
+                  encoding: "utf8",
+                  shell: false,
+                });
+                docDeliverable = docs.status === 0
+                  && parseDocDeliverablePaths(docs.stdout ?? "").length > 0;
+              }
+
+              if (!expectsCode && docDeliverable) {
+                // Relaxed: leave r.status === "ok". step.end fires ok; the cycle
+                // proceeds to a normal ok completion that commits the docs
+                // change via the unchanged commitCycle path. This is NOT a
+                // no-op — no cycle.noop, not routed through noopDrain/exit-3.
               } else {
-                r.status = "failed";
-                r.exitCode = r.exitCode || 1;
-                r.stderr = formatEmptyDiffGuardError(step.name);
+                // Marker-gated no-op resolution: an empty diff is normally an
+                // anti-slop failure, but if the agent wrote a well-formed NOOP.md
+                // (recognized reason category + ≥1 file:line evidence line) it is
+                // a recognized "already-satisfied / no-op" terminal outcome, not a
+                // failure. classifyNoopMarker fails closed (absent/unreadable ⇒
+                // invalid); wrap in try/catch so any internal error degrades to the
+                // existing failure path rather than masking the outcome.
+                let marker: NoopClassification = { valid: false };
+                try {
+                  marker = await classifyNoopMarker(join(artifactDir, "NOOP.md"));
+                } catch {
+                  marker = { valid: false };
+                }
+                if (marker.valid) {
+                  noopOutcome = { reason: marker.reason, step: step.name };
+                  // leave r.status === "ok" — step.end fires "ok"; the cycle.noop
+                  // return is handled after the step.end emission below.
+                } else {
+                  r.status = "failed";
+                  r.exitCode = r.exitCode || 1;
+                  r.stderr = formatEmptyDiffGuardError(step.name);
+                }
               }
             }
           }

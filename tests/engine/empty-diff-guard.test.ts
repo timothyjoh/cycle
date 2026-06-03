@@ -58,6 +58,23 @@ async function cleanup(root: string, bin: string) {
   await rm(bin, { recursive: true, force: true });
 }
 
+async function writeIssue(root: string, issueId: string, frontmatter: string) {
+  const dir = join(root, "docs/cycle/issues/todo");
+  await mkdir(dir, { recursive: true });
+  await writeFile(
+    join(dir, `${issueId}.md`),
+    `---\n${frontmatter}\n---\nbody\n`,
+    "utf8",
+  );
+}
+
+function countEvents(log: string, pred: (e: any) => boolean): number {
+  return log.split("\n").filter(l => {
+    if (!l.trim()) return false;
+    try { return pred(JSON.parse(l)); } catch { return false; }
+  }).length;
+}
+
 const SHEBANG = "#!/bin/bash";
 
 test("empty-diff-guard: build step with no src/ changes -> failed", async () => {
@@ -199,6 +216,110 @@ test("empty-diff-guard: build step with tests-only changes -> ok", async () => {
       env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
     });
     assert.equal(r.status, "ok");
+  } finally {
+    await cleanup(root, bin);
+  }
+});
+
+test("expects_code:false: empty code diff + non-empty docs/** -> ok (committed, no noop)", async () => {
+  // fake build writes only a docs/** deliverable outside docs/cycle/** and
+  // touches nothing under src/scripts/tests. With expects_code:false the
+  // empty-diff guard is relaxed to a normal ok completion.
+  const fakeBody = [
+    SHEBANG,
+    'mkdir -p docs',
+    'printf "research findings\\n" > docs/RFC-x.md',
+    'printf "## summary\\n"',
+    "",
+  ].join("\n");
+  const { root, bin } = await setupRepo(fakeBody, "build");
+  try {
+    await writeIssue(root, "EDG-OPTOUT-DOCS", "expects_code: false");
+    const r = await runCycle(root, {
+      issueId: "EDG-OPTOUT-DOCS",
+      title: "doc-only opt-out",
+      workflow: "feature",
+      env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.equal(
+      countEvents(log, e => e.event === "step.end" && e.step === "build" && e.status === "ok"),
+      1,
+      "step.end build ok must fire exactly once",
+    );
+    assert.equal(
+      countEvents(log, e => e.event === "step.end" && e.step === "build" && e.status === "failed"),
+      0,
+      "build step must not fail",
+    );
+    assert.equal(
+      countEvents(log, e => e.event === "cycle.end" && e.status === "ok"),
+      1,
+      "cycle.end ok must fire exactly once",
+    );
+    assert.equal(
+      countEvents(log, e => e.event === "cycle.noop"),
+      0,
+      "relaxed path must not emit cycle.noop",
+    );
+    // The docs deliverable is left in the tree for the unchanged commit path.
+    assert.equal((await readFile(join(root, "docs/RFC-x.md"), "utf8")).trim(), "research findings");
+  } finally {
+    await cleanup(root, bin);
+  }
+});
+
+test("expects_code:false: empty code diff + no docs deliverable -> failed (anti-slop)", async () => {
+  // opt-out but nothing under docs/** outside the per-cycle artifact tree —
+  // an opt-out is not a license to deliver nothing.
+  const fakeBody = [SHEBANG, 'printf "## summary\\n"', ""].join("\n");
+  const { root, bin } = await setupRepo(fakeBody, "build");
+  try {
+    await writeIssue(root, "EDG-OPTOUT-NODELIV", "expects_code: false");
+    const r = await runCycle(root, {
+      issueId: "EDG-OPTOUT-NODELIV",
+      title: "opt-out no deliverable",
+      workflow: "feature",
+      env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "failed");
+    assert.equal(r.status === "failed" ? r.failingStep : null, "build");
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.equal(
+      countEvents(log, e => e.event === "step.end" && e.step === "build" && e.status === "failed"),
+      1,
+      "step.end build failed must fire exactly once",
+    );
+    assert.match(log, /build post-condition failed/);
+  } finally {
+    await cleanup(root, bin);
+  }
+});
+
+test("expects_code:false: unreadable/missing issue file -> defaults true, guard fires", async () => {
+  // No issue file written: resolution degrades to the safe expects_code:true
+  // default, so the empty-diff guard fires exactly as today.
+  const fakeBody = [
+    SHEBANG,
+    'mkdir -p docs',
+    'printf "doc\\n" > docs/RFC-y.md', // a docs change exists, but flag defaults true
+    'printf "## summary\\n"',
+    "",
+  ].join("\n");
+  const { root, bin } = await setupRepo(fakeBody, "build");
+  try {
+    // Intentionally do NOT write the issue file.
+    const r = await runCycle(root, {
+      issueId: "EDG-OPTOUT-MISSING",
+      title: "opt-out missing issue",
+      workflow: "feature",
+      env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "failed");
+    assert.equal(r.status === "failed" ? r.failingStep : null, "build");
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.match(log, /build post-condition failed/);
   } finally {
     await cleanup(root, bin);
   }

@@ -90,6 +90,7 @@ title: "Fix login cookie expiry on Safari 17"
 depends_on: []             # ids of other todos that must complete first
 triaged_at: 2026-05-13T02:30:00Z
 source: jira               # inherited from parent
+expects_code: true         # optional; set false for research/doc-only issues
 ---
 
 ## Context
@@ -98,6 +99,8 @@ source: jira               # inherited from parent
 ## Acceptance
 - [criteria]
 ```
+
+`expects_code` is an optional per-issue opt-out (default `true`): set `expects_code: false` on a research/doc-only issue whose deliverable is documentation rather than code, and the build-phase empty-diff guard is relaxed so a cycle that writes only an in-scope `docs/**` file completes `ok` instead of failing. Absent / non-boolean / malformed values resolve to `true` (the issue is treated as a normal code issue). See [ENGINE.md](ENGINE.md) → *`expects_code: false` opt-out*.
 
 ### Decomposed parent (`done/<id>_raw.md`)
 
