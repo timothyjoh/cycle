@@ -787,6 +787,9 @@ while (!halted) {
     } else if (row.attempt + 1 < maxAttempts) {
       await drainRetry(cwd, log, cycleId, row.id, failingStep);
       // retry-drain: counter unchanged; popNextPending will see the row again with attempt++.
+      // Residue-gate the retry: if this failed attempt dirtied the tree, the loop-top
+      // haltIfResidue() halts before drainRetry's re-run executes on top of it.
+      pendingResidueContext = { cycleId, issueId: row.id, failingStep };
     } else {
       await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, failingStep, row.attempt + 1);
       const acct = recordTerminalFailure(

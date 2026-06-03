@@ -256,6 +256,128 @@ test("residue guard: clean tree leaves behavior unchanged (no new event)", async
   }
 });
 
+test("residue guard: within-budget retry halts before drainRetry re-runs on dirty tree", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-residue-"));
+  try {
+    const dist = await ensureDist();
+    // maxCycleAttempts=2 ⇒ the first failure (attempt 0+1 < 2) takes the
+    // within-budget retry arm. The retry arm never calls recordTerminalFailure,
+    // so consecutiveFailures stays 0 and the residue guard — not
+    // max_consecutive_failures — must be what halts.
+    await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": RESIDUE_SCRIPT });
+    await seedTodo(root, "A", "a task");
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
+
+    const events = await readEvents(root);
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+    );
+    assert.equal(halts.length, 1, "exactly one failed_cycle_dirty_worktree halt");
+    const halt = halts[0];
+
+    const dirtyPaths = halt.dirty_paths as string[];
+    assert.ok(dirtyPaths.includes("src/residue.ts"), `dirty_paths: ${JSON.stringify(dirtyPaths)}`);
+
+    // Gap closed: the retry must NOT re-run on top of the dirty tree — only the
+    // first cycle attempt ran (the single available harness signal).
+    const starts = events.filter((e) => e.event === "cycle.start");
+    assert.equal(starts.length, 1, "retry must not re-run; only the first cycle started");
+    assert.equal(halt.failed_cycle_id, starts[0].cycle_id);
+
+    // The halt must not be the max_consecutive_failures path (counters untouched
+    // by the retry arm).
+    assert.notEqual(halt.reason, "max_consecutive_failures");
+
+    const stops = events.filter((e) => e.event === "engine.stop");
+    assert.equal(stops.length, 1, "exactly one engine.stop");
+    assert.equal(stops[0].reason, "failed_cycle_dirty_worktree");
+
+    assert.match(r.stderr, /src\/residue\.ts/);
+    assert.match(r.stderr, /git reset --hard/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("residue guard: within-budget retry with git-status failure halts (no silent proceed)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-residue-"));
+  try {
+    const dist = await ensureDist();
+    await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": GIT_FAILURE_SCRIPT });
+    await seedTodo(root, "A", "a task");
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 1, `expected exit 1 (halt), got ${r.status}\n${r.stderr}`);
+
+    const events = await readEvents(root);
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+    );
+    assert.equal(halts.length, 1, "exactly one failed_cycle_dirty_worktree halt");
+    // A failed status check is surfaced, not coerced to clean.
+    assert.deepEqual(halts[0].dirty_paths, []);
+    assert.match(String(halts[0].message), /Residue check failed/);
+
+    const starts = events.filter((e) => e.event === "cycle.start");
+    assert.equal(starts.length, 1, "retry must not re-run on an unverified tree");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("residue guard: clean-tree within-budget retry proceeds unchanged (no new event)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-residue-"));
+  try {
+    const dist = await ensureDist();
+    await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": CLEAN_FAIL_SCRIPT });
+    await seedTodo(root, "A", "a task");
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+
+    const events = await readEvents(root);
+    assert.ok(
+      !events.some(
+        (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+      ),
+      "clean-tree within-budget retry must not emit a residue halt",
+    );
+    // The retry re-ran: the cycle was attempted twice (attempt 0 then attempt 1).
+    const starts = events.filter((e) => e.event === "cycle.start");
+    assert.equal(starts.length, 2, "the within-budget retry re-ran the cycle");
+    assert.ok(
+      !events.some(
+        (e) => e.event === "engine.stop" && e.reason === "failed_cycle_dirty_worktree",
+      ),
+      "no residue engine.stop on a clean tree",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("residue guard: engine-owned-only within-budget retry does not trip the guard", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-residue-"));
+  try {
+    const dist = await ensureDist();
+    await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": ENGINE_OWNED_SCRIPT });
+    await seedTodo(root, "A", "a task");
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+
+    const events = await readEvents(root);
+    assert.ok(
+      !events.some(
+        (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+      ),
+      "engine-owned-only residue must not trip the within-budget retry guard",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("residue guard: git-status failure halts (no silent proceed)", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-residue-"));
   try {
