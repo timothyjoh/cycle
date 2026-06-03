@@ -102,6 +102,90 @@ test("structural-invariants: cli single-implementation layout -> exit 0, no stde
   }
 });
 
+test("structural-invariants: residue arm/persist clean fixture -> exit 0, no stderr", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-si-residue-pass-"));
+  try {
+    const triage = await readFile(join(FIXTURES, "triage-clean.ts"), "utf8");
+    const cli = await readFile(join(FIXTURES, "cli-residue-clean.ts"), "utf8");
+    await setup(root, triage, cli);
+    const result = run(root);
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, "");
+    assert.match(result.stdout, /ok -- src\/cli\.ts residue arm\/persist correspondence.*: 2 paired/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("structural-invariants: residue arm without persist -> exit 1, names src/cli.ts + arm line + arm/persist contract", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-si-residue-fail-"));
+  try {
+    const triage = await readFile(join(FIXTURES, "triage-clean.ts"), "utf8");
+    const cli = await readFile(join(FIXTURES, "cli-residue-violation.ts"), "utf8");
+    await setup(root, triage, cli);
+    const result = run(root);
+    assert.equal(result.status, 1);
+    assert.ok(result.stderr.includes("src/cli.ts"));
+    assert.match(result.stderr, /residue arm\/persist/);
+    assert.match(result.stderr, /persistResidue/);
+    assert.match(result.stderr, /line \d+/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("structural-invariants: malformed entry (no pattern or validate) -> FAIL, not a silent pass", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-si-malformed-"));
+  try {
+    // A relational `validate` that throws must be contained as a FAIL, never
+    // coerced to a silent pass.
+    const probe = join(root, "probe.mjs");
+    await writeFile(
+      probe,
+      [
+        "import { readFile } from 'node:fs/promises';",
+        "import { join } from 'node:path';",
+        "const INVARIANTS = [",
+        "  { file: 'f.txt', validate: () => { throw new Error('boom'); }, reason: 'throwing predicate' },",
+        "  { file: 'f.txt', reason: 'malformed: no pattern or validate' },",
+        "];",
+        "let failed = 0;",
+        "for (const entry of INVARIANTS) {",
+        "  const { file, reason } = entry;",
+        "  let text;",
+        "  try { text = await readFile(join(process.cwd(), file), 'utf8'); }",
+        "  catch (e) { console.error('read ' + file); process.exit(2); }",
+        "  if (typeof entry.validate === 'function') {",
+        "    let res;",
+        "    try { res = entry.validate(text, file); }",
+        "    catch (e) { console.error('FAIL ' + file + ' -- ' + reason + ': predicate threw: ' + e.message); failed++; continue; }",
+        "    if (!res || !res.ok) { console.error('FAIL ' + file + ': ' + (res ? res.message : 'no result')); failed++; }",
+        "    else { console.log('ok ' + file); }",
+        "  } else if (entry.pattern) {",
+        "    console.log('count ' + file);",
+        "  } else {",
+        "    console.error('FAIL ' + file + ' -- ' + reason + ': malformed invariant entry (no pattern or validate)'); failed++;",
+        "  }",
+        "}",
+        "process.exit(failed > 0 ? 1 : 0);",
+      ].join("\n"),
+    );
+    await writeFile(join(root, "f.txt"), "irrelevant\n");
+    const result = spawnSync(process.execPath, [probe], { cwd: root, encoding: "utf8" });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /predicate threw: boom/);
+    assert.match(result.stderr, /malformed invariant entry/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("structural-invariants: real repo emits residue arm/persist ok line", () => {
+  const result = run(process.cwd());
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /ok -- src\/cli\.ts residue arm\/persist correspondence.*: 5 paired/);
+});
+
 test("structural-invariants: real repo root -> exit 0 (regression pin)", () => {
   const result = run(process.cwd());
   assert.equal(result.status, 0);

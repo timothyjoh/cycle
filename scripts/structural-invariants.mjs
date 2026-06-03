@@ -1,13 +1,59 @@
 #!/usr/bin/env node
 // Build-time structural invariants checker. Reads each target file in the
-// INVARIANTS table, counts regex matches, and fails if the count doesn't
-// match `expected`. Exits 0 if all pass, 1 if any fail, 2 if a target file
-// cannot be read.
+// INVARIANTS table and evaluates one of two entry kinds:
+//   - count-based:  `{ file, pattern, expected, reason }` — counts regex
+//     matches and fails if the count doesn't match `expected`.
+//   - relational:   `{ file, validate, reason }` where `validate(text, file)`
+//     returns `{ ok, actual?, message? }` — inspects matched lines and their
+//     successors (e.g. "every arm line is followed by a persist line"). A
+//     thrown predicate is contained as a FAIL, never coerced to a silent pass.
+// Exits 0 if all pass, 1 if any fail, 2 if a target file cannot be read.
 //
 // Extend INVARIANTS to register new build-time structural rules. Same posture
 // as the FLOORS table in coverage-gate.mjs -- single source of truth, in-file.
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+
+// Relational invariant: every in-memory residue arm must be mirrored to disk.
+// An arm is a single-line `pendingResidueContext = { … }` assignment; a clear
+// (`= undefined`) is not an arm. The tail-derived resume/startup arm carries
+// `failingStep: undefined` and is intentionally NOT persisted -> whitelisted
+// structurally. The paired persist may sit past intervening comment/blank lines.
+const ARM = /pendingResidueContext\s*=\s*\{/;
+const ARM_NOT_CLEAR = /pendingResidueContext\s*=\s*undefined/;
+const WHITELIST = /failingStep:\s*undefined/;
+const PERSIST = /await\s+persistResidue\s*\(/;
+const SKIPPABLE = /^\s*(\/\/|\/\*|\*|$)/; // comment or blank line
+
+function validateResidueArmPersist(text) {
+  const lines = text.split('\n');
+  const violations = [];
+  let paired = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!ARM.test(line) || ARM_NOT_CLEAR.test(line)) continue; // not an arm
+    if (WHITELIST.test(line)) continue; // whitelisted tail-derived site
+    // Look ahead past comment/blank lines for the paired persist.
+    let j = i + 1;
+    while (j < lines.length && SKIPPABLE.test(lines[j])) j++;
+    if (j < lines.length && PERSIST.test(lines[j])) {
+      paired++;
+    } else {
+      violations.push(`line ${i + 1}: ${line.trim()}`);
+    }
+  }
+  if (violations.length > 0) {
+    return {
+      ok: false,
+      message:
+        'un-persisted residue arm(s) — every `pendingResidueContext = { … }` ' +
+        'assignment must be immediately followed by `await persistResidue(pendingResidueContext);` ' +
+        '(except the whitelisted `failingStep: undefined` tail-derived site). Offending: ' +
+        violations.join('; '),
+    };
+  }
+  return { ok: true, actual: `${paired} paired` };
+}
 
 const INVARIANTS = [
   {
@@ -48,6 +94,13 @@ const INVARIANTS = [
     expected: 3,
     reason:
       'failed-cycle dirty-worktree residue guard wired at exactly three gated sites: the cross-process startup re-check, before runResumeOnce (resume path), and at loop-top before popNextPending (next-issue path) (cycle 0036; startup re-check cycle 0039)',
+  },
+
+  {
+    file: 'src/cli.ts',
+    validate: validateResidueArmPersist,
+    reason:
+      'residue arm/persist correspondence: every non-whitelisted pendingResidueContext arm is followed by await persistResidue (cycle 0042 fifth persist site; tail-derived failingStep:undefined site whitelisted)',
   },
 
   // --- Agent-binary hermeticity (added 2026-06-02) ---
@@ -128,7 +181,8 @@ const INVARIANTS = [
 ];
 
 let failed = 0;
-for (const { file, pattern, expected, reason } of INVARIANTS) {
+for (const entry of INVARIANTS) {
+  const { file, reason } = entry;
   let text;
   try {
     text = await readFile(join(process.cwd(), file), 'utf8');
@@ -136,14 +190,41 @@ for (const { file, pattern, expected, reason } of INVARIANTS) {
     console.error(`structural-invariants: cannot read ${file}: ${e.code ?? e.message}`);
     process.exit(2);
   }
-  const actual = (text.match(pattern) ?? []).length;
-  if (actual !== expected) {
+
+  if (typeof entry.validate === 'function') {
+    // Relational/predicate invariant. Contain any throw as a FAIL so a
+    // malformed or erroring predicate can never be coerced to a silent pass.
+    let res;
+    try {
+      res = entry.validate(text, file);
+    } catch (e) {
+      console.error(`structural-invariants: FAIL ${file} -- ${reason}: predicate threw: ${e.message}`);
+      failed++;
+      continue;
+    }
+    if (!res || !res.ok) {
+      console.error(
+        `structural-invariants: FAIL ${file} -- ${reason}: ${res ? res.message : 'predicate returned no result'}`,
+      );
+      failed++;
+    } else {
+      console.log(`structural-invariants: ok -- ${file} ${reason}: ${res.actual}`);
+    }
+  } else if (entry.pattern) {
+    const actual = (text.match(entry.pattern) ?? []).length;
+    if (actual !== entry.expected) {
+      console.error(
+        `structural-invariants: FAIL ${file} -- ${reason}: expected ${entry.expected}, got ${actual}`,
+      );
+      failed++;
+    } else {
+      console.log(`structural-invariants: ok -- ${file} ${reason}: ${actual}`);
+    }
+  } else {
     console.error(
-      `structural-invariants: FAIL ${file} -- ${reason}: expected ${expected}, got ${actual}`,
+      `structural-invariants: FAIL ${file} -- ${reason}: malformed invariant entry (no pattern or validate)`,
     );
     failed++;
-  } else {
-    console.log(`structural-invariants: ok -- ${file} ${reason}: ${actual}`);
   }
 }
 
