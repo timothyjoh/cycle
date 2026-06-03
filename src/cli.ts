@@ -868,7 +868,10 @@ while (!halted) {
       // retry-drain: counter unchanged; popNextPending will see the row again with attempt++.
       // Residue-gate the retry: if this failed attempt dirtied the tree, the loop-top
       // haltIfResidue() halts before drainRetry's re-run executes on top of it.
+      // Persist the context (cycle 0042) so a crash before the retry re-runs is still
+      // re-checked on a fresh start — symmetric with the four terminal-failure branches.
       pendingResidueContext = { cycleId, issueId: row.id, failingStep };
+      await persistResidue(pendingResidueContext);
     } else {
       await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, failingStep, row.attempt + 1);
       const acct = recordTerminalFailure(

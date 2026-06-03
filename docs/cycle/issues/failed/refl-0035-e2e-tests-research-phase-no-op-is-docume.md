@@ -6,6 +6,10 @@ depends_on: []
 triaged_at: 2026-06-03T03:51:36.515Z
 source: triage
 priority: medium
+failed_at: 2026-06-03T12:47:44.453Z
+failed_step: build
+failed_attempts: 3
+last_cycle_id: "0041"
 ---
 ## Problem
 

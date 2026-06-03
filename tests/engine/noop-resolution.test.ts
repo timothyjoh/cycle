@@ -79,7 +79,7 @@ function parseEvents(log: string): Array<Record<string, unknown>> {
 // Multi-step feature workflow (research-phase short-circuit tests need a step
 // AFTER research to assert it never starts on a no-op, and to assert it DOES
 // start when the marker is absent/malformed/unreadable).
-function multiWorkflowYml(steps: string[]): string {
+function multiWorkflowYml(steps: string[], name: string = "feature"): string {
   const stepLines = steps.flatMap(s => [
     `      - name: ${s}`,
     "        agent: claudecode",
@@ -97,14 +97,14 @@ function multiWorkflowYml(steps: string[]): string {
     "  prompt: prompts/triage.md",
     "  max_turns: 10",
     "workflows:",
-    "  - name: feature",
+    `  - name: ${name}`,
     "    max_cycle_attempts: 3",
     "    steps:",
     ...stepLines,
   ].join("\n") + "\n";
 }
 
-async function setupMultiRepo(fakeBody: string, steps: string[]): Promise<{ root: string; bin: string }> {
+async function setupMultiRepo(fakeBody: string, steps: string[], name: string = "feature"): Promise<{ root: string; bin: string }> {
   const root = await mkdtemp(join(tmpdir(), "cycle-noop-res-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-noop-res-bin-"));
   git(root, ["init", "-b", "main"]);
@@ -112,7 +112,7 @@ async function setupMultiRepo(fakeBody: string, steps: string[]): Promise<{ root
   git(root, ["config", "user.name", "t"]);
   git(root, ["commit", "--allow-empty", "-m", "init"]);
   await mkdir(join(root, ".cycle/prompts"), { recursive: true });
-  await writeFile(join(root, ".cycle/workflows.yml"), multiWorkflowYml(steps), "utf8");
+  await writeFile(join(root, ".cycle/workflows.yml"), multiWorkflowYml(steps, name), "utf8");
   for (const s of steps) {
     await writeFile(join(root, `.cycle/prompts/${s}.md`), s, "utf8");
   }
@@ -181,6 +181,57 @@ test("noop-resolution: research exit 0 + valid NOOP.md ⇒ cycle.noop before pla
     // research completion-proof passed (RESEARCH.md non-empty).
     assert.equal(events.filter(e => e.event === "step.completion_check" && e.status === "fail").length, 0);
     // finally cleanup ran; no leaked failure.
+    assert.equal(events.filter(e => e.event === "cycle.checkout").length, 1);
+    assert.equal(events.filter(e => e.event === "cycle.base_pull").length, 1);
+    assert.equal(events.filter(e => e.event === "cycle.end" && e.status === "failed").length, 0);
+  } finally {
+    await cleanup(root, bin);
+  }
+});
+
+test("noop-resolution: e2e-tests research exit 0 + valid NOOP.md ⇒ cycle.noop before test_plan/test_build/review", async () => {
+  const { root, bin } = await setupMultiRepo(
+    researchNoopFake("already-satisfied"),
+    ["research", "test_plan", "test_build", "review"],
+    "e2e-tests",
+  );
+  try {
+    const r = await runCycle(root, {
+      issueId: "NOOP-E2E-RESEARCH",
+      title: "noop e2e research",
+      workflow: "e2e-tests",
+      env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "noop");
+    assert.equal(r.status === "noop" ? r.reason : null, "already-satisfied");
+    assert.equal(r.status === "noop" ? r.detectedAtStep : null, "research");
+
+    const events = parseEvents(await readFile(join(root, ".cycle/log.jsonl"), "utf8"));
+    const noop = events.filter(e => e.event === "cycle.noop");
+    assert.equal(noop.length, 1, "cycle.noop must fire exactly once (e2e-tests)");
+    assert.equal(noop[0].issue_id, "NOOP-E2E-RESEARCH");
+    assert.equal(noop[0].reason, "already-satisfied");
+    assert.equal(noop[0].detected_at_step, "research");
+
+    assert.equal(events.filter(e => e.event === "cycle.end" && e.status === "noop").length, 1);
+    const noopIdx = events.findIndex(e => e.event === "cycle.noop");
+    const endIdx = events.findIndex(e => e.event === "cycle.end" && e.status === "noop");
+    assert.ok(noopIdx < endIdx, "cycle.noop precedes cycle.end{noop}");
+
+    assert.equal(
+      events.filter(e => e.event === "step.end" && e.step === "research" && e.status === "ok").length,
+      1,
+      "step.end research ok exactly once",
+    );
+    // Short-circuit: no downstream e2e-tests step ever started.
+    for (const downstream of ["test_plan", "test_build", "review"]) {
+      assert.equal(
+        events.filter(e => e.event === "step.start" && e.step === downstream).length,
+        0,
+        `no step.start for ${downstream} on an e2e-tests research short-circuit`,
+      );
+    }
+    assert.equal(events.filter(e => e.event === "step.completion_check" && e.status === "fail").length, 0);
     assert.equal(events.filter(e => e.event === "cycle.checkout").length, 1);
     assert.equal(events.filter(e => e.event === "cycle.base_pull").length, 1);
     assert.equal(events.filter(e => e.event === "cycle.end" && e.status === "failed").length, 0);

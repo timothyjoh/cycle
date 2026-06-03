@@ -578,3 +578,155 @@ test("residue guard: terminal-failure branch persists context to disk", async ()
     await rm(root, { recursive: true, force: true });
   }
 });
+
+// --- Within-budget retry-arm persistence (cycle 0042) ---
+
+test("residue guard: within-budget retry arm persists context to disk", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-residue-wbpersist-"));
+  try {
+    const dist = await ensureDist();
+    // maxCycleAttempts=2 ⇒ the first failure (attempt 0+1 < 2) takes the
+    // within-budget retry arm — the lone set-without-persist site before this
+    // cycle. The arm now persists the context before the loop-top guard halts
+    // on the dirty tree, symmetric with the four terminal-failure branches.
+    await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": RESIDUE_SCRIPT });
+    await seedTodo(root, "A", "a task");
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
+
+    assert.ok(await contextExists(root), "context file written at the within-budget retry arm");
+    const persisted = JSON.parse(await readFile(join(root, CONTEXT_FILE), "utf8"));
+    assert.equal(persisted.issueId, "A");
+    assert.equal(persisted.failingStep, "verify");
+
+    const events = await readEvents(root);
+    const starts = events.filter((e) => e.event === "cycle.start");
+    assert.equal(starts.length, 1, "retry did not re-run; only the first cycle started");
+    assert.equal(persisted.cycleId, starts[0].cycle_id, "persisted cycleId matches the failed cycle");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("residue guard: fresh start on persisted within-budget-retry context halts (cross-process)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-residue-wbxproc-"));
+  try {
+    const dist = await ensureDist();
+    // Simulate a crash after the within-budget retry arm armed+persisted the
+    // context but before the retry re-ran: the persisted file is the only arming
+    // source (no in-flight log tail). A fresh start must re-check and halt.
+    await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": CLEAN_FAIL_SCRIPT });
+    await seedTodo(root, "A", "a task");
+    await writeContext(root, { cycleId: "0007", issueId: "A", failingStep: "verify" });
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/residue.ts"), "leftover");
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
+
+    const events = await readEvents(root);
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+    );
+    assert.equal(halts.length, 1, "exactly one failed_cycle_dirty_worktree halt");
+    assert.equal(halts[0].failed_cycle_id, "0007");
+    assert.equal(halts[0].issue_id, "A");
+    assert.ok(
+      (halts[0].dirty_paths as string[]).includes("src/residue.ts"),
+      `dirty_paths: ${JSON.stringify(halts[0].dirty_paths)}`,
+    );
+
+    const stops = events.filter((e) => e.event === "engine.stop");
+    assert.equal(stops.length, 1, "exactly one engine.stop");
+    assert.equal(stops[0].reason, "failed_cycle_dirty_worktree");
+
+    // No new cycle was stacked on the residue.
+    assert.equal(events.filter((e) => e.event === "cycle.start").length, 0, "no cycle started");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("residue guard: write failure at within-budget arm warns and falls back to in-memory guard", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-residue-wbwritefail-"));
+  try {
+    const dist = await ensureDist();
+    await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": RESIDUE_SCRIPT });
+    await seedTodo(root, "A", "a task");
+    // Force the atomic write's final rename to fail by pre-creating the target
+    // path as a (non-empty) directory: renameSync(tmp, <dir>) throws, so
+    // persistResidue catches it and emits residue_context_write_failed. Real-fs
+    // manipulation per the CLAUDE.md note that node:fs/promises cannot be
+    // mock.method-stubbed. The in-memory guard must still halt this same process.
+    await mkdir(join(root, CONTEXT_FILE), { recursive: true });
+    await writeFile(join(root, CONTEXT_FILE, "keep"), "x", "utf8");
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 1, `expected exit 1 (in-memory halt), got ${r.status}\n${r.stderr}`);
+
+    const events = await readEvents(root);
+    const warns = events.filter(
+      (e) => e.event === "engine.warning" && e.reason === "residue_context_write_failed",
+    );
+    assert.equal(warns.length, 1, "exactly one residue_context_write_failed warning");
+
+    // The persist failure did not throw / crash the supervisor: the in-memory
+    // guard still produced the residue halt this same process.
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+    );
+    assert.equal(halts.length, 1, "in-memory guard still halts after the write failure");
+    const stops = events.filter(
+      (e) => e.event === "engine.stop" && e.reason === "failed_cycle_dirty_worktree",
+    );
+    assert.equal(stops.length, 1, "exactly one residue engine.stop");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("residue guard: clean-tree clear after a within-budget retry deletes the persisted file", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-residue-wbclear-"));
+  try {
+    const dist = await ensureDist();
+    // verify.sh fails the first attempt and succeeds the second, keeping the
+    // worktree clean (the attempt counter lives under .cycle/, engine-owned, so
+    // it never trips the guard). Flow: attempt 0 fails clean → within-budget arm
+    // persists the context → loop-top clean-tree clear deletes it → retry
+    // succeeds. No stale context file may survive a recovered within-budget retry.
+    const RETRY_THEN_OK = `#!/bin/bash
+c=.cycle/vattempt
+n=$(cat "$c" 2>/dev/null || echo 0)
+n=$((n + 1))
+echo "$n" > "$c"
+if [ "$n" -ge 2 ]; then exit 0; fi
+exit 1
+`;
+    await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": RETRY_THEN_OK });
+    await seedTodo(root, "A", "a task");
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
+
+    // No stale context file left behind by the recovered within-budget retry.
+    assert.equal(await contextExists(root), false, "persisted context deleted on the clean-tree clear");
+
+    const events = await readEvents(root);
+    assert.ok(
+      !events.some(
+        (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+      ),
+      "clean-tree within-budget retry must not emit a residue halt",
+    );
+    // The within-budget retry re-ran (attempt 0 then attempt 1) and then succeeded.
+    const starts = events.filter((e) => e.event === "cycle.start");
+    assert.equal(starts.length, 2, "the within-budget retry re-ran the cycle");
+    // The recovered retry's final drain is a success (the row leaves the queue ok),
+    // confirming the engine proceeded past the within-budget retry to completion.
+    const okDrains = events.filter((e) => e.event === "queue.drained" && e.outcome === "ok");
+    assert.equal(okDrains.length, 1, "the recovered retry succeeded (one ok drain)");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
