@@ -28,10 +28,16 @@ async function setup(cwd: string, content: string, cliContent = "// stub\nconsec
     ["auggie", "AUGGIE", "auggie"],
     ["pi", "PI", "pi"],
   ];
+  // Lanes with a non-interactive-entrypoint argv pin carry the matching literal
+  // so the count-based invariant (expected: 1) is satisfied against the stub:
+  // codex→`exec`, opencode→`run`, pi→`--print` (all non-TTY stdin fixes).
+  const argvPin: Record<string, string> = {
+    codex: `const argv: string[] = ["exec"];\n`,
+    opencode: `const argv: string[] = ["run"];\n`,
+    pi: `const argv: string[] = ["--print"];\n`,
+  };
   for (const [file, env, bin] of lanes) {
-    // codex carries the extra `exec` subcommand pin so the codex-`exec`
-    // count-based invariant (expected: 1) is satisfied against this stub.
-    const execLine = file === "codex" ? `const argv: string[] = ["exec"];\n` : "";
+    const execLine = argvPin[file] ?? "";
     await writeFile(
       join(cwd, `src/engine/exec-${file}.ts`),
       `${execLine}const binary = process.env.CYCLE_${env}_BIN ?? "${bin}";\n`,

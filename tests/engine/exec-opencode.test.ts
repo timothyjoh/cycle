@@ -5,17 +5,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveAgent } from "../../src/engine/exec.ts";
 
-test("opencode: pipes prompt body to stdin, returns stdout", async () => {
+test("opencode: invokes `opencode run` with prompt as trailing positional argv", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
   try {
     const prompts = join(root, ".cycle/prompts");
     await mkdir(prompts, { recursive: true });
-    const body = "PROMPT BODY opencode-stdin-roundtrip";
+    const body = "PROMPT-BODY-opencode-argv-roundtrip";
     await writeFile(join(prompts, "spec.md"), body, "utf8");
 
+    // `echo "$@"` reflects the spawned argv: the prompt is now delivered as the
+    // trailing positional (promptDelivery: "argv"), not piped over stdin.
     const fake = join(bin, "opencode");
-    await writeFile(fake, "#!/bin/bash\ncat\n", "utf8");
+    await writeFile(fake, "#!/bin/bash\necho \"$@\"\n", "utf8");
     await chmod(fake, 0o755);
     process.env.CYCLE_OPENCODE_BIN = fake;
 
@@ -25,7 +27,8 @@ test("opencode: pipes prompt body to stdin, returns stdout", async () => {
     });
     assert.equal(r.status, "ok");
     assert.equal(r.exitCode, 0);
-    assert.match(r.stdout, /opencode-stdin-roundtrip/);
+    assert.match(r.stdout, /^run\b/, "must use the `run` subcommand, not bare `opencode`");
+    assert.match(r.stdout, /PROMPT-BODY-opencode-argv-roundtrip\s*$/, "prompt delivered as trailing positional argv");
   } finally {
     delete process.env.CYCLE_OPENCODE_BIN;
     await rm(root, { recursive: true, force: true });

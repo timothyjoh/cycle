@@ -400,8 +400,8 @@ Per-step fields:
 | `codex` | `codex` subprocess (optional `--model`/`--thinking`) | Alternative for build / fix / review |
 | `gemini` | `gemini` subprocess (optional `--model`; prompt via stdin) | Alternative AI agent |
 | `auggie` | `auggie` subprocess (optional `--model`/`--thinking`) | Alternative for build / fix / review |
-| `opencode` | `opencode` subprocess (optional `--model`/`--thinking`) | Alternative for build / fix / review |
-| `pi` | `pi` subprocess (optional `--model`/`--thinking`) | Alternative for build / fix / review |
+| `opencode` | `opencode run` subprocess (non-interactive entrypoint; prompt as positional argv; optional `--model`/`--thinking`) | Alternative for build / fix / review |
+| `pi` | `pi --print` subprocess (non-interactive entrypoint; prompt via stdin; optional `--model`/`--thinking`) | Alternative for build / fix / review |
 | `bash` | Direct shell (array args, no `shell: true`) | `verify`, scripts |
 
 New agent types require a rebuild of `cycle.js`.

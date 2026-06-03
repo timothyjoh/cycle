@@ -169,6 +169,18 @@ export const INVARIANTS = [
     expected: 1,
     reason: 'opencode lane resolves binary via CYCLE_OPENCODE_BIN override',
   },
+  // --- opencode non-interactive subcommand pin (cycle 0050) ---
+  // The opencode lane MUST invoke `opencode run …`, not bare `opencode`: bare
+  // opencode starts the interactive TUI on a piped (non-TTY) stdin (emits raw
+  // terminal escape sequences instead of processing the prompt). A refactor
+  // that drops the "run" argv element reverts the lane to the bare TUI and
+  // breaks opencode-based downstream repos. Mirrors the codex `exec` pin.
+  {
+    file: 'src/engine/exec-opencode.ts',
+    pattern: /const argv: string\[\] = \["run"\]/g,
+    expected: 1,
+    reason: 'opencode lane invokes `opencode run` (bare opencode starts the TUI on non-TTY stdin)',
+  },
   {
     file: 'src/engine/exec-auggie.ts',
     pattern: /process\.env\.CYCLE_AUGGIE_BIN \?\? "auggie"/g,
@@ -180,6 +192,19 @@ export const INVARIANTS = [
     pattern: /process\.env\.CYCLE_PI_BIN \?\? "pi"/g,
     expected: 1,
     reason: 'pi lane resolves binary via CYCLE_PI_BIN override',
+  },
+  // --- pi non-interactive entrypoint pin (cycle 0050) ---
+  // The pi lane MUST invoke `pi --print …`, not bare `pi`: bare pi defaults to
+  // interactive mode and hangs on a piped (non-TTY) stdin (confirmed locally:
+  // `echo … | pi` times out). `--print` is pi's documented non-interactive mode
+  // ("process prompt and exit") and still reads the prompt from piped stdin. A
+  // refactor that drops the "--print" argv element re-introduces the hang.
+  // Mirrors the codex `exec` pin.
+  {
+    file: 'src/engine/exec-pi.ts',
+    pattern: /const argv: string\[\] = \["--print"\]/g,
+    expected: 1,
+    reason: 'pi lane invokes `pi --print` (bare pi hangs on non-TTY stdin)',
   },
   // The per-agent exec tests must inject the stub via CYCLE_<AGENT>_BIN, NOT by
   // prepending a fake to PATH (which a real binary on node's bin dir shadows).

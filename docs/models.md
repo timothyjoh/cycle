@@ -63,6 +63,46 @@ Per-field resolution is `effective X = step.X ?? defaults.X`; bash steps ignore
 - **pi** — `--thinking` mapping is **assumed/TODO**; verify against `pi --help`
   before relying on it (see `src/engine/exec-pi.ts`).
 
+## Non-TTY stdin safety (interactive-mode gating)
+
+`runAgent` always spawns an agent with a piped (non-TTY) stdin — never a
+terminal. A CLI that gates its non-interactive mode on a TTY will therefore
+break mid-run on a piped stdin (this is the bug that hit `codex` in cycle 0049,
+surfacing cycles later on a downstream machine, not here). Per-lane verdict
+against that hazard:
+
+- **gemini** — bare `gemini`, prompt delivered over piped stdin. **Safe, no
+  fix.** The Gemini CLI auto-enters headless/non-interactive mode when stdin is
+  non-TTY (or with `-p`); `echo "prompt" | gemini` is a documented
+  non-interactive invocation that feeds the prompt over stdin and bypasses the
+  interactive UI ([Gemini CLI headless docs](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/headless.md)).
+  The lane's bare-`gemini` + stdin path *is* the documented non-interactive
+  form — the opposite of codex's TTY gating.
+- **codex** — uses `codex exec` (see the thinking-flag note above). Bare `codex`
+  rejects a piped stdin (`stdin is not a terminal`) on codex-cli ≥ 0.136.
+  **Fixed (cycle 0049).**
+- **opencode** — was bare `opencode` + piped stdin, which **launches the
+  interactive TUI on a non-TTY stdin** (confirmed locally on opencode v1.1.30:
+  emits raw terminal alternate-screen/mouse-tracking escape sequences instead
+  of processing the prompt). **Fixed (cycle 0050)**: the lane invokes
+  `opencode run` (the documented non-interactive entrypoint) with the prompt
+  delivered as the documented `[message..]` positional argv.
+- **pi** — was bare `pi` + piped stdin, which **defaults to interactive mode and
+  hangs on a non-TTY stdin** (confirmed locally: `echo "say hi" | pi` times out;
+  `echo "say hi" | pi --print` takes the non-interactive path and reads the
+  prompt from stdin). **Fixed (cycle 0050)**: the lane invokes `pi --print` (pi's
+  documented non-interactive mode, "process prompt and exit"); the prompt is
+  still read from piped stdin.
+- **auggie** — uses `--print --instruction-file <path>` (file delivery; the
+  prompt is never piped over stdin). **Safe, no fix.** `--print` is auggie's
+  non-interactive entrypoint (executes the instruction once without the TUI and
+  exits — [Augment CLI docs](https://docs.augmentcode.com/cli/overview)); file
+  delivery does not depend on a TTY.
+
+The `pi --print` and `opencode run` non-interactive entrypoints are pinned by
+build-time structural invariants in `scripts/structural-invariants.mjs`,
+mirroring the codex `exec` pin.
+
 ## Adding a new agent — model contract
 
 *(maintainer-facing — extends the agent-fleet consistency note in

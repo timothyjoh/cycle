@@ -1,0 +1,12 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "docs/models.md",
+    "scripts/structural-invariants.mjs",
+    "src/engine/exec-opencode.ts",
+    "src/engine/exec-pi.ts",
+    "tests/engine/exec-opencode.test.ts",
+    "tests/engine/exec-pi.test.ts",
+    "tests/scripts/structural-invariants.test.ts"
+  ]
+}
