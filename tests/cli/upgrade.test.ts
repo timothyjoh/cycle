@@ -162,6 +162,33 @@ test("--overwrite-all overwrites all three categories", async () => {
   }
 });
 
+test("upgrade is idempotent: two consecutive same-flag runs converge", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    const p = await seedInitializedRepo(root);
+    const r1 = await runUpgrade({ targetRoot: root, argv: ["--overwrite-prompts"] });
+    assert.equal(r1.exitCode, 0);
+    // Snapshot the overwritten-category content produced by the first run.
+    const promptAfter1 = await readFile(p.prompt, "utf8");
+    assert.notEqual(promptAfter1, SENTINEL_PROMPT);
+
+    const r2 = await runUpgrade({ targetRoot: root, argv: ["--overwrite-prompts"] });
+    assert.equal(r2.exitCode, 0);
+    // Engine artifact still present + executable after the second run.
+    const sb = await stat(join(root, ".cycle/bin/cycle.js"));
+    assert.ok((sb.mode & 0o111) !== 0, "cycle.js should still be exec");
+    // Preserved categories stay byte-identical to the user sentinels.
+    assert.equal(await readFile(p.workflows, "utf8"), SENTINEL_WORKFLOWS);
+    assert.equal(await readFile(p.script, "utf8"), SENTINEL_SCRIPT);
+    // Overwritten category converged: the second run reproduced the first
+    // run's content exactly (no divergence, no accretion).
+    assert.equal(await readFile(p.prompt, "utf8"), promptAfter1);
+    await assertStateUntouched(p);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("uninitialized repo errors, points to cycle init, and writes nothing", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {
