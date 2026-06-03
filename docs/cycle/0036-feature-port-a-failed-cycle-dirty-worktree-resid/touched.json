@@ -1,0 +1,14 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "docs/ENGINE.md",
+    "scripts/coverage-gate.mjs",
+    "scripts/structural-invariants.mjs",
+    "src/cli.ts",
+    "src/engine/failed-residue-guard.ts",
+    "tests/fixtures/structural-invariants/cli-clean.ts",
+    "tests/fixtures/structural-invariants/cli-violation.ts",
+    "tests/scripts/coverage-gate.test.ts",
+    "tests/scripts/structural-invariants.test.ts"
+  ]
+}

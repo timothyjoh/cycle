@@ -4,3 +4,6 @@ failedCycles.push(tail.cycleId);
 // a second, illegitimate re-inline at a delegating call site:
 consecutiveFailures += 1;
 failedCycles.push(r.cycleId);
+// residue guard wired at exactly two gated sites (cycle 0036):
+if (await haltIfResidue()) { halted = true; }
+if (await haltIfResidue()) { halted = true; }

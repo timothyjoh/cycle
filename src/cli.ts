@@ -27,6 +27,11 @@ import { commitCycle } from "./engine/commit-cycle.ts";
 import { terminalDrain, noopDrain } from "./engine/issue-lifecycle.ts";
 import { readCycleEndFailure, readCycleNoop, advanceFastFailCounter } from "./engine/iteration-guard.ts";
 import { recordTerminalFailure, type HaltContext } from "./engine/halt-accounting.ts";
+import {
+  readFailedCycleResidue,
+  formatFailedCycleResidueDiagnostic,
+  type ResidueContext,
+} from "./engine/failed-residue-guard.ts";
 import { emitStaleDistWarning } from "./engine/stale-dist.ts";
 import { acquireLock, releaseLock } from "./engine/engine-lock.ts";
 import { loadDotEnv } from "./engine/dot-env.ts";
@@ -273,8 +278,19 @@ let cyclesProcessed = 0;
 let consecutiveFailures = 0;
 let failedCycles: string[] = [];
 let halted = false;
-let haltReason: "max_consecutive_failures" | "triage_failed" | null = null;
+let haltReason:
+  | "max_consecutive_failures"
+  | "triage_failed"
+  | "failed_cycle_dirty_worktree"
+  | null = null;
 let lastHaltContext: HaltContext | undefined;
+// Failed-cycle dirty-worktree residue guard (cycle 0036): set at every terminal
+// failure branch, checked before the engine acts on the next unit of work
+// (resume/retry and next-pending-issue loop). Undefined ⇒ guard is a no-op, so a
+// clean post-success state never trips it. engineStopEmitted ensures exactly one
+// terminal engine.stop when the residue halt fires (the epilogue is suppressed).
+let pendingResidueContext: ResidueContext | undefined;
+let engineStopEmitted = false;
 const maxConsecutiveFailures = cfg?.engine?.max_consecutive_failures ?? 2;
 
 // Iteration-too-fast guard: after ITERATION_TOO_FAST_K consecutive failures of
@@ -501,27 +517,97 @@ async function runResumeOnce(
   return { processed: 0, outcome: "terminal", issueId: tail.issueId, failingStep };
 }
 
+// Failed-cycle dirty-worktree residue guard. Runs only when a terminal failure
+// has armed pendingResidueContext; reads the worktree (excluding engine-owned
+// paths) and, on residue OR a git-status failure, emits exactly one
+// engine.halted{failed_cycle_dirty_worktree} + the terminal engine.stop, writes
+// the diagnostic to stderr, and returns true (caller stops the loop). A clean
+// tree clears the context and returns false (engine proceeds unchanged). A
+// git-status failure is treated as a halt, never coerced to "clean".
+async function haltIfResidue(): Promise<boolean> {
+  if (!pendingResidueContext) return false;
+  const ctx = pendingResidueContext;
+  let dirtyPaths: string[];
+  let message: string;
+  try {
+    dirtyPaths = readFailedCycleResidue(cwd).paths;
+  } catch (err) {
+    dirtyPaths = [];
+    message = `Residue check failed after cycle ${ctx.cycleId}: ${(err as Error).message}`;
+    await emitResidueHalt(ctx, dirtyPaths, message);
+    return true;
+  }
+  if (dirtyPaths.length === 0) {
+    pendingResidueContext = undefined;
+    return false;
+  }
+  message = formatFailedCycleResidueDiagnostic(ctx, dirtyPaths);
+  await emitResidueHalt(ctx, dirtyPaths, message);
+  return true;
+}
+
+async function emitResidueHalt(
+  ctx: ResidueContext,
+  dirtyPaths: string[],
+  message: string,
+): Promise<void> {
+  await log.emit("engine.halted", {
+    reason: "failed_cycle_dirty_worktree",
+    failed_cycle_id: ctx.cycleId,
+    issue_id: ctx.issueId,
+    dirty_paths: dirtyPaths,
+    message,
+  });
+  await log.emit("engine.stop", {
+    status: "halted",
+    dry_run: false,
+    cycles_processed: cyclesProcessed,
+    reason: "failed_cycle_dirty_worktree",
+    halted_at_issue: ctx.issueId,
+    failing_step: ctx.failingStep,
+  });
+  engineStopEmitted = true;
+  process.stderr.write(message + "\n");
+}
+
 if (cfg) {
   const tail = await readLogTail(cwd);
   if (tail) {
     activeCycleId = tail.cycleId;
-    const result = await runResumeOnce(cwd, log, cfg, args, tail, todoDir, doneDir, failedDir);
-    cyclesProcessed += result.processed;
-    if (result.outcome === "ok") {
-      consecutiveFailures = 0;
-      failedCycles = [];
-      lastHaltContext = undefined;
-    } else if (result.outcome === "terminal") {
-      consecutiveFailures += 1;
-      failedCycles.push(tail.cycleId);
-      lastHaltContext = { issueId: result.issueId!, failingStep: result.failingStep };
-      if (consecutiveFailures >= maxConsecutiveFailures) {
-        halted = true;
-        haltReason = "max_consecutive_failures";
+    // Resume-path gating: a prior process may have left this in-flight cycle's
+    // tree dirty. Arm the guard from the log tail and check before resuming on
+    // top of it; a clean tree clears the context and resume proceeds unchanged.
+    pendingResidueContext = { cycleId: tail.cycleId, issueId: tail.issueId, failingStep: undefined };
+    if (await haltIfResidue()) {
+      halted = true;
+      haltReason = "failed_cycle_dirty_worktree";
+    } else {
+      const result = await runResumeOnce(cwd, log, cfg, args, tail, todoDir, doneDir, failedDir);
+      cyclesProcessed += result.processed;
+      if (result.outcome === "ok") {
+        consecutiveFailures = 0;
+        failedCycles = [];
+        lastHaltContext = undefined;
+        pendingResidueContext = undefined;
+      } else if (result.outcome === "terminal") {
+        consecutiveFailures += 1;
+        failedCycles.push(tail.cycleId);
+        lastHaltContext = { issueId: result.issueId!, failingStep: result.failingStep };
+        // Arm the residue guard for the next loop iteration: if this terminal
+        // failure dirtied the tree, the loop-top guard halts before popNextPending.
+        pendingResidueContext = { cycleId: tail.cycleId, issueId: result.issueId!, failingStep: result.failingStep };
+        if (consecutiveFailures >= maxConsecutiveFailures) {
+          halted = true;
+          haltReason = "max_consecutive_failures";
+        }
+      } else if (result.outcome === "noop") {
+        // No-op: a recognized already-satisfied resolution. Accounting deliberately
+        // untouched (no increment, no append, no reset) per SPEC.
+        pendingResidueContext = undefined;
+      } else {
+        // skipped / retry: not a terminal failure — never arm the guard.
+        pendingResidueContext = undefined;
       }
-    } else if (result.outcome === "noop") {
-      // No-op: a recognized already-satisfied resolution. Accounting deliberately
-      // untouched (no increment, no append, no reset) per SPEC.
     }
     activeCycleId = undefined;
   }
@@ -529,6 +615,15 @@ if (cfg) {
 
 
 while (!halted) {
+  // Loop-top residue gating: if the previous iteration's terminal failure left
+  // residue, halt before popping the next pending issue (never pile a new cycle
+  // on top of a dirty tree). No-op when pendingResidueContext is unset.
+  if (await haltIfResidue()) {
+    halted = true;
+    haltReason = "failed_cycle_dirty_worktree";
+    break;
+  }
+
   if (cfg && (await rawHasFiles())) {
     const r = await runTriage(cwd, cfg, log);
     if (r.status === "paused") {
@@ -601,6 +696,7 @@ while (!halted) {
     }
     await noopDrain(cwd, log, todoPath, doneDir, cycleId, row.id, noop?.reason, noop?.detectedAtStep);
     cyclesProcessed++;
+    pendingResidueContext = undefined;
   } else if (exitCode === 0) {
     const artifactDir = join(cwd, "docs", "cycle", `${cycleId}-${workflowName}-${slugify(row.title)}`);
     const cr = await commitCycle(cwd, {
@@ -626,6 +722,7 @@ while (!halted) {
         lastHaltContext = acct.lastHaltContext;
         fastFailKey = acct.fastFail.key;
         fastFailCount = acct.fastFail.count;
+        pendingResidueContext = { cycleId, issueId: row.id, failingStep: "commit" };
         if (acct.halt) {
           halted = true;
           haltReason = "max_consecutive_failures";
@@ -641,6 +738,7 @@ while (!halted) {
       lastHaltContext = undefined;
       fastFailKey = null;
       fastFailCount = 0;
+      pendingResidueContext = undefined;
     }
   } else {
     // exec failure (exitCode !== 0). Track consecutive sub-threshold failures of
@@ -679,6 +777,7 @@ while (!halted) {
       lastHaltContext = acct.lastHaltContext;
       fastFailKey = acct.fastFail.key;
       fastFailCount = acct.fastFail.count;
+      pendingResidueContext = { cycleId, issueId: row.id, failingStep };
       if (acct.halt) {
         halted = true;
         haltReason = "max_consecutive_failures";
@@ -699,6 +798,7 @@ while (!halted) {
       lastHaltContext = acct.lastHaltContext;
       fastFailKey = acct.fastFail.key;
       fastFailCount = acct.fastFail.count;
+      pendingResidueContext = { cycleId, issueId: row.id, failingStep };
       if (acct.halt) {
         halted = true;
         haltReason = "max_consecutive_failures";
@@ -718,13 +818,18 @@ if (halted && haltReason === "max_consecutive_failures" && failedCycles.length >
   });
 }
 
-await log.emit("engine.stop", {
-  status: halted ? "halted" : "ok",
-  dry_run: false,
-  cycles_processed: cyclesProcessed,
-  ...(halted && haltReason === "triage_failed" ? { reason: "triage_failed" } : {}),
-  ...(halted && lastHaltContext
-    ? { halted_at_issue: lastHaltContext.issueId, failing_step: lastHaltContext.failingStep }
-    : {}),
-});
+// engineStopEmitted is set by the residue guard, which already emitted the single
+// terminal engine.stop with reason: "failed_cycle_dirty_worktree". Suppress the
+// epilogue's emission to preserve the exactly-one-engine.stop contract.
+if (!engineStopEmitted) {
+  await log.emit("engine.stop", {
+    status: halted ? "halted" : "ok",
+    dry_run: false,
+    cycles_processed: cyclesProcessed,
+    ...(halted && haltReason === "triage_failed" ? { reason: "triage_failed" } : {}),
+    ...(halted && lastHaltContext
+      ? { halted_at_issue: lastHaltContext.issueId, failing_step: lastHaltContext.failingStep }
+      : {}),
+  });
+}
 process.exit(halted ? 1 : 0);

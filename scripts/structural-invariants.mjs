@@ -42,6 +42,14 @@ const INVARIANTS = [
       'terminal-failure bookkeeping single-implementation: the inlined consecutiveFailures += 1 mutation is sanctioned only in the resume block; all other supervisor branches must delegate to recordTerminalFailure',
   },
 
+  {
+    file: 'src/cli.ts',
+    pattern: /await haltIfResidue\(\)/g,
+    expected: 2,
+    reason:
+      'failed-cycle dirty-worktree residue guard wired at exactly two gated sites: before runResumeOnce (resume path) and at loop-top before popNextPending (next-issue path) (cycle 0036)',
+  },
+
   // --- Agent-binary hermeticity (added 2026-06-02) ---
   // Every agent exec lane must resolve its binary through a CYCLE_<AGENT>_BIN
   // override, so a real agent CLI installed on node's bin dir (which

@@ -629,10 +629,13 @@ Two layers of retry:
 | Push auth / git error | Environment | Fail fast — engine exits non-zero. |
 | Engine uncaught exception | Internal | Crash; resume on next invocation via `tbd.jsonl` + `log.jsonl`. |
 | All inbox items fail triage in one pass | — | `engine.paused {reason: "all_triage_failed"}`; inbox items stay in `inbox/` for `cycle triage --dry-run`. |
+| Failed cycle leaves uncommitted worktree residue | Environment | Before resuming/retrying that cycle or popping the next issue, the supervisor checks for non-engine-owned dirty paths and halts: `engine.halted { reason: "failed_cycle_dirty_worktree", failed_cycle_id, issue_id, dirty_paths, message }` + `engine.stop` + a commit/stash/`git reset --hard` diagnostic on stderr + exit 1, rather than piling a new cycle onto a dirty tree (critical in trunk mode). Engine-owned state (`.cycle/**`, `docs/cycle/**`) never trips it. See [docs/ENGINE.md](ENGINE.md) → *Failed-cycle dirty-worktree residue guard*. |
 
 The queue **halts** after `engine.max_consecutive_failures` consecutive
 terminal failures (default 2): the engine emits `engine.halted` then
-`engine.stop {status: "halted"}` and exits non-zero.
+`engine.stop {status: "halted"}` and exits non-zero. It also halts
+(`reason: "failed_cycle_dirty_worktree"`) when a terminally-failed cycle
+leaves uncommitted residue in the worktree (see the taxonomy row above).
 
 ## 11. Integration Surfaces
 

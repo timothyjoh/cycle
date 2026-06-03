@@ -10,7 +10,7 @@ const FIXTURES = join(process.cwd(), "tests/fixtures/structural-invariants");
 
 // Default cli stub carries the single sanctioned `consecutiveFailures += 1`
 // occurrence so two-arg callers satisfy the cli single-implementation rule.
-async function setup(cwd: string, content: string, cliContent = "// stub\nconsecutiveFailures += 1;\n") {
+async function setup(cwd: string, content: string, cliContent = "// stub\nconsecutiveFailures += 1;\nawait haltIfResidue();\nawait haltIfResidue();\n") {
   await mkdir(join(cwd, "src/engine"), { recursive: true });
   await writeFile(join(cwd, "src/engine/triage.ts"), content);
   await writeFile(join(cwd, "src/cli.ts"), cliContent);
