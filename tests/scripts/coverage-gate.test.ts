@@ -40,6 +40,7 @@ const ALL_PASSING = makeLcov({
   "src/engine/reflection.ts": { lf: 100, lh: 100 },
   "src/engine/rate-limit.ts": { lf: 100, lh: 100 },
   "src/engine/compress-filter.ts": { lf: 100, lh: 100 },
+  "src/engine/preflight.ts": { lf: 100, lh: 100 },
   "src/cli/compress-output.ts": { lf: 100, lh: 100 },
   "src/cli/compress-output-hook.ts": { lf: 100, lh: 100 },
 });
@@ -101,6 +102,7 @@ test("coverage-gate: triage.ts below floor → exit 1, stderr names file and per
         "src/engine/reflection.ts": { lf: 100, lh: 100 },
         "src/engine/rate-limit.ts": { lf: 100, lh: 100 },
         "src/engine/compress-filter.ts": { lf: 100, lh: 100 },
+        "src/engine/preflight.ts": { lf: 100, lh: 100 },
         "src/cli/compress-output.ts": { lf: 100, lh: 100 },
         "src/cli/compress-output-hook.ts": { lf: 100, lh: 100 },
       }),
@@ -172,6 +174,7 @@ test("coverage-gate: absolute SF: paths normalized via relative() → exit 0", a
       "src/engine/reflection.ts",
       "src/engine/rate-limit.ts",
       "src/engine/compress-filter.ts",
+      "src/engine/preflight.ts",
       "src/cli/compress-output.ts",
       "src/cli/compress-output-hook.ts",
     ]) {

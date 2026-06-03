@@ -4,12 +4,12 @@ import { parseArgs } from "../../src/cli/parse-args.ts";
 
 test("parses 'run <text>' freeform task", () => {
   const r = parseArgs(["run", "fix the login bug"]);
-  assert.deepEqual(r, { command: "run", text: "fix the login bug", workflow: "feature", dryRun: false, noSkipCompleted: false, trunk: false });
+  assert.deepEqual(r, { command: "run", text: "fix the login bug", workflow: "feature", dryRun: false, noSkipCompleted: false, trunk: false, skipPreflight: false });
 });
 
 test("parses 'run' with no text — drain-only mode", () => {
   const r = parseArgs(["run"]);
-  assert.deepEqual(r, { command: "run", text: null, workflow: "feature", dryRun: false, noSkipCompleted: false, trunk: false });
+  assert.deepEqual(r, { command: "run", text: null, workflow: "feature", dryRun: false, noSkipCompleted: false, trunk: false, skipPreflight: false });
 });
 
 test("parses --no-skip-completed flag", () => {
@@ -68,9 +68,21 @@ test("--trunk defaults to false", () => {
   if (r.command === "run") assert.equal(r.trunk, false);
 });
 
+test("parses --skip-preflight flag", () => {
+  const r = parseArgs(["run", "--skip-preflight"]);
+  assert.equal(r.command, "run");
+  if (r.command === "run") assert.equal(r.skipPreflight, true);
+});
+
+test("--skip-preflight defaults to false", () => {
+  const r = parseArgs(["run", "fix it"]);
+  assert.equal(r.command, "run");
+  if (r.command === "run") assert.equal(r.skipPreflight, false);
+});
+
 test("parses [] (no args) — defaults to run drain-only mode", () => {
   const r = parseArgs([]);
-  assert.deepEqual(r, { command: "run", text: null, workflow: "feature", dryRun: false, noSkipCompleted: false, trunk: false });
+  assert.deepEqual(r, { command: "run", text: null, workflow: "feature", dryRun: false, noSkipCompleted: false, trunk: false, skipPreflight: false });
 });
 
 test("parseArgs(['run', '--help']) does not throw ERR_PARSE_ARGS_UNKNOWN_OPTION", () => {

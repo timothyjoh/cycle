@@ -1,0 +1,10 @@
+{
+  "files": [
+    ".cycle/prompts/review.md",
+    ".cycle/prompts/spec.md",
+    "src/defaults/prompts/review.md",
+    "src/defaults/prompts/spec.md",
+    "tests/defaults/review-prompt-spec-ac.test.ts",
+    "tests/defaults/spec-prompt-ac.test.ts"
+  ]
+}

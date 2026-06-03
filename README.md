@@ -129,7 +129,9 @@ Re-run triage as a read-only diagnostic (no state mutation):
 ./.cycle/bin/cycle.js triage --dry-run
 ```
 
-`run` flags: `--workflow <name>`, `--dry-run` (triage/queue preview only), `--no-skip-completed` (force re-derivation of pre-build artifacts on retry), `--trunk` (commit straight to the base branch instead of per-cycle branches).
+`run` flags: `--workflow <name>`, `--dry-run` (triage/queue preview only), `--no-skip-completed` (force re-derivation of pre-build artifacts on retry), `--trunk` (commit straight to the base branch instead of per-cycle branches), `--skip-preflight` (bypass the engine-start preflight gate).
+
+**Preflight gate.** Before the first cycle starts, `cycle run` validates the execution environment: it probes every agent CLI the active workflow + triage will use (`<bin> --version`, resolving binaries the same way the engine dispatches them — honoring any `CYCLE_<AGENT>_BIN` override) and confirms the required external tools (`bash`, `git`, plus any literal tools your bash steps invoke) resolve on PATH. A wrong-platform agent build, a missing agent CLI, or a missing tool produces a single clean, actionable halt naming the resolved path and the fix — instead of a cryptic stack trace discovered mid-cycle. Under WSL, an agent or tool resolving under `/mnt/c/...` emits a non-fatal warning (it likely shadows a native Linux install). Pass `--skip-preflight` to bypass the gate entirely.
 
 ## Upgrading
 

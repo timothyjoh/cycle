@@ -69,6 +69,48 @@ test("spec prompt contains inline FILE ARTIFACT MODE directive", async () => {
   );
 });
 
+test("spec prompt mandates WHY opening-block heading", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(body.includes("WHY"), "missing WHY mandate in spec prompt");
+});
+
+test("spec prompt mandates CONCRETE USER BENEFIT", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("CONCRETE USER BENEFIT"),
+    "missing CONCRETE USER BENEFIT mandate in spec prompt",
+  );
+});
+
+test("spec prompt mandates USABLE END-STATE", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("USABLE END-STATE"),
+    "missing USABLE END-STATE mandate in spec prompt",
+  );
+});
+
+test("spec prompt defines SCAFFOLDING ESCAPE HATCH", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("SCAFFOLDING ESCAPE HATCH"),
+    "missing SCAFFOLDING ESCAPE HATCH escape-hatch instruction",
+  );
+});
+
+test("spec prompt requires a user-observable-benefit acceptance criterion distinct from failure-path", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("user-observable benefit"),
+    "missing user-observable-benefit acceptance-criterion mandate",
+  );
+  // Coexistence guard: the existing failure-path mandate must remain.
+  assert.ok(
+    body.includes("failure-path criterion"),
+    "user-benefit mandate must compose with, not replace, the failure-path mandate",
+  );
+});
+
 test("dogfood spec prompt is byte-identical to default", async () => {
   const [src, dog] = await Promise.all([readFile(SRC), readFile(DOG)]);
   assert.equal(

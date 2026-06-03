@@ -28,6 +28,22 @@ already part of the branch name (`cycle/<workflow>/<slug>`).
 ```markdown
 # SPEC — Cycle <cycle_id>: [Descriptive Name]
 
+## WHY
+[The problem / motivation. What is broken, missing, or painful today.]
+
+## CONCRETE USER BENEFIT
+[An observable, end-to-end thing a user (or caller, for a library) can DO
+or OBSERVE after this cycle that they could not before. NOT "code compiles",
+"tests pass", or "endpoint returns X" — those are mechanics, not benefit.]
+
+## USABLE END-STATE
+[What "done" looks like from the user's point of view.]
+
+## SCAFFOLDING ESCAPE HATCH (only if this round has no direct user benefit yet)
+[If this round is genuinely foundational, say so explicitly, name the user
+benefit it unlocks, and name the later round that delivers it. Omit this
+heading entirely when the round delivers a direct user benefit.]
+
 ## Objective
 [One paragraph: what this cycle delivers and why it matters]
 
@@ -87,6 +103,21 @@ observable outcome when an input is invalid, a dependency is unavailable, or an
 operation is interrupted. A spec with only happy-path criteria is incomplete. If
 the deliverable genuinely has no failure surface (e.g. a pure-docs change), state
 that explicitly in `## Requirements` rather than omitting it.
+
+Every SPEC.md must open with a mandatory block answering **WHY** (the
+problem/motivation), **CONCRETE USER BENEFIT** (an observable, end-to-end
+thing a user can DO or OBSERVE that they could not before — explicitly NOT
+"code compiles / tests pass / endpoint returns X"), and **USABLE END-STATE**
+(what "done" looks like from the user's point of view). If a round is
+genuinely foundational with no direct user benefit yet, use the **SCAFFOLDING
+ESCAPE HATCH**: say so explicitly, name the user benefit it unlocks, and name
+the later round that delivers it.
+
+In addition to the failure-path criterion above, at least one acceptance
+criterion must be phrased as the **user-observable benefit** — the concrete
+thing a user can now do or observe (or, for flagged scaffolding, the concrete
+capability the next round builds on) — not solely mechanics. This composes
+with, and does not replace, the failure-path criterion mandate.
 
 ## Cycle Sizing — Read This Carefully
 

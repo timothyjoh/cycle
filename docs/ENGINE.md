@@ -318,6 +318,22 @@ Only one engine runs per repo at a time. At startup `cli.ts` calls `acquireLock(
 
 `.cycle/cycle.pid` remains in the commit denylist (`DENYLIST_EXACT` in `src/engine/path-utils.ts`) so any future PID-based daemon state is never staged.
 
+## Preflight gate
+
+`src/engine/preflight.ts` (`runPreflight`) is an engine-start gate that validates the execution environment **once**, after the PID lock is acquired and `loadConfig` returns but **before** `runTriage` and the first `cycle.start`. It is wired into `src/cli.ts` immediately after the `engine.start` emit and is skipped entirely when `--skip-preflight` is passed (`args.skipPreflight`).
+
+**What it checks:**
+- **Agents.** The distinct agent set = the active workflow's non-`bash` step agents ∪ `cfg.triage.agent` (when a known agent). Each binary is resolved exactly as the exec lanes resolve it — `CYCLE_<AGENT>_BIN` override, else the bare name on the curated PATH (`buildChildEnv({}).PATH`) — via the `AGENT_BINARY` table (the manual mirror of `exec.ts` `REGISTRY`; for `claudecode` the agent name `claudecode`, env stem `CYCLE_CLAUDE_BIN`, and binary `claude` all differ). The binary is probed with `spawnSync(<resolved>, ["--version"], { env: buildChildEnv({}), shell: false })`; a non-zero exit, a spawn `error`, or an unresolvable binary is a failed check.
+- **Tools.** `bash` and `git` always, plus the bare-name `argv[0]` head of each configured bash-step `command` (tokens containing `/` are repo-relative script paths and are skipped, so `scripts/verify.sh` adds nothing while a literal `diff a b` step adds `diff`). Each is a presence check on the curated PATH; missing ⇒ failed check.
+
+**WSL PATH-hygiene warning.** When running under WSL (detected via `/proc/version` containing `microsoft`, or an injected `procVersion`), any agent or tool whose resolved path begins with the shadow prefix (`/mnt/c/`) emits a non-fatal `wsl_shadow` warning — it likely shadows a native Linux install. A warning never changes the pass/fail outcome.
+
+**Event contract.** `cli.ts` renders the structured `PreflightResult` into JSONL: one `engine.preflight.warning { kind, target, resolved_path, message }` per warning, then exactly one terminal event. On a clean pass: `engine.preflight.ok { checks }` and the engine proceeds unchanged. On any failure: `engine.preflight.failed { failures: [{ kind, name, resolved_path, fix }] }` followed by `engine.stop { status: "halted", dry_run: false, cycles_processed: 0, reason: "preflight_failed" }` and `process.exit(1)` — before any `cycle.start`. Both terminal events are cardinality-pinned in tests (`filter(...).length === 1`). With `--skip-preflight`, none of the three events fire.
+
+**Clean-halt-vs-crash guarantee.** The gate is read-only and never throws: every probe error path appends a failed check (never swallowed), and the whole body is wrapped in a `try/catch` that converts any unexpected internal error into a single synthetic `{ kind: "internal", name: "preflight", fix: <message> }` failure. A missing/unreadable `/proc/version` degrades to "not WSL". A config with no resolvable active workflow degrades to checking only `bash`/`git` plus the triage agent. No raw stack trace reaches the user.
+
+> **Manual sync:** keep `AGENT_BINARY` in `preflight.ts` in lockstep with `exec.ts` `REGISTRY` and each lane's `CYCLE_<AGENT>_BIN ?? "<bin>"` resolution (no structural invariant covers this yet). A known agent with no `AGENT_BINARY` entry surfaces loudly as an `internal` failure rather than a silent skip.
+
 ## Rate-Limit Pause/Retry Loop
 
 When an agent step returns a rate-limit signal, the engine pauses, sleeps a configurable backoff, and retries the same step — preventing rate-limited runs from burning failure budget and halting the queue.

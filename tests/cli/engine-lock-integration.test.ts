@@ -302,9 +302,15 @@ test("SIGTERM idle engine: cycle.killed written with cycle_id undefined", async 
     await bootstrapRepo(root);
     await writeFile(join(root, ".cycle", "workflows.yml"), slowWorkflowYml, "utf8");
 
-    // Fake claude binary that sleeps — keeps engine alive in triage phase
+    // Fake claude binary: answers --version immediately (so the engine-start
+    // preflight probe passes fast) but sleeps on the triage invocation — which
+    // keeps the engine alive in the triage phase for the SIGTERM test.
     const fakeClaude = join(fakeBinDir, "claude");
-    await writeFile(fakeClaude, "#!/bin/bash\nsleep 30\n", "utf8");
+    await writeFile(
+      fakeClaude,
+      "#!/bin/bash\ncase \"$1\" in --version) echo 0.0.0; exit 0 ;; esac\nsleep 30\n",
+      "utf8",
+    );
     await chmod(fakeClaude, 0o755);
 
     // Triage prompt required by runTriage before agent is invoked

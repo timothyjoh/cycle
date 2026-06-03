@@ -3,6 +3,7 @@ import { strict as assert } from "node:assert";
 import { readFile } from "node:fs/promises";
 
 const SRC = "src/defaults/prompts/review.md";
+const DOG = ".cycle/prompts/review.md";
 
 test("review prompt Pass 1 includes SPEC AC coverage check", async () => {
   const body = await readFile(SRC, "utf8");
@@ -66,5 +67,47 @@ test("review prompt File Artifact Mode prohibits trailing commentary", async () 
   assert.ok(
     body.includes("trailing commentary"),
     "missing trailing commentary prohibition in File Artifact Mode guardrail",
+  );
+});
+
+test("review prompt Pass 1 verifies user-benefit delivery", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("Benefit delivery"),
+    "missing Benefit delivery verification bullet in Pass 1",
+  );
+});
+
+test("review prompt routes an undeliverable user benefit to MUST-FIX", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("undeliverable user benefit"),
+    "missing undeliverable-user-benefit MUST-FIX routing",
+  );
+});
+
+test("review prompt NEEDS-FIX triggers include an undeliverable user benefit", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.match(
+    body,
+    /NEEDS-FIX triggers:[\s\S]*undeliverable user benefit/,
+    "NEEDS-FIX triggers missing undeliverable-user-benefit mention",
+  );
+});
+
+test("review prompt MUST-FIX templates include an Undeliverable User Benefit task", async () => {
+  const body = await readFile(SRC, "utf8");
+  assert.ok(
+    body.includes("Undeliverable User Benefit"),
+    "missing Undeliverable User Benefit MUST-FIX task template",
+  );
+});
+
+test("dogfood review prompt is byte-identical to default", async () => {
+  const [src, dog] = await Promise.all([readFile(SRC), readFile(DOG)]);
+  assert.equal(
+    Buffer.compare(src, dog),
+    0,
+    "src/defaults/prompts/review.md and .cycle/prompts/review.md must match byte-for-byte",
   );
 });

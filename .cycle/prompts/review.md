@@ -48,6 +48,14 @@ Check:
   as a SPEC defect, not a PLAN gap. Do not accept PLAN-inferred criteria as a
   substitute for SPEC-stated AC bullets. Verify each SPEC AC bullet
   one-for-one against the implementation.
+- **Benefit delivery** — does the implementation actually deliver the
+  user benefit the SPEC states in its `## CONCRETE USER BENEFIT` (and
+  `## USABLE END-STATE`) block? Verify a user (or caller) can really do
+  or observe the promised thing end-to-end — not merely that the
+  mechanics pass. If the SPEC used the **SCAFFOLDING ESCAPE HATCH**,
+  verify the flag is honest and the unlocked capability is genuinely
+  present. A user benefit that is promised but cannot actually be
+  realized is a MUST-FIX, not a pass — write it to MUST-FIX.md.
 - **Code quality** — clean, readable, follows existing patterns from
   RESEARCH.md?
 - **Failure handling (fail-safe, no silent failure).** Flag each of:
@@ -164,11 +172,12 @@ writes it to `docs/cycle/<cycle_id>-<workflow>-<slug>/REVIEW.md`.
 [PASS — no fixes needed / NEEDS-FIX — see MUST-FIX.md]
 
 NEEDS-FIX triggers: code-quality findings, missing tests, coverage
-regressions, missing SPEC requirements, any unbacked doc-vs-code
-claim from Pass 3, a missing or empty `## Acceptance Criteria` section
-in SPEC.md, swallowed/silent errors, fail-open failure defaults, or
-non-idempotent retried operations, OR a missing or incomplete SPEC→PLAN
-traceability section in PLAN.md.
+regressions, missing SPEC requirements, an undeliverable user benefit
+(the SPEC's stated user benefit cannot actually be realized), any
+unbacked doc-vs-code claim from Pass 3, a missing or empty
+`## Acceptance Criteria` section in SPEC.md, swallowed/silent errors,
+fail-open failure defaults, or non-idempotent retried operations, OR a
+missing or incomplete SPEC→PLAN traceability section in PLAN.md.
 
 ## Code Quality Review
 
@@ -263,6 +272,17 @@ plan — actionable tasks, not vague observations.
   **Verify:** `grep -c "^## SPEC Acceptance Traceability$" PLAN.md`
     returns `1`; every bullet from SPEC.md's `## Acceptance Criteria`
     section appears verbatim in the table.
+
+- [ ] ### Task N (Undeliverable User Benefit): [Short title]
+  **Priority:** Critical
+  **Files:** [the source/UI files that must change to deliver the benefit]
+  **Problem:** SPEC's `## CONCRETE USER BENEFIT` promises "[quote the
+    benefit]", but a user cannot actually realize it because [specific
+    gap — e.g. the control is not wired, the flow dead-ends].
+  **Fix:** [Exactly what to implement so the promised benefit is
+    realizable end-to-end.]
+  **Verify:** [Concrete user-observable check — the action a user takes
+    and the result they observe.]
 ```
 
 **Rules for MUST-FIX.md:**

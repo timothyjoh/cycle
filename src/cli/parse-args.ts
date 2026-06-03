@@ -7,6 +7,7 @@ export type RunArgs = {
   dryRun: boolean;
   noSkipCompleted: boolean;
   trunk: boolean;
+  skipPreflight: boolean;
 };
 
 export type DropArgs = {
@@ -46,6 +47,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
       "dry-run": { type: "boolean", default: false },
       "no-skip-completed": { type: "boolean", default: false },
       trunk: { type: "boolean", default: false },
+      "skip-preflight": { type: "boolean", default: false },
       help: { type: "boolean", default: false },
     },
     allowPositionals: true,
@@ -60,5 +62,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
     dryRun: Boolean(values["dry-run"]),
     noSkipCompleted: Boolean(values["no-skip-completed"]),
     trunk: Boolean(values.trunk),
+    skipPreflight: Boolean(values["skip-preflight"]),
   };
 }

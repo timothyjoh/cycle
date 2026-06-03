@@ -18,6 +18,7 @@ import {
 } from "./engine/queue.ts";
 import { loadConfig } from "./engine/workflow.ts";
 import type { CycleConfig } from "./engine/workflow.ts";
+import { runPreflight } from "./engine/preflight.ts";
 import { parseFrontmatter } from "./engine/frontmatter.ts";
 import { readLogTail } from "./engine/log-tail.ts";
 import type { InFlightCycle } from "./engine/log-tail.ts";
@@ -215,6 +216,36 @@ const skipCompletedOnRetry =
 
 await emitStaleDistWarning(log, processStart, cwd);
 await log.emit("engine.start", { skip_completed_on_retry: skipCompletedOnRetry });
+
+if (cfg && !args.skipPreflight) {
+  const pf = runPreflight({ cfg, workflowName: args.workflow });
+  for (const w of pf.warnings) {
+    await log.emit("engine.preflight.warning", {
+      kind: w.kind,
+      target: w.target,
+      resolved_path: w.resolvedPath,
+      message: w.message,
+    });
+  }
+  if (!pf.ok) {
+    await log.emit("engine.preflight.failed", {
+      failures: pf.failures.map((f) => ({
+        kind: f.kind,
+        name: f.name,
+        resolved_path: f.resolvedPath,
+        fix: f.fix,
+      })),
+    });
+    await log.emit("engine.stop", {
+      status: "halted",
+      dry_run: false,
+      cycles_processed: 0,
+      reason: "preflight_failed",
+    });
+    process.exit(1);
+  }
+  await log.emit("engine.preflight.ok", { checks: pf.checks.length });
+}
 
 if (cfg) {
   const triageResult = await runTriage(cwd, cfg, log);
