@@ -6,6 +6,10 @@ depends_on: []
 triaged_at: 2026-06-01T17:44:40.083Z
 source: triage
 priority: high
+noop_at: 2026-06-03T18:02:38.995Z
+noop_reason: already-satisfied
+noop_step: research
+last_cycle_id: "0047"
 ---
 ## Problem
 

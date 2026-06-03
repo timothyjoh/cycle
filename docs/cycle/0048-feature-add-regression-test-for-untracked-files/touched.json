@@ -1,0 +1,5 @@
+{
+  "files": [
+    "tests/engine/empty-diff-guard.test.ts"
+  ]
+}

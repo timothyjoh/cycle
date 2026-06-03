@@ -325,6 +325,100 @@ test("expects_code:false: unreadable/missing issue file -> defaults true, guard 
   }
 });
 
+test("expects_code:false: deliverable in a brand-new untracked subdir -> ok (committed, no noop)", async () => {
+  // The sole deliverable lives in a previously-nonexistent untracked subtree
+  // (docs/adr/). With --untracked-files=all the scan sees the real file path
+  // (docs/adr/0001.md) and relaxes the empty-diff guard to a normal ok.
+  const fakeBody = [
+    SHEBANG,
+    "mkdir -p docs/adr",
+    'printf "decision record\\n" > docs/adr/0001.md',
+    'printf "## summary\\n"',
+    "",
+  ].join("\n");
+  const { root, bin } = await setupRepo(fakeBody, "build");
+  try {
+    await writeIssue(root, "EDG-OPTOUT-SUBDIR", "expects_code: false");
+    const r = await runCycle(root, {
+      issueId: "EDG-OPTOUT-SUBDIR",
+      title: "doc-only opt-out untracked subdir",
+      workflow: "feature",
+      env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.equal(
+      countEvents(log, e => e.event === "step.end" && e.step === "build" && e.status === "ok"),
+      1,
+      "step.end build ok must fire exactly once",
+    );
+    assert.equal(
+      countEvents(log, e => e.event === "step.end" && e.step === "build" && e.status === "failed"),
+      0,
+      "build step must not fail",
+    );
+    assert.equal(
+      countEvents(log, e => e.event === "cycle.end" && e.status === "ok"),
+      1,
+      "cycle.end ok must fire exactly once",
+    );
+    assert.equal(
+      countEvents(log, e => e.event === "cycle.noop"),
+      0,
+      "relaxed path must not emit cycle.noop (drains via commitCycle, not noopDrain)",
+    );
+    // The untracked-subtree deliverable is left in the tree for the commit path.
+    assert.equal((await readFile(join(root, "docs/adr/0001.md"), "utf8")).trim(), "decision record");
+  } finally {
+    await cleanup(root, bin);
+  }
+});
+
+test("expects_code:false: untracked subtree with no in-scope deliverable -> failed (locks --untracked-files=all)", async () => {
+  // Regression lock for cycle 0046's --untracked-files=all flag in the
+  // doc-deliverable scan of run-cycle.ts. The agent's only docs output goes
+  // into a brand-new untracked subtree UNDER docs/cycle/** (excluded from the
+  // in-scope deliverable set), so there is no legitimate deliverable. With the
+  // flag the per-file scan correctly reports none -> empty-diff guard fires
+  // (failed). WITHOUT the flag, the wholly-untracked docs/ tree collapses to a
+  // single "?? docs/" porcelain entry that parseDocDeliverablePaths mis-keeps
+  // as ["docs/"], wrongly relaxing the guard to ok -- which would flip this
+  // assertion. Removing the flag therefore fails this test.
+  const fakeBody = [
+    SHEBANG,
+    "mkdir -p docs/cycle/scratch",
+    'printf "scratch\\n" > docs/cycle/scratch/note.md',
+    'printf "## summary\\n"',
+    "",
+  ].join("\n");
+  const { root, bin } = await setupRepo(fakeBody, "build");
+  try {
+    await writeIssue(root, "EDG-OPTOUT-NOSCOPE", "expects_code: false");
+    const r = await runCycle(root, {
+      issueId: "EDG-OPTOUT-NOSCOPE",
+      title: "opt-out untracked subtree no in-scope deliverable",
+      workflow: "feature",
+      env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "failed");
+    assert.equal(r.status === "failed" ? r.failingStep : null, "build");
+    const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    assert.equal(
+      countEvents(log, e => e.event === "step.end" && e.step === "build" && e.status === "failed"),
+      1,
+      "step.end build failed must fire exactly once",
+    );
+    assert.equal(
+      countEvents(log, e => e.event === "cycle.end" && e.status === "ok"),
+      0,
+      "guard must fire: no cycle.end ok when the flag is present",
+    );
+    assert.match(log, /build post-condition failed/);
+  } finally {
+    await cleanup(root, bin);
+  }
+});
+
 test("formatEmptyDiffGuardError: stable shape", () => {
   const out = formatEmptyDiffGuardError("build");
   assert.match(out, /build post-condition failed/);
