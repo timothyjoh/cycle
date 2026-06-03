@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { runInvariants } from "../../scripts/structural-invariants.mjs";
 
 const SCRIPT = join(process.cwd(), "scripts/structural-invariants.mjs");
 const FIXTURES = join(process.cwd(), "tests/fixtures/structural-invariants");
@@ -134,47 +135,54 @@ test("structural-invariants: residue arm without persist -> exit 1, names src/cl
   }
 });
 
-test("structural-invariants: malformed entry (no pattern or validate) -> FAIL, not a silent pass", async () => {
+// Captures console.error for the duration of a runInvariants call so the
+// containment-branch diagnostics can be asserted in-process (no subprocess).
+function captureConsoleError(): { lines: string[]; restore: () => void } {
+  const lines: string[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => {
+    lines.push(args.join(" "));
+  };
+  return { lines, restore: () => { console.error = original; } };
+}
+
+test("runInvariants contains a throwing validate as a FAIL, not a silent pass", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-si-throw-"));
+  try {
+    await writeFile(join(root, "target.txt"), "anything\n");
+    const cap = captureConsoleError();
+    let failed: number;
+    try {
+      failed = await runInvariants(
+        [{ file: "target.txt", validate: () => { throw new Error("boom"); }, reason: "throwing predicate" }],
+        root,
+      );
+    } finally {
+      cap.restore();
+    }
+    assert.equal(failed, 1);
+    assert.ok(cap.lines.some((l) => l.includes("predicate threw: boom")));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("runInvariants reports a malformed entry (no pattern or validate) as a FAIL", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-si-malformed-"));
   try {
-    // A relational `validate` that throws must be contained as a FAIL, never
-    // coerced to a silent pass.
-    const probe = join(root, "probe.mjs");
-    await writeFile(
-      probe,
-      [
-        "import { readFile } from 'node:fs/promises';",
-        "import { join } from 'node:path';",
-        "const INVARIANTS = [",
-        "  { file: 'f.txt', validate: () => { throw new Error('boom'); }, reason: 'throwing predicate' },",
-        "  { file: 'f.txt', reason: 'malformed: no pattern or validate' },",
-        "];",
-        "let failed = 0;",
-        "for (const entry of INVARIANTS) {",
-        "  const { file, reason } = entry;",
-        "  let text;",
-        "  try { text = await readFile(join(process.cwd(), file), 'utf8'); }",
-        "  catch (e) { console.error('read ' + file); process.exit(2); }",
-        "  if (typeof entry.validate === 'function') {",
-        "    let res;",
-        "    try { res = entry.validate(text, file); }",
-        "    catch (e) { console.error('FAIL ' + file + ' -- ' + reason + ': predicate threw: ' + e.message); failed++; continue; }",
-        "    if (!res || !res.ok) { console.error('FAIL ' + file + ': ' + (res ? res.message : 'no result')); failed++; }",
-        "    else { console.log('ok ' + file); }",
-        "  } else if (entry.pattern) {",
-        "    console.log('count ' + file);",
-        "  } else {",
-        "    console.error('FAIL ' + file + ' -- ' + reason + ': malformed invariant entry (no pattern or validate)'); failed++;",
-        "  }",
-        "}",
-        "process.exit(failed > 0 ? 1 : 0);",
-      ].join("\n"),
-    );
-    await writeFile(join(root, "f.txt"), "irrelevant\n");
-    const result = spawnSync(process.execPath, [probe], { cwd: root, encoding: "utf8" });
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /predicate threw: boom/);
-    assert.match(result.stderr, /malformed invariant entry/);
+    await writeFile(join(root, "target.txt"), "anything\n");
+    const cap = captureConsoleError();
+    let failed: number;
+    try {
+      failed = await runInvariants(
+        [{ file: "target.txt", reason: "malformed: no pattern or validate" }],
+        root,
+      );
+    } finally {
+      cap.restore();
+    }
+    assert.equal(failed, 1);
+    assert.ok(cap.lines.some((l) => l.includes("malformed invariant entry")));
   } finally {
     await rm(root, { recursive: true, force: true });
   }

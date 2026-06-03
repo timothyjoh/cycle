@@ -13,6 +13,7 @@
 // as the FLOORS table in coverage-gate.mjs -- single source of truth, in-file.
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // Relational invariant: every in-memory residue arm must be mirrored to disk.
 // An arm is a single-line `pendingResidueContext = { … }` assignment; a clear
@@ -55,7 +56,7 @@ function validateResidueArmPersist(text) {
   return { ok: true, actual: `${paired} paired` };
 }
 
-const INVARIANTS = [
+export const INVARIANTS = [
   {
     file: 'src/engine/triage.ts',
     pattern: /const childIds = new Set/g,
@@ -180,52 +181,70 @@ const INVARIANTS = [
   },
 ];
 
-let failed = 0;
-for (const entry of INVARIANTS) {
-  const { file, reason } = entry;
-  let text;
-  try {
-    text = await readFile(join(process.cwd(), file), 'utf8');
-  } catch (e) {
-    console.error(`structural-invariants: cannot read ${file}: ${e.code ?? e.message}`);
-    process.exit(2);
-  }
-
-  if (typeof entry.validate === 'function') {
-    // Relational/predicate invariant. Contain any throw as a FAIL so a
-    // malformed or erroring predicate can never be coerced to a silent pass.
-    let res;
+// Run every entry in `invariants`, reading each target file relative to `cwd`.
+// Returns the failure count (CLI maps >0 -> exit 1). A target file that cannot
+// be read throws a tagged Error (`exitCode = 2`) after emitting the unchanged
+// `cannot read` diagnostic; the CLI main guard translates it back to exit 2.
+// Importing this module does NOT run the gate — only the main guard below does.
+export async function runInvariants(invariants, cwd) {
+  let failed = 0;
+  for (const entry of invariants) {
+    const { file, reason } = entry;
+    let text;
     try {
-      res = entry.validate(text, file);
+      text = await readFile(join(cwd, file), 'utf8');
     } catch (e) {
-      console.error(`structural-invariants: FAIL ${file} -- ${reason}: predicate threw: ${e.message}`);
-      failed++;
-      continue;
+      console.error(`structural-invariants: cannot read ${file}: ${e.code ?? e.message}`);
+      const err = new Error(`structural-invariants: cannot read ${file}`);
+      err.exitCode = 2;
+      throw err;
     }
-    if (!res || !res.ok) {
+
+    if (typeof entry.validate === 'function') {
+      // Relational/predicate invariant. Contain any throw as a FAIL so a
+      // malformed or erroring predicate can never be coerced to a silent pass.
+      let res;
+      try {
+        res = entry.validate(text, file);
+      } catch (e) {
+        console.error(`structural-invariants: FAIL ${file} -- ${reason}: predicate threw: ${e.message}`);
+        failed++;
+        continue;
+      }
+      if (!res || !res.ok) {
+        console.error(
+          `structural-invariants: FAIL ${file} -- ${reason}: ${res ? res.message : 'predicate returned no result'}`,
+        );
+        failed++;
+      } else {
+        console.log(`structural-invariants: ok -- ${file} ${reason}: ${res.actual}`);
+      }
+    } else if (entry.pattern) {
+      const actual = (text.match(entry.pattern) ?? []).length;
+      if (actual !== entry.expected) {
+        console.error(
+          `structural-invariants: FAIL ${file} -- ${reason}: expected ${entry.expected}, got ${actual}`,
+        );
+        failed++;
+      } else {
+        console.log(`structural-invariants: ok -- ${file} ${reason}: ${actual}`);
+      }
+    } else {
       console.error(
-        `structural-invariants: FAIL ${file} -- ${reason}: ${res ? res.message : 'predicate returned no result'}`,
+        `structural-invariants: FAIL ${file} -- ${reason}: malformed invariant entry (no pattern or validate)`,
       );
       failed++;
-    } else {
-      console.log(`structural-invariants: ok -- ${file} ${reason}: ${res.actual}`);
     }
-  } else if (entry.pattern) {
-    const actual = (text.match(entry.pattern) ?? []).length;
-    if (actual !== entry.expected) {
-      console.error(
-        `structural-invariants: FAIL ${file} -- ${reason}: expected ${entry.expected}, got ${actual}`,
-      );
-      failed++;
-    } else {
-      console.log(`structural-invariants: ok -- ${file} ${reason}: ${actual}`);
-    }
-  } else {
-    console.error(
-      `structural-invariants: FAIL ${file} -- ${reason}: malformed invariant entry (no pattern or validate)`,
-    );
-    failed++;
   }
+  return failed;
 }
 
-process.exit(failed > 0 ? 1 : 0);
+// CLI main guard: run the gate only when executed as a script, never on import.
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try {
+    const failed = await runInvariants(INVARIANTS, process.cwd());
+    process.exit(failed > 0 ? 1 : 0);
+  } catch (e) {
+    process.exit(e.exitCode ?? 2);
+  }
+}
