@@ -39,7 +39,7 @@ Per-field resolution is `effective X = step.X ?? defaults.X`; bash steps ignore
 | Agent | `--model` format | Known-good examples | Discover live list | `thinking` |
 |---|---|---|---|---|
 | **claudecode** (`claude`) | alias or full ID | `opus`, `sonnet`, `haiku`; `claude-opus-4-8`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001` | `/model` in-session; Anthropic model docs | no `--thinking` |
-| **codex** (`codex`) | model ID (`--model`/`-m`) | `gpt-5.5` (default), `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, `gpt-5.2-codex` | OpenAI Codex models docs; older `gpt-5-codex` IDs are stale | `--thinking` supported |
+| **codex** (`codex`) | model ID (`--model`/`-m`) | `gpt-5.5` (default), `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, `gpt-5.2-codex` | OpenAI Codex models docs; older `gpt-5-codex` IDs are stale | via `codex exec -c model_reasoning_effort` |
 | **gemini** (`gemini`) | model ID (`--model`/`-m`) | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3-pro`, `gemini-3-flash` | `/model` in-session; Gemini CLI docs | no flag |
 | **auggie** (`auggie`) | short name | `sonnet4.5`, `haiku4.5`, `gpt5` (default has been `gpt-5.4`) | `auggie --list-models` / `auggie models list` | no `--thinking` flag |
 | **opencode** (`opencode`) | `provider/model_id` | `anthropic/claude-sonnet-4-…`, `google/gemini-2.5-pro`, `openai/gpt-5.5`, `opencode/grok-code` | `opencode models` | `--thinking` (assumed; verify) |
@@ -55,7 +55,9 @@ Per-field resolution is `effective X = step.X ?? defaults.X`; bash steps ignore
 - **claudecode** — `thinking` is silently ignored (no `--thinking` flag).
 - **gemini** — `thinking` is silently ignored (no `--thinking` flag).
 - **auggie** — `thinking` is silently ignored (no `--thinking` flag).
-- **codex** — `--thinking` supported.
+- **codex** — uses the non-interactive `codex exec` subcommand (bare `codex` is the interactive
+  TUI and rejects a piped stdin: "stdin is not a terminal"). `thinking` maps to
+  `codex exec -c model_reasoning_effort="<level>"` — there is no `--thinking` flag.
 - **opencode** — `--thinking` mapping is **assumed/TODO**; verify against
   `opencode --help` before relying on it (see `src/engine/exec-opencode.ts`).
 - **pi** — `--thinking` mapping is **assumed/TODO**; verify against `pi --help`

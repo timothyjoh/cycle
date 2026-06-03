@@ -86,6 +86,7 @@ test("codex: --model flag in argv when model is set", async () => {
       model: "o4-mini",
     });
     assert.equal(r.status, "ok");
+    assert.match(r.stdout, /^exec\b/); // must use the `exec` subcommand, not bare `codex`
     assert.match(r.stdout, /--model/);
     assert.match(r.stdout, /o4-mini/);
   } finally {
@@ -95,7 +96,7 @@ test("codex: --model flag in argv when model is set", async () => {
   }
 });
 
-test("codex: --thinking flag in argv when thinking is set", async () => {
+test("codex: maps thinking to reasoning effort via -c when thinking is set", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-bin-"));
   try {
@@ -114,7 +115,8 @@ test("codex: --thinking flag in argv when thinking is set", async () => {
       thinking: "high",
     });
     assert.equal(r.status, "ok");
-    assert.match(r.stdout, /--thinking/);
+    assert.doesNotMatch(r.stdout, /--thinking/); // codex exec has no --thinking flag
+    assert.match(r.stdout, /model_reasoning_effort/);
     assert.match(r.stdout, /high/);
   } finally {
     delete process.env.CYCLE_CODEX_BIN;
@@ -144,10 +146,10 @@ test("codex: both --model and --thinking flags, model before thinking", async ()
     });
     assert.equal(r.status, "ok");
     const idx_model = r.stdout.indexOf("--model");
-    const idx_thinking = r.stdout.indexOf("--thinking");
+    const idx_reasoning = r.stdout.indexOf("model_reasoning_effort");
     assert.ok(idx_model !== -1, "--model present in stdout");
-    assert.ok(idx_thinking !== -1, "--thinking present in stdout");
-    assert.ok(idx_model < idx_thinking, "--model appears before --thinking");
+    assert.ok(idx_reasoning !== -1, "model_reasoning_effort present in stdout");
+    assert.ok(idx_model < idx_reasoning, "--model appears before reasoning effort");
     assert.match(r.stdout, /o4-mini/);
     assert.match(r.stdout, /medium/);
   } finally {
