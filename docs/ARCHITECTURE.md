@@ -238,6 +238,19 @@ Triage-failure and rate-limit variants:
 {"ts":"…","event":"engine.halted","reason":"rate_limit_max_retries","retries":25,"step_index":0}
 ```
 
+No-op / already-satisfied variant — when a `build`/`fix` step exits `ok`
+with an empty `src scripts tests` diff *and* a well-formed `NOOP.md` marker
+is present, the cycle resolves to a distinct `noop` terminal outcome instead
+of failing the empty-diff guard. The issue moves to `done/` and the failure
+budget is untouched (see [docs/ENGINE.md](ENGINE.md) →
+*No-op / already-satisfied resolution*):
+
+```jsonl
+{"ts":"…","event":"cycle.noop","cycle_id":"0042","issue_id":"…","reason":"already-satisfied","detected_at_step":"build"}
+{"ts":"…","event":"cycle.end","cycle_id":"0042","status":"noop"}
+{"ts":"…","event":"queue.drained","outcome":"noop","reason":"already-satisfied"}
+```
+
 ## 4. Execution Model
 
 ### Engine lifecycle
@@ -264,6 +277,9 @@ Triage-failure and rate-limit variants:
      run blocked-propagation over dependents, and continue with the next
      issue.
    - **On success:** move `todo/ → done/`; the `tbd.jsonl` row drains.
+   - **On no-op** (already-satisfied work, valid `NOOP.md`): move
+     `todo/ → done/` without committing or retrying; the failure budget is
+     untouched.
 5. **Re-triage `inbox/`** between cycles whenever new files have appeared.
 6. **Finalize.** When nothing runnable remains, release the lock, emit
    `engine.stop`, and exit `0`.
@@ -443,7 +459,9 @@ on the base branch.
   `cycle status`.
 - **`.cycle/tbd.jsonl`** — live, priority-ordered work queue (post-triage).
   One todo per line. Rows drain on cycle completion: removed when a cycle
-  ends `ok` (file → `done/`) or exhausts its attempts (file → `failed/`).
+  ends `ok` (file → `done/`), resolves as `noop` (already-satisfied work;
+  file → `done/`, failure budget untouched), or exhausts its attempts
+  (file → `failed/`).
   On the `in_progress` transition, the row's status flips and `cycle_id` is
   written. Survives a crash — the next invocation reads `log.jsonl` first to
   resume any in-flight cycle, then proceeds with the pending rows. See

@@ -78,6 +78,32 @@ plan.
 - **Prefer real implementations in tests** over heavy mocking. The
   review step will flag mock abuse.
 
+## If the work is already done (no-op)
+
+If, after analysis, the SPEC's requirements are **already fully
+satisfied** in the codebase and **no code change is warranted**, do NOT
+fabricate edits to satisfy the empty-diff guard. Instead:
+
+1. Write `NOOP.md` into the cycle's artifact dir
+   (`docs/cycle/<cycle_id>-<workflow>-<slug>/NOOP.md`) containing:
+   - a `reason: <category>` line where `<category>` is exactly one of
+     `already-satisfied`, `duplicate`, `not-actionable`;
+   - a `## Evidence` list with at least one `path/to/file.ext:line`
+     reference proving each SPEC requirement is already met (a dotted
+     filename followed by `:<line-number>`, e.g.
+     `src/engine/run-cycle.ts:653`).
+2. Still produce the normal **non-empty** `BUILD.md` summary (this
+   stdout) explaining the no-op conclusion and citing the same evidence.
+   An empty summary fails the completion-proof check before the no-op
+   is recognized.
+
+The engine reads `NOOP.md` at the empty-diff guard: a valid marker
+resolves the cycle as a recognized no-op (it lands in `done/`, not
+`failed/`, and does not burn the failure budget). Do this **only** when
+genuinely satisfied — an absent or malformed marker (missing/unknown
+reason category, or zero `file.ext:line` evidence lines) is treated as a
+real empty-diff failure (anti-slop).
+
 ## File Artifact Mode
 
 **You are writing a file, not responding in a conversation.** The engine

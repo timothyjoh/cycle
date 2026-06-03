@@ -25,6 +25,7 @@ import { truncateHeadCapped } from "./log-fmt.ts";
 import { buildCompressHookSettings } from "./compress-filter.ts";
 import { spawnSync } from "node:child_process";
 import { isDenied } from "./path-utils.ts";
+import { classifyNoopMarker, type NoopClassification } from "./noop-marker.ts";
 import {
   resolveWalkthroughHook,
   execWalkthroughHook,
@@ -508,6 +509,11 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         }
       }
       let r: StepResult = { status: "failed", exitCode: -1, stdout: "", stderr: "" };
+      // Set when the empty-diff guard finds a valid NOOP.md marker: the cycle is
+      // a recognized no-op, not a failure. r.status stays "ok" so step.end fires
+      // "ok"; the cycle.noop/cycle.end{noop} return is handled after step.end.
+      // Reset each step iteration because it is declared here.
+      let noopOutcome: { reason: string; step: string } | null = null;
       let wasRateLimited = false;
       // Per-step, per-runCycle, non-persistent counter of consecutive
       // rate-limited attempts of the current step. Resets each step iteration
@@ -656,9 +662,28 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
               shell: false,
             });
             if (!changed.stdout || !changed.stdout.trim()) {
-              r.status = "failed";
-              r.exitCode = r.exitCode || 1;
-              r.stderr = formatEmptyDiffGuardError(step.name);
+              // Marker-gated no-op resolution: an empty diff is normally an
+              // anti-slop failure, but if the agent wrote a well-formed NOOP.md
+              // (recognized reason category + ≥1 file:line evidence line) it is
+              // a recognized "already-satisfied / no-op" terminal outcome, not a
+              // failure. classifyNoopMarker fails closed (absent/unreadable ⇒
+              // invalid); wrap in try/catch so any internal error degrades to the
+              // existing failure path rather than masking the outcome.
+              let marker: NoopClassification = { valid: false };
+              try {
+                marker = await classifyNoopMarker(join(artifactDir, "NOOP.md"));
+              } catch {
+                marker = { valid: false };
+              }
+              if (marker.valid) {
+                noopOutcome = { reason: marker.reason, step: step.name };
+                // leave r.status === "ok" — step.end fires "ok"; the cycle.noop
+                // return is handled after the step.end emission below.
+              } else {
+                r.status = "failed";
+                r.exitCode = r.exitCode || 1;
+                r.stderr = formatEmptyDiffGuardError(step.name);
+              }
             }
           }
         }
@@ -717,6 +742,25 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           : {}),
         ...(stdoutArtifact ? { stdout_artifact: stdoutArtifact } : {}),
       });
+      if (noopOutcome) {
+        // Recognized no-op: emit cycle.noop exactly once + cycle.end{noop} and
+        // return a `noop` result. This return is inside the try, so the finally
+        // checkout/base-pull cleanup runs identically to the ok/failed paths.
+        await log.emit("cycle.noop", {
+          cycle_id: cycleId,
+          issue_id: opts.issueId,
+          reason: noopOutcome.reason,
+          detected_at_step: noopOutcome.step,
+        });
+        await log.emit("cycle.end", { cycle_id: cycleId, status: "noop" });
+        return {
+          cycleId,
+          artifactDir,
+          status: "noop" as const,
+          reason: noopOutcome.reason,
+          detectedAtStep: noopOutcome.step,
+        };
+      }
       if (r.status === "failed") {
         if (step.name === "reflection") {
           await log.emit("reflection.skipped", { cycle_id: cycleId, reason: "exec_failed", exit_code: r.exitCode });

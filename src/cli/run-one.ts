@@ -89,7 +89,9 @@ export async function runOne(argv: string[], cwd: string): Promise<never> {
         ? { resume: { startStepIndex: params.resumeFromStep } }
         : {}),
     });
-    process.exit(result.status === "ok" ? 0 : 1);
+    // Exit 3 is the no-op channel consumed by the supervisor; ok ⇒ 0, any other
+    // status ⇒ 1 (unchanged). A thrown error ⇒ 2 (catch below).
+    process.exit(result.status === "ok" ? 0 : result.status === "noop" ? 3 : 1);
   } catch {
     process.exit(2);
   }

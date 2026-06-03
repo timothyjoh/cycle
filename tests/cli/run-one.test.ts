@@ -92,6 +92,51 @@ test("run-one: exits 1 on failed cycle", async () => {
   }
 });
 
+test("run-one: exits 3 on no-op cycle (build empty diff + valid NOOP.md)", async () => {
+  const dist = await ensureDist();
+  const root = await mkdtemp(join(tmpdir(), "cycle-run-one-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-run-one-bin-"));
+  try {
+    spawnSync("git", ["init", "-b", "main"], { cwd: root, stdio: "ignore" });
+    spawnSync("git", ["config", "user.email", "t@t"], { cwd: root, stdio: "ignore" });
+    spawnSync("git", ["config", "user.name", "t"], { cwd: root, stdio: "ignore" });
+    spawnSync("git", ["commit", "--allow-empty", "-m", "init"], { cwd: root, stdio: "ignore" });
+    await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+    await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
+    const yml = [
+      "engine:", "  max_consecutive_failures: 2", "  base_branch: main",
+      "  commit:", "    mode: trunk", "    push: false",
+      "triage:", "  agent: claudecode", "  prompt: prompts/triage.md", "  max_turns: 10",
+      "workflows:", "  - name: feature", "    max_cycle_attempts: 3", "    steps:",
+      "      - name: build", "        agent: claudecode", "        prompt: prompts/build.md",
+    ].join("\n");
+    await writeFile(join(root, ".cycle/workflows.yml"), yml, "utf8");
+    await writeFile(join(root, ".cycle/prompts/build.md"), "build", "utf8");
+    const fake = join(bin, "claude");
+    await writeFile(fake,
+      `#!/bin/bash\ndir=$(ls -d docs/cycle/\${CYCLE_ID}-* 2>/dev/null | head -1)\n` +
+      `printf 'reason: already-satisfied\\n- src/engine/run-cycle.ts:653 done\\n' > "$dir/NOOP.md"\n` +
+      `printf '## Summary\\nalready satisfied\\n'\nexit 0\n`, "utf8");
+    await chmod(fake, 0o755);
+
+    const r = spawnSync(
+      "node",
+      [dist, "run-one",
+        "--cycle-id", "t-noop",
+        "--issue-id", "noop-issue",
+        "--title", "noop title",
+        "--workflow", "feature",
+        "--attempt", "0",
+      ],
+      { cwd: root, encoding: "utf8", env: { ...process.env, PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" } },
+    );
+    assert.equal(r.status, 3, `expected exit 3 (no-op), got ${r.status}\nstderr: ${r.stderr}`);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
 test("run-one: exits 2 on missing required flag", async () => {
   const dist = await ensureDist();
   const r = spawnSync(

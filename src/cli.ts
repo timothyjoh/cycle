@@ -24,8 +24,8 @@ import { readLogTail } from "./engine/log-tail.ts";
 import type { InFlightCycle } from "./engine/log-tail.ts";
 import { checkoutBase, pullBase, resolveBaseBranch } from "./engine/branch.ts";
 import { commitCycle } from "./engine/commit-cycle.ts";
-import { terminalDrain } from "./engine/issue-lifecycle.ts";
-import { readCycleEndFailure, advanceFastFailCounter } from "./engine/iteration-guard.ts";
+import { terminalDrain, noopDrain } from "./engine/issue-lifecycle.ts";
+import { readCycleEndFailure, readCycleNoop, advanceFastFailCounter } from "./engine/iteration-guard.ts";
 import { recordTerminalFailure, type HaltContext } from "./engine/halt-accounting.ts";
 import { emitStaleDistWarning } from "./engine/stale-dist.ts";
 import { acquireLock, releaseLock } from "./engine/engine-lock.ts";
@@ -34,7 +34,7 @@ import { slugify } from "./issue/id.ts";
 import type { Logger } from "./engine/log.ts";
 import type { RunArgs } from "./cli/parse-args.ts";
 
-type ResumeOutcome = "ok" | "retry" | "terminal" | "skipped";
+type ResumeOutcome = "ok" | "retry" | "terminal" | "skipped" | "noop";
 type ResumeResult = {
   processed: number;
   outcome: ResumeOutcome;
@@ -455,11 +455,22 @@ async function runResumeOnce(
     skipCompletedOnRetry,
     resumeFromStep: startStepIndex,
   });
-  const failingStep = exitCode !== 0
+  const failingStep = exitCode !== 0 && exitCode !== 3
     ? (await readCycleEndFailure(cwd, tail.cycleId)).failingStep
     : undefined;
 
   const todoPath = join(todoDir, `${tail.issueId}.md`);
+  if (exitCode === 3) {
+    // Recognized no-op: drain to done/ without retrying and without touching the
+    // failure accounting. Exit code 3 is authoritative; readCycleNoop supplies
+    // the reason payload (degrades to a warning if unreadable).
+    const noop = await readCycleNoop(cwd, tail.cycleId);
+    if (!noop || noop.reason === undefined) {
+      await log.emit("engine.warning", { reason: "noop_reason_unreadable", cycle_id: tail.cycleId, issue_id: tail.issueId });
+    }
+    await noopDrain(cwd, log, todoPath, doneDir, tail.cycleId, tail.issueId, noop?.reason, noop?.detectedAtStep);
+    return { processed: 1, outcome: "noop" };
+  }
   if (exitCode === 0) {
     const artifactDir = join(cwd, "docs", "cycle", `${tail.cycleId}-${workflowName}-${slugify(tail.title)}`);
     const cr = await commitCycle(cwd, {
@@ -508,6 +519,9 @@ if (cfg) {
         halted = true;
         haltReason = "max_consecutive_failures";
       }
+    } else if (result.outcome === "noop") {
+      // No-op: a recognized already-satisfied resolution. Accounting deliberately
+      // untouched (no increment, no append, no reset) per SPEC.
     }
     activeCycleId = undefined;
   }
@@ -563,7 +577,7 @@ while (!halted) {
     skipCompletedOnRetry,
     baseBranch: fmBaseBranch,
   });
-  const failure = exitCode !== 0
+  const failure = exitCode !== 0 && exitCode !== 3
     ? await readCycleEndFailure(cwd, cycleId)
     : { failingStep: undefined, durationMs: undefined };
   const failingStep = failure.failingStep;
@@ -576,7 +590,18 @@ while (!halted) {
     typeof rawMin === "number" && Number.isFinite(rawMin) && rawMin > 0 ? rawMin : 0;
   const guardEnabled = thresholdMs > 0;
 
-  if (exitCode === 0) {
+  if (exitCode === 3) {
+    // Recognized no-op (already-satisfied) cycle. Skip commitCycle entirely (no
+    // net code change to commit, mirroring the empty-diff reality), drain the
+    // issue to done/ with the recorded reason, and leave consecutiveFailures /
+    // failedCycles / lastHaltContext / fast-fail counters untouched per SPEC.
+    const noop = await readCycleNoop(cwd, cycleId);
+    if (!noop || noop.reason === undefined) {
+      await log.emit("engine.warning", { reason: "noop_reason_unreadable", cycle_id: cycleId, issue_id: row.id });
+    }
+    await noopDrain(cwd, log, todoPath, doneDir, cycleId, row.id, noop?.reason, noop?.detectedAtStep);
+    cyclesProcessed++;
+  } else if (exitCode === 0) {
     const artifactDir = join(cwd, "docs", "cycle", `${cycleId}-${workflowName}-${slugify(row.title)}`);
     const cr = await commitCycle(cwd, {
       cycleId,

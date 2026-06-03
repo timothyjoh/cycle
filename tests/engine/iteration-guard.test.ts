@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   readCycleEndFailure,
+  readCycleNoop,
   advanceFastFailCounter,
   type FastFailState,
 } from "../../src/engine/iteration-guard.ts";
@@ -67,6 +68,58 @@ test("readCycleEndFailure returns undefined/undefined when log file is unreadabl
     const r = await readCycleEndFailure(root, "C1");
     assert.equal(r.failingStep, undefined);
     assert.equal(r.durationMs, undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("readCycleNoop returns the last reason + detected_at_step for the cycle", async () => {
+  const root = await writeLog([
+    { event: "cycle.start", cycle_id: "C1" },
+    { event: "cycle.noop", cycle_id: "C1", issue_id: "i1", reason: "already-satisfied", detected_at_step: "build" },
+    { event: "cycle.end", cycle_id: "C1", status: "noop" },
+  ]);
+  try {
+    const r = await readCycleNoop(root, "C1");
+    assert.deepEqual(r, { reason: "already-satisfied", detectedAtStep: "build" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("readCycleNoop returns undefined when no cycle.noop for the cycle", async () => {
+  const root = await writeLog([
+    { event: "cycle.noop", cycle_id: "OTHER", reason: "duplicate", detected_at_step: "fix" },
+  ]);
+  try {
+    assert.equal(await readCycleNoop(root, "C1"), undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("readCycleNoop degrades to undefined on missing log file (no throw)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-itg-"));
+  try {
+    assert.equal(await readCycleNoop(root, "C1"), undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("readCycleNoop skips malformed JSON lines and tolerates non-string fields", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-itg-"));
+  await mkdir(join(root, ".cycle"), { recursive: true });
+  // One malformed line, then a cycle.noop with non-string reason/detected_at_step.
+  const body = [
+    "{ not json",
+    JSON.stringify({ event: "cycle.noop", cycle_id: "C1", reason: 42, detected_at_step: null }),
+    "",
+  ].join("\n");
+  await writeFile(join(root, ".cycle", "log.jsonl"), body, "utf8");
+  try {
+    const r = await readCycleNoop(root, "C1");
+    assert.deepEqual(r, { reason: undefined, detectedAtStep: undefined });
   } finally {
     await rm(root, { recursive: true, force: true });
   }

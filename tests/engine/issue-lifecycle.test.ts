@@ -3,8 +3,8 @@ import { strict as assert } from "node:assert";
 import { mkdtemp, mkdir, writeFile, readFile, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { terminalDrain } from "../../src/engine/issue-lifecycle.ts";
-import { writeQueue } from "../../src/engine/queue.ts";
+import { terminalDrain, noopDrain } from "../../src/engine/issue-lifecycle.ts";
+import { writeQueue, readQueue } from "../../src/engine/queue.ts";
 import type { QueueRow } from "../../src/engine/queue.ts";
 import { parseFrontmatter } from "../../src/engine/frontmatter.ts";
 
@@ -193,6 +193,136 @@ test("terminalDrain: fallback path — parseFrontmatter failure uses raw bytes a
     const drained = events.find((e) => e.event === "queue.drained");
     assert.ok(drained, "queue.drained must be emitted");
     assert.equal((drained!.fields as Record<string, unknown>).outcome, "terminal");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+async function setupRepoWithDone(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "cycle-issue-lifecycle-"));
+  await mkdir(join(root, ".cycle"), { recursive: true });
+  await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
+  await mkdir(join(root, "docs/cycle/issues/done"), { recursive: true });
+  return root;
+}
+
+test("noopDrain: happy path stamps no-op frontmatter, moves to done/, removes queue row", async () => {
+  const root = await setupRepoWithDone();
+  try {
+    const issueId = "noop-happy";
+    const todoPath = join(root, "docs/cycle/issues/todo", `${issueId}.md`);
+    const doneDir = join(root, "docs/cycle/issues/done");
+
+    await writeQueue(root, [queueRow(issueId)]);
+    await writeFile(todoPath, "---\ntitle: Already Done\n---\n\nBody.\n", "utf8");
+
+    const { logger, events } = makeLogger();
+    await noopDrain(root, logger, todoPath, doneDir, "0099", issueId, "already-satisfied", "build");
+
+    const donePath = join(doneDir, `${issueId}.md`);
+    const { fm } = parseFrontmatter(await readFile(donePath, "utf8"));
+    assert.equal(typeof fm.noop_at, "string");
+    assert.equal(fm.noop_reason, "already-satisfied");
+    assert.equal(fm.noop_step, "build");
+    assert.equal(fm.last_cycle_id, "0099");
+
+    let todoExists = true;
+    try { await readFile(todoPath, "utf8"); } catch { todoExists = false; }
+    assert.equal(todoExists, false, "todo file moved to done/");
+
+    assert.equal((await readQueue(root)).length, 0, "queue row removed");
+
+    const drained = events.find((e) => e.event === "queue.drained");
+    assert.ok(drained);
+    assert.equal((drained!.fields as Record<string, unknown>).outcome, "noop");
+    assert.equal((drained!.fields as Record<string, unknown>).reason, "already-satisfied");
+    assert.equal(events.find((e) => e.event === "queue.drain_warning"), undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("noopDrain: missing reason/step ⇒ stamps omitted, still drains to done/", async () => {
+  const root = await setupRepoWithDone();
+  try {
+    const issueId = "noop-noreason";
+    const todoPath = join(root, "docs/cycle/issues/todo", `${issueId}.md`);
+    const doneDir = join(root, "docs/cycle/issues/done");
+
+    await writeQueue(root, [queueRow(issueId)]);
+    await writeFile(todoPath, "---\ntitle: x\n---\n\nbody\n", "utf8");
+
+    const { logger, events } = makeLogger();
+    await noopDrain(root, logger, todoPath, doneDir, "0099", issueId, undefined, undefined);
+
+    const { fm } = parseFrontmatter(await readFile(join(doneDir, `${issueId}.md`), "utf8"));
+    assert.equal(typeof fm.noop_at, "string");
+    assert.equal(fm.noop_reason, undefined, "no reason ⇒ stamp omitted");
+    assert.equal(fm.noop_step, undefined, "no step ⇒ stamp omitted");
+    assert.equal(fm.last_cycle_id, "0099");
+
+    const drained = events.find((e) => e.event === "queue.drained");
+    assert.ok(drained);
+    assert.equal((drained!.fields as Record<string, unknown>).outcome, "noop");
+    assert.equal((drained!.fields as Record<string, unknown>).reason, undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("noopDrain: mutate-failure fallback (missing todo) writes to done/ via tmp+rename", async () => {
+  const root = await setupRepoWithDone();
+  try {
+    const issueId = "noop-fallback";
+    const todoPath = join(root, "docs/cycle/issues/todo", `${issueId}.md`);
+    const doneDir = join(root, "docs/cycle/issues/done");
+
+    await writeQueue(root, [queueRow(issueId)]);
+    // No todo file written ⇒ mutateFrontmatter ENOENT ⇒ fallback path.
+
+    const { logger, events } = makeLogger();
+    await noopDrain(root, logger, todoPath, doneDir, "0099", issueId, "duplicate", "fix");
+
+    const { fm } = parseFrontmatter(await readFile(join(doneDir, `${issueId}.md`), "utf8"));
+    assert.equal(typeof fm.noop_at, "string");
+    assert.equal(fm.noop_reason, "duplicate");
+    assert.equal(fm.noop_step, "fix");
+    assert.equal(typeof fm.drain_error, "string");
+
+    const warning = events.find((e) => e.event === "queue.drain_warning");
+    assert.ok(warning, "queue.drain_warning emitted on fallback");
+    const drained = events.find((e) => e.event === "queue.drained");
+    assert.ok(drained);
+    assert.equal((drained!.fields as Record<string, unknown>).outcome, "noop");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("noopDrain: fallback with no frontmatter uses raw bytes as body", async () => {
+  const root = await setupRepoWithDone();
+  try {
+    const issueId = "noop-fallback-raw";
+    const todoPath = join(root, "docs/cycle/issues/todo", `${issueId}.md`);
+    const doneDir = join(root, "docs/cycle/issues/done");
+
+    await writeQueue(root, [queueRow(issueId)]);
+    // No frontmatter ⇒ mutateFrontmatter throws ⇒ fallback; parseFrontmatter in
+    // the fallback also throws ⇒ raw bytes kept as body.
+    await writeFile(todoPath, "plain text, no frontmatter\n", "utf8");
+
+    const { logger, events } = makeLogger();
+    await noopDrain(root, logger, todoPath, doneDir, "0099", issueId, "not-actionable", "build");
+
+    const content = await readFile(join(doneDir, `${issueId}.md`), "utf8");
+    const { fm } = parseFrontmatter(content);
+    assert.equal(fm.noop_reason, "not-actionable");
+    assert.equal(typeof fm.drain_error, "string");
+    assert.match(content, /plain text, no frontmatter/);
+
+    let todoExists = true;
+    try { await readFile(todoPath, "utf8"); } catch { todoExists = false; }
+    assert.equal(todoExists, false, "todo unlinked in fallback");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

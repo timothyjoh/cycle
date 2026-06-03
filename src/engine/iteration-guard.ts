@@ -55,6 +55,40 @@ export async function readCycleEndFailure(
   }
 }
 
+/**
+ * Read the last `cycle.noop` event for `cycleId` to recover the `reason` and
+ * `detected_at_step` for the drain stamp. Fails closed: a missing/unreadable
+ * log or an absent event returns `undefined`; non-string fields degrade to
+ * `undefined`. The supervisor treats the run-one exit code (3) as the
+ * authoritative no-op signal and uses this only for the reason payload.
+ */
+export async function readCycleNoop(
+  repoRoot: string,
+  cycleId: string,
+): Promise<{ reason: string | undefined; detectedAtStep: string | undefined } | undefined> {
+  try {
+    const text = await readFile(join(repoRoot, ".cycle", "log.jsonl"), "utf8");
+    const lines = text.split("\n");
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      let ev: Record<string, unknown>;
+      try {
+        ev = JSON.parse(line) as Record<string, unknown>;
+      } catch { continue; /* skip malformed */ }
+      if (ev.event === "cycle.noop" && ev.cycle_id === cycleId) {
+        return {
+          reason: typeof ev.reason === "string" ? ev.reason : undefined,
+          detectedAtStep: typeof ev.detected_at_step === "string" ? ev.detected_at_step : undefined,
+        };
+      }
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** In-memory counter for consecutive same-step sub-threshold failures. */
 export type FastFailState = { key: string | null; count: number };
 

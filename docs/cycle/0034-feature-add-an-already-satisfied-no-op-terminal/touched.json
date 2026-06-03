@@ -1,0 +1,21 @@
+{
+  "files": [
+    ".cycle/prompts/build.md",
+    ".cycle/prompts/fix.md",
+    "CLAUDE.md",
+    "docs/ENGINE.md",
+    "scripts/coverage-gate.mjs",
+    "src/cli.ts",
+    "src/cli/run-one.ts",
+    "src/defaults/prompts/build.md",
+    "src/defaults/prompts/fix.md",
+    "src/engine/issue-lifecycle.ts",
+    "src/engine/iteration-guard.ts",
+    "src/engine/noop-marker.ts",
+    "src/engine/run-cycle.ts",
+    "tests/cli/run-one.test.ts",
+    "tests/engine/issue-lifecycle.test.ts",
+    "tests/engine/iteration-guard.test.ts",
+    "tests/scripts/coverage-gate.test.ts"
+  ]
+}

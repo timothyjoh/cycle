@@ -58,6 +58,29 @@ This step runs only when a MUST-FIX.md exists from the review step
   exit codes while making a Verify check or test go green.
 - **When all fixes are done, run the full test suite one final time.**
 
+## If no code change is warranted (no-op)
+
+If every MUST-FIX task turns out to be **already satisfied** in the
+codebase — the requested change is already present, duplicate, or not
+actionable — and applying it would mean fabricating edits, do NOT invent
+changes to satisfy the empty-diff guard. Instead:
+
+1. Write `NOOP.md` into the cycle's artifact dir
+   (`docs/cycle/<cycle_id>-<workflow>-<slug>/NOOP.md`) containing:
+   - a `reason: <category>` line where `<category>` is exactly one of
+     `already-satisfied`, `duplicate`, `not-actionable`;
+   - a `## Evidence` list with at least one `path/to/file.ext:line`
+     reference proving the work is already met (a dotted filename
+     followed by `:<line-number>`, e.g. `src/engine/run-cycle.ts:653`).
+2. Still produce the normal **non-empty** `FIX.md` summary (this stdout)
+   explaining the no-op conclusion and citing the same evidence.
+
+A valid marker resolves the cycle as a recognized no-op (lands in
+`done/`, not `failed/`, and does not burn the failure budget). Do this
+**only** when genuinely satisfied — an absent or malformed marker
+(missing/unknown reason category, or zero `file.ext:line` evidence
+lines) is treated as a real empty-diff failure (anti-slop).
+
 ## File Artifact Mode
 
 **You are writing a file, not responding in a conversation.** The engine
