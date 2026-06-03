@@ -559,6 +559,41 @@ test("documentation.paths_appended not emitted when toAppend is empty", async ()
   }
 });
 
+test("runCycle: documentation step appends under a present-but-empty Touched Files header (no bullets)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-doc-empty-hdr-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-doc-empty-hdr-bin-"));
+  try {
+    await setupGitRepoWithReadme(root);
+    // BUILD.md emits a `## Touched Files` header followed immediately by another
+    // `##` section — header present, zero `- ` bullets. The doc step modifies
+    // README.md (out of scope of the empty header) which must still be appended.
+    await setupBuildDocWorkflow(root, bin, "## Touched Files\\n## Notes\\nbuild done\\n");
+
+    const r = await runCycle(root, {
+      issueId: "EMPTY-HDR-1",
+      cycleId: "EMPTY-HDR-1",
+      title: "doc empty header append",
+      workflow: "feature",
+      env: { PATH: `${bin}:${process.env.PATH}`, CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "ok");
+
+    const buildMd = join(root, "docs/cycle", `${r.cycleId}-feature-doc-empty-header-append`, "BUILD.md");
+    const content = await readFile(buildMd, "utf8");
+    assert.match(content, /## Touched Files/);
+    assert.match(content, /- README\.md/, "discovered out-of-scope path must be appended under the empty header");
+
+    const rawLog = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
+    const events = parseLog(rawLog);
+    const ev = expectExactlyOne(events, "documentation.paths_appended");
+    assert.equal(ev.cycle_id, "EMPTY-HDR-1");
+    assert.ok((ev.appended as string[]).includes("README.md"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
 test("runCycle: documentation step excludes pre-existing dirty paths staged by prior steps", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-doc-pre-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-doc-pre-bin-"));

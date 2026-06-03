@@ -104,6 +104,22 @@ export function parseSnapshotPaths(snapshot: string): Set<string> {
   return paths;
 }
 
+/** Parse the `## Touched Files` bullet block of a BUILD.md body. Exact-trim
+ * header match; `- <path>` bullets via /^\s*-\s+(.+)/; stops at the next `##`
+ * header. Returns an empty set when the header is absent. Pure (no I/O). */
+export function parseTouchedFilesSection(text: string): Set<string> {
+  const lines = text.split("\n");
+  const headerIdx = lines.findIndex((l) => l.trim() === "## Touched Files");
+  if (headerIdx === -1) return new Set();
+  const out = new Set<string>();
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    if (lines[i].startsWith("##")) break;
+    const m = /^\s*-\s+(.+)/.exec(lines[i]);
+    if (m) out.add(m[1].trim());
+  }
+  return out;
+}
+
 async function appendDocumentationPaths(repoRoot: string, buildMdPath: string, log: Logger, cycleId: string, preSnapshot: string): Promise<void> {
   let text: string;
   try {
@@ -115,13 +131,7 @@ async function appendDocumentationPaths(repoRoot: string, buildMdPath: string, l
   const lines = text.split("\n");
   const headerIdx = lines.findIndex((l) => l.trim() === "## Touched Files");
   if (headerIdx === -1) return;
-
-  const touchedSet = new Set<string>();
-  for (let i = headerIdx + 1; i < lines.length; i++) {
-    if (lines[i].startsWith("##")) break;
-    const m = /^\s*-\s+(.+)/.exec(lines[i]);
-    if (m) touchedSet.add(m[1].trim());
-  }
+  const touchedSet = parseTouchedFilesSection(text);
 
   const prePaths = parseSnapshotPaths(preSnapshot);
 
@@ -174,6 +184,58 @@ async function accumulateTouchedFiles(
 
   const merged = Array.from(new Set([...existing, ...newFiles])).sort();
   await writeFile(touchedPath, JSON.stringify({ files: merged }, null, 2) + "\n", "utf8");
+}
+
+const TOUCHED_RECOVERY_SOURCE = "BUILD.md";
+
+/** Best-effort resume/verify-only footprint recovery. Reconstructs touched.json
+ * from BUILD.md's `## Touched Files` declared set unioned with current in-scope
+ * `git status --porcelain` paths (both isDenied-filtered). Never throws; never
+ * clobbers an already-populated footprint. Emits exactly one event on every
+ * path except the already-populated guard (a deliberate, documented no-op). */
+export async function recoverTouchedFiles(
+  repoRoot: string,
+  artifactDir: string,
+  log: Logger,
+  cycleId: string,
+): Promise<void> {
+  const touchedPath = join(artifactDir, "touched.json");
+
+  // Guard: never clobber a populated footprint (the normal-build write wins).
+  let existing: string[] = [];
+  try {
+    const raw = await readFile(touchedPath, "utf8");
+    const parsed = JSON.parse(raw) as { files?: unknown };
+    if (Array.isArray(parsed.files)) existing = parsed.files as string[];
+  } catch { /* absent or corrupt — proceed with recovery */ }
+  if (existing.length > 0) return; // already populated — silent no-op
+
+  // Source 1: BUILD.md declared footprint.
+  let declared = new Set<string>();
+  try {
+    declared = parseTouchedFilesSection(await readFile(join(artifactDir, "BUILD.md"), "utf8"));
+  } catch { /* missing/unreadable BUILD.md — declared stays empty */ }
+
+  // Source 2: current in-scope working-tree paths (best-effort; non-zero ⇒ none).
+  const status = spawnSync("git", ["status", "--porcelain"], { cwd: repoRoot, encoding: "utf8", shell: false });
+  const current = status.status === 0 ? parseSnapshotPaths(status.stdout ?? "") : new Set<string>();
+
+  const merged = Array.from(new Set([...declared, ...current]))
+    .filter((p) => !isDenied(p))
+    .sort();
+
+  if (merged.length === 0) {
+    await log.emit("engine.warning", { reason: "touched_recovery_empty", cycle_id: cycleId });
+    return;
+  }
+
+  try {
+    await writeFile(touchedPath, JSON.stringify({ files: merged }, null, 2) + "\n", "utf8");
+  } catch {
+    await log.emit("engine.warning", { reason: "touched_recovery_write_failed", cycle_id: cycleId });
+    return;
+  }
+  await log.emit("touched.recovered", { cycle_id: cycleId, source: TOUCHED_RECOVERY_SOURCE, count: merged.length });
 }
 
 // Shared emptiness definition for the completion-proof contract and the
@@ -315,6 +377,24 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
 
   try {
     const startIdx = opts.resume?.startStepIndex ?? 0;
+
+    // Resume/verify-only footprint recovery: when this process resumes past every
+    // build/fix step (so accumulateTouchedFiles will not run this process),
+    // reconstruct touched.json from BUILD.md before the supervisor's commitCycle
+    // reads it. Best-effort; the helper never throws and the outer catch is a
+    // last-resort guard so recovery can never fail the cycle.
+    if (opts.resume) {
+      const maxResetIdx = wf.steps.reduce(
+        (max, s, idx) => (RESET_ELIGIBLE_STEPS.has(s.name) ? idx : max),
+        -1,
+      );
+      if (maxResetIdx >= 0 && startIdx > maxResetIdx) {
+        try {
+          await recoverTouchedFiles(repoRoot, artifactDir, log, cycleId);
+        } catch { /* best-effort; never fail the cycle */ }
+      }
+    }
+
     const attempt = opts.attempt ?? 0;
     const skipEnabled = opts.skipCompletedOnRetry !== false;
     for (let i = startIdx; i < wf.steps.length; i++) {

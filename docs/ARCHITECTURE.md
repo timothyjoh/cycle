@@ -563,7 +563,10 @@ denylist covers `.claude/`, `dist/`, `node_modules/`, `.cycle/cycle.pid`,
 `cycle <id>: <title>`, appends any `Closes #N` lines parsed from the issue
 body, and — when `push: true` — pushes with 3× backoff retry. A
 `commit.scope_warning` is logged (never blocking) when a staged `src/`/`scripts/`
-file is absent from the cycle's `touched.json` footprint.
+file is absent from the cycle's `touched.json` footprint. On a resume that starts
+past every build/fix step (so no mutation step runs in-process), the footprint is
+reconstructed from `BUILD.md`'s declared `## Touched Files` so the warning stays
+meaningful — see *touched.json footprint* in [docs/ENGINE.md](ENGINE.md).
 
 ## 8. Anatomy of a Typical Run
 

@@ -1,0 +1,8 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "docs/ENGINE.md",
+    "src/engine/run-cycle.ts",
+    "tests/engine/run-cycle.documentation.test.ts"
+  ]
+}
