@@ -1,0 +1,8 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "scripts/structural-invariants.d.mts",
+    "scripts/structural-invariants.mjs",
+    "tsconfig.json"
+  ]
+}

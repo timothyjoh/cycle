@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Build-time structural invariants checker. Reads each target file in the
 // INVARIANTS table and evaluates one of two entry kinds:
 //   - count-based:  `{ file, pattern, expected, reason }` — counts regex
@@ -26,6 +27,24 @@ const WHITELIST = /failingStep:\s*undefined/;
 const PERSIST = /await\s+persistResidue\s*\(/;
 const SKIPPABLE = /^\s*(\/\/|\/\*|\*|$)/; // comment or blank line
 
+/**
+ * One INVARIANTS table entry. Two mutually exclusive kinds share this shape:
+ *   - count-based:  requires `pattern` + `expected`.
+ *   - relational:   requires `validate`.
+ * `file` and `reason` are always present.
+ *
+ * @typedef {object} Invariant
+ * @property {string} file
+ * @property {string} reason
+ * @property {RegExp} [pattern]
+ * @property {number} [expected]
+ * @property {(text: string, file: string) => { ok: boolean, actual?: string, message?: string }} [validate]
+ */
+
+/**
+ * @param {string} text
+ * @returns {{ ok: boolean, actual?: string, message?: string }}
+ */
 function validateResidueArmPersist(text) {
   const lines = text.split('\n');
   const violations = [];
@@ -56,6 +75,7 @@ function validateResidueArmPersist(text) {
   return { ok: true, actual: `${paired} paired` };
 }
 
+/** @type {Invariant[]} */
 export const INVARIANTS = [
   {
     file: 'src/engine/triage.ts',
@@ -186,6 +206,11 @@ export const INVARIANTS = [
 // be read throws a tagged Error (`exitCode = 2`) after emitting the unchanged
 // `cannot read` diagnostic; the CLI main guard translates it back to exit 2.
 // Importing this module does NOT run the gate — only the main guard below does.
+/**
+ * @param {Invariant[]} invariants
+ * @param {string} cwd
+ * @returns {Promise<number>}
+ */
 export async function runInvariants(invariants, cwd) {
   let failed = 0;
   for (const entry of invariants) {
@@ -194,8 +219,9 @@ export async function runInvariants(invariants, cwd) {
     try {
       text = await readFile(join(cwd, file), 'utf8');
     } catch (e) {
-      console.error(`structural-invariants: cannot read ${file}: ${e.code ?? e.message}`);
-      const err = new Error(`structural-invariants: cannot read ${file}`);
+      const cause = /** @type {{ code?: string, message?: string }} */ (e);
+      console.error(`structural-invariants: cannot read ${file}: ${cause.code ?? cause.message}`);
+      const err = /** @type {Error & { exitCode?: number }} */ (new Error(`structural-invariants: cannot read ${file}`));
       err.exitCode = 2;
       throw err;
     }
@@ -207,7 +233,8 @@ export async function runInvariants(invariants, cwd) {
       try {
         res = entry.validate(text, file);
       } catch (e) {
-        console.error(`structural-invariants: FAIL ${file} -- ${reason}: predicate threw: ${e.message}`);
+        const cause = /** @type {{ message?: string }} */ (e);
+        console.error(`structural-invariants: FAIL ${file} -- ${reason}: predicate threw: ${cause.message}`);
         failed++;
         continue;
       }
@@ -245,6 +272,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     const failed = await runInvariants(INVARIANTS, process.cwd());
     process.exit(failed > 0 ? 1 : 0);
   } catch (e) {
-    process.exit(e.exitCode ?? 2);
+    const cause = /** @type {{ exitCode?: number }} */ (e);
+    process.exit(cause.exitCode ?? 2);
   }
 }

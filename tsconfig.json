@@ -11,7 +11,8 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "allowJs": true
   },
   "include": ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.mjs"],
   "exclude": ["tests/fixtures/**"]
