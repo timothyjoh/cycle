@@ -117,7 +117,7 @@ test("noop supervisor: issue lands in done/ (not failed/), engine does not halt"
     await seedTodo(root, "moot-a", "moot task a");
     await seedTodo(root, "moot-b", "moot task b");
 
-    const r = spawnSync("node", [dist, "run"], {
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], {
       cwd: root,
       encoding: "utf8",
       env: { ...process.env, PATH: bin + ":" + (process.env.PATH || "") },
@@ -179,7 +179,7 @@ test("noop supervisor: a noop drain deletes a persisted residue-context file (cy
       "utf8",
     );
 
-    const r = spawnSync("node", [dist, "run"], {
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], {
       cwd: root,
       encoding: "utf8",
       env: { ...process.env, PATH: bin + ":" + (process.env.PATH || "") },
@@ -213,7 +213,7 @@ test("noop supervisor: research-phase no-op drains to done/ with noop_step:resea
     await bootstrapRepo(root, bin, researchYml(1));
     await seedTodo(root, "moot-r", "moot research task");
 
-    const r = spawnSync("node", [dist, "run"], {
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], {
       cwd: root,
       encoding: "utf8",
       env: { ...process.env, PATH: bin + ":" + (process.env.PATH || "") },

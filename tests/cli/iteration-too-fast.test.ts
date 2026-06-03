@@ -116,7 +116,7 @@ test("iteration-too-fast: K=2 instant failures fast-bail with exactly one warnin
     }), { "verify.sh": INSTANT_FAIL });
     await seedTodo(root, "A", "a task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -163,7 +163,7 @@ test("iteration-too-fast: slow legitimate failure (>= threshold) retries to budg
     }), { "verify.sh": "#!/bin/bash\nsleep 0.4\nexit 1\n" });
     await seedTodo(root, "A", "a task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -193,7 +193,7 @@ test("iteration-too-fast: guard disabled (min_step_duration_ms: 0) consumes full
     }), { "verify.sh": INSTANT_FAIL });
     await seedTodo(root, "A", "a task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -222,7 +222,7 @@ test("iteration-too-fast: malformed min_step_duration_ms disables guard without 
     }), { "verify.sh": INSTANT_FAIL });
     await seedTodo(root, "A", "a task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `expected exit 0 (no throw), got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -260,7 +260,7 @@ exit 0
     }), { "verify.sh": verify });
     await seedTodo(root, "A", "a task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);

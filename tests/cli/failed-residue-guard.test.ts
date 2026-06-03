@@ -148,7 +148,7 @@ test("residue guard: loop path halts before popping next issue", async () => {
     await seedTodo(root, "A", "a task");
     await seedTodo(root, "B", "b task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -202,7 +202,7 @@ test("residue guard: resume path halts before runResumeOnce", async () => {
     await mkdir(join(root, "src"), { recursive: true });
     await writeFile(join(root, "src/residue.ts"), "leftover");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -233,7 +233,7 @@ test("residue guard: engine-owned-only residue does not halt", async () => {
     await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": ENGINE_OWNED_SCRIPT });
     await seedTodo(root, "A", "a task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     // A fails terminally (consecutiveFailures=1 < 2); no more pending ⇒ clean exit.
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
 
@@ -256,7 +256,7 @@ test("residue guard: clean tree leaves behavior unchanged (no new event)", async
     await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": CLEAN_FAIL_SCRIPT });
     await seedTodo(root, "A", "a task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -285,7 +285,7 @@ test("residue guard: within-budget retry halts before drainRetry re-runs on dirt
     await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": RESIDUE_SCRIPT });
     await seedTodo(root, "A", "a task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -326,7 +326,7 @@ test("residue guard: within-budget retry with git-status failure halts (no silen
     await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": GIT_FAILURE_SCRIPT });
     await seedTodo(root, "A", "a task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1 (halt), got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -352,7 +352,7 @@ test("residue guard: clean-tree within-budget retry proceeds unchanged (no new e
     await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": CLEAN_FAIL_SCRIPT });
     await seedTodo(root, "A", "a task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
 
     const events = await readEvents(root);
     assert.ok(
@@ -382,7 +382,7 @@ test("residue guard: engine-owned-only within-budget retry does not trip the gua
     await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": ENGINE_OWNED_SCRIPT });
     await seedTodo(root, "A", "a task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
 
     const events = await readEvents(root);
     assert.ok(
@@ -404,7 +404,7 @@ test("residue guard: git-status failure halts (no silent proceed)", async () => 
     await seedTodo(root, "A", "a task");
     await seedTodo(root, "B", "b task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1 (halt), got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -438,7 +438,7 @@ test("residue guard: startup re-check halts on persisted context + dirty tree (c
     await mkdir(join(root, "src"), { recursive: true });
     await writeFile(join(root, "src/residue.ts"), "leftover");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -479,7 +479,7 @@ test("residue guard: startup re-check on clean tree deletes file and proceeds", 
     // No todo, empty inbox ⇒ engine proceeds to a clean exit after the re-check.
     await writeContext(root, { cycleId: "0009", issueId: "Z", failingStep: null });
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -506,7 +506,7 @@ test("residue guard: malformed persisted context warns and proceeds (no crash, n
     await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": CLEAN_FAIL_SCRIPT });
     await writeFile(join(root, CONTEXT_FILE), "{ not json", "utf8");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `expected exit 0 (proceed), got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -538,7 +538,7 @@ test("residue guard: git-status failure during startup re-check halts (no silent
     // Destroy the repo so the startup re-check's `git status` exits non-zero.
     await rm(join(root, ".git"), { recursive: true, force: true });
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1 (halt), got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -565,7 +565,7 @@ test("residue guard: terminal-failure branch persists context to disk", async ()
     await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": RESIDUE_SCRIPT });
     await seedTodo(root, "A", "a task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
 
     assert.ok(await contextExists(root), "context file written at terminal-failure branch");
@@ -592,7 +592,7 @@ test("residue guard: within-budget retry arm persists context to disk", async ()
     await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": RESIDUE_SCRIPT });
     await seedTodo(root, "A", "a task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
 
     assert.ok(await contextExists(root), "context file written at the within-budget retry arm");
@@ -622,7 +622,7 @@ test("residue guard: fresh start on persisted within-budget-retry context halts 
     await mkdir(join(root, "src"), { recursive: true });
     await writeFile(join(root, "src/residue.ts"), "leftover");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -662,7 +662,7 @@ test("residue guard: write failure at within-budget arm warns and falls back to 
     await mkdir(join(root, CONTEXT_FILE), { recursive: true });
     await writeFile(join(root, CONTEXT_FILE, "keep"), "x", "utf8");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1 (in-memory halt), got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -706,7 +706,7 @@ exit 1
     await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": RETRY_THEN_OK });
     await seedTodo(root, "A", "a task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
 
     // No stale context file left behind by the recovered within-budget retry.

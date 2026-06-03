@@ -185,7 +185,7 @@ test("resume: skips completed steps and runs only remaining ones", async () => {
     await mkdir(artifactDir, { recursive: true });
     await writeFile(join(artifactDir, "SPEC.md"), "ORIGINAL_SPEC", "utf8");
 
-    const r = spawnSync("node", [distPath, "run"], {
+    const r = spawnSync("node", [distPath, "run", "--skip-preflight"], {
       cwd: workRoot,
       encoding: "utf8",
       env: { ...process.env, CYCLE_BASE: "main" },
@@ -234,7 +234,7 @@ test("resume: row mismatch emits warning and falls through (no cycle.resume)", a
     // log claims cycle for issue "foo" is in-flight, but tbd.jsonl is empty.
     await seedLogInFlight(workRoot, "0099", "foo", "feature", "missing one");
 
-    const r = spawnSync("node", [distPath, "run"], {
+    const r = spawnSync("node", [distPath, "run", "--skip-preflight"], {
       cwd: workRoot,
       encoding: "utf8",
       env: { ...process.env, CYCLE_BASE: "main" },
@@ -272,7 +272,7 @@ test("resume: fresh start when last cycle.end is ok (no resume events)", async (
     ];
     await writeFile(join(workRoot, ".cycle/log.jsonl"), lines.join("\n") + "\n", "utf8");
 
-    const r = spawnSync("node", [distPath, "run"], {
+    const r = spawnSync("node", [distPath, "run", "--skip-preflight"], {
       cwd: workRoot,
       encoding: "utf8",
       env: { ...process.env, CYCLE_BASE: "main" },
@@ -302,7 +302,7 @@ test("resume: fresh start when last cycle.end is failed (no resume events)", asy
     ];
     await writeFile(join(workRoot, ".cycle/log.jsonl"), lines.join("\n") + "\n", "utf8");
 
-    const r = spawnSync("node", [distPath, "run"], {
+    const r = spawnSync("node", [distPath, "run", "--skip-preflight"], {
       cwd: workRoot,
       encoding: "utf8",
       env: { ...process.env, CYCLE_BASE: "main" },
@@ -331,7 +331,7 @@ test("resume: resumed cycle fails non-terminally → retry-drain, no halt, loop 
     gitSync(workRoot, ["checkout", "main"]);
     await seedLogInFlight(workRoot, "0042", "alpha", "feature", "first task", ["spec"]);
 
-    const r = spawnSync("node", [distPath, "run"], {
+    const r = spawnSync("node", [distPath, "run", "--skip-preflight"], {
       cwd: workRoot,
       encoding: "utf8",
       env: { ...process.env, CYCLE_BASE: "main" },
@@ -375,7 +375,7 @@ test("resume: resumed cycle fails on final attempt drains terminally", async () 
     gitSync(workRoot, ["checkout", "main"]);
     await seedLogInFlight(workRoot, "0042", "alpha", "feature", "first task", ["spec"]);
 
-    const r = spawnSync("node", [distPath, "run"], {
+    const r = spawnSync("node", [distPath, "run", "--skip-preflight"], {
       cwd: workRoot,
       encoding: "utf8",
       env: { ...process.env, CYCLE_BASE: "main" },
@@ -410,7 +410,7 @@ test("resume: workflow name not in workflows.yml emits resume_workflow_missing",
     gitSync(workRoot, ["checkout", "main"]);
     await seedLogInFlight(workRoot, "0042", "alpha", "ghost", "first task");
 
-    const r = spawnSync("node", [distPath, "run"], {
+    const r = spawnSync("node", [distPath, "run", "--skip-preflight"], {
       cwd: workRoot,
       encoding: "utf8",
       env: { ...process.env, CYCLE_BASE: "main" },
@@ -439,7 +439,7 @@ test("resume: row mismatch (status: pending) emits warning and falls through", a
     await seedTodo(workRoot, "foo", "missing one", { status: "pending", cycle_id: null });
     await seedLogInFlight(workRoot, "0099", "foo", "feature", "missing one");
 
-    const r = spawnSync("node", [distPath, "run"], {
+    const r = spawnSync("node", [distPath, "run", "--skip-preflight"], {
       cwd: workRoot,
       encoding: "utf8",
       env: { ...process.env, CYCLE_BASE: "main" },
@@ -468,7 +468,7 @@ test("resume: row mismatch (different cycle_id) emits warning and falls through"
     await seedTodo(workRoot, "foo", "missing one", { cycle_id: "9999" });
     await seedLogInFlight(workRoot, "0099", "foo", "feature", "missing one");
 
-    const r = spawnSync("node", [distPath, "run"], {
+    const r = spawnSync("node", [distPath, "run", "--skip-preflight"], {
       cwd: workRoot,
       encoding: "utf8",
       env: { ...process.env, CYCLE_BASE: "main" },
@@ -504,7 +504,7 @@ test("resume: base refresh failure emits warning and skips resume", async () => 
     gitSync(workRoot, ["checkout", "main"]);
     await seedLogInFlight(workRoot, "0042", "alpha", "feature", "first task");
 
-    const r = spawnSync("node", [distPath, "run"], {
+    const r = spawnSync("node", [distPath, "run", "--skip-preflight"], {
       cwd: workRoot,
       encoding: "utf8",
       env: { ...process.env, CYCLE_BASE: "main" },
@@ -533,7 +533,7 @@ test("halt: resume-terminal + main-loop-terminal accumulate to threshold 2", asy
     gitSync(workRoot, ["checkout", "main"]);
     await seedLogInFlight(workRoot, "0042", "alpha", "feature", "alpha task");
 
-    const r = spawnSync("node", [distPath, "run"], {
+    const r = spawnSync("node", [distPath, "run", "--skip-preflight"], {
       cwd: workRoot,
       encoding: "utf8",
       env: { ...process.env, CYCLE_BASE: "main" },

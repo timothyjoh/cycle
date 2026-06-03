@@ -121,7 +121,7 @@ test("ok path: drains rows, moves todo→done, queue empties", async () => {
     await seedTodo(root, "alpha", "alpha task");
     await seedTodo(root, "beta", "beta task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `run exit ${r.status}\n${r.stderr}`);
 
     const doneFiles = await readdir(join(root, "docs/cycle/issues/done"));
@@ -150,7 +150,7 @@ test("terminal failure: row removed, file → failed/ with failure frontmatter",
 
     await seedTodo(root, "doomed", "doomed task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, "run should exit 1 on halt");
 
     const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
@@ -199,7 +199,7 @@ test("terminal failure with malformed frontmatter: file still moves, warning log
       "utf8",
     );
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, "run should exit 1 on halt");
 
     const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
@@ -260,7 +260,7 @@ test("terminal failure with parseable fm but tmp-write blocked: file moves with 
       "utf8",
     );
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, "run should exit 1 on halt");
 
     const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
@@ -306,7 +306,7 @@ exit 0
 
     await seedTodo(root, "retry", "retry task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
 
     const todoFiles = await readdir(join(root, "docs/cycle/issues/todo"));
@@ -373,7 +373,7 @@ workflows:
       "utf8",
     );
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `run exit ${r.status}\n${r.stderr}`);
 
     const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
@@ -410,7 +410,7 @@ test("workflow frontmatter missing: falls back to CLI default", async () => {
       "utf8",
     );
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `run exit ${r.status}\n${r.stderr}`);
 
     const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");

@@ -102,12 +102,15 @@ test("usage output lists the upgrade subcommand and all overwrite flags", async 
   }
 });
 
-test("cycle with no args runs a queue drain — exits 0 with no argument-parse error", async () => {
+test("cycle default run drains and exits 0 with no argument-parse error", async () => {
   const dist = await ensureDist();
   const root = await mkdtemp(join(tmpdir(), "cycle-no-args-"));
   try {
     await bootstrapMinimal(root);
-    const r = spawnSync("node", [dist], {
+    // --skip-preflight keeps this hermetic: the default-run contract (exit 0, no
+    // parse error) is independent of whether agent binaries are installed; the
+    // pure no-args parsing is covered by the parse-args unit test.
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], {
       cwd: root,
       encoding: "utf8",
       timeout: 30000,

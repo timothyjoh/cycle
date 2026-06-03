@@ -43,7 +43,7 @@ test("'run' lists pending rows in dry-run mode", async () => {
     await seedTodoAndRow(root, "alpha", "task alpha");
     await seedTodoAndRow(root, "beta", "task beta");
 
-    const r = spawnSync("node", [distPath, "run", "--dry-run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [distPath, "run", "--skip-preflight", "--dry-run"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `cycle run exit: ${r.status}\nstderr: ${r.stderr}`);
 
     const events = r.stdout.trim().split("\n").map((l: string) => JSON.parse(l));
@@ -109,7 +109,7 @@ workflows:
     await seedTodoAndRow(root, "second", "task second");
 
     // Run — first cycle should fail at boom, second cycle should NOT start.
-    const r = spawnSync("node", [distPath, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [distPath, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, "cycle run should exit 1 on halt");
 
     const log = await readFile(join(root, ".cycle/log.jsonl"), "utf8");
@@ -163,7 +163,7 @@ test("'run \"<text>\" --dry-run' pins raw frontmatter byte-shape (priority: medi
 
     const r = spawnSync(
       "node",
-      [distPath, "run", "park this too", "--dry-run"],
+      [distPath, "run", "--skip-preflight", "park this too", "--dry-run"],
       { cwd: root, encoding: "utf8" },
     );
     assert.equal(r.status, 0, `cycle run exit: ${r.status}\nstderr: ${r.stderr}`);
@@ -227,7 +227,7 @@ test("'drop' and 'run \"<text>\"' produce byte-equal frontmatter after normalizi
     const bodyA = await readFile(dropOut.path, "utf8");
 
     // run --dry-run: stdout is NDJSON events; locate raw file via readdir
-    const runResult = spawnSync("node", [distPath, "run", text, "--dry-run"], { cwd: rootB, encoding: "utf8" });
+    const runResult = spawnSync("node", [distPath, "run", "--skip-preflight", text, "--dry-run"], { cwd: rootB, encoding: "utf8" });
     assert.equal(runResult.status, 0, `cycle run exit: ${runResult.status}\nstderr: ${runResult.stderr}`);
     const rawDir = join(rootB, "docs/cycle/issues/inbox");
     const entries = (await readdir(rawDir)).filter((f) => f.endsWith(".md"));

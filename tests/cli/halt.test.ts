@@ -116,7 +116,7 @@ test("halt: two consecutive terminal failures emit engine.halted and exit 1", as
     await seedTodo(root, "B", "b task");
     await seedTodo(root, "C", "c task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -151,7 +151,7 @@ test("halt: fail → success resets counter; no halt across three cycles", async
     await seedTodo(root, "B", "b task");
     await seedTodo(root, "C", "c task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -183,7 +183,7 @@ test("halt: threshold 1 halts after one terminal failure", async () => {
     await seedTodo(root, "A", "a task");
     await seedTodo(root, "B", "b task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}`);
 
     const events = await readEvents(root);
@@ -218,7 +218,7 @@ exit 0
     });
     await seedTodo(root, "alpha", "alpha task");
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -244,7 +244,7 @@ test("halt: propagateBlocked moves dependent to blocked/ when parent fails, no h
     await seedTodo(root, "A", "a task");
     await seedTodo(root, "B", "b task", { depends_on: ["A"] });
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
@@ -286,7 +286,7 @@ test("halt: propagateBlocked stamps immediate-only blocked_by on 3-node chain A 
     await seedTodo(root, "B", "b task", { depends_on: ["A"] });
     await seedTodo(root, "C", "c task", { depends_on: ["B"] });
 
-    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);

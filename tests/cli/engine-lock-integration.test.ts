@@ -59,7 +59,7 @@ test("live lock → supervisor exits 1 with live-pid message, lock untouched", a
     const lockPath = join(root, ".cycle", "engine.lock");
     await writeFile(lockPath, String(process.pid), "utf8");
 
-    const result = spawnSync("node", [dist, "run"], {
+    const result = spawnSync("node", [dist, "run", "--skip-preflight"], {
       cwd: root,
       encoding: "utf8",
       timeout: 10_000,
@@ -87,7 +87,7 @@ test("stale lock → supervisor reclaims and exits 0 (empty queue), lock cleaned
     const lockPath = join(root, ".cycle", "engine.lock");
     await writeFile(lockPath, "999999999", "utf8");
 
-    const result = spawnSync("node", [dist, "run"], {
+    const result = spawnSync("node", [dist, "run", "--skip-preflight"], {
       cwd: root,
       encoding: "utf8",
       timeout: 15_000,
@@ -222,7 +222,7 @@ test("SIGINT → supervisor exits, lock cleaned up", async () => {
     await appendFile(join(root, ".cycle/tbd.jsonl"), JSON.stringify(queueRow(todoId, "sigint test")) + "\n", "utf8");
 
     const lockPath = join(root, ".cycle", "engine.lock");
-    const child = spawn("node", [dist, "run"], { cwd: root, stdio: "ignore" });
+    const child = spawn("node", [dist, "run", "--skip-preflight"], { cwd: root, stdio: "ignore" });
     await waitForLock(lockPath);
 
     child.kill("SIGINT");
@@ -262,7 +262,7 @@ test("SIGTERM → supervisor exits, lock cleaned up, cycle.killed logged", async
 
     const lockPath = join(root, ".cycle", "engine.lock");
     const logPath = join(root, ".cycle", "log.jsonl");
-    child = spawn("node", [dist, "run"], { cwd: root, stdio: "ignore" });
+    child = spawn("node", [dist, "run", "--skip-preflight"], { cwd: root, stdio: "ignore" });
     // issue.ingested is emitted by the supervisor after activeCycleId is set (both happen
     // before run-one is spawned), so waiting for it is sufficient to guarantee the handler
     // will write a populated cycle_id without requiring subprocess startup.
@@ -326,7 +326,7 @@ test("SIGTERM idle engine: cycle.killed written with cycle_id undefined", async 
 
     const lockPath = join(root, ".cycle", "engine.lock");
     const logPath = join(root, ".cycle", "log.jsonl");
-    child = spawn("node", [dist, "run"], {
+    child = spawn("node", [dist, "run", "--skip-preflight"], {
       cwd: root,
       stdio: "ignore",
       env: { ...process.env, PATH: `${fakeBinDir}:${process.env.PATH ?? ""}` },
