@@ -7,3 +7,6 @@ dist/
 .cycle/cycle.pid
 .cycle/.sync-state.json
 .cycle/coverage.lcov
+
+# engine PID lockfile — runtime state, never commit
+.cycle/engine.lock
