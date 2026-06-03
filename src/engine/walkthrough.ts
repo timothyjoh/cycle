@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { stat, readdir, writeFile } from "node:fs/promises";
 import { join, isAbsolute, relative } from "node:path";
 import { buildChildEnv } from "./child-env.ts";
+import { resolveShell, type ShellResolution } from "./shell.ts";
 import type { StepResult } from "./exec-types.ts";
 import type { CycleConfig } from "./workflow.ts";
 
@@ -58,8 +60,10 @@ export async function resolveWalkthroughHook(
   return null;
 }
 
-/** Spawn the hook via /bin/bash (array args, shell:false). Non-zero exit /
- * spawn error resolve to a failed StepResult — never an unhandled rejection.
+/** Spawn the hook via the resolved shell (array args, shell:false; see
+ * shell.ts resolveShell — /bin/bash on POSIX, discovered git-bash/WSL on
+ * Windows). An unresolved shell, non-zero exit, or spawn error resolve to a
+ * failed StepResult — never an unhandled rejection.
  *
  * When `opts.timeoutMs` is a positive number, an injectable timer arms a
  * bounded-kill: on expiry the child's whole process group is signalled
@@ -74,12 +78,23 @@ export function execWalkthroughHook(
   repoRoot: string,
   hookAbsPath: string,
   env: Record<string, string>,
-  opts: { timeoutMs?: number; timer?: WalkthroughTimer } = {},
+  opts: { timeoutMs?: number; timer?: WalkthroughTimer; shell?: ShellResolution } = {},
 ): Promise<StepResult> {
   return new Promise(resolve => {
+    const shell = opts.shell ?? resolveShell({
+      platform: process.platform,
+      env: process.env,
+      existsSync,
+    });
+    // Unresolved shell (Windows, nothing discovered, no override): fail without
+    // spawning or arming any timer. The resolver owns the actionable message.
+    if (!shell.ok) {
+      resolve({ status: "failed", exitCode: 1, stdout: "", stderr: shell.message });
+      return;
+    }
     // `detached: true` → own process group, so killTree can signal the whole
     // tree. We never .unref() the child — the parent still awaits `close`.
-    const child = spawn("/bin/bash", [hookAbsPath], {
+    const child = spawn(shell.path, [hookAbsPath], {
       cwd: repoRoot,
       env: buildChildEnv(env),
       shell: false,

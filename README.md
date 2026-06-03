@@ -23,6 +23,7 @@ cycle installs a repo-local engine; it does **not** install the whole host envir
 - **An authenticated coding agent CLI** matching `.cycle/workflows.yml`; the default workflows use `claudecode`, which expects the `claude` CLI.
 - **Repository dependencies** required by `.cycle/scripts/verify.sh`.
 - **Git credentials and remote access** when push is enabled.
+- **A POSIX shell** to run `agent: bash` steps: `/bin/bash` on Linux/macOS. The shell is resolvable — native-Windows users can install git-bash (auto-discovered) or set `engine.shell` in `.cycle/workflows.yml` (or the `CYCLE_SHELL` env var) to a bash path. Full per-platform setup is deferred to a later phase.
 
 See [`docs/runtime-environment.md`](docs/runtime-environment.md) for setup guidance and the planned `cycle doctor` / `cycle preflight` direction.
 

@@ -131,6 +131,8 @@ Current agent mapping:
 
 If a workflow references an unknown agent name, cycle fails the step. If a known agent CLI is missing or unauthenticated, the agent process fails at runtime.
 
+`agent: bash` steps (and the walkthrough hook) run their POSIX scripts through a resolvable shell: `/bin/bash` on Linux/macOS, an auto-discovered git-bash / WSL `bash.exe` on native Windows, or an explicit `engine.shell` (`.cycle/workflows.yml`) / `CYCLE_SHELL` override. When none can be resolved the step fails with a message naming the searched paths and the fix — see [`ENGINE.md`](ENGINE.md) → *Shell resolution*.
+
 ## Git and commit expectations
 
 cycle uses git for clean restarts, branch handling, committing, and pushing.

@@ -35,6 +35,8 @@ const FLOORS = {
   "src/engine/noop-marker.ts": 100,
   "src/engine/failed-residue-guard.ts": 100,
   "src/engine/compress-filter.ts": 100,
+  "src/engine/shell.ts": 100,
+  "src/engine/exec-bash.ts": 90,
   "src/engine/preflight.ts": 95,
   "src/cli/compress-output.ts": 70,
   "src/cli/compress-output-hook.ts": 70,

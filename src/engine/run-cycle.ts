@@ -20,7 +20,9 @@ import { ingestReflection } from "./reflection.ts";
 import { sanitizeArtifactStdout } from "./sanitize-artifact.ts";
 import { slugify } from "../issue/id.ts";
 import { writeFile, readFile, stat } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { resolveShell } from "./shell.ts";
 import { truncateHeadCapped } from "./log-fmt.ts";
 import { buildCompressHookSettings } from "./compress-filter.ts";
 import { spawnSync } from "node:child_process";
@@ -398,11 +400,12 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         const walkthroughTimeoutMs =
           typeof rawWtTimeout === "number" && Number.isInteger(rawWtTimeout) && rawWtTimeout > 0
             ? rawWtTimeout : 0;
+        const wtShell = resolveShell({ platform: process.platform, env: process.env, config: cfg.engine.shell, existsSync });
         const wr = await execWalkthroughHook(
           repoRoot,
           hook,
           { ...cycleEnv, CYCLE_ARTIFACT_DIR: artifactDir, ...(phase ? { CYCLE_WALKTHROUGH_PHASE: phase } : {}) },
-          { timeoutMs: walkthroughTimeoutMs },
+          { timeoutMs: walkthroughTimeoutMs, shell: wtShell },
         );
         if (wr.status === "failed") {
           const failStderr = wr.timedOut
@@ -528,7 +531,8 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         typeof rawCap === "number" && Number.isInteger(rawCap) && rawCap > 0 ? rawCap : 24;
       while (true) {
         if (step.agent === "bash") {
-          r = await execBashStep(repoRoot, step.command!, cycleEnv);
+          const bashShell = resolveShell({ platform: process.platform, env: process.env, config: cfg.engine.shell, existsSync });
+          r = await execBashStep(repoRoot, step.command!, cycleEnv, bashShell);
         } else {
           try {
             const mod = resolveAgent(step.agent);

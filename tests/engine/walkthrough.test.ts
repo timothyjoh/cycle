@@ -165,6 +165,26 @@ test("execWalkthroughHook resolves a failed StepResult on spawn error (missing h
   }
 });
 
+test("execWalkthroughHook resolves a failed StepResult on an unresolved shell without arming a timer", async () => {
+  const root = await tmproot("wt-exec-unresolved-");
+  try {
+    const { timer, calls } = recordingTimer();
+    const r = await execWalkthroughHook(root, join(root, "any.sh"), {}, {
+      timeoutMs: 50_000,
+      timer,
+      shell: { ok: false, searched: ["C:\\Program Files\\Git\\bin\\bash.exe"], message: "no shell: install git-bash or set CYCLE_SHELL" },
+    });
+    assert.equal(r.status, "failed");
+    assert.equal(r.exitCode, 1);
+    assert.match(r.stderr, /git-bash/);
+    assert.match(r.stderr, /CYCLE_SHELL/);
+    // No spawn happened, so the bounded-kill timer must never be armed.
+    assert.equal(calls.length, 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 // ---- execWalkthroughHook: bounded-kill timeout ----
 
 /** A synchronous fake WalkthroughTimer that records each arm and lets the test

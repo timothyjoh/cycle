@@ -311,6 +311,79 @@ test("walkthrough_hook absent → undefined, loads without throwing", async () =
   }
 });
 
+test("engine.shell present as a string is retained", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await writeConfig(root,
+      `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+  shell: C:\\Program Files\\Git\\bin\\bash.exe
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`);
+    const cfg = await loadConfig(root);
+    assert.equal(cfg.engine.shell, "C:\\Program Files\\Git\\bin\\bash.exe");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("engine.shell non-string is normalized to unset", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await writeConfig(root,
+      `engine:
+  max_consecutive_failures: 2
+  base_branch: main
+  shell: 123
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`);
+    const cfg = await loadConfig(root);
+    assert.equal(cfg.engine.shell, undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("engine.shell absent → undefined, loads without throwing", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    await writeConfig(root,
+      `${ENGINE_TRIAGE}workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: spec
+        agent: claudecode
+        prompt: prompts/spec.md
+`);
+    const cfg = await loadConfig(root);
+    assert.equal(cfg.engine.shell, undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("compress_output non-boolean value loads without throwing (coercion is the read site's job)", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
   try {

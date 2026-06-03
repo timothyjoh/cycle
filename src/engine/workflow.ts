@@ -47,7 +47,8 @@ export type EngineConfig = {
    * otherwise-unbounded rate-limit retry loop under a permanent rate-limit. */
   max_rate_limit_retries?: number;
   /** Optional project walkthrough-capture hook: a script path (relative to repo
-   * root, else absolute) run via /bin/bash at the end of the feature workflow.
+   * root, else absolute) run via the resolved shell (see shell.ts) at the end
+   * of the feature workflow.
    * Absent/empty/non-string ⇒ falls back to the `.cycle/walkthrough.sh`
    * convention, else the step is inert. Resolved defensively at the read site. */
   walkthrough_hook?: string;
@@ -57,6 +58,11 @@ export type EngineConfig = {
    * SIGTERM→SIGKILL escalation. Coerced defensively at the run-cycle read site.
    * Documented recommended value: 600000 (10 min). */
   walkthrough_hook_timeout_ms?: number;
+  /** Optional shell binary used to run bash/script steps and the walkthrough
+   * hook. Absent/empty/non-string ⇒ unset (auto-discovery applies). Used
+   * verbatim when set (existence is the user's responsibility). See
+   * src/engine/shell.ts resolveShell precedence. */
+  shell?: string;
 };
 
 export type TriageConfig = {
@@ -122,6 +128,12 @@ export async function loadConfig(repoRoot: string, env: Record<string, string | 
     commitConfig.mode = "trunk";
   }
   parsed.engine.commit = commitConfig;
+
+  // engine.shell: optional string; absent/empty/non-string ⇒ unset (the shell
+  // resolver then falls through to env/auto-discovery). Used verbatim when set.
+  if (typeof parsed.engine.shell !== "string" || parsed.engine.shell.trim() === "") {
+    delete parsed.engine.shell;
+  }
 
   // Resolve top-level defaults into every step (step.X overrides defaults.X).
   const rawDefaults = parsed.defaults;
