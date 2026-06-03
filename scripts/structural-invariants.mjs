@@ -142,6 +142,21 @@ export const INVARIANTS = [
     expected: 1,
     reason: 'codex lane resolves binary via CYCLE_CODEX_BIN override',
   },
+
+  // --- Codex non-interactive subcommand pin (cycle 0049) ---
+  // The codex lane MUST invoke `codex exec …`, not bare `codex`: bare codex is
+  // the interactive TUI and rejects a piped (non-TTY) stdin with
+  // "Error: stdin is not a terminal" on codex-cli >= 0.136. A refactor that
+  // drops the "exec" argv element reverts the lane to bare codex and breaks
+  // codex-based downstream repos. The runtime unit assertion lives behind the
+  // same fake-binary harness that hid the original bug; this is the durable
+  // build-time guard.
+  {
+    file: 'src/engine/exec-codex.ts',
+    pattern: /const argv: string\[\] = \["exec"\]/g,
+    expected: 1,
+    reason: 'codex lane invokes `codex exec` (bare codex fails on non-TTY stdin)',
+  },
   {
     file: 'src/engine/exec-gemini.ts',
     pattern: /process\.env\.CYCLE_GEMINI_BIN \?\? "gemini"/g,

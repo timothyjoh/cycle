@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { runInvariants } from "../../scripts/structural-invariants.mjs";
+import { runInvariants, INVARIANTS } from "../../scripts/structural-invariants.mjs";
 
 const SCRIPT = join(process.cwd(), "scripts/structural-invariants.mjs");
 const FIXTURES = join(process.cwd(), "tests/fixtures/structural-invariants");
@@ -29,9 +29,12 @@ async function setup(cwd: string, content: string, cliContent = "// stub\nconsec
     ["pi", "PI", "pi"],
   ];
   for (const [file, env, bin] of lanes) {
+    // codex carries the extra `exec` subcommand pin so the codex-`exec`
+    // count-based invariant (expected: 1) is satisfied against this stub.
+    const execLine = file === "codex" ? `const argv: string[] = ["exec"];\n` : "";
     await writeFile(
       join(cwd, `src/engine/exec-${file}.ts`),
-      `const binary = process.env.CYCLE_${env}_BIN ?? "${bin}";\n`,
+      `${execLine}const binary = process.env.CYCLE_${env}_BIN ?? "${bin}";\n`,
     );
   }
   for (const agent of ["codex", "gemini", "opencode", "auggie", "pi"]) {
@@ -183,6 +186,48 @@ test("runInvariants reports a malformed entry (no pattern or validate) as a FAIL
     }
     assert.equal(failed, 1);
     assert.ok(cap.lines.some((l) => l.includes("malformed invariant entry")));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("structural-invariants: codex-exec invariant is present and passes against real exec-codex.ts", async () => {
+  const entry = INVARIANTS.find(
+    (i) => i.file === "src/engine/exec-codex.ts" && i.reason.includes("codex exec"),
+  );
+  assert.ok(entry, "codex-exec invariant must be registered");
+  const cap = captureConsoleError();
+  let failed: number;
+  try {
+    failed = await runInvariants([entry], process.cwd());
+  } finally {
+    cap.restore();
+  }
+  assert.equal(failed, 0);
+});
+
+test("structural-invariants: codex-exec invariant fails when the exec argv element is removed", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-si-codex-exec-fail-"));
+  try {
+    await mkdir(join(root, "src/engine"), { recursive: true });
+    // Synthetic bare-`codex` lane: argv omits the "exec" element.
+    await writeFile(
+      join(root, "src/engine/exec-codex.ts"),
+      `const argv: string[] = [];\nconst binary = process.env.CYCLE_CODEX_BIN ?? "codex";\n`,
+    );
+    const entry = INVARIANTS.find(
+      (i) => i.file === "src/engine/exec-codex.ts" && i.reason.includes("codex exec"),
+    );
+    assert.ok(entry);
+    const cap = captureConsoleError();
+    let failed: number;
+    try {
+      failed = await runInvariants([entry], root);
+    } finally {
+      cap.restore();
+    }
+    assert.ok(failed >= 1);
+    assert.ok(cap.lines.some((l) => l.includes("src/engine/exec-codex.ts")));
   } finally {
     await rm(root, { recursive: true, force: true });
   }
