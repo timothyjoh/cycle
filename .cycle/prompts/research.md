@@ -46,6 +46,35 @@ You are a documentarian, not an evaluator.
      failure-path / error-case tests exist for the change area?
 3. Document everything with **file paths and line numbers**.
 
+## If the work is already done (no-op)
+
+If, while documenting the codebase, you determine the SPEC's
+requirements are **already fully satisfied**, or the issue is a
+**duplicate** of work already shipped, or it is **not actionable**
+against this codebase, and **no code change is warranted**, signal a
+no-op so the engine can resolve the cycle before plan/build/review
+agents run. Do this:
+
+1. Write `NOOP.md` into the cycle's artifact dir
+   (`docs/cycle/<cycle_id>-<workflow>-<slug>/NOOP.md`) containing:
+   - a `reason: <category>` line where `<category>` is exactly one of
+     `already-satisfied`, `duplicate`, `not-actionable`;
+   - a `## Evidence` list with at least one `path/to/file.ext:line`
+     reference proving the conclusion (a dotted filename followed by
+     `:<line-number>`, e.g. `src/engine/run-cycle.ts:678`).
+2. Still produce the normal **non-empty** `RESEARCH.md` document (this
+   stdout) describing the current codebase state and citing the same
+   evidence. An empty document fails the completion-proof check before
+   the no-op is recognized.
+
+The engine reads `NOOP.md` right after the research step: a valid marker
+resolves the cycle as a recognized no-op (the issue lands in `done/`,
+not `failed/`, and does not burn the failure budget) before any
+downstream step runs. Do this **only** when genuinely satisfied —
+an absent or malformed marker (missing/unknown reason category, or zero
+`file.ext:line` evidence lines) is ignored and research proceeds
+normally (anti-slop).
+
 ## File Artifact Mode
 
 **You are writing a file, not responding in a conversation.** The engine

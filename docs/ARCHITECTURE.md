@@ -238,11 +238,16 @@ Triage-failure and rate-limit variants:
 {"ts":"…","event":"engine.halted","reason":"rate_limit_max_retries","retries":25,"step_index":0}
 ```
 
-No-op / already-satisfied variant — when a `build`/`fix` step exits `ok`
-with an empty `src scripts tests` diff *and* a well-formed `NOOP.md` marker
-is present, the cycle resolves to a distinct `noop` terminal outcome instead
-of failing the empty-diff guard. The issue moves to `done/` and the failure
-budget is untouched (see [docs/ENGINE.md](ENGINE.md) →
+No-op / already-satisfied variant — an issue whose work is already done
+resolves to a distinct `noop` terminal outcome instead of burning the failure
+budget, via two detection points sharing one marker schema and drain path.
+**Early:** after any workflow's `research` step exits `ok`, a well-formed
+`NOOP.md` marker short-circuits the cycle to `noop` *before* `plan`/`build`/`review`
+run (no empty-diff precondition). **Late fallback:** when a `build`/`fix` step
+exits `ok` with an empty `src scripts tests` diff *and* a well-formed `NOOP.md`
+marker is present, the cycle resolves to `noop` instead of failing the empty-diff
+guard. Either way the issue moves to `done/` and the failure budget is untouched
+(`detected_at_step` ∈ `research | build | fix`; see [docs/ENGINE.md](ENGINE.md) →
 *No-op / already-satisfied resolution*):
 
 ```jsonl

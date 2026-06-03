@@ -1,0 +1,11 @@
+{
+  "files": [
+    ".cycle/prompts/research.md",
+    "CLAUDE.md",
+    "docs/ENGINE.md",
+    "src/defaults/prompts/research.md",
+    "src/engine/run-cycle.ts",
+    "tests/cli/noop-drain.test.ts",
+    "tests/engine/noop-resolution.test.ts"
+  ]
+}

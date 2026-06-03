@@ -47,6 +47,30 @@ printf '## Summary\\nThe SPEC is already satisfied; see src/engine/run-cycle.ts:
 exit 0
 `;
 
+// A research → plan feature workflow: the research step writes a valid NOOP.md
+// so the engine short-circuits at the EARLY (research-phase) detection point.
+const researchYml = (maxConsecutive: number) => `engine:
+  max_consecutive_failures: ${maxConsecutive}
+  base_branch: main
+  commit:
+    mode: trunk
+    push: false
+triage:
+  agent: claudecode
+  prompt: prompts/triage.md
+  max_turns: 10
+workflows:
+  - name: feature
+    max_cycle_attempts: 3
+    steps:
+      - name: research
+        agent: claudecode
+        prompt: prompts/research.md
+      - name: plan
+        agent: claudecode
+        prompt: prompts/plan.md
+`;
+
 async function bootstrapRepo(root: string, bin: string, yml: string): Promise<void> {
   spawnSync("git", ["init", "-b", "main"], { cwd: root, stdio: "ignore" });
   spawnSync("git", ["config", "user.email", "t@t"], { cwd: root, stdio: "ignore" });
@@ -56,6 +80,8 @@ async function bootstrapRepo(root: string, bin: string, yml: string): Promise<vo
   await mkdir(join(root, ".cycle/prompts"), { recursive: true });
   await writeFile(join(root, ".cycle/workflows.yml"), yml, "utf8");
   await writeFile(join(root, ".cycle/prompts/build.md"), "build", "utf8");
+  await writeFile(join(root, ".cycle/prompts/research.md"), "research", "utf8");
+  await writeFile(join(root, ".cycle/prompts/plan.md"), "plan", "utf8");
   await writeFile(join(root, ".cycle/prompts/triage.md"), "triage", "utf8");
   await mkdir(join(root, "docs/cycle/issues/inbox"), { recursive: true });
   await mkdir(join(root, "docs/cycle/issues/todo"), { recursive: true });
@@ -131,6 +157,57 @@ test("noop supervisor: issue lands in done/ (not failed/), engine does not halt"
     const stop = events.find((e) => e.event === "engine.stop");
     assert.equal(stop.status, "ok");
     assert.equal(stop.cycles_processed, 2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("noop supervisor: research-phase no-op drains to done/ with noop_step:research, no plan run", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-noop-drain-res-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-noop-drain-res-bin-"));
+  try {
+    const dist = await ensureDist();
+    await bootstrapRepo(root, bin, researchYml(1));
+    await seedTodo(root, "moot-r", "moot research task");
+
+    const r = spawnSync("node", [dist, "run"], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, PATH: bin + ":" + (process.env.PATH || "") },
+    });
+    assert.equal(r.status, 0, `run should exit 0 (no halt), got ${r.status}\n${r.stderr}`);
+
+    const doneFiles = await readdir(join(root, "docs/cycle/issues/done"));
+    assert.equal(doneFiles.length, 1, "moot issue should be in done/");
+    assert.equal((await readdir(join(root, "docs/cycle/issues/failed"))).length, 0);
+    assert.equal((await readdir(join(root, "docs/cycle/issues/todo"))).length, 0, "todo/ drained");
+
+    const body = await readFile(join(root, "docs/cycle/issues/done", "moot-r.md"), "utf8");
+    assert.match(body, /^noop_at:/m);
+    assert.match(body, /^noop_reason: already-satisfied$/m);
+    assert.match(body, /^noop_step: research$/m);
+    assert.match(body, /^last_cycle_id:/m);
+
+    const events = (await readFile(join(root, ".cycle/log.jsonl"), "utf8"))
+      .trim().split("\n").map((l) => JSON.parse(l));
+
+    const drained = events.filter((e) => e.event === "queue.drained");
+    assert.equal(drained.length, 1);
+    assert.equal(drained[0].outcome, "noop");
+    assert.equal(drained[0].reason, "already-satisfied");
+
+    const noop = events.filter((e) => e.event === "cycle.noop");
+    assert.equal(noop.length, 1);
+    assert.equal(noop[0].detected_at_step, "research");
+
+    // The downstream plan step never started, and nothing failed/halted.
+    assert.equal(events.filter((e) => e.event === "step.start" && e.step === "plan").length, 0);
+    assert.equal(events.filter((e) => e.event === "engine.halted").length, 0);
+    assert.equal(events.filter((e) => e.event === "issue.failed").length, 0);
+
+    const stop = events.find((e) => e.event === "engine.stop");
+    assert.equal(stop.status, "ok");
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(bin, { recursive: true, force: true });

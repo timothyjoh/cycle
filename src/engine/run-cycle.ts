@@ -686,6 +686,29 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
               }
             }
           }
+          if (r.status === "ok" && step.name === "research") {
+            // Research-phase no-op short-circuit (the EARLY detection point;
+            // the build/fix empty-diff guard above is the late fallback). When
+            // the research agent concludes the issue's work is already done and
+            // writes a well-formed NOOP.md (recognized reason category + ≥1
+            // file:line evidence line), resolve the cycle as a recognized no-op
+            // before plan/build/review run. Unlike the build-phase guard there
+            // is NO empty-diff precondition and NO failure branch:
+            // classifyNoopMarker fails closed, and an absent/malformed/
+            // unreadable marker (or any internal read error) simply continues
+            // to the next step exactly as before this change — no new event.
+            let marker: NoopClassification = { valid: false };
+            try {
+              marker = await classifyNoopMarker(join(artifactDir, "NOOP.md"));
+            } catch {
+              marker = { valid: false };
+            }
+            if (marker.valid) {
+              noopOutcome = { reason: marker.reason, step: step.name };
+              // leave r.status === "ok" — step.end fires "ok"; the cycle.noop
+              // return is handled by the shared noopOutcome consumer below.
+            }
+          }
         }
         if (r.status === "ok" && step.name === "reflection") {
           await ingestReflection(

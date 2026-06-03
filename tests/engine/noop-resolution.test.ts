@@ -76,6 +76,229 @@ function parseEvents(log: string): Array<Record<string, unknown>> {
   });
 }
 
+// Multi-step feature workflow (research-phase short-circuit tests need a step
+// AFTER research to assert it never starts on a no-op, and to assert it DOES
+// start when the marker is absent/malformed/unreadable).
+function multiWorkflowYml(steps: string[]): string {
+  const stepLines = steps.flatMap(s => [
+    `      - name: ${s}`,
+    "        agent: claudecode",
+    `        prompt: prompts/${s}.md`,
+  ]);
+  return [
+    "engine:",
+    "  max_consecutive_failures: 2",
+    "  base_branch: main",
+    "  commit:",
+    "    mode: trunk",
+    "    push: false",
+    "triage:",
+    "  agent: claudecode",
+    "  prompt: prompts/triage.md",
+    "  max_turns: 10",
+    "workflows:",
+    "  - name: feature",
+    "    max_cycle_attempts: 3",
+    "    steps:",
+    ...stepLines,
+  ].join("\n") + "\n";
+}
+
+async function setupMultiRepo(fakeBody: string, steps: string[]): Promise<{ root: string; bin: string }> {
+  const root = await mkdtemp(join(tmpdir(), "cycle-noop-res-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-noop-res-bin-"));
+  git(root, ["init", "-b", "main"]);
+  git(root, ["config", "user.email", "t@t"]);
+  git(root, ["config", "user.name", "t"]);
+  git(root, ["commit", "--allow-empty", "-m", "init"]);
+  await mkdir(join(root, ".cycle/prompts"), { recursive: true });
+  await writeFile(join(root, ".cycle/workflows.yml"), multiWorkflowYml(steps), "utf8");
+  for (const s of steps) {
+    await writeFile(join(root, `.cycle/prompts/${s}.md`), s, "utf8");
+  }
+  const fake = join(bin, "claude");
+  await writeFile(fake, fakeBody, "utf8");
+  await chmod(fake, 0o755);
+  return { root, bin };
+}
+
+// Fake agent that writes a valid research-phase NOOP.md (the artifact dir is the
+// same per-cycle dir regardless of step) and prints a non-empty document body so
+// every artifact step's completion-proof passes.
+function researchNoopFake(reason: string): string {
+  return [
+    SHEBANG,
+    'dir=$(ls -d docs/cycle/${CYCLE_ID}-* 2>/dev/null | head -1)',
+    `printf 'reason: ${reason}\\n\\n## Evidence\\n- src/engine/run-cycle.ts:678 already implements this\\n' > "$dir/NOOP.md"`,
+    'printf "## Doc\\nThe SPEC is already satisfied; see src/engine/run-cycle.ts:678.\\n"',
+    "",
+  ].join("\n");
+}
+
+test("noop-resolution: research exit 0 + valid NOOP.md ⇒ cycle.noop before plan/build/review", async () => {
+  const { root, bin } = await setupMultiRepo(
+    researchNoopFake("already-satisfied"),
+    ["research", "plan", "build", "review"],
+  );
+  try {
+    const r = await runCycle(root, {
+      issueId: "NOOP-RESEARCH",
+      title: "noop research",
+      workflow: "feature",
+      env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "noop");
+    assert.equal(r.status === "noop" ? r.reason : null, "already-satisfied");
+    assert.equal(r.status === "noop" ? r.detectedAtStep : null, "research");
+
+    const events = parseEvents(await readFile(join(root, ".cycle/log.jsonl"), "utf8"));
+    const noop = events.filter(e => e.event === "cycle.noop");
+    assert.equal(noop.length, 1, "cycle.noop must fire exactly once");
+    assert.equal(noop[0].issue_id, "NOOP-RESEARCH");
+    assert.equal(noop[0].reason, "already-satisfied");
+    assert.equal(noop[0].detected_at_step, "research");
+
+    // cycle.end {status:"noop"} fires once, after cycle.noop.
+    assert.equal(events.filter(e => e.event === "cycle.end" && e.status === "noop").length, 1);
+    const noopIdx = events.findIndex(e => e.event === "cycle.noop");
+    const endIdx = events.findIndex(e => e.event === "cycle.end" && e.status === "noop");
+    assert.ok(noopIdx < endIdx, "cycle.noop precedes cycle.end{noop}");
+
+    // research step.end fires "ok" exactly once, before the no-op return.
+    assert.equal(
+      events.filter(e => e.event === "step.end" && e.step === "research" && e.status === "ok").length,
+      1,
+      "step.end research ok exactly once",
+    );
+    // No downstream step ever started.
+    for (const downstream of ["plan", "build", "review"]) {
+      assert.equal(
+        events.filter(e => e.event === "step.start" && e.step === downstream).length,
+        0,
+        `no step.start for ${downstream} on a research short-circuit`,
+      );
+    }
+    // research completion-proof passed (RESEARCH.md non-empty).
+    assert.equal(events.filter(e => e.event === "step.completion_check" && e.status === "fail").length, 0);
+    // finally cleanup ran; no leaked failure.
+    assert.equal(events.filter(e => e.event === "cycle.checkout").length, 1);
+    assert.equal(events.filter(e => e.event === "cycle.base_pull").length, 1);
+    assert.equal(events.filter(e => e.event === "cycle.end" && e.status === "failed").length, 0);
+  } finally {
+    await cleanup(root, bin);
+  }
+});
+
+test("noop-resolution: research reason category propagates verbatim (each category)", async () => {
+  for (const reason of ["already-satisfied", "duplicate", "not-actionable"]) {
+    const { root, bin } = await setupMultiRepo(researchNoopFake(reason), ["research", "plan"]);
+    try {
+      const r = await runCycle(root, {
+        issueId: `NOOP-RES-${reason}`,
+        title: "noop research reason",
+        workflow: "feature",
+        env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
+      });
+      assert.equal(r.status, "noop");
+      assert.equal(r.status === "noop" ? r.reason : null, reason);
+      assert.equal(r.status === "noop" ? r.detectedAtStep : null, "research");
+      const events = parseEvents(await readFile(join(root, ".cycle/log.jsonl"), "utf8"));
+      const noop = events.filter(e => e.event === "cycle.noop");
+      assert.equal(noop.length, 1);
+      assert.equal(noop[0].reason, reason);
+      assert.equal(noop[0].detected_at_step, "research");
+    } finally {
+      await cleanup(root, bin);
+    }
+  }
+});
+
+// Each failure-path case asserts: no cycle.noop, AND the post-research `plan`
+// step.start fires (the cycle proceeds exactly as before this change).
+async function expectResearchContinues(fakeBody: string, issueId: string) {
+  const { root, bin } = await setupMultiRepo(fakeBody, ["research", "plan"]);
+  try {
+    const r = await runCycle(root, {
+      issueId,
+      title: "research continues",
+      workflow: "feature",
+      env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
+    });
+    assert.notEqual(r.status, "noop", "must not short-circuit on an invalid/absent marker");
+    const events = parseEvents(await readFile(join(root, ".cycle/log.jsonl"), "utf8"));
+    assert.equal(events.filter(e => e.event === "cycle.noop").length, 0, "no cycle.noop without a valid marker");
+    assert.equal(
+      events.filter(e => e.event === "step.start" && e.step === "plan").length,
+      1,
+      "plan starts after research when no short-circuit fires",
+    );
+  } finally {
+    await cleanup(root, bin);
+  }
+}
+
+test("noop-resolution: research marker ABSENT ⇒ research continues to plan", async () => {
+  const fakeBody = [SHEBANG, 'printf "## Doc\\nstate\\n"', ""].join("\n");
+  await expectResearchContinues(fakeBody, "NOOP-RES-ABSENT");
+});
+
+test("noop-resolution: research marker MALFORMED (no reason) ⇒ research continues", async () => {
+  const fakeBody = [
+    SHEBANG,
+    'dir=$(ls -d docs/cycle/${CYCLE_ID}-* 2>/dev/null | head -1)',
+    `printf '## Evidence\\n- src/engine/run-cycle.ts:678\\n' > "$dir/NOOP.md"`,
+    'printf "## Doc\\nmalformed marker\\n"',
+    "",
+  ].join("\n");
+  await expectResearchContinues(fakeBody, "NOOP-RES-NOREASON");
+});
+
+test("noop-resolution: research marker MALFORMED (bad reason) ⇒ research continues", async () => {
+  const fakeBody = [
+    SHEBANG,
+    'dir=$(ls -d docs/cycle/${CYCLE_ID}-* 2>/dev/null | head -1)',
+    `printf 'reason: whatever\\n- src/foo.ts:1\\n' > "$dir/NOOP.md"`,
+    'printf "## Doc\\nbad reason category\\n"',
+    "",
+  ].join("\n");
+  await expectResearchContinues(fakeBody, "NOOP-RES-BADREASON");
+});
+
+test("noop-resolution: research marker MALFORMED (zero evidence) ⇒ research continues", async () => {
+  const fakeBody = [
+    SHEBANG,
+    'dir=$(ls -d docs/cycle/${CYCLE_ID}-* 2>/dev/null | head -1)',
+    `printf 'reason: already-satisfied\\n\\n## Evidence\\n- no file line tokens here\\n' > "$dir/NOOP.md"`,
+    'printf "## Doc\\nno evidence tokens\\n"',
+    "",
+  ].join("\n");
+  await expectResearchContinues(fakeBody, "NOOP-RES-NOEVIDENCE");
+});
+
+test("noop-resolution: research marker WHITESPACE-only ⇒ research continues", async () => {
+  const fakeBody = [
+    SHEBANG,
+    'dir=$(ls -d docs/cycle/${CYCLE_ID}-* 2>/dev/null | head -1)',
+    `printf '   \\n\\n' > "$dir/NOOP.md"`,
+    'printf "## Doc\\nwhitespace marker\\n"',
+    "",
+  ].join("\n");
+  await expectResearchContinues(fakeBody, "NOOP-RES-WS");
+});
+
+test("noop-resolution: research marker UNREADABLE (dir at NOOP.md path) ⇒ research continues", async () => {
+  // A directory at the NOOP.md path makes the read fail; classifyNoopMarker is
+  // fail-closed and the run-cycle try/catch degrades to normal continuation.
+  const fakeBody = [
+    SHEBANG,
+    'dir=$(ls -d docs/cycle/${CYCLE_ID}-* 2>/dev/null | head -1)',
+    'mkdir -p "$dir/NOOP.md"',
+    'printf "## Doc\\nunreadable marker\\n"',
+    "",
+  ].join("\n");
+  await expectResearchContinues(fakeBody, "NOOP-RES-UNREADABLE");
+});
+
 test("noop-resolution: build exit 0 + empty diff + valid NOOP.md ⇒ cycle.noop", async () => {
   const { root, bin } = await setupRepo(noopFake("already-satisfied"), "build");
   try {
