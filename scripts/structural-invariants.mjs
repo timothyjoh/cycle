@@ -45,9 +45,9 @@ const INVARIANTS = [
   {
     file: 'src/cli.ts',
     pattern: /await haltIfResidue\(\)/g,
-    expected: 2,
+    expected: 3,
     reason:
-      'failed-cycle dirty-worktree residue guard wired at exactly two gated sites: before runResumeOnce (resume path) and at loop-top before popNextPending (next-issue path) (cycle 0036)',
+      'failed-cycle dirty-worktree residue guard wired at exactly three gated sites: the cross-process startup re-check, before runResumeOnce (resume path), and at loop-top before popNextPending (next-issue path) (cycle 0036; startup re-check cycle 0039)',
   },
 
   // --- Agent-binary hermeticity (added 2026-06-02) ---

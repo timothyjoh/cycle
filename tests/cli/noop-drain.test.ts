@@ -163,6 +163,48 @@ test("noop supervisor: issue lands in done/ (not failed/), engine does not halt"
   }
 });
 
+test("noop supervisor: a noop drain deletes a persisted residue-context file (cycle 0039)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-noop-drain-ctx-"));
+  const bin = await mkdtemp(join(tmpdir(), "cycle-noop-drain-ctx-bin-"));
+  try {
+    const dist = await ensureDist();
+    await bootstrapRepo(root, bin, buildYml(2));
+    await seedTodo(root, "moot-a", "moot task a");
+    // A leftover residue-context file from a prior process. The clean worktree at
+    // startup deletes it, and the noop drain's unpersist is a redundant safety net;
+    // either way no stale file may survive a clean noop run.
+    await writeFile(
+      join(root, ".cycle/failed-residue-context.json"),
+      JSON.stringify({ cycleId: "0001", issueId: "moot-a", failingStep: "build" }),
+      "utf8",
+    );
+
+    const r = spawnSync("node", [dist, "run"], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, PATH: bin + ":" + (process.env.PATH || "") },
+    });
+    assert.equal(r.status, 0, `run should exit 0 (no halt), got ${r.status}\n${r.stderr}`);
+
+    const events = (await readFile(join(root, ".cycle/log.jsonl"), "utf8"))
+      .trim().split("\n").map((l) => JSON.parse(l));
+    assert.equal(events.filter((e) => e.event === "cycle.noop").length, 1, "the cycle no-opped");
+    assert.equal(
+      events.filter((e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree").length,
+      0,
+      "engine-owned context file must not trip the guard",
+    );
+
+    await assert.rejects(
+      readFile(join(root, ".cycle/failed-residue-context.json"), "utf8"),
+      "persisted context file must be absent after a noop run",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
 test("noop supervisor: research-phase no-op drains to done/ with noop_step:research, no plan run", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-noop-drain-res-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-noop-drain-res-bin-"));

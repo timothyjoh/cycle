@@ -34,6 +34,7 @@ const FLOORS = {
   "src/engine/rate-limit.ts": 100,
   "src/engine/noop-marker.ts": 100,
   "src/engine/failed-residue-guard.ts": 100,
+  "src/engine/residue-context-store.ts": 100,
   "src/engine/compress-filter.ts": 100,
   "src/engine/shell.ts": 100,
   "src/engine/exec-bash.ts": 90,

@@ -92,6 +92,24 @@ async function readEvents(root: string): Promise<Array<Record<string, unknown>>>
   return body.trim().split("\n").map((l) => JSON.parse(l));
 }
 
+const CONTEXT_FILE = ".cycle/failed-residue-context.json";
+
+async function writeContext(
+  root: string,
+  ctx: { cycleId: string; issueId: string; failingStep: string | null },
+): Promise<void> {
+  await writeFile(join(root, CONTEXT_FILE), JSON.stringify(ctx), "utf8");
+}
+
+async function contextExists(root: string): Promise<boolean> {
+  try {
+    await readFile(join(root, CONTEXT_FILE), "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Writes an uncommitted non-engine source file, then fails.
 const RESIDUE_SCRIPT = `#!/bin/bash
 mkdir -p src
@@ -400,6 +418,162 @@ test("residue guard: git-status failure halts (no silent proceed)", async () => 
     // B must not have been popped (no silent proceed onto a corrupt tree).
     const starts = events.filter((e) => e.event === "cycle.start");
     assert.equal(starts.length, 1, "only the first cycle ran");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// --- Cross-process persistence (cycle 0039) ---
+
+test("residue guard: startup re-check halts on persisted context + dirty tree (cross-process)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-residue-xproc-"));
+  try {
+    const dist = await ensureDist();
+    // No in-flight log tail (the terminal-failure cycle already wrote cycle.end in
+    // a prior process). The persisted context file is the only arming source.
+    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": CLEAN_FAIL_SCRIPT });
+    await seedTodo(root, "A", "a task");
+    await writeContext(root, { cycleId: "0007", issueId: "A", failingStep: "verify" });
+    // Uncommitted non-engine residue left behind by the prior failed cycle.
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/residue.ts"), "leftover");
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
+
+    const events = await readEvents(root);
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+    );
+    assert.equal(halts.length, 1, "exactly one failed_cycle_dirty_worktree halt");
+    assert.equal(halts[0].failed_cycle_id, "0007");
+    assert.equal(halts[0].issue_id, "A");
+    assert.ok(
+      (halts[0].dirty_paths as string[]).includes("src/residue.ts"),
+      `dirty_paths: ${JSON.stringify(halts[0].dirty_paths)}`,
+    );
+
+    // The halt fired before any cycle was dispatched — no cycle.start at all.
+    assert.equal(events.filter((e) => e.event === "cycle.start").length, 0, "no cycle started");
+
+    const stops = events.filter((e) => e.event === "engine.stop");
+    assert.equal(stops.length, 1, "exactly one engine.stop");
+    assert.equal(stops[0].reason, "failed_cycle_dirty_worktree");
+
+    assert.match(r.stderr, /src\/residue\.ts/);
+    assert.match(r.stderr, /0007/);
+    assert.match(r.stderr, /git reset --hard/);
+
+    // File persists for the operator to remediate (not deleted on halt).
+    assert.ok(await contextExists(root), "context file remains after halt");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("residue guard: startup re-check on clean tree deletes file and proceeds", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-residue-xproc-clean-"));
+  try {
+    const dist = await ensureDist();
+    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": CLEAN_FAIL_SCRIPT });
+    // No todo, empty inbox ⇒ engine proceeds to a clean exit after the re-check.
+    await writeContext(root, { cycleId: "0009", issueId: "Z", failingStep: null });
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
+
+    const events = await readEvents(root);
+    assert.ok(
+      !events.some(
+        (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+      ),
+      "clean tree must not emit a residue halt",
+    );
+    assert.equal(
+      await contextExists(root),
+      false,
+      "persisted context file deleted on clean-tree re-check",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("residue guard: malformed persisted context warns and proceeds (no crash, no halt)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-residue-xproc-malformed-"));
+  try {
+    const dist = await ensureDist();
+    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": CLEAN_FAIL_SCRIPT });
+    await writeFile(join(root, CONTEXT_FILE), "{ not json", "utf8");
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 0, `expected exit 0 (proceed), got ${r.status}\n${r.stderr}`);
+
+    const events = await readEvents(root);
+    const warns = events.filter(
+      (e) => e.event === "engine.warning" && e.reason === "residue_context_unreadable",
+    );
+    assert.equal(warns.length, 1, "exactly one residue_context_unreadable warning");
+    assert.ok(
+      !events.some(
+        (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+      ),
+      "a malformed context must not trip the guard",
+    );
+    // The unusable file was dropped so it does not re-warn next start.
+    assert.equal(await contextExists(root), false, "unreadable context file deleted");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("residue guard: git-status failure during startup re-check halts (no silent proceed)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-residue-xproc-gitfail-"));
+  try {
+    const dist = await ensureDist();
+    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": CLEAN_FAIL_SCRIPT });
+    await writeContext(root, { cycleId: "0011", issueId: "A", failingStep: "verify" });
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/residue.ts"), "leftover");
+    // Destroy the repo so the startup re-check's `git status` exits non-zero.
+    await rm(join(root, ".git"), { recursive: true, force: true });
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 1, `expected exit 1 (halt), got ${r.status}\n${r.stderr}`);
+
+    const events = await readEvents(root);
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+    );
+    assert.equal(halts.length, 1, "exactly one failed_cycle_dirty_worktree halt");
+    // A failed status check is surfaced, never coerced to clean.
+    assert.deepEqual(halts[0].dirty_paths, []);
+    assert.match(String(halts[0].message), /Residue check failed/);
+    assert.equal(events.filter((e) => e.event === "cycle.start").length, 0, "no cycle started");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("residue guard: terminal-failure branch persists context to disk", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-residue-persist-"));
+  try {
+    const dist = await ensureDist();
+    // maxConsecutive 2 so the first terminal failure does not trip
+    // max_consecutive; the in-process loop-top guard halts on the residue. Before
+    // that halt, the terminal-failure branch persisted the context to disk.
+    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": RESIDUE_SCRIPT });
+    await seedTodo(root, "A", "a task");
+
+    const r = spawnSync("node", [dist, "run"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
+
+    assert.ok(await contextExists(root), "context file written at terminal-failure branch");
+    const persisted = JSON.parse(await readFile(join(root, CONTEXT_FILE), "utf8"));
+    assert.equal(persisted.issueId, "A");
+    const events = await readEvents(root);
+    const start = events.find((e) => e.event === "cycle.start");
+    assert.equal(persisted.cycleId, start!.cycle_id, "persisted cycleId matches the failed cycle");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
