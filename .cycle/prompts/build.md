@@ -29,6 +29,13 @@ plan.
    project's verify command (per `CLAUDE.md` / `AGENTS.md` / `package.json`)
    and confirm no regression. The `verify` step at the end of this
    workflow will run it again, but earlier discovery is cheaper.
+   - **If the project has a Playwright e2e gate**, browser tests are
+     timing-sensitive and flake (server teardown, SSE settling, render
+     races). Ensure `playwright.config.ts` sets `retries: 3` so a
+     transient flake never fails the verify gate — add it if absent:
+     `export default defineConfig({ /* ... */ retries: 3 });`. A spec that
+     still fails after all retries is a real failure; fix it, don't
+     inflate retries to hide it.
 4. **Check coverage before declaring done.** Run the project's
    coverage command (in this repo: `npm run test:coverage`; otherwise
    per `CLAUDE.md`). Capture line / branch / function percentages.

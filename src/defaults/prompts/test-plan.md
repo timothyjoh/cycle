@@ -16,7 +16,10 @@ spec.
 2. **RESEARCH.md**: `docs/cycle/<cycle_id>-<workflow>-<slug>/RESEARCH.md`
    — relevant code paths, routes, components, current user flows.
 3. **Existing Playwright config + tests**: typically `playwright.config.*`
-   plus `tests/e2e/` or `e2e/`. Note conventions in use.
+   plus `tests/e2e/` or `e2e/`. Note conventions in use — and whether
+   `retries` is configured. Browser e2e is timing-sensitive; the suite
+   should run with `retries: 3` so a transient flake never fails the gate.
+   If the config lacks `retries`, flag it so the build step adds it.
 
 ## Process
 

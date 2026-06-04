@@ -41,12 +41,34 @@ according to the plan.
    it in the build summary as a deviation; do not bulldoze through.
 7. **Update docs only if SPEC says so.** This workflow defaults to
    "tests only" — no README / CLAUDE.md edits unless PLAN.md is explicit.
+8. **Browser e2e is flaky — retry, don't fight it.** Browser tests are
+   inherently timing-sensitive (server teardown, SSE/stream settling,
+   render and navigation races). Configure the Playwright runner to retry
+   each spec a few times before counting it as a failure, so a transient
+   flake never fails this cycle's verify gate. Ensure `retries` is set in
+   `playwright.config.ts` (add it if absent):
+
+   ```ts
+   import { defineConfig } from "@playwright/test";
+
+   export default defineConfig({
+     // ...existing config...
+     retries: 3, // each spec gets up to 3 retries; only a 4-of-4 failure is real
+   });
+   ```
+
+   A test that still fails after all retries is a **genuine** failure —
+   fix it. Do not paper over a real failure by raising `retries` further
+   or deleting the test, and never add `test.retry()`-style per-test
+   inflation to hide a deterministic bug.
 
 ## Quality Gates Before You Finish
 
 - [ ] All new specs pass against the running app.
 - [ ] The full Playwright suite still passes (or the failures are
       pre-existing and unrelated; if so, list them in the summary).
+- [ ] `playwright.config.ts` has `retries` configured (≥ 2) so flaky
+      specs are retried before failing the verify gate.
 - [ ] Selectors are stable (`getByRole`, `getByTestId`, etc.) — no raw
       CSS / brittle text matchers unless unavoidable.
 - [ ] No `waitForTimeout` calls; auto-waiting + explicit `expect` polling
