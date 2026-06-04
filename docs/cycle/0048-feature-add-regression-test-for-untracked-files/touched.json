@@ -1,5 +1,6 @@
 {
   "files": [
+    "docs/cycle/0048-feature-add-regression-test-for-untracked-files/BUILD.md",
     "tests/engine/empty-diff-guard.test.ts"
   ]
 }

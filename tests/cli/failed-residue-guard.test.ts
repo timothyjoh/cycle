@@ -143,10 +143,12 @@ test("residue guard: cleanable residue is torn down and retried, then halts clea
   try {
     const dist = await ensureDist();
     // RESIDUE_SCRIPT leaves an untracked non-engine-owned file then fails. The
-    // engine now tears that residue down and RETRIES on a clean tree instead of
-    // halting on the residue guard. After max_cycle_attempts (3) failures it
-    // halts terminally — on a CLEAN tree (no residue piled up across attempts).
-    await bootstrapRepo(root, workflowYml(2, 3), { "verify.sh": RESIDUE_SCRIPT });
+    // engine tears that residue down and RETRIES on a clean tree instead of
+    // halting on the residue guard. After max_cycle_attempts (3) failures the
+    // issue drains to failed/ and — with max_consecutive_failures:1 — that one
+    // terminal failure halts via max_consecutive_failures, on a CLEAN tree (no
+    // residue piled up across attempts), never via the residue guard.
+    await bootstrapRepo(root, workflowYml(1, 3), { "verify.sh": RESIDUE_SCRIPT });
     await seedTodo(root, "A", "a task");
     await seedTodo(root, "B", "b task");
 
@@ -162,6 +164,13 @@ test("residue guard: cleanable residue is torn down and retried, then halts clea
       ),
       "cleanable residue is torn down, not halted on the residue guard",
     );
+    // max_cycle_attempts_exhausted no longer exists.
+    assert.ok(
+      !events.some(
+        (e) => e.event === "engine.halted" && e.reason === "max_cycle_attempts_exhausted",
+      ),
+      "max_cycle_attempts_exhausted is gone",
+    );
 
     // The cycle was torn down + retried: 3 attempts ran, 2 clean restarts fired.
     const starts = events.filter((e) => e.event === "cycle.start");
@@ -175,19 +184,21 @@ test("residue guard: cleanable residue is torn down and retried, then halts clea
       assert.ok((rs.reverted as number) >= 1, `restart reverted at least one path: ${rs.reverted}`);
     }
 
-    // Attempts exhausted ⇒ exactly one terminal max_cycle_attempts_exhausted halt.
+    // Attempts exhausted ⇒ terminal drain to failed/, and with
+    // max_consecutive_failures:1 that single terminal failure halts the engine.
     const halts = events.filter(
-      (e) => e.event === "engine.halted" && e.reason === "max_cycle_attempts_exhausted",
+      (e) => e.event === "engine.halted" && e.reason === "max_consecutive_failures",
     );
-    assert.equal(halts.length, 1, "exactly one max_cycle_attempts_exhausted halt");
-    assert.equal(halts[0].issue_id, "A");
-    assert.equal(halts[0].attempts, 3);
-    assert.equal(halts[0].failing_step, "verify");
+    assert.equal(halts.length, 1, "exactly one max_consecutive_failures halt");
+    assert.deepEqual(halts[0].failed_cycles, [starts[0].cycle_id]);
+    assert.equal(halts[0].threshold, 1);
 
-    // Exactly one terminal engine.stop, with the attempts-exhausted reason.
+    // Exactly one terminal engine.stop (halted), naming A/verify via the halt context.
     const stops = events.filter((e) => e.event === "engine.stop");
     assert.equal(stops.length, 1, "exactly one engine.stop");
-    assert.equal(stops[0].reason, "max_cycle_attempts_exhausted");
+    assert.equal(stops[0].status, "halted");
+    assert.equal(stops[0].halted_at_issue, "A");
+    assert.equal(stops[0].failing_step, "verify");
 
     // The protective intent survives: B was never popped (the engine halted on A).
     const startedIssues = new Set(starts.map((s) => s.issue_id));
@@ -261,9 +272,10 @@ test("residue guard: engine-owned-only residue does not trip the residue guard",
     const dist = await ensureDist();
     // ENGINE_OWNED_SCRIPT leaves only .cycle/** + docs/cycle/** residue. Teardown
     // finds a clean non-engine-owned tree, so the residue guard never fires; the
-    // cycle simply fails its 3 attempts and halts terminally (exit 1) — NOT a
-    // clean exit-0, since attempts are exhausted.
-    await bootstrapRepo(root, workflowYml(2, 3), { "verify.sh": ENGINE_OWNED_SCRIPT });
+    // cycle fails its 3 attempts, drains to failed/, and (with
+    // max_consecutive_failures:1) halts terminally on max_consecutive_failures
+    // (exit 1) — NOT on the residue guard.
+    await bootstrapRepo(root, workflowYml(1, 3), { "verify.sh": ENGINE_OWNED_SCRIPT });
     await seedTodo(root, "A", "a task");
 
     const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
@@ -277,11 +289,11 @@ test("residue guard: engine-owned-only residue does not trip the residue guard",
       ),
       "engine-owned-only residue must not trip the residue guard",
     );
-    // It exhausts its attempts and halts terminally instead.
+    // It exhausts its attempts, drains terminally, and halts on max_consecutive_failures.
     const halts = events.filter(
-      (e) => e.event === "engine.halted" && e.reason === "max_cycle_attempts_exhausted",
+      (e) => e.event === "engine.halted" && e.reason === "max_consecutive_failures",
     );
-    assert.equal(halts.length, 1, "exactly one max_cycle_attempts_exhausted halt");
+    assert.equal(halts.length, 1, "exactly one max_consecutive_failures halt");
     const starts = events.filter((e) => e.event === "cycle.start");
     assert.equal(starts.length, 3, "the cycle re-ran for all 3 attempts");
   } finally {
@@ -295,8 +307,9 @@ test("residue guard: clean-tree failure emits no residue halt and persists no co
     const dist = await ensureDist();
     // A clean failure (no worktree residue). Teardown finds a clean tree (ok), so
     // the residue guard never fires and no context file is persisted. The cycle
-    // exhausts its single attempt and halts terminally.
-    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": CLEAN_FAIL_SCRIPT });
+    // exhausts its single attempt, drains terminally, and (with
+    // max_consecutive_failures:1) halts on max_consecutive_failures.
+    await bootstrapRepo(root, workflowYml(1, 1), { "verify.sh": CLEAN_FAIL_SCRIPT });
     await seedTodo(root, "A", "a task");
 
     const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
@@ -309,9 +322,13 @@ test("residue guard: clean-tree failure emits no residue halt and persists no co
       ),
       "clean tree must not emit a residue halt",
     );
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "max_consecutive_failures",
+    );
+    assert.equal(halts.length, 1, "exactly one max_consecutive_failures halt");
     const stops = events.filter((e) => e.event === "engine.stop");
     assert.equal(stops.length, 1, "exactly one engine.stop");
-    assert.equal(stops[0].reason, "max_cycle_attempts_exhausted");
+    assert.equal(stops[0].status, "halted");
     // Clean teardown ⇒ the residue context file must not be written.
     assert.equal(await contextExists(root), false, "no residue context persisted on a clean tree");
   } finally {
@@ -326,8 +343,10 @@ test("residue guard: within-budget retry re-runs on a clean torn-down tree (no r
     // maxCycleAttempts=2 ⇒ the first failure (attempt 0+1 < 2) takes the
     // within-budget retry arm. The arm tears down the residue and re-runs on a
     // CLEAN tree — the residue guard must NOT fire (the constant-halt bug). The
-    // protective intent survives: no residue is ever piled across the retry.
-    await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": RESIDUE_SCRIPT });
+    // protective intent survives: no residue is ever piled across the retry. The
+    // retry also fails, exhausting attempts; with max_consecutive_failures:1 that
+    // terminal failure halts on max_consecutive_failures, on a clean tree.
+    await bootstrapRepo(root, workflowYml(1, 2), { "verify.sh": RESIDUE_SCRIPT });
     await seedTodo(root, "A", "a task");
 
     const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
@@ -349,14 +368,15 @@ test("residue guard: within-budget retry re-runs on a clean torn-down tree (no r
     assert.equal(restarts[0].issue_id, "A");
     assert.equal(restarts[0].failing_step, "verify");
 
-    // Attempts exhausted ⇒ terminal halt, on a clean tree (no accumulated residue).
+    // Attempts exhausted ⇒ terminal drain, then halt on max_consecutive_failures,
+    // on a clean tree (no accumulated residue).
     const halts = events.filter(
-      (e) => e.event === "engine.halted" && e.reason === "max_cycle_attempts_exhausted",
+      (e) => e.event === "engine.halted" && e.reason === "max_consecutive_failures",
     );
-    assert.equal(halts.length, 1, "exactly one max_cycle_attempts_exhausted halt");
+    assert.equal(halts.length, 1, "exactly one max_consecutive_failures halt");
     const stops = events.filter((e) => e.event === "engine.stop");
     assert.equal(stops.length, 1, "exactly one engine.stop");
-    assert.equal(stops[0].reason, "max_cycle_attempts_exhausted");
+    assert.equal(stops[0].status, "halted");
 
     const status = spawnSync(
       "git",
@@ -634,9 +654,12 @@ test("residue guard: terminal teardown failure persists context to disk", async 
     // maxCycleAttempts=1 ⇒ the first failure goes straight to the terminal branch.
     // GIT_FAILURE_SCRIPT corrupts the repo so teardown fails (it cannot clean the
     // tree); the terminal branch then arms + persists the residue context so a
-    // fresh start re-checks it. (On a clean teardown the terminal branch instead
-    // deletes any context — covered by the clean-tree test.)
-    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": GIT_FAILURE_SCRIPT });
+    // *future* process re-checks it (the residue guard is the fallback for a fresh
+    // start, not re-checked in this same broken process — the terminal
+    // max_consecutive_failures:1 halt breaks the loop before the loop-top guard).
+    // (On a clean teardown the terminal branch instead deletes any context —
+    // covered by the clean-tree test.)
+    await bootstrapRepo(root, workflowYml(1, 1), { "verify.sh": GIT_FAILURE_SCRIPT });
     await seedTodo(root, "A", "a task");
 
     const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
@@ -649,12 +672,19 @@ test("residue guard: terminal teardown failure persists context to disk", async 
     const events = await readEvents(root);
     const start = events.find((e) => e.event === "cycle.start");
     assert.equal(persisted.cycleId, start!.cycle_id, "persisted cycleId matches the failed cycle");
-    // The terminal halt itself is max_cycle_attempts_exhausted (the residue context
-    // is armed for a *future* process, not re-checked in this same broken process).
+    // The terminal failure halts on max_consecutive_failures (the acct.halt break
+    // preempts the loop-top residue guard); the persisted context arms a future
+    // process. No residue halt fires in this same process.
     const halts = events.filter(
-      (e) => e.event === "engine.halted" && e.reason === "max_cycle_attempts_exhausted",
+      (e) => e.event === "engine.halted" && e.reason === "max_consecutive_failures",
     );
-    assert.equal(halts.length, 1, "exactly one max_cycle_attempts_exhausted halt");
+    assert.equal(halts.length, 1, "exactly one max_consecutive_failures halt");
+    assert.ok(
+      !events.some(
+        (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+      ),
+      "no residue halt this process; the context is armed for a future start",
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

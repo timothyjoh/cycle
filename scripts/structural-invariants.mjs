@@ -121,7 +121,7 @@ export const INVARIANTS = [
     file: 'src/cli.ts',
     validate: validateResidueArmPersist,
     reason:
-      'residue arm/persist correspondence: every non-whitelisted pendingResidueContext arm is followed by await persistResidue (four persist sites after the failed-cycle-teardown change — the happy retry/terminal paths now clear+unpersist, residue is armed only on the teardown-failure fallback, commit-failure terminal, and resume-caller terminal; tail-derived failingStep:undefined site whitelisted)',
+      'residue arm/persist correspondence: every non-whitelisted pendingResidueContext arm is followed by await persistResidue (five persist sites after the failed-cycle-teardown change — the happy retry/terminal paths clear+unpersist; residue is armed only as the teardown-failure fallback at the main-loop retry + terminal, the commit-failure terminal, and the resume-caller terminal + retry-dirty branches; tail-derived failingStep:undefined site whitelisted)',
   },
 
   // --- Agent-binary hermeticity (added 2026-06-02) ---

@@ -242,7 +242,7 @@ test("structural-invariants: codex-exec invariant fails when the exec argv eleme
 test("structural-invariants: real repo emits residue arm/persist ok line", () => {
   const result = run(process.cwd());
   assert.equal(result.status, 0);
-  assert.match(result.stdout, /ok -- src\/cli\.ts residue arm\/persist correspondence.*: 4 paired/);
+  assert.match(result.stdout, /ok -- src\/cli\.ts residue arm\/persist correspondence.*: 5 paired/);
 });
 
 test("structural-invariants: real repo root -> exit 0 (regression pin)", () => {

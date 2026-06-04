@@ -6,6 +6,10 @@ depends_on: []
 triaged_at: 2026-06-01T16:26:24.400Z
 source: triage
 priority: medium
+noop_at: 2026-06-04T02:45:02.738Z
+noop_reason: duplicate
+noop_step: research
+last_cycle_id: "0259"
 ---
 Add a BEFORE-and-AFTER walkthrough to the fix-oriented `quickfix` workflow in `src/defaults/workflows.yml`.
 

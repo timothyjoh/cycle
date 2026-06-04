@@ -51,6 +51,10 @@ type ResumeResult = {
   outcome: ResumeOutcome;
   issueId?: string;
   failingStep?: string;
+  /** For retry/terminal outcomes: whether the failed-cycle teardown left a clean
+   *  (non-engine-owned) tree. When false the caller arms the residue guard as the
+   *  fallback; when true the tree is clean and no residue gate is needed. */
+  teardownOk?: boolean;
 };
 
 const processStart = Date.now();
@@ -355,7 +359,6 @@ let failedCycles: string[] = [];
 let halted = false;
 let haltReason:
   | "max_consecutive_failures"
-  | "max_cycle_attempts_exhausted"
   | "triage_failed"
   | "failed_cycle_dirty_worktree"
   | null = null;
@@ -580,12 +583,35 @@ async function runResumeOnce(
     await drainSuccess(cwd, log, todoPath, doneDir, tail.cycleId, tail.issueId);
     return { processed: 1, outcome: "ok" };
   }
+  // Step failure on the resumed cycle: tear down the failed attempt so the retry
+  // (or the next issue) runs on a clean tree — mirroring the main-loop policy so a
+  // mid-cycle crash + restart self-heals instead of old-residue-halting.
+  const artifactDir = join(cwd, "docs", "cycle", `${tail.cycleId}-${workflowName}-${slugify(tail.title)}`);
   if (row!.attempt + 1 < maxAttempts) {
+    const td = teardownFailedCycle(cwd, { artifactDir, wipeDocs: true });
     await drainRetry(cwd, log, tail.cycleId, tail.issueId, failingStep);
-    return { processed: 0, outcome: "retry", issueId: tail.issueId, failingStep };
+    if (td.ok) {
+      await log.emit("cycle.restart", {
+        cycle_id: tail.cycleId,
+        issue_id: tail.issueId,
+        attempt: row!.attempt + 1,
+        failing_step: failingStep,
+        reverted: td.reverted.length,
+      });
+    } else {
+      await log.emit("engine.warning", {
+        reason: "failed_cycle_teardown_incomplete",
+        cycle_id: tail.cycleId,
+        issue_id: tail.issueId,
+        remaining: td.remaining,
+        ...(td.reason ? { detail: td.reason } : {}),
+      });
+    }
+    return { processed: 0, outcome: "retry", issueId: tail.issueId, failingStep, teardownOk: td.ok };
   }
+  const td = teardownFailedCycle(cwd, { artifactDir, wipeDocs: false });
   await terminalDrain(cwd, log, todoPath, failedDir, tail.cycleId, tail.issueId, failingStep, row!.attempt + 1);
-  return { processed: 0, outcome: "terminal", issueId: tail.issueId, failingStep };
+  return { processed: 0, outcome: "terminal", issueId: tail.issueId, failingStep, teardownOk: td.ok };
 }
 
 // Failed-cycle dirty-worktree residue guard. Runs only when a terminal failure
@@ -666,11 +692,16 @@ if (cfg) {
         consecutiveFailures += 1;
         failedCycles.push(tail.cycleId);
         lastHaltContext = { issueId: result.issueId!, failingStep: result.failingStep };
-        // Arm the residue guard for the next loop iteration: if this terminal
-        // failure dirtied the tree, the loop-top guard halts before popNextPending.
-        // Persist it too so a fresh process after a crash here re-checks at startup.
-        pendingResidueContext = { cycleId: tail.cycleId, issueId: result.issueId!, failingStep: result.failingStep };
-        await persistResidue(pendingResidueContext);
+        if (result.teardownOk) {
+          // Resume teardown left a clean tree (step-failure path) — no residue gate.
+          pendingResidueContext = undefined;
+          await unpersistResidue();
+        } else {
+          // Teardown failed, or didn't run (commit-failure path) — arm the residue
+          // guard so the next iteration / a fresh start re-checks before proceeding.
+          pendingResidueContext = { cycleId: tail.cycleId, issueId: result.issueId!, failingStep: result.failingStep };
+          await persistResidue(pendingResidueContext);
+        }
         if (consecutiveFailures >= maxConsecutiveFailures) {
           halted = true;
           haltReason = "max_consecutive_failures";
@@ -680,8 +711,13 @@ if (cfg) {
         // untouched (no increment, no append, no reset) per SPEC.
         pendingResidueContext = undefined;
         await unpersistResidue();
+      } else if (result.outcome === "retry" && result.teardownOk === false) {
+        // Resume retry whose teardown could NOT clean the tree: arm the residue
+        // guard so the loop-top halts before the main loop re-runs on the dirty tree.
+        pendingResidueContext = { cycleId: tail.cycleId, issueId: result.issueId!, failingStep: result.failingStep };
+        await persistResidue(pendingResidueContext);
       } else {
-        // skipped / retry: not a terminal failure — never arm the guard.
+        // skipped / clean retry: not a dirty terminal failure — never arm the guard.
         pendingResidueContext = undefined;
         await unpersistResidue();
       }
@@ -875,10 +911,11 @@ while (!halted) {
         await persistResidue(pendingResidueContext);
       }
     } else {
-      // Terminal: attempts spent (max_cycle_attempts, default 3), or a tight
-      // instant-failure loop (fast-bail). Per policy a cycle gets at most 3
-      // tries; when they are spent the engine halts completely. Tear down the
-      // code residue (keep the documents for diagnosis), drain to failed/, halt.
+      // Terminal: attempts spent (max_cycle_attempts), or a fast-bail. Tear down
+      // the code residue (keep the documents for diagnosis), drain the issue to
+      // failed/, record the failure, and CONTINUE to the next issue — the engine
+      // halts only after max_consecutive_failures distinct terminal failures, so
+      // one persistently-failing issue parks in failed/ without blocking the queue.
       if (fastBail) {
         await log.emit("step.warning", {
           cycle_id: cycleId,
@@ -907,18 +944,12 @@ while (!halted) {
         pendingResidueContext = { cycleId, issueId: row.id, failingStep };
         await persistResidue(pendingResidueContext);
       }
-      await log.emit("engine.halted", {
-        reason: "max_cycle_attempts_exhausted",
-        cycle_id: cycleId,
-        issue_id: row.id,
-        attempts: row.attempt + 1,
-        ...(failingStep !== undefined ? { failing_step: failingStep } : {}),
-        ...(fastBail ? { fast_bail: true } : {}),
-      });
-      halted = true;
-      haltReason = "max_cycle_attempts_exhausted";
-      activeCycleId = undefined;
-      break;
+      if (acct.halt) {
+        halted = true;
+        haltReason = "max_consecutive_failures";
+        activeCycleId = undefined;
+        break;
+      }
     }
   }
   activeCycleId = undefined;
@@ -941,9 +972,6 @@ if (!engineStopEmitted) {
     dry_run: false,
     cycles_processed: cyclesProcessed,
     ...(halted && haltReason === "triage_failed" ? { reason: "triage_failed" } : {}),
-    ...(halted && haltReason === "max_cycle_attempts_exhausted"
-      ? { reason: "max_cycle_attempts_exhausted" }
-      : {}),
     ...(halted && lastHaltContext
       ? { halted_at_issue: lastHaltContext.issueId, failing_step: lastHaltContext.failingStep }
       : {}),

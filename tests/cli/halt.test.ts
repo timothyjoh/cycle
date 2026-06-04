@@ -106,13 +106,75 @@ async function readEvents(root: string): Promise<Array<Record<string, unknown>>>
   return body.trim().split("\n").map((l) => JSON.parse(l));
 }
 
-test("halt: a cycle exhausting max_cycle_attempts halts the engine and exits 1", async () => {
+test("halt: a cycle exhausting max_cycle_attempts drains to failed/ and the engine continues to the next issue", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-halt-"));
   try {
     const dist = await ensureDist();
-    // max_cycle_attempts: 3 → the failing cycle is retried clean twice, then halts.
-    // verify.sh fails deterministically for A on every attempt.
+    // 0.1.16 model: max_cycle_attempts: 3 → the failing cycle is retried clean
+    // twice then drains terminally to failed/. With max_consecutive_failures: 2
+    // a SINGLE exhausted cycle no longer halts the engine — it parks in failed/
+    // and the engine pops the NEXT issue (B), which succeeds. Exit 0.
     await bootstrapRepo(root, workflowYml(2, 3), { "verify.sh": verifyScript(["A"]) });
+    await seedTodo(root, "A", "a task");
+    await seedTodo(root, "B", "b task");
+
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
+    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
+
+    const events = await readEvents(root);
+    // One exhausted cycle does NOT halt the engine (threshold is 2 distinct
+    // terminal failures); max_cycle_attempts_exhausted no longer exists.
+    assert.ok(!events.find((e) => e.event === "engine.halted"), "engine.halted must not fire");
+    assert.ok(
+      !events.find((e) => e.event === "engine.stop" && e.reason === "max_cycle_attempts_exhausted"),
+      "max_cycle_attempts_exhausted halt reason no longer exists",
+    );
+
+    // Two clean restarts on A precede its terminal drain (attempts 2 and 3).
+    const restarts = events.filter((e) => e.event === "cycle.restart");
+    assert.equal(restarts.length, 2, "two clean restarts (max_cycle_attempts - 1) before terminal drain");
+    assert.deepEqual(restarts.map((e) => e.attempt).sort(), [1, 2]);
+    for (const rs of restarts) {
+      assert.equal(rs.issue_id, "A");
+      assert.equal(rs.failing_step, "verify");
+    }
+
+    // A's terminal drain, then B pops and runs — the engine continues.
+    const cycleStarts = events.filter((e) => e.event === "cycle.start");
+    const startedIssues = new Set(cycleStarts.map((e) => e.issue_id));
+    assert.deepEqual([...startedIssues].sort(), ["A", "B"], "engine continued to issue B");
+
+    // A drained terminally to failed/; B succeeded to done/.
+    const terminalDrains = events.filter(
+      (e) => e.event === "queue.drained" && e.outcome === "terminal",
+    );
+    assert.equal(terminalDrains.length, 1, "exactly one terminal drain (A)");
+    assert.equal(terminalDrains[0].issue_id, "A");
+
+    const stopEvents = events.filter((e) => e.event === "engine.stop");
+    const stop = stopEvents[stopEvents.length - 1];
+    assert.equal(stop.status, "ok", "clean stop — one terminal failure is below threshold");
+
+    // A drained to failed/, B drained to done/, todo/ empty.
+    const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
+    assert.deepEqual(failedFiles, ["A.md"]);
+    const doneFiles = await readdir(join(root, "docs/cycle/issues/done"));
+    assert.deepEqual(doneFiles, ["B.md"]);
+    const todoFiles = await readdir(join(root, "docs/cycle/issues/todo"));
+    assert.deepEqual(todoFiles, [], "both issues drained out of todo/");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("halt: two distinct terminal failures reach max_consecutive_failures and halt the engine (exit 1)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-halt-"));
+  try {
+    const dist = await ensureDist();
+    // 0.1.16 model: the engine halts only after max_consecutive_failures (2)
+    // DISTINCT terminal failures. Both A and B fail every attempt → two terminal
+    // drains accumulate to the threshold → engine.halted{max_consecutive_failures}.
+    await bootstrapRepo(root, workflowYml(2, 3), { "verify.sh": verifyScript(["A", "B"]) });
     await seedTodo(root, "A", "a task");
     await seedTodo(root, "B", "b task");
 
@@ -120,33 +182,24 @@ test("halt: a cycle exhausting max_cycle_attempts halts the engine and exits 1",
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
-    // The FIRST cycle that exhausts its attempts halts the engine immediately.
     const halted = expectExactlyOne(events, "engine.halted");
-    assert.equal(halted.reason, "max_cycle_attempts_exhausted");
-    assert.equal(halted.issue_id, "A");
-    assert.equal(halted.attempts, 3, "halted after the full attempt budget");
-    assert.equal(halted.failing_step, "verify");
+    assert.equal(halted.reason, "max_consecutive_failures");
+    assert.equal(halted.threshold, 2);
+    assert.deepEqual((halted.failed_cycles as string[]).length, 2, "both failing cycles recorded");
 
-    // Two clean restarts precede the halt (attempts 2 and 3).
-    const restarts = events.filter((e) => e.event === "cycle.restart");
-    assert.equal(restarts.length, 2, "two clean restarts before terminal halt");
-    assert.deepEqual(restarts.map((e) => e.attempt).sort(), [1, 2]);
-
-    // B never popped — the engine halts, it does not continue to the next issue.
-    const cycleStarts = events.filter((e) => e.event === "cycle.start");
-    const startedIssues = new Set(cycleStarts.map((e) => e.issue_id));
-    assert.deepEqual([...startedIssues], ["A"], "only issue A ever ran");
+    // Both issues ran and drained terminally.
+    const terminalDrains = events.filter(
+      (e) => e.event === "queue.drained" && e.outcome === "terminal",
+    );
+    assert.deepEqual(terminalDrains.map((e) => e.issue_id).sort(), ["A", "B"]);
 
     const stopEvents = events.filter((e) => e.event === "engine.stop");
     const stop = stopEvents[stopEvents.length - 1];
     assert.equal(stop.status, "halted");
-    assert.equal(stop.reason, "max_cycle_attempts_exhausted");
+    assert.equal(stop.failing_step, "verify", "stop carries the last failing step");
 
-    // A drained to failed/, B still in todo/.
-    const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
-    assert.deepEqual(failedFiles, ["A.md"]);
-    const todoFiles = await readdir(join(root, "docs/cycle/issues/todo"));
-    assert.deepEqual(todoFiles, ["B.md"]);
+    const failedFiles = (await readdir(join(root, "docs/cycle/issues/failed"))).sort();
+    assert.deepEqual(failedFiles, ["A.md", "B.md"]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -200,12 +253,15 @@ exit 0
   }
 });
 
-test("halt: max_cycle_attempts 1 halts on the first failure with no restart", async () => {
+test("halt: max_cycle_attempts 1 drains terminally with no restart; max_consecutive_failures 1 halts on that first terminal failure", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-halt-"));
   try {
     const dist = await ensureDist();
-    // max_cycle_attempts: 1 → the cycle gets a single try, then halts.
-    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": verifyScript(["A"]) });
+    // max_cycle_attempts: 1 → the cycle gets a single try (no retries, so no
+    // cycle.restart) and its single failure is terminal. max_consecutive_failures: 1
+    // → that one terminal failure reaches the threshold and halts the engine, so B
+    // never pops.
+    await bootstrapRepo(root, workflowYml(1, 1), { "verify.sh": verifyScript(["A"]) });
     await seedTodo(root, "A", "a task");
     await seedTodo(root, "B", "b task");
 
@@ -214,16 +270,23 @@ test("halt: max_cycle_attempts 1 halts on the first failure with no restart", as
 
     const events = await readEvents(root);
     const halted = expectExactlyOne(events, "engine.halted");
-    assert.equal(halted.reason, "max_cycle_attempts_exhausted");
-    assert.equal(halted.issue_id, "A");
-    assert.equal(halted.attempts, 1);
+    assert.equal(halted.reason, "max_consecutive_failures");
+    assert.equal(halted.threshold, 1);
+    assert.equal((halted.failed_cycles as string[]).length, 1);
+    assert.ok(
+      !events.find((e) => e.event === "engine.stop" && e.reason === "max_cycle_attempts_exhausted"),
+      "max_cycle_attempts_exhausted halt reason no longer exists",
+    );
 
-    // No restart — a single-attempt budget halts on the first failure.
+    // No restart — a single-attempt budget never retries.
     assert.ok(!events.find((e) => e.event === "cycle.restart"), "no restart on a 1-attempt budget");
 
     const cycleStarts = events.filter((e) => e.event === "cycle.start");
-    assert.equal(cycleStarts.length, 1, "second cycle did not start");
+    assert.equal(cycleStarts.length, 1, "second cycle did not start — engine halted on the first terminal failure");
 
+    // A drained terminally to failed/, B still in todo/.
+    const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
+    assert.deepEqual(failedFiles, ["A.md"]);
     const todoFiles = await readdir(join(root, "docs/cycle/issues/todo"));
     assert.deepEqual(todoFiles, ["B.md"]);
   } finally {
@@ -272,8 +335,10 @@ test("halt: propagateBlocked moves dependent to blocked/ when parent fails termi
   try {
     const dist = await ensureDist();
     // max_cycle_attempts: 1 → parent A fails terminally on its first attempt,
-    // propagating B to blocked/ as part of the terminal drain, then halts.
-    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": verifyScript(["A"]) });
+    // propagating B to blocked/ as part of the terminal drain. max_consecutive_failures: 1
+    // → that one terminal failure halts the engine, so the propagate-before-halt
+    // ordering is preserved under the 0.1.16 drain-and-continue model.
+    await bootstrapRepo(root, workflowYml(1, 1), { "verify.sh": verifyScript(["A"]) });
     await seedTodo(root, "A", "a task");
     await seedTodo(root, "B", "b task", { depends_on: ["A"] });
 
@@ -288,10 +353,11 @@ test("halt: propagateBlocked moves dependent to blocked/ when parent fails termi
     const blockedEvt = events.find((e) => e.event === "issue.blocked") as Record<string, unknown>;
     assert.equal(blockedEvt.issue_id, "B");
 
-    // Terminal drain happened, then the engine halted (max_cycle_attempts_exhausted).
+    // Terminal drain happened, then the engine halted (max_consecutive_failures).
     const halted = expectExactlyOne(events, "engine.halted");
-    assert.equal(halted.reason, "max_cycle_attempts_exhausted");
-    assert.equal(halted.issue_id, "A");
+    assert.equal(halted.reason, "max_consecutive_failures");
+    assert.equal(halted.threshold, 1);
+    assert.equal((halted.failed_cycles as string[]).length, 1);
     const propagateIdx = events.findIndex((e) => e.event === "queue.propagate_blocked");
     const haltIdx = events.findIndex((e) => e.event === "engine.halted");
     assert.ok(propagateIdx < haltIdx, "propagateBlocked fires before the halt");
@@ -322,7 +388,8 @@ test("halt: propagateBlocked stamps immediate-only blocked_by on 3-node chain A 
   const root = await mkdtemp(join(tmpdir(), "cycle-halt-"));
   try {
     const dist = await ensureDist();
-    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": verifyScript(["A"]) });
+    // max_consecutive_failures: 1 so the parent's single terminal failure halts.
+    await bootstrapRepo(root, workflowYml(1, 1), { "verify.sh": verifyScript(["A"]) });
     await seedTodo(root, "A", "a task");
     await seedTodo(root, "B", "b task", { depends_on: ["A"] });
     await seedTodo(root, "C", "c task", { depends_on: ["B"] });
@@ -344,10 +411,12 @@ test("halt: propagateBlocked stamps immediate-only blocked_by on 3-node chain A 
     assert.match(b, /^blocked_at: /m);
     assert.match(c, /^blocked_at: /m);
 
-    // Parent A exhausts its single attempt: terminal drain (with propagation) then halt.
+    // Parent A exhausts its single attempt: terminal drain (with propagation),
+    // then the engine halts via max_consecutive_failures (threshold 1).
     const halted = expectExactlyOne(events, "engine.halted");
-    assert.equal(halted.reason, "max_cycle_attempts_exhausted");
-    assert.equal(halted.issue_id, "A");
+    assert.equal(halted.reason, "max_consecutive_failures");
+    assert.equal(halted.threshold, 1);
+    assert.equal((halted.failed_cycles as string[]).length, 1);
     const propagateIdx = events.findIndex((e) => e.event === "queue.propagate_blocked");
     const haltIdx = events.findIndex((e) => e.event === "engine.halted");
     assert.ok(propagateIdx < haltIdx, "propagateBlocked fires before the halt");

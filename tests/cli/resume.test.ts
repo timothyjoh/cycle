@@ -318,14 +318,16 @@ test("resume: fresh start when last cycle.end is failed (no resume events)", asy
   }
 });
 
-test("resume: resumed cycle fails non-terminally → main loop re-pops, restarts, then halts on max_cycle_attempts", async () => {
+test("resume: resumed cycle fails non-terminally → main loop re-pops, restarts, then halts on max_consecutive_failures", async () => {
   const distPath = await ensureDist();
   const { originRoot, workRoot } = await setupRepoWithOrigin();
   try {
     await mkdir(join(workRoot, ".cycle"), { recursive: true });
-    // max_cycle_attempts:3 (default), max_consecutive_failures:2 (default) so the
-    // halt is driven by attempt exhaustion, not the consecutive-failure threshold.
-    await writeWorkflows(workRoot);
+    // max_cycle_attempts:3 → the cycle re-runs (retry) twice before attempts are
+    // spent. max_consecutive_failures:1 → the single attempt-exhaustion terminal
+    // failure halts the engine (the attempt-exhaustion path no longer halts on its
+    // own — max_cycle_attempts_exhausted is gone — so the threshold drives the halt).
+    await writeWorkflows(workRoot, { maxConsecutiveFailures: 1, maxCycleAttempts: 3 });
     // build.sh exits 1 on every call → every attempt fails until attempts are spent.
     await writeStepScripts(workRoot, { failStep: "build" });
     await seedTodo(workRoot, "alpha", "first task", { attempt: 0 });
@@ -338,15 +340,15 @@ test("resume: resumed cycle fails non-terminally → main loop re-pops, restarts
       encoding: "utf8",
       env: { ...process.env, CYCLE_BASE: "main" },
     });
-    // Attempts exhausted (max_cycle_attempts:3) → engine halts, exit 1.
+    // One terminal failure under threshold 1 → engine halts, exit 1.
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\nstderr: ${r.stderr}`);
 
     const events = parseEvents(await readFile(join(workRoot, ".cycle/log.jsonl"), "utf8"));
 
     // The resume→main-loop handoff works: the in-flight cycle resumes, fails
     // non-terminally (retry-drain), and the MAIN loop re-pops the same row.
-    assert.ok(events.find((e) => e.event === "engine.resume"), "engine.resume emitted");
-    assert.ok(events.find((e) => e.event === "cycle.resume"), "cycle.resume emitted");
+    assert.equal(events.filter((e) => e.event === "engine.resume").length, 1, "engine.resume emitted once");
+    assert.equal(events.filter((e) => e.event === "cycle.resume").length, 1, "cycle.resume emitted once");
 
     const drained = events.filter((e) => e.event === "queue.drained");
     // Attempt 0 (resume): retry. Attempt 1 (main-loop re-pop): retry. Attempt 2
@@ -355,38 +357,60 @@ test("resume: resumed cycle fails non-terminally → main loop re-pops, restarts
     assert.equal(drained[0].outcome, "retry");
     assert.equal(drained[1].outcome, "retry");
     assert.equal(drained[2].outcome, "terminal");
+    for (const d of drained) assert.equal(d.cycle_id, "0042", "same cycle id resumed + re-popped");
 
-    // The main-loop retry tears down + restarts the cycle clean (cycle.restart),
-    // rather than the old resume-style retry-drain-only handling. The resume path
-    // (attempt 0→1) does NOT emit cycle.restart; only the in-budget main-loop
-    // retry (attempt 1→2) does, so exactly one cycle.restart fires.
-    const restarts = events.filter((e) => e.event === "cycle.restart");
-    assert.equal(restarts.length, 1, "exactly one main-loop cycle.restart");
-    assert.equal((restarts[0] as Record<string, unknown>).cycle_id, "0042");
-    assert.equal((restarts[0] as Record<string, unknown>).issue_id, "alpha");
-    assert.equal((restarts[0] as Record<string, unknown>).attempt, 2);
-    assert.equal((restarts[0] as Record<string, unknown>).failing_step, "build");
+    // Both in-budget retries (resume attempt 0→1 AND main-loop attempt 1→2) now
+    // tear down + restart the cycle clean (cycle.restart) — NEW in 0.1.16 the resume
+    // path also self-heals. The terminal attempt (2→3) does not restart. So exactly
+    // two cycle.restart events fire, both for cycle 0042 / alpha.
+    const restarts = events.filter((e) => e.event === "cycle.restart") as Array<Record<string, unknown>>;
+    assert.equal(restarts.length, 2, "two cycle.restart events (resume retry + main-loop retry)");
+    for (const rs of restarts) {
+      assert.equal(rs.cycle_id, "0042");
+      assert.equal(rs.issue_id, "alpha");
+      assert.equal(rs.failing_step, "build");
+    }
+    assert.deepEqual(restarts.map((rs) => rs.attempt), [1, 2], "restart attempts 1 then 2");
 
-    // Eventually halts with exactly one max_cycle_attempts_exhausted (cardinality-pin).
+    // Halts with exactly one max_consecutive_failures (cardinality-pin). The old
+    // max_cycle_attempts_exhausted reason no longer exists.
     const halts = events.filter(
-      (e) => e.event === "engine.halted" && (e as Record<string, unknown>).reason === "max_cycle_attempts_exhausted",
+      (e) => e.event === "engine.halted" && (e as Record<string, unknown>).reason === "max_consecutive_failures",
     );
-    assert.equal(halts.length, 1, "exactly one engine.halted{max_cycle_attempts_exhausted}");
+    assert.equal(halts.length, 1, "exactly one engine.halted{max_consecutive_failures}");
     const halt = halts[0] as Record<string, unknown>;
-    assert.equal(halt.cycle_id, "0042");
-    assert.equal(halt.issue_id, "alpha");
-    assert.equal(halt.attempts, 3, "halt reports 3 attempts spent");
-    assert.equal(halt.failing_step, "build");
-    // No consecutive-failures halt — the single terminal failure is under threshold 2.
+    assert.equal(halt.threshold, 1, "halt reports the consecutive-failure threshold");
+    assert.deepEqual(halt.failed_cycles, ["0042"], "the terminally-failed cycle is reported");
     assert.ok(
-      !events.find((e) => e.event === "engine.halted" && (e as Record<string, unknown>).reason === "max_consecutive_failures"),
-      "no max_consecutive_failures halt",
+      !events.find((e) => e.event === "engine.halted" && (e as Record<string, unknown>).reason === "max_cycle_attempts_exhausted"),
+      "max_cycle_attempts_exhausted no longer exists",
     );
 
     const stops = events.filter((e) => e.event === "engine.stop");
     const stop = stops[stops.length - 1] as Record<string, unknown>;
     assert.equal(stop?.status, "halted");
-    assert.equal(stop?.reason, "max_cycle_attempts_exhausted");
+    assert.equal(stop?.halted_at_issue, "alpha");
+    assert.equal(stop?.failing_step, "build");
+    assert.notEqual(stop?.reason, "max_cycle_attempts_exhausted");
+
+    // The resume teardown left a CLEAN tree (the self-heal), so the residue guard
+    // never fired and the working tree is clean at halt.
+    assert.ok(
+      !events.find((e) => e.event === "engine.halted" && (e as Record<string, unknown>).reason === "failed_cycle_dirty_worktree"),
+      "no dirty-worktree residue halt (teardown self-healed)",
+    );
+    const porcelain = spawnSync("git", ["status", "--porcelain", "--untracked-files=all"], {
+      cwd: workRoot,
+      encoding: "utf8",
+    });
+    assert.equal(porcelain.status, 0, `git status failed: ${porcelain.stderr}`);
+    // Only engine-owned runtime state (.cycle/**, docs/cycle/**) may remain; no
+    // source-tree residue from the failed build.
+    const stray = porcelain.stdout
+      .split("\n")
+      .map((l) => l.slice(3).trim())
+      .filter((p) => p.length > 0 && !p.startsWith(".cycle/") && !p.startsWith("docs/cycle/"));
+    assert.deepEqual(stray, [], `clean tree expected, stray paths: ${JSON.stringify(stray)}`);
 
     // Row drained to failed/ terminally; queue is empty.
     const tbd = await readFile(join(workRoot, ".cycle/tbd.jsonl"), "utf8");
@@ -559,17 +583,18 @@ test("resume: base refresh failure emits warning and skips resume", async () => 
   }
 });
 
-test("halt: resume-terminal then main-loop cycle exhausts attempts → max_cycle_attempts halt", async () => {
+test("halt: resume-terminal then main-loop terminal accumulate to max_consecutive_failures", async () => {
   const distPath = await ensureDist();
   const { originRoot, workRoot } = await setupRepoWithOrigin();
   try {
     await mkdir(join(workRoot, ".cycle"), { recursive: true });
-    // max_cycle_attempts:1 → the first failure of any cycle is terminal. The
-    // resumed cycle (alpha) drains terminally (consecutiveFailures=1, under the
-    // threshold of 2), then the main loop pops beta which also exhausts its single
-    // attempt — under the NEW behavior the main-loop terminal path halts on
-    // max_cycle_attempts_exhausted immediately, it does NOT keep going to
-    // accumulate toward max_consecutive_failures.
+    // max_cycle_attempts:1 → the first failure of any cycle is terminal (no retry).
+    // max_consecutive_failures:2 → the engine does NOT halt on attempt-exhaustion
+    // (the old max_cycle_attempts_exhausted halt is gone); instead each terminal
+    // drain accumulates. The resumed cycle (alpha) drains terminally
+    // (consecutiveFailures=1, under threshold 2) and the engine CONTINUES; the main
+    // loop pops beta which also drains terminally (consecutiveFailures=2) →
+    // max_consecutive_failures halt.
     await writeWorkflows(workRoot, { maxConsecutiveFailures: 2, maxCycleAttempts: 1 });
     await writeStepScripts(workRoot, { failStep: "verify" });
     await seedTodo(workRoot, "alpha", "alpha task", { attempt: 0 });
@@ -588,7 +613,7 @@ test("halt: resume-terminal then main-loop cycle exhausts attempts → max_cycle
     const events = parseEvents(await readFile(join(workRoot, ".cycle/log.jsonl"), "utf8"));
 
     // The resumed cycle ran and drained terminally; the main loop then popped beta.
-    assert.ok(events.find((e) => e.event === "engine.resume"), "engine.resume emitted");
+    assert.equal(events.filter((e) => e.event === "engine.resume").length, 1, "engine.resume emitted once");
 
     const drained = events.filter((e) => e.event === "queue.drained");
     assert.equal(drained.length, 2, `expected 2 drains, got ${JSON.stringify(drained.map((d) => d.outcome))}`);
@@ -597,27 +622,28 @@ test("halt: resume-terminal then main-loop cycle exhausts attempts → max_cycle
     assert.equal(drained[1].outcome, "terminal", "main-loop beta drains terminally");
     assert.notEqual(drained[1].cycle_id, "0042", "beta gets a freshly-allocated cycle id");
 
-    // The main-loop attempt-exhaustion halts with max_cycle_attempts_exhausted —
-    // NOT max_consecutive_failures (the new behavior halts on the first
-    // attempt-exhaustion rather than accumulating). Exactly one such halt.
-    const attemptHalts = events.filter(
-      (e) => e.event === "engine.halted" && (e as Record<string, unknown>).reason === "max_cycle_attempts_exhausted",
+    // Two distinct terminal failures reach the threshold → exactly one
+    // max_consecutive_failures halt. The old max_cycle_attempts_exhausted reason
+    // no longer exists, and a single terminal failure does NOT halt on its own.
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && (e as Record<string, unknown>).reason === "max_consecutive_failures",
     );
-    assert.equal(attemptHalts.length, 1, "exactly one engine.halted{max_cycle_attempts_exhausted}");
-    const halt = attemptHalts[0] as Record<string, unknown>;
-    assert.equal(halt.cycle_id, drained[1].cycle_id, "halt is for the main-loop beta cycle");
-    assert.equal(halt.issue_id, "beta");
-    assert.equal(halt.attempts, 1);
-    assert.equal(halt.failing_step, "verify");
+    assert.equal(halts.length, 1, "exactly one engine.halted{max_consecutive_failures}");
+    const halt = halts[0] as Record<string, unknown>;
+    assert.equal(halt.threshold, 2, "halt reports the consecutive-failure threshold");
+    assert.deepEqual(halt.failed_cycles, ["0042", drained[1].cycle_id], "both terminal cycles reported in order");
     assert.ok(
-      !events.find((e) => e.event === "engine.halted" && (e as Record<string, unknown>).reason === "max_consecutive_failures"),
-      "no max_consecutive_failures halt — the main loop halts on attempt-exhaustion first",
+      !events.find((e) => e.event === "engine.halted" && (e as Record<string, unknown>).reason === "max_cycle_attempts_exhausted"),
+      "max_cycle_attempts_exhausted no longer exists",
     );
 
     const stops = events.filter((e) => e.event === "engine.stop");
     const stop = stops[stops.length - 1] as Record<string, unknown>;
     assert.equal(stop?.status, "halted");
-    assert.equal(stop?.reason, "max_cycle_attempts_exhausted");
+    // The terminal engine.stop reflects the last-failed (beta) context, not a reason field.
+    assert.equal(stop?.halted_at_issue, "beta");
+    assert.equal(stop?.failing_step, "verify");
+    assert.notEqual(stop?.reason, "max_cycle_attempts_exhausted");
   } finally {
     await rm(originRoot, { recursive: true, force: true });
     await rm(workRoot, { recursive: true, force: true });
