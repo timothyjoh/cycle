@@ -4,20 +4,20 @@
 
 # cycle
 
-**cycle is a repo-local production cell for AFK software development.** Drop work into a repository, walk away, and let one serialized agent-operated lane triage it, break it into buildable slices, run a full workflow on each, verify the result, and produce reviewable commits — leaving a complete paper trail behind.
+**cycle is a repo-local production cell for AFK software development.** Drop work into a repository, walk away, and one serialized agent-operated lane triages it, breaks it into buildable slices, runs a full workflow on each, verifies the result, and produces reviewable commits, leaving a paper trail behind.
 
-It is built for the two places autonomous development usually gets hard:
+cycle targets the two places autonomous development gets hard:
 
-- **Brownfield repos**, where every ticket hides conventions, coupling, stale tests, and merge policy that a naive agent will miss.
+- **Brownfield repos**, where a ticket hides conventions, coupling, stale tests, and merge policy that a naive agent will miss.
 - **Greenfield repos**, where a rough brief needs to become a sequence of scoped implementation cycles.
 
-cycle turns those inputs into an ordered queue of durable, auditable code-production cycles. It is deliberately **one engine per repository, one cycle at a time**: the unit of scale is another repo-local cycle instance, not parallel workers fighting over the same tree.
+cycle turns those inputs into an ordered queue of durable, auditable code-production cycles. It runs **one engine per repository, one cycle at a time**: the unit of scale is another repo-local cycle instance, not parallel workers fighting over the same tree.
 
-> **Part of an ecosystem.** cycle is the **engine** — one autonomous SDLC lane per repository. **[maestro](https://github.com/timothyjoh/maestro)** is the **control plane** above it: a chat-first, event-sourced layer that observes and orchestrates a *fleet* of cycle engines across many repos. cycle runs perfectly well on its own; maestro is how you watch and steer a whole fleet of them at once. The bet behind both is **trustworthy AFK delivery** — fill the queues, walk away, and the fleet either finishes the work or fails loudly, with a durable record either way. cycle is agent-agnostic; the ecosystem aims to be engine-agnostic.
+> **Part of an ecosystem.** cycle is the **engine**, one autonomous SDLC lane per repository. **[maestro](https://github.com/timothyjoh/maestro)** is the **control plane** above it: a chat-first, event-sourced layer that observes and orchestrates a *fleet* of cycle engines across many repos. cycle runs on its own; maestro lets you watch and steer a whole fleet at once. The bet behind both is **trustworthy AFK delivery**: fill the queues, walk away, and the fleet finishes the work or fails loudly, with a durable record either way. cycle is agent-agnostic; the ecosystem aims to be engine-agnostic.
 
 ## Host prerequisites
 
-cycle installs a repo-local engine; it does **not** install the whole host environment. Before leaving it AFK, the machine needs the basic production-cell tooling already available:
+cycle installs a repo-local engine; it does **not** install the host environment. Before you leave it AFK, the machine needs the production-cell tooling already available:
 
 - **Node.js >= 22.6** to run the bundled engine.
 - **git** for status, branch/reset, commit, and push operations.
@@ -25,7 +25,7 @@ cycle installs a repo-local engine; it does **not** install the whole host envir
 - **An authenticated coding agent CLI** matching `.cycle/workflows.yml`; the default workflows use `claudecode`, which expects the `claude` CLI.
 - **Repository dependencies** required by `.cycle/scripts/verify.sh`.
 - **Git credentials and remote access** when push is enabled.
-- **A POSIX shell** to run `agent: bash` steps: `/bin/bash` on Linux/macOS. The shell is resolvable — native-Windows users can install git-bash (auto-discovered) or set `engine.shell` in `.cycle/workflows.yml` (or the `CYCLE_SHELL` env var) to a bash path. Full per-platform setup is deferred to a later phase.
+- **A POSIX shell** to run `agent: bash` steps: `/bin/bash` on Linux/macOS. The shell is resolvable. Native-Windows users can install git-bash (auto-discovered) or set `engine.shell` in `.cycle/workflows.yml` (or the `CYCLE_SHELL` env var) to a bash path. Full per-platform setup is deferred to a later phase.
 
 See [`docs/runtime-environment.md`](docs/runtime-environment.md) for setup guidance and the planned `cycle doctor` / `cycle preflight` direction.
 
@@ -41,21 +41,21 @@ An **issue** can be almost anything:
 - a PRD or a brief
 - a reflection surfaced by a previous cycle
 
-cycle's job is to make that work machine-operable: triage it, enrich it with codebase context, decompose large asks into vertical slices, run the configured workflow for each slice, and emit branches, commits, logs, and artifacts as it goes. The output is not a claim of perfection; it is a tested, explained, readily useful deliverable for human feedback.
+cycle makes that work machine-operable: triage it, enrich it with codebase context, decompose large asks into vertical slices, run the configured workflow for each slice, and emit branches, commits, logs, and artifacts as it goes. The output is a tested, explained, useful deliverable for human feedback, not a claim of perfection.
 
 ## What cycle is not
 
-cycle's design is as much about what it refuses to be. The crowded field of agentic coding tools competes on interactive, parallel-agent UX; cycle deliberately does not — the negative space is the point.
+cycle's design is as much about what it refuses to be. Most agentic coding tools compete on interactive, parallel-agent UX. cycle skips that, and the negative space is the point.
 
-- **Not an interactive parallel-agent IDE.** No git worktrees racing over the same tree, no per-task diff-review or merge/PR UX. The human is **not in the loop per task**. The unit of parallelism is another repo-local cycle instance, coordinated from above (see **[maestro](https://github.com/timothyjoh/maestro)**) — not workers fighting over one working tree.
-- **Not mid-cycle steering.** You don't interrupt or redirect a running cycle mid-step. Steering happens **between cycles** — drop an issue, reprioritize the queue, let the reflection step self-feed. Steering *inside* a cycle is the engine's own job (the workflow, reflection), not the human's.
-- **Not a code-review tool.** Trust does not come from a human reading every diff. It comes from the engine's **guarantees** — completion-proof post-conditions, anti-slop empty-diff guards, verify-before-commit, halt accounting, rate-limit retries, no-op detection, and self-healing failure recovery. The point is that a cycle actually **finishes or fails loudly**, with an auditable trail — not that it produces diffs for someone to babysit.
+- **Not an interactive parallel-agent IDE.** No git worktrees racing over the same tree, no per-task diff-review or merge/PR UX. The human stays **out of the per-task loop**. The unit of parallelism is another repo-local cycle instance, coordinated from above (see **[maestro](https://github.com/timothyjoh/maestro)**), rather than workers fighting over one working tree.
+- **Not mid-cycle steering.** You don't interrupt or redirect a running cycle mid-step. You steer **between cycles**: drop an issue, reprioritize the queue, let the reflection step self-feed. Steering inside a cycle is the engine's job (the workflow, reflection), not yours.
+- **Not a code-review tool.** Trust comes from the engine's **guarantees**, not from a human reading every diff: completion-proof post-conditions, anti-slop empty-diff guards, verify-before-commit, halt accounting, rate-limit retries, no-op detection, and self-healing failure recovery. A cycle **finishes or fails loudly** with an auditable trail, rather than producing diffs for someone to babysit.
 
 ## Why it exists
 
-Most agentic coding tools are good at a single interactive turn. They are weaker at the production-cell problem: taking a backlog, repeatedly grinding the boring SDLC loop, respecting repo-specific constraints, recovering from failure, and leaving enough of a trail for a human to trust what happened.
+Most agentic coding tools are good at a single interactive turn. They are weaker at the production-cell problem: taking a backlog, grinding the SDLC loop again and again, respecting repo-specific constraints, recovering from failure, and leaving enough of a trail for a human to trust what happened.
 
-cycle is that repo-local factory layer. It gives a parent agent or automation layer a single subprocess to hand work to, while cycle handles the repeatable mechanics:
+cycle is that repo-local factory layer. It gives a parent agent or automation layer one subprocess to hand work to, and cycle handles the repeatable mechanics:
 
 - **Intake.** Normalize freeform tasks, tracker issues, and raw markdown drops into one inbox.
 - **Triage.** Inspect the repo, enrich each issue, pick a workflow, and split oversized asks into smaller cycles.
@@ -74,11 +74,11 @@ Every cycle is one serialized production run inside a repo-local lane:
 4. Commit only the intended change surface.
 5. Push, then move to the next queued cycle.
 
-If a run gets into a bad state, cycle abandons that attempt and restarts from a clean tree rather than nursing a compromised working tree along. The goal is not to make agents look busy — it is to make the repo-local production lane deterministic enough to leave AFK. Fleet-scale coordination belongs above cycle: run one cycle instance per repo and let an external orchestrator decide what each repository should work on.
+If a run gets into a bad state, cycle abandons that attempt and restarts from a clean tree rather than nursing a compromised working tree along. The goal is to make the repo-local production lane deterministic enough to leave AFK, not to make agents look busy. Fleet-scale coordination belongs above cycle: run one cycle instance per repo and let an external orchestrator decide what each repository should work on.
 
 ## Why it works for brownfield
 
-Brownfield work is where autonomous coding usually falls apart. cycle assumes the repo is messy until proven otherwise:
+Brownfield work is where autonomous coding falls apart. cycle assumes the repo is messy until proven otherwise:
 
 - issue descriptions may be stale or incomplete
 - tests may already be failing
@@ -86,11 +86,11 @@ Brownfield work is where autonomous coding usually falls apart. cycle assumes th
 - changes may have hidden blast radius
 - failures should not poison unrelated queued work
 
-So cycle makes repo context and artifacts first-class. Each cycle writes durable outputs under `docs/cycle/<cycle-id>-<workflow>-<slug>/`, keeps issue state under `docs/cycle/issues/`, and mirrors progress to `.cycle/log.jsonl`. The log and the work queue (`.cycle/tbd.jsonl`) are git-tracked and committed every cycle, so they travel with a clone — full run history and the live queue are present immediately after checkout. A human can inspect the factory floor after the fact instead of reverse-engineering what the agent did from a chat transcript.
+So cycle makes repo context and artifacts first-class. Each cycle writes durable outputs under `docs/cycle/<cycle-id>-<workflow>-<slug>/`, keeps issue state under `docs/cycle/issues/`, and mirrors progress to `.cycle/log.jsonl`. The log and the work queue (`.cycle/tbd.jsonl`) are git-tracked and committed every cycle, so they travel with a clone: run history and the live queue are present right after checkout. You inspect the factory floor after the fact instead of reverse-engineering what the agent did from a chat transcript.
 
 ## What ships into a repo
 
-`npx @cycleai/cli init` installs a small, repo-local factory kit:
+`npx @cycleai/cli init` installs a small repo-local factory kit:
 
 - `.cycle/bin/cycle.js` — the bundled engine (single file, `#!/usr/bin/env node` shebang, committed executable)
 - `.cycle/workflows.yml` — engine, triage, and workflow configuration
@@ -99,7 +99,7 @@ So cycle makes repo context and artifacts first-class. Each cycle writes durable
 - `docs/cycle/issues/` — `ideas` / `inbox` / `todo` / `done` / `failed` / `blocked` issue folders
 - optional `.claude/skills/cycle.md` — a Claude Code skill that teaches a parent agent how to invoke cycle
 
-The consuming repo does not need to become a Node project. After `init`, the committed `.cycle/bin/cycle.js` bundle is the engine — no `npm install` required.
+The consuming repo does not need to become a Node project. After `init`, the committed `.cycle/bin/cycle.js` bundle is the engine, with no `npm install` required.
 
 ## Quick start
 
@@ -142,11 +142,11 @@ Re-run triage as a read-only diagnostic (no state mutation):
 
 `run` flags: `--workflow <name>`, `--dry-run` (triage/queue preview only), `--no-skip-completed` (force re-derivation of pre-build artifacts on retry), `--trunk` (commit straight to the base branch instead of per-cycle branches), `--skip-preflight` (bypass the engine-start preflight gate).
 
-**Preflight gate.** Before the first cycle starts, `cycle run` validates the execution environment: it probes every agent CLI the active workflow + triage will use (`<bin> --version`, resolving binaries the same way the engine dispatches them — honoring any `CYCLE_<AGENT>_BIN` override) and confirms the required external tools (`bash`, `git`, plus any literal tools your bash steps invoke) resolve on PATH. A wrong-platform agent build, a missing agent CLI, or a missing tool produces a single clean, actionable halt naming the resolved path and the fix — instead of a cryptic stack trace discovered mid-cycle. Under WSL, an agent or tool resolving under `/mnt/c/...` emits a non-fatal warning (it likely shadows a native Linux install). Pass `--skip-preflight` to bypass the gate entirely.
+**Preflight gate.** Before the first cycle starts, `cycle run` validates the execution environment: it probes every agent CLI the active workflow + triage will use (`<bin> --version`, resolving binaries the same way the engine dispatches them, honoring any `CYCLE_<AGENT>_BIN` override) and confirms the required external tools (`bash`, `git`, plus any literal tools your bash steps invoke) resolve on PATH. A wrong-platform agent build, a missing agent CLI, or a missing tool produces a single clean halt naming the resolved path and the fix, instead of a cryptic stack trace discovered mid-cycle. Under WSL, an agent or tool resolving under `/mnt/c/...` emits a non-fatal warning (it may shadow a native Linux install). Pass `--skip-preflight` to bypass the gate.
 
 ## Upgrading
 
-`cycle init` is for first-time scaffolding in a fresh repo — it unconditionally writes every artifact, so re-running it would clobber any prompts, workflows, or scripts you have customized. To refresh the engine in a repo that is *already* initialized, use `cycle upgrade` instead:
+`cycle init` is for first-time scaffolding in a fresh repo: it writes every artifact unconditionally, so re-running it would clobber any prompts, workflows, or scripts you have customized. To refresh the engine in a repo that is *already* initialized, use `cycle upgrade` instead:
 
 ```sh
 ./.cycle/bin/cycle.js upgrade
@@ -158,7 +158,7 @@ Re-run triage as a read-only diagnostic (no state mutation):
 - **Preserved by default** (user-editable): `.cycle/workflows.yml`, `.cycle/prompts/**`, and `.cycle/scripts/**` are left byte-for-byte untouched.
 - **Never touched** (state): `.cycle/.env`, `.cycle/tbd.jsonl`, `.cycle/log.jsonl`, and everything under `docs/cycle/issues/**`.
 
-To pull a category back to the shipped defaults, opt in per category — the flags compose:
+To pull a category back to the shipped defaults, opt in per category; the flags compose:
 
 ```sh
 ./.cycle/bin/cycle.js upgrade --overwrite-prompts        # refresh prompts only
@@ -186,11 +186,11 @@ A workflow is an ordered list of steps defined in `.cycle/workflows.yml`; triage
 | `document` | `plan_documents → authoring → review_documents → verify` | Documentation- and prompt-only edits; no code, no reflection |
 | `e2e-tests` | `research → test_plan → test_build → review → fix → verify` | Write or extend Playwright end-to-end tests against the running app |
 
-`fix` and `final_fix` are conditional — they run only when an earlier step produced work for them. `reflection` and `documentation` are non-fatal: a failure is logged but does not fail the cycle.
+`fix` and `final_fix` are conditional: they run only when an earlier step produced work for them. `reflection` and `documentation` are non-fatal: a failure is logged but does not fail the cycle.
 
-`walkthrough_capture` is the optional final step of `feature`: a delivered feature can emit screenshot/video walkthrough artifacts via a project-provided hook (`.cycle/walkthrough.sh`, or an `engine.walkthrough_hook` path in `.cycle/workflows.yml`). When a hook is present it runs at the end of the cycle, and any media it writes into the cycle's `walkthrough/` artifact dir is collected and referenced from the cycle's completion record. Repos with no hook (cycle's own CLI repo included) are unaffected — the step skips cleanly with no artifact and no failure. The same hook is reused by `quickfix`'s two phase-scoped steps, `walkthrough_before` (before the fix is applied) and `walkthrough_after` (after `verify`): each sets `CYCLE_WALKTHROUGH_PHASE` (`before`/`after`) so a single `.cycle/walkthrough.sh` can branch on phase, writing the broken and corrected behavior into `walkthrough/before/` and `walkthrough/after/` with per-phase manifests (`walkthrough-before-artifacts.json` / `walkthrough-after-artifacts.json`). An optional `engine.walkthrough_hook_timeout_ms` bounds a hook's runtime (SIGTERM→SIGKILL); when unset the hook runs to completion, so a hook that boots browsers or waits on dev servers should self-bound its own runtime or set that timeout.
+`walkthrough_capture` is the optional final step of `feature`: a delivered feature can emit screenshot/video walkthrough artifacts via a project-provided hook (`.cycle/walkthrough.sh`, or an `engine.walkthrough_hook` path in `.cycle/workflows.yml`). When a hook is present it runs at the end of the cycle, and any media it writes into the cycle's `walkthrough/` artifact dir is collected and referenced from the cycle's completion record. Repos with no hook (cycle's own CLI repo included) are unaffected: the step skips with no artifact and no failure. The same hook is reused by `quickfix`'s two phase-scoped steps, `walkthrough_before` (before the fix is applied) and `walkthrough_after` (after `verify`): each sets `CYCLE_WALKTHROUGH_PHASE` (`before`/`after`) so a single `.cycle/walkthrough.sh` can branch on phase, writing the broken and corrected behavior into `walkthrough/before/` and `walkthrough/after/` with per-phase manifests (`walkthrough-before-artifacts.json` / `walkthrough-after-artifacts.json`). An optional `engine.walkthrough_hook_timeout_ms` bounds a hook's runtime (SIGTERM→SIGKILL); when unset the hook runs to completion, so a hook that boots browsers or waits on dev servers should self-bound its own runtime or set that timeout.
 
-There is no separate `epic` workflow. An issue that needs multiple cycles is simply one whose triage returned multiple queue entries, each a standalone workflow run.
+There is no separate `epic` workflow. An issue that needs multiple cycles is one whose triage returned multiple queue entries, each a standalone workflow run.
 
 Each step is executed by a configurable **agent**. `claudecode` (the `claude` CLI) is the default; `codex`, `gemini`, `auggie`, `opencode`, and `pi` are also registered, and `bash` steps run shell scripts directly (e.g. `verify`).
 
@@ -200,10 +200,10 @@ Each step is executed by a configurable **agent**. `claudecode` (the `claude` CL
 - **Pre-build skip on retry.** On a retry, `spec` / `research` / `plan` are skipped when their artifact already exists non-empty (override with `--no-skip-completed`).
 - **Exhausted attempts** move the issue to `blocked/` and skip its remaining planned cycles, so one bad slice does not stall the rest of the queue.
 - **Rate limits** trigger an in-process pause/retry loop: the engine emits `engine.paused { reason: "rate_limit", retry_at }`, sleeps `engine.rate_limit_backoff_ms` (default 1 hour = 3,600,000 ms), and retries the same step. On first clean success after a rate-limited attempt it emits `engine.resumed { reason: "rate_limit_cleared" }`. Rate-limit retries are invisible to the consecutive-failure counter. The loop is bounded by `engine.max_rate_limit_retries` (default 24): a step rate-limited more than the cap times within one cycle emits `engine.halted { reason: "rate_limit_max_retries", retries, step_index }` and fails the cycle through the normal terminal-failure path, so a permanent rate-limit (bad key, banned account) self-terminates instead of pausing forever.
-- **Iteration-too-fast guard.** After two consecutive failures of the same step that each complete in under `engine.min_step_duration_ms` (default 2,000 ms) of wall-clock — e.g. a misconfigured agent that exits instantly — the engine fast-bails the cycle to terminal failure instead of burning the remaining attempt budget, emitting `step.warning { reason: "iteration_too_fast", duration_ms, threshold_ms }` so the cause is visible. Set `min_step_duration_ms: 0` to disable.
-- **Command-output compression (opt-in token saver).** Set `engine.compress_output: true` (default `false`) to route the `claudecode` agent's simple read commands — `git status`, `ls`, `cat`, `grep`, `diff`, … — through `cycle compress-output`, which density-reduces verbose stdout (keeps head + tail lines and all error lines, elides the dense middle behind a `[… N lines/B bytes elided …]` marker) *before* it enters the model's context, saving tokens on long autonomous runs. It is wired only for the `claudecode` lane (via a generated claude `--settings` `PreToolUse` hook) and is **fail-open**: any hook error leaves the original command running unchanged, and commands with shell operators (`|`, `>`, `&&`, …) or non-read binaries are never touched. With the flag off (the default), behavior is byte-for-byte unchanged.
-- **Failed-cycle residue guard.** If a terminally-failed cycle leaves uncommitted residue in the worktree, the engine halts *before* it resumes/retries that cycle or starts the next issue — `engine.halted { reason: "failed_cycle_dirty_worktree", failed_cycle_id, dirty_paths, … }` plus a stderr diagnostic naming the dirty paths and the commit / `git stash` / `git reset --hard` remediation — instead of piling a new cycle onto a dirty tree. This matters most in trunk mode, where the residue sits directly on the base branch. The guard also survives a full engine restart — the context is persisted to `.cycle/failed-residue-context.json` and re-checked once at startup, so relaunching the engine after a failed cycle (the realistic AFK recovery path) halts before stacking new work on the residue. Engine-owned runtime state (`.cycle/**`, `docs/cycle/**`) never trips it.
-- **Crash recovery** is automatic — re-invoking `cycle run` (or bare `cycle`) resumes any in-flight cycle from the log tail, then continues the pending queue.
+- **Iteration-too-fast guard.** After two consecutive failures of the same step that each complete in under `engine.min_step_duration_ms` (default 2,000 ms) of wall-clock (e.g. a misconfigured agent that exits instantly), the engine fast-bails the cycle to terminal failure instead of burning the remaining attempt budget, emitting `step.warning { reason: "iteration_too_fast", duration_ms, threshold_ms }` so the cause is visible. Set `min_step_duration_ms: 0` to disable.
+- **Command-output compression (opt-in token saver).** Set `engine.compress_output: true` (default `false`) to route the `claudecode` agent's simple read commands (`git status`, `ls`, `cat`, `grep`, `diff`, …) through `cycle compress-output`, which density-reduces verbose stdout (keeps head + tail lines and all error lines, elides the dense middle behind a `[… N lines/B bytes elided …]` marker) *before* it enters the model's context, saving tokens on long autonomous runs. It is wired only for the `claudecode` lane (via a generated claude `--settings` `PreToolUse` hook) and is **fail-open**: any hook error leaves the original command running unchanged, and commands with shell operators (`|`, `>`, `&&`, …) or non-read binaries are left untouched. With the flag off (the default), behavior is byte-for-byte unchanged.
+- **Failed-cycle residue guard.** If a terminally-failed cycle leaves uncommitted residue in the worktree, the engine halts *before* it resumes/retries that cycle or starts the next issue, instead of piling a new cycle onto a dirty tree: `engine.halted { reason: "failed_cycle_dirty_worktree", failed_cycle_id, dirty_paths, … }` plus a stderr diagnostic naming the dirty paths and the commit / `git stash` / `git reset --hard` remediation. This matters most in trunk mode, where the residue sits directly on the base branch. The guard also survives a full engine restart: the context is persisted to `.cycle/failed-residue-context.json` and re-checked once at startup, so relaunching the engine after a failed cycle (the AFK recovery path) halts before stacking new work on the residue. Engine-owned runtime state (`.cycle/**`, `docs/cycle/**`) never trips it.
+- **Crash recovery** is automatic: re-invoking `cycle run` (or bare `cycle`) resumes any in-flight cycle from the log tail, then continues the pending queue.
 
 When every inbox issue fails triage in a single pass, the engine emits `engine.paused {reason: "all_triage_failed", …}` and exits non-zero, leaving the work queue intact. Iterate with `cycle triage --dry-run` until it exits `0`, then re-fire the engine.
 
@@ -214,11 +214,11 @@ When every inbox issue fails triage in a single pass, the engine emits `engine.p
 - an authenticated coding-agent CLI for every agent referenced by `.cycle/workflows.yml` (`claude` for the default `claudecode` workflow)
 - repository dependencies needed by `.cycle/scripts/verify.sh`
 
-Credentials are the caller's responsibility — cycle ships no env-var contract and no bundled tracker SDKs. See [`docs/runtime-environment.md`](docs/runtime-environment.md) for the full setup checklist. A first-class `cycle doctor` / `cycle preflight` command is planned but not yet built.
+Credentials are the caller's responsibility: cycle ships no env-var contract and no bundled tracker SDKs. See [`docs/runtime-environment.md`](docs/runtime-environment.md) for the full setup checklist. A first-class `cycle doctor` / `cycle preflight` command is planned but not yet built.
 
 ## Roadmap (not yet built)
 
-The engine today commits and pushes; the broader factory model is still landing. Notably **not yet implemented**: pull-request creation and auto-merge, stacked-branch / human-review mode, `cycle doctor` / `cycle preflight`, a detached daemon with `attach` / `stop` control, and the HTML/TUI progress viewer. The docs below describe the current shipped behavior, not these targets.
+The engine today commits and pushes; the broader factory model is still landing. **Not yet implemented**: pull-request creation and auto-merge, stacked-branch / human-review mode, `cycle doctor` / `cycle preflight`, a detached daemon with `attach` / `stop` control, and the HTML/TUI progress viewer. The docs below describe the current shipped behavior, not these targets.
 
 ## Design docs
 
