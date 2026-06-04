@@ -4,20 +4,20 @@
 
 # cycle
 
-**cycle is a repo-local production cell for AFK software development.** Drop work into a repository, walk away, and one serialized agent-operated lane triages it, breaks it into buildable slices, runs a full workflow on each, verifies the result, and produces reviewable commits, leaving a paper trail behind.
+**cycle is a repo-local production cell for AFK software development.** Drop an issue into a repository and walk away. One serialized lane picks it up, splits it into buildable slices, and runs a full workflow on each: spec, build, verify, commit. You come back to reviewable commits and a log of every step.
 
 cycle targets the two places autonomous development gets hard:
 
 - **Brownfield repos**, where a ticket hides conventions, coupling, stale tests, and merge policy that a naive agent will miss.
 - **Greenfield repos**, where a rough brief needs to become a sequence of scoped implementation cycles.
 
-cycle turns those inputs into an ordered queue of durable, auditable code-production cycles. It runs **one engine per repository, one cycle at a time**: the unit of scale is another repo-local cycle instance, not parallel workers fighting over the same tree.
+Either way, you get an ordered queue of cycles, each one logged and committed. cycle runs **one engine per repository, one cycle at a time**. To do more at once, run more instances, one per repo. cycle never forks parallel workers onto a single tree.
 
 > **Part of an ecosystem.** cycle is the **engine**, one autonomous SDLC lane per repository. **[maestro](https://github.com/timothyjoh/maestro)** is the **control plane** above it: a chat-first, event-sourced layer that observes and orchestrates a *fleet* of cycle engines across many repos. cycle runs on its own; maestro lets you watch and steer a whole fleet at once. The bet behind both is **trustworthy AFK delivery**: fill the queues, walk away, and the fleet finishes the work or fails loudly, with a durable record either way. cycle is agent-agnostic; the ecosystem aims to be engine-agnostic.
 
 ## Host prerequisites
 
-cycle installs a repo-local engine; it does **not** install the host environment. Before you leave it AFK, the machine needs the production-cell tooling already available:
+cycle installs a repo-local engine; it does **not** install the host environment. Before you leave it AFK, the machine needs this tooling already in place:
 
 - **Node.js >= 22.6** to run the bundled engine.
 - **git** for status, branch/reset, commit, and push operations.
@@ -31,7 +31,7 @@ See [`docs/runtime-environment.md`](docs/runtime-environment.md) for setup guida
 
 ## What cycle is
 
-cycle is an issue-driven workflow engine for autonomous code changes. You install it into a repository, invoke it from a parent agent, CI job, cloud VM, or developer machine, and it runs until its queue is empty or a safety gate tells it to stop.
+You install cycle into a repository and invoke it from a parent agent, a CI job, a cloud VM, or your laptop. It runs until the queue empties or a safety gate stops it.
 
 An **issue** can be almost anything:
 
@@ -41,11 +41,11 @@ An **issue** can be almost anything:
 - a PRD or a brief
 - a reflection surfaced by a previous cycle
 
-cycle makes that work machine-operable: triage it, enrich it with codebase context, decompose large asks into vertical slices, run the configured workflow for each slice, and emit branches, commits, logs, and artifacts as it goes. The output is a tested, explained, useful deliverable for human feedback, not a claim of perfection.
+cycle turns that into work a machine can run: it triages the issue, enriches it with codebase context, splits a large ask into vertical slices, runs the configured workflow on each, and emits branches, commits, logs, and artifacts along the way. You get back a tested, explained change to review.
 
 ## What cycle is not
 
-cycle's design is as much about what it refuses to be. Most agentic coding tools compete on interactive, parallel-agent UX. cycle skips that, and the negative space is the point.
+Most agentic coding tools compete on interactive, parallel-agent UX. cycle skips all of it.
 
 - **Not an interactive parallel-agent IDE.** No git worktrees racing over the same tree, no per-task diff-review or merge/PR UX. The human stays **out of the per-task loop**. The unit of parallelism is another repo-local cycle instance, coordinated from above (see **[maestro](https://github.com/timothyjoh/maestro)**), rather than workers fighting over one working tree.
 - **Not mid-cycle steering.** You don't interrupt or redirect a running cycle mid-step. You steer **between cycles**: drop an issue, reprioritize the queue, let the reflection step self-feed. Steering inside a cycle is the engine's job (the workflow, reflection), not yours.
@@ -53,9 +53,9 @@ cycle's design is as much about what it refuses to be. Most agentic coding tools
 
 ## Why it exists
 
-Most agentic coding tools are good at a single interactive turn. They are weaker at the production-cell problem: taking a backlog, grinding the SDLC loop again and again, respecting repo-specific constraints, recovering from failure, and leaving enough of a trail for a human to trust what happened.
+Most agentic coding tools are good at a single interactive turn. They struggle with the rest: working through a backlog, grinding the same SDLC loop on each item, honoring a repo's quirks, recovering when a run breaks, and leaving a trail you can trust.
 
-cycle is that repo-local factory layer. It gives a parent agent or automation layer one subprocess to hand work to, and cycle handles the repeatable mechanics:
+cycle handles that part. A parent agent or automation layer hands it work through one subprocess, and cycle runs the mechanics:
 
 - **Intake.** Normalize freeform tasks, tracker issues, and raw markdown drops into one inbox.
 - **Triage.** Inspect the repo, enrich each issue, pick a workflow, and split oversized asks into smaller cycles.
@@ -74,11 +74,11 @@ Every cycle is one serialized production run inside a repo-local lane:
 4. Commit only the intended change surface.
 5. Push, then move to the next queued cycle.
 
-If a run gets into a bad state, cycle abandons that attempt and restarts from a clean tree rather than nursing a compromised working tree along. The goal is to make the repo-local production lane deterministic enough to leave AFK, not to make agents look busy. Fleet-scale coordination belongs above cycle: run one cycle instance per repo and let an external orchestrator decide what each repository should work on.
+If a run goes bad, cycle throws the attempt away and starts over from a clean tree rather than nursing a broken one along. The point is a lane predictable enough to leave running unattended. Coordinating many repos is the orchestrator's job above cycle: one engine per repo, and maestro decides what each should work on.
 
 ## Why it works for brownfield
 
-Brownfield work is where autonomous coding falls apart. cycle assumes the repo is messy until proven otherwise:
+Autonomous coding tends to fall apart on brownfield repos. cycle assumes a repo is messy until proven otherwise:
 
 - issue descriptions may be stale or incomplete
 - tests may already be failing
@@ -86,18 +86,18 @@ Brownfield work is where autonomous coding falls apart. cycle assumes the repo i
 - changes may have hidden blast radius
 - failures should not poison unrelated queued work
 
-So cycle makes repo context and artifacts first-class. Each cycle writes durable outputs under `docs/cycle/<cycle-id>-<workflow>-<slug>/`, keeps issue state under `docs/cycle/issues/`, and mirrors progress to `.cycle/log.jsonl`. The log and the work queue (`.cycle/tbd.jsonl`) are git-tracked and committed every cycle, so they travel with a clone: run history and the live queue are present right after checkout. You inspect the factory floor after the fact instead of reverse-engineering what the agent did from a chat transcript.
+So cycle treats repo context and artifacts as real outputs. Each cycle writes its work under `docs/cycle/<cycle-id>-<workflow>-<slug>/`, keeps issue state under `docs/cycle/issues/`, and appends progress to `.cycle/log.jsonl`. The log and the work queue (`.cycle/tbd.jsonl`) are git-tracked and committed every cycle, so a fresh clone already has the full run history and the live queue. You read what happened from those files instead of reconstructing it from a chat transcript.
 
 ## What ships into a repo
 
-`npx @cycleai/cli init` installs a small repo-local factory kit:
+`npx @cycleai/cli init` installs a small set of repo-local files:
 
-- `.cycle/bin/cycle.js` — the bundled engine (single file, `#!/usr/bin/env node` shebang, committed executable)
-- `.cycle/workflows.yml` — engine, triage, and workflow configuration
-- `.cycle/prompts/` — prompt templates for each workflow step and for triage
-- `.cycle/scripts/` — git / verification helpers
-- `docs/cycle/issues/` — `ideas` / `inbox` / `todo` / `done` / `failed` / `blocked` issue folders
-- optional `.claude/skills/cycle.md` — a Claude Code skill that teaches a parent agent how to invoke cycle
+- `.cycle/bin/cycle.js`: the bundled engine (single file, `#!/usr/bin/env node` shebang, committed executable)
+- `.cycle/workflows.yml`: engine, triage, and workflow configuration
+- `.cycle/prompts/`: prompt templates for each workflow step and for triage
+- `.cycle/scripts/`: git / verification helpers
+- `docs/cycle/issues/`: `ideas` / `inbox` / `todo` / `done` / `failed` / `blocked` issue folders
+- optional `.claude/skills/cycle.md`: a Claude Code skill that teaches a parent agent how to invoke cycle
 
 The consuming repo does not need to become a Node project. After `init`, the committed `.cycle/bin/cycle.js` bundle is the engine, with no `npm install` required.
 
@@ -222,10 +222,10 @@ The engine today commits and pushes; the broader factory model is still landing.
 
 ## Design docs
 
-- [`BRIEF.md`](BRIEF.md) — product brief: what cycle is and why.
-- [`docs/runtime-environment.md`](docs/runtime-environment.md) — host prerequisites, setup checks, and future doctor/preflight direction.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system architecture, state model, and integration surfaces.
-- [`docs/ENGINE.md`](docs/ENGINE.md) — engine implementation reference for contributors.
-- [`docs/models.md`](docs/models.md) — supported agent models per CLI, the `defaults:`/per-step `model` syntax, and the live-discovery commands.
-- [`docs/RFC-001-issue-lifecycle.md`](docs/RFC-001-issue-lifecycle.md) — issue lifecycle, triage, queue, and blocked-work semantics.
-- [`docs/RFC-003-in-cycle-remediation-and-priority-routing.md`](docs/RFC-003-in-cycle-remediation-and-priority-routing.md) — in-cycle remediation and priority routing.
+- [`BRIEF.md`](BRIEF.md): product brief: what cycle is and why.
+- [`docs/runtime-environment.md`](docs/runtime-environment.md): host prerequisites, setup checks, and future doctor/preflight direction.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): system architecture, state model, and integration surfaces.
+- [`docs/ENGINE.md`](docs/ENGINE.md): engine implementation reference for contributors.
+- [`docs/models.md`](docs/models.md): supported agent models per CLI, the `defaults:`/per-step `model` syntax, and the live-discovery commands.
+- [`docs/RFC-001-issue-lifecycle.md`](docs/RFC-001-issue-lifecycle.md): issue lifecycle, triage, queue, and blocked-work semantics.
+- [`docs/RFC-003-in-cycle-remediation-and-priority-routing.md`](docs/RFC-003-in-cycle-remediation-and-priority-routing.md): in-cycle remediation and priority routing.
