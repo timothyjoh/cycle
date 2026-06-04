@@ -149,7 +149,11 @@ test("iteration-too-fast: K=2 instant failures fast-bail with exactly one warnin
     );
     assert.equal(halts.length, 1, "exactly one max_consecutive_failures halt");
     assert.equal(halts[0].threshold, 1, "halt threshold reflects max_consecutive_failures: 1");
-    assert.deepEqual(halts[0].failed_cycles?.length, 1, "one failed cycle recorded");
+    assert.deepEqual(
+      (halts[0] as { failed_cycles?: unknown[] }).failed_cycles?.length,
+      1,
+      "one failed cycle recorded",
+    );
     assert.equal(
       events.filter((e) => e.event === "engine.halted" && e.reason === "max_cycle_attempts_exhausted").length,
       0,

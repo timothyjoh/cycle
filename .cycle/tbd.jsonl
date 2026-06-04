@@ -1,1 +1,1 @@
-{"id":"fix-flaky-lock-integration-teardown-enotempty","title":"Fix flaky engine-lock-integration teardown (ENOTEMPTY race on rm)","status":"in_progress","attempt":0,"depends_on":[],"triaged_at":"2026-06-04T14:45:11.448Z","priority":"medium","cycle_id":"0260"}
+{"id":"refl-0260-fix-ts2339-typecheck-error-in-iteration","title":"Fix TS2339 typecheck error in iteration-too-fast.test.ts","status":"in_progress","attempt":0,"depends_on":[],"triaged_at":"2026-06-04T15:10:08.462Z","priority":"medium","cycle_id":"0261"}

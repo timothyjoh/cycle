@@ -1,0 +1,5 @@
+{
+  "files": [
+    "tests/cli/iteration-too-fast.test.ts"
+  ]
+}
