@@ -175,6 +175,28 @@ Use `docs/cycle/issues/ideas/` for rough backlog notes, ambiguous asks, and work
 
 Use `docs/cycle/issues/inbox/` for work that is ready for triage. To promote an idea, add enough context and acceptance criteria, change `priority: idea` to `low | medium | high | critical`, move the file into `inbox/`, then run `cycle triage --dry-run` or `cycle run`.
 
+## The default workflow, step by step
+
+The `feature` workflow runs a full SDLC loop on every slice. Each step has one job, and the discipline is what makes the result safe to leave running:
+
+1. **spec** writes the acceptance criteria before any code, including what should happen on bad input, a missing dependency, or a half-finished operation. Errors have to surface, never get swallowed. A clear target up front keeps the build honest.
+2. **research** reads your codebase first: its conventions, its coupling, the tests that already exist. The build then works with your repo instead of pattern-matching a generic one.
+3. **plan** picks the approach and writes down the failure and resilience choices: what can fail here, how the code responds, what stays idempotent on a retry. The hard calls get made before the diff, not buried inside it.
+4. **build** implements one vertical slice with tests, covering the failure paths the spec named, not just the happy path.
+5. **review** reads the diff for the things that bite later: swallowed errors, fail-open defaults, missing edge cases. Anything real goes into `MUST-FIX.md`.
+6. **fix** runs only when review found something, and clears that list.
+7. **verify** runs your real verify command (tests, build, whatever you configure) before anything is committed. A failing verify fails the cycle.
+8. **reflection** looks back at the finished slice and files what it learned: follow-up issues for later, plus fix-now items it applies in this same cycle.
+9. **final_fix** and **final_verify** apply those fix-now items and re-run verify.
+10. **documentation** updates the docs the change actually touched.
+11. **walkthrough_capture** records screenshots or video of the result, when you give it a hook.
+
+Commit and push happen only after the steps pass. If a step fails, cycle wipes the attempt and starts over from a clean tree, up to three tries, then parks the issue and moves on.
+
+### Make it yours
+
+The defaults are a starting point, and they are all yours to change. `.cycle/workflows.yml` and `.cycle/prompts/` are plain files in your repo. Reorder the steps, drop the ones you don't need, add your own, or rewrite any prompt to match how your team actually works. Send a step to a different agent (`claudecode`, `codex`, `gemini`, `auggie`, `opencode`, `pi`) or a different model. Write a whole new workflow and let triage choose it. Your edits survive `cycle upgrade`, which preserves `workflows.yml` and `prompts/` unless you ask it to overwrite them.
+
 ## Workflows
 
 A workflow is an ordered list of steps defined in `.cycle/workflows.yml`; triage picks one per slice from the workflows configured in that file (or you force one with `--workflow`). See [`docs/workflows.md`](docs/workflows.md) for how to add repo-specific workflows. Four ship by default:
