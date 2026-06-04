@@ -274,8 +274,10 @@ guard. Either way the issue moves to `done/` and the failure budget is untouched
      `log.jsonl` and the highest committed `docs/cycle/NNNN-*` directory
      basename, then incrementing; create
      `docs/cycle/<cycle-id>-<workflow>-<slug>/`. Folding in the committed
-     directories keeps numbering monotonic on a fresh checkout where the
-     gitignored log starts empty.
+     directories keeps numbering monotonic. The log is git-tracked and
+     committed every cycle (see §6), so a fresh checkout carries the full
+     history and the derived next cycle-id starts from the real
+     high-water mark instead of restarting from an empty log.
    - **Attempt loop** (up to `max_cycle_attempts`, default 3): load the
      workflow, execute its steps in order (each honoring its own
      `on_fail` policy and post-conditions). On a code-level gate failure,
@@ -464,8 +466,12 @@ on the base branch.
 - **`.cycle/log.jsonl`** — append-only event history, mirrored from stdout.
   Source of truth for everything that has happened; never rewritten. Used
   to reconstruct cycle state, allocate the next cycle ID, and power
-  `cycle status`.
+  `cycle status`. **Git-tracked, committed state-of-record:** `commitCycle`
+  stages it every cycle, so a clone carries the full history and the next
+  cycle-id derives from the real high-water mark. Never truncated.
 - **`.cycle/tbd.jsonl`** — live, priority-ordered work queue (post-triage).
+  **Git-tracked, committed state-of-record** — staged by `commitCycle` every
+  cycle, so a clone carries the live queue.
   One todo per line. Rows drain on cycle completion: removed when a cycle
   ends `ok` (file → `done/`), resolves as `noop` (already-satisfied work;
   file → `done/`, failure budget untouched), or exhausts its attempts

@@ -76,7 +76,7 @@ Brownfield work is where autonomous coding usually falls apart. cycle assumes th
 - changes may have hidden blast radius
 - failures should not poison unrelated queued work
 
-So cycle makes repo context and artifacts first-class. Each cycle writes durable outputs under `docs/cycle/<cycle-id>-<workflow>-<slug>/`, keeps issue state under `docs/cycle/issues/`, and mirrors progress to `.cycle/log.jsonl`. A human can inspect the factory floor after the fact instead of reverse-engineering what the agent did from a chat transcript.
+So cycle makes repo context and artifacts first-class. Each cycle writes durable outputs under `docs/cycle/<cycle-id>-<workflow>-<slug>/`, keeps issue state under `docs/cycle/issues/`, and mirrors progress to `.cycle/log.jsonl`. The log and the work queue (`.cycle/tbd.jsonl`) are git-tracked and committed every cycle, so they travel with a clone — full run history and the live queue are present immediately after checkout. A human can inspect the factory floor after the fact instead of reverse-engineering what the agent did from a chat transcript.
 
 ## What ships into a repo
 

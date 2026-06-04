@@ -1,0 +1,11 @@
+{
+  "files": [
+    ".gitignore",
+    "CLAUDE.md",
+    "README.md",
+    "docs/ARCHITECTURE.md",
+    "docs/ENGINE.md",
+    "src/engine/commit-cycle.ts",
+    "tests/engine/commit-cycle.test.ts"
+  ]
+}

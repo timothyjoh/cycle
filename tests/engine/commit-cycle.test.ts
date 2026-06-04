@@ -704,3 +704,123 @@ test("commitCycle — quick_fix in-footprint: no commit.scope_warning emitted", 
   }
 });
 
+
+test("state files — dirty .cycle/log.jsonl + tbd.jsonl are staged before commit", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-statefile-"));
+  try {
+    await setupRepo(root);
+    await writeFile(join(root, ".cycle/log.jsonl"), '{"event":"a"}\n', "utf8");
+    await writeFile(join(root, ".cycle/tbd.jsonl"), '{"id":"x"}\n', "utf8");
+
+    const calls: string[] = [];
+    const spawnFn = makeSpawn((cmd, args) => {
+      calls.push(`${cmd} ${args.join(" ")}`);
+      if (cmd === "git" && args[0] === "push") return ok();
+      if (cmd === "gh") return ok("owner/repo");
+      return undefined;
+    });
+
+    const result = await commitCycle(root, {
+      cycleId: "0052",
+      title: "track state files",
+      config: { mode: "trunk", push: true },
+      baseBranch: "master",
+      spawnFn,
+    });
+
+    assert.equal(result.status, "ok");
+    assert.ok(
+      calls.includes("git add -- .cycle/log.jsonl"),
+      ".cycle/log.jsonl must be explicitly staged",
+    );
+    assert.ok(
+      calls.includes("git add -- .cycle/tbd.jsonl"),
+      ".cycle/tbd.jsonl must be explicitly staged",
+    );
+    const commitIdx = calls.findIndex((c) => c.startsWith("git commit"));
+    const logAddIdx = calls.indexOf("git add -- .cycle/log.jsonl");
+    const tbdAddIdx = calls.indexOf("git add -- .cycle/tbd.jsonl");
+    assert.ok(commitIdx > logAddIdx && commitIdx > tbdAddIdx, "state files staged before commit");
+
+    const tracked = spawnSync("git", ["ls-files", ".cycle/log.jsonl", ".cycle/tbd.jsonl"], {
+      cwd: root, shell: false, encoding: "utf8",
+    }).stdout;
+    assert.ok(tracked.includes(".cycle/log.jsonl"), "log.jsonl is tracked after commit");
+    assert.ok(tracked.includes(".cycle/tbd.jsonl"), "tbd.jsonl is tracked after commit");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("state files — missing log.jsonl is skipped, not staged as existing file", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-statefile-absent-"));
+  try {
+    await setupRepo(root);
+    // log.jsonl absent; tbd.jsonl present; an unrelated change drives the commit.
+    await writeFile(join(root, ".cycle/tbd.jsonl"), '{"id":"x"}\n', "utf8");
+    await writeFile(join(root, "change.txt"), "hello", "utf8");
+
+    const calls: string[] = [];
+    const spawnFn = makeSpawn((cmd, args) => {
+      calls.push(`${cmd} ${args.join(" ")}`);
+      if (cmd === "git" && args[0] === "push") return ok();
+      if (cmd === "gh") return ok("owner/repo");
+      return undefined;
+    });
+
+    const result = await commitCycle(root, {
+      cycleId: "0052",
+      title: "missing log file",
+      config: { mode: "trunk", push: true },
+      baseBranch: "master",
+      spawnFn,
+    });
+
+    assert.equal(result.status, "ok");
+    assert.ok(
+      !calls.includes("git add -- .cycle/log.jsonl"),
+      "absent log.jsonl must NOT be staged as an existing file",
+    );
+    assert.ok(
+      calls.includes("git add -- .cycle/tbd.jsonl"),
+      "present tbd.jsonl is still staged",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("state files — both absent and no other change: nothing_to_commit", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-statefile-none-"));
+  try {
+    await setupRepo(root);
+    // Neither state file exists and the tree is otherwise clean.
+    const calls: string[] = [];
+    const spawnFn = makeSpawn((cmd, args) => {
+      calls.push(`${cmd} ${args.join(" ")}`);
+      if (cmd === "gh") return ok("owner/repo");
+      return undefined;
+    });
+
+    const result = await commitCycle(root, {
+      cycleId: "0052",
+      title: "no changes",
+      config: { mode: "trunk", push: false },
+      baseBranch: "master",
+      spawnFn,
+    });
+
+    assert.deepEqual(result, { status: "skipped", reason: "nothing_to_commit" });
+    assert.ok(
+      !calls.includes("git add -- .cycle/log.jsonl"),
+      "absent log.jsonl not staged",
+    );
+    assert.ok(
+      !calls.includes("git add -- .cycle/tbd.jsonl"),
+      "absent tbd.jsonl not staged",
+    );
+    assert.ok(!calls.some((c) => c.startsWith("git commit")), "no commit when nothing staged");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

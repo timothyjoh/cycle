@@ -2,11 +2,13 @@ node_modules/
 dist/
 .DS_Store
 .claude/settings.local.json
-.cycle/log.jsonl
-.cycle/tbd.jsonl
 .cycle/cycle.pid
 .cycle/.sync-state.json
 .cycle/coverage.lcov
 
 # engine PID lockfile — runtime state, never commit
 .cycle/engine.lock
+# transient supervisor state — never commit (log.jsonl + tbd.jsonl ARE committed
+# state-of-record; these are ephemeral and must stay ignored)
+.cycle/failed-residue-context.json
+.cycle/run.log

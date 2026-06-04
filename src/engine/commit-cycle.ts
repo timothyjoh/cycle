@@ -7,6 +7,9 @@ import type { CommitConfig } from "./workflow.ts";
 import { isDenied } from "./path-utils.ts";
 import type { Logger } from "./log.ts";
 
+/** Engine state-of-record files committed with every cycle (un-ignored cycle 0052). */
+const STATE_FILES = [".cycle/log.jsonl", ".cycle/tbd.jsonl"] as const;
+
 export type CommitResult =
   | { status: "ok"; sha: string }
   | { status: "skipped"; reason: "nothing_to_commit" }
@@ -95,6 +98,16 @@ async function stageFiles(
       spawn("git", ["add", "-u", "--", p], { cwd: repoRoot, env });
     } else {
       spawn("git", ["add", "--", p], { cwd: repoRoot, env });
+    }
+  }
+
+  // Explicitly stage the committed state-of-record files. existsSync guards the
+  // fresh-repo case (file not yet written) — a missing file is skipped, not an
+  // error. git add is idempotent, so double-staging with the status loop above
+  // (the paths are not isDenied) coalesces harmlessly.
+  for (const sf of STATE_FILES) {
+    if (existsSync(join(repoRoot, sf))) {
+      spawn("git", ["add", "--", sf], { cwd: repoRoot, env });
     }
   }
 

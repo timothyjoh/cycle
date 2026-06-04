@@ -138,13 +138,15 @@ const CLEAN_FAIL_SCRIPT = `#!/bin/bash
 exit 1
 `;
 
-test("residue guard: loop path halts before popping next issue", async () => {
+test("residue guard: cleanable residue is torn down and retried, then halts clean on attempts exhausted", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-residue-"));
   try {
     const dist = await ensureDist();
-    // threshold 2 so the first terminal failure does NOT trip max_consecutive;
-    // the residue guard must be what halts the engine.
-    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": RESIDUE_SCRIPT });
+    // RESIDUE_SCRIPT leaves an untracked non-engine-owned file then fails. The
+    // engine now tears that residue down and RETRIES on a clean tree instead of
+    // halting on the residue guard. After max_cycle_attempts (3) failures it
+    // halts terminally — on a CLEAN tree (no residue piled up across attempts).
+    await bootstrapRepo(root, workflowYml(2, 3), { "verify.sh": RESIDUE_SCRIPT });
     await seedTodo(root, "A", "a task");
     await seedTodo(root, "B", "b task");
 
@@ -152,32 +154,59 @@ test("residue guard: loop path halts before popping next issue", async () => {
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
-    const halts = events.filter(
-      (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+
+    // The cleanable-residue path no longer trips the residue guard.
+    assert.ok(
+      !events.some(
+        (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+      ),
+      "cleanable residue is torn down, not halted on the residue guard",
     );
-    assert.equal(halts.length, 1, "exactly one failed_cycle_dirty_worktree halt");
-    const halt = halts[0];
 
-    // User-observable benefit: payload names the dirty path + failed cycle id.
-    const dirtyPaths = halt.dirty_paths as string[];
-    assert.ok(dirtyPaths.includes("src/residue.ts"), `dirty_paths: ${JSON.stringify(dirtyPaths)}`);
+    // The cycle was torn down + retried: 3 attempts ran, 2 clean restarts fired.
     const starts = events.filter((e) => e.event === "cycle.start");
-    assert.equal(starts.length, 1, "only the first cycle ran; B never popped");
-    assert.equal(halt.failed_cycle_id, starts[0].cycle_id);
+    assert.equal(starts.length, 3, "the cycle re-ran for all 3 attempts on a clean tree");
+    const restarts = events.filter((e) => e.event === "cycle.restart");
+    assert.equal(restarts.length, 2, "two clean restarts before attempts were exhausted");
+    // Each restart reports the failing step and the reverted residue it cleaned.
+    for (const rs of restarts) {
+      assert.equal(rs.issue_id, "A");
+      assert.equal(rs.failing_step, "verify");
+      assert.ok((rs.reverted as number) >= 1, `restart reverted at least one path: ${rs.reverted}`);
+    }
 
-    // stderr diagnostic names the path, the cycle id, and the reset remediation.
-    assert.match(r.stderr, /src\/residue\.ts/);
-    assert.match(r.stderr, new RegExp(String(starts[0].cycle_id)));
-    assert.match(r.stderr, /git reset --hard/);
+    // Attempts exhausted ⇒ exactly one terminal max_cycle_attempts_exhausted halt.
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "max_cycle_attempts_exhausted",
+    );
+    assert.equal(halts.length, 1, "exactly one max_cycle_attempts_exhausted halt");
+    assert.equal(halts[0].issue_id, "A");
+    assert.equal(halts[0].attempts, 3);
+    assert.equal(halts[0].failing_step, "verify");
 
-    // Exactly one terminal engine.stop, with the residue reason.
+    // Exactly one terminal engine.stop, with the attempts-exhausted reason.
     const stops = events.filter((e) => e.event === "engine.stop");
     assert.equal(stops.length, 1, "exactly one engine.stop");
-    assert.equal(stops[0].reason, "failed_cycle_dirty_worktree");
+    assert.equal(stops[0].reason, "max_cycle_attempts_exhausted");
 
-    // B must remain in todo/ (not popped).
-    const todoFiles = await readdir(join(root, "docs/cycle/issues/todo"));
-    assert.deepEqual(todoFiles, ["B.md"]);
+    // The protective intent survives: B was never popped (the engine halted on A).
+    const startedIssues = new Set(starts.map((s) => s.issue_id));
+    assert.ok(!startedIssues.has("B"), "B never started; the engine halted on A");
+
+    // And the worktree is CLEAN of non-engine-owned residue afterward — teardown
+    // reverted A's residue rather than letting it accumulate.
+    const status = spawnSync(
+      "git",
+      ["status", "--porcelain", "--untracked-files=all"],
+      { cwd: root, encoding: "utf8" },
+    );
+    assert.equal(status.status, 0, `git status failed: ${status.stderr}`);
+    const nonEngine = status.stdout
+      .split("\n")
+      .filter((l) => l.length > 0)
+      .map((l) => l.slice(3))
+      .filter((p) => !p.startsWith(".cycle/") && !p.startsWith("docs/cycle/"));
+    assert.deepEqual(nonEngine, [], `non-engine residue remained: ${JSON.stringify(nonEngine)}`);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -226,38 +255,52 @@ test("residue guard: resume path halts before runResumeOnce", async () => {
   }
 });
 
-test("residue guard: engine-owned-only residue does not halt", async () => {
+test("residue guard: engine-owned-only residue does not trip the residue guard", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-residue-"));
   try {
     const dist = await ensureDist();
-    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": ENGINE_OWNED_SCRIPT });
+    // ENGINE_OWNED_SCRIPT leaves only .cycle/** + docs/cycle/** residue. Teardown
+    // finds a clean non-engine-owned tree, so the residue guard never fires; the
+    // cycle simply fails its 3 attempts and halts terminally (exit 1) — NOT a
+    // clean exit-0, since attempts are exhausted.
+    await bootstrapRepo(root, workflowYml(2, 3), { "verify.sh": ENGINE_OWNED_SCRIPT });
     await seedTodo(root, "A", "a task");
 
     const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
-    // A fails terminally (consecutiveFailures=1 < 2); no more pending ⇒ clean exit.
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
+    assert.equal(r.status, 1, `expected exit 1 (attempts exhausted), got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
+    // The point that still holds: engine-owned residue never trips the residue guard.
     assert.ok(
       !events.some(
         (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
       ),
-      "engine-owned-only residue must not trip the guard",
+      "engine-owned-only residue must not trip the residue guard",
     );
+    // It exhausts its attempts and halts terminally instead.
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "max_cycle_attempts_exhausted",
+    );
+    assert.equal(halts.length, 1, "exactly one max_cycle_attempts_exhausted halt");
+    const starts = events.filter((e) => e.event === "cycle.start");
+    assert.equal(starts.length, 3, "the cycle re-ran for all 3 attempts");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("residue guard: clean tree leaves behavior unchanged (no new event)", async () => {
+test("residue guard: clean-tree failure emits no residue halt and persists no context", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-residue-"));
   try {
     const dist = await ensureDist();
+    // A clean failure (no worktree residue). Teardown finds a clean tree (ok), so
+    // the residue guard never fires and no context file is persisted. The cycle
+    // exhausts its single attempt and halts terminally.
     await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": CLEAN_FAIL_SCRIPT });
     await seedTodo(root, "A", "a task");
 
     const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
+    assert.equal(r.status, 1, `expected exit 1 (attempts exhausted), got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
     assert.ok(
@@ -268,20 +311,22 @@ test("residue guard: clean tree leaves behavior unchanged (no new event)", async
     );
     const stops = events.filter((e) => e.event === "engine.stop");
     assert.equal(stops.length, 1, "exactly one engine.stop");
-    assert.equal(stops[0].status, "ok");
+    assert.equal(stops[0].reason, "max_cycle_attempts_exhausted");
+    // Clean teardown ⇒ the residue context file must not be written.
+    assert.equal(await contextExists(root), false, "no residue context persisted on a clean tree");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("residue guard: within-budget retry halts before drainRetry re-runs on dirty tree", async () => {
+test("residue guard: within-budget retry re-runs on a clean torn-down tree (no residue halt)", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-residue-"));
   try {
     const dist = await ensureDist();
     // maxCycleAttempts=2 ⇒ the first failure (attempt 0+1 < 2) takes the
-    // within-budget retry arm. The retry arm never calls recordTerminalFailure,
-    // so consecutiveFailures stays 0 and the residue guard — not
-    // max_consecutive_failures — must be what halts.
+    // within-budget retry arm. The arm tears down the residue and re-runs on a
+    // CLEAN tree — the residue guard must NOT fire (the constant-halt bug). The
+    // protective intent survives: no residue is ever piled across the retry.
     await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": RESIDUE_SCRIPT });
     await seedTodo(root, "A", "a task");
 
@@ -289,31 +334,42 @@ test("residue guard: within-budget retry halts before drainRetry re-runs on dirt
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
-    const halts = events.filter(
-      (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+    assert.ok(
+      !events.some(
+        (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
+      ),
+      "the within-budget retry tears the residue down rather than halting on it",
     );
-    assert.equal(halts.length, 1, "exactly one failed_cycle_dirty_worktree halt");
-    const halt = halts[0];
 
-    const dirtyPaths = halt.dirty_paths as string[];
-    assert.ok(dirtyPaths.includes("src/residue.ts"), `dirty_paths: ${JSON.stringify(dirtyPaths)}`);
-
-    // Gap closed: the retry must NOT re-run on top of the dirty tree — only the
-    // first cycle attempt ran (the single available harness signal).
+    // The retry re-ran on the clean tree: attempt 0 then attempt 1, one restart.
     const starts = events.filter((e) => e.event === "cycle.start");
-    assert.equal(starts.length, 1, "retry must not re-run; only the first cycle started");
-    assert.equal(halt.failed_cycle_id, starts[0].cycle_id);
+    assert.equal(starts.length, 2, "the within-budget retry re-ran the cycle");
+    const restarts = events.filter((e) => e.event === "cycle.restart");
+    assert.equal(restarts.length, 1, "exactly one clean restart");
+    assert.equal(restarts[0].issue_id, "A");
+    assert.equal(restarts[0].failing_step, "verify");
 
-    // The halt must not be the max_consecutive_failures path (counters untouched
-    // by the retry arm).
-    assert.notEqual(halt.reason, "max_consecutive_failures");
-
+    // Attempts exhausted ⇒ terminal halt, on a clean tree (no accumulated residue).
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "max_cycle_attempts_exhausted",
+    );
+    assert.equal(halts.length, 1, "exactly one max_cycle_attempts_exhausted halt");
     const stops = events.filter((e) => e.event === "engine.stop");
     assert.equal(stops.length, 1, "exactly one engine.stop");
-    assert.equal(stops[0].reason, "failed_cycle_dirty_worktree");
+    assert.equal(stops[0].reason, "max_cycle_attempts_exhausted");
 
-    assert.match(r.stderr, /src\/residue\.ts/);
-    assert.match(r.stderr, /git reset --hard/);
+    const status = spawnSync(
+      "git",
+      ["status", "--porcelain", "--untracked-files=all"],
+      { cwd: root, encoding: "utf8" },
+    );
+    assert.equal(status.status, 0, `git status failed: ${status.stderr}`);
+    const nonEngine = status.stdout
+      .split("\n")
+      .filter((l) => l.length > 0)
+      .map((l) => l.slice(3))
+      .filter((p) => !p.startsWith(".cycle/") && !p.startsWith("docs/cycle/"));
+    assert.deepEqual(nonEngine, [], `non-engine residue remained: ${JSON.stringify(nonEngine)}`);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -396,11 +452,17 @@ test("residue guard: engine-owned-only within-budget retry does not trip the gua
   }
 });
 
-test("residue guard: git-status failure halts (no silent proceed)", async () => {
+test("residue guard: teardown failure on retry falls back to the residue halt (no silent proceed)", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-residue-"));
   try {
     const dist = await ensureDist();
-    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": GIT_FAILURE_SCRIPT });
+    // GIT_FAILURE_SCRIPT destroys .git, so teardown's own `git status` errors and
+    // the tree cannot be cleaned. maxCycleAttempts=2 ⇒ the first failure takes the
+    // within-budget retry arm, where a failed teardown emits
+    // failed_cycle_teardown_incomplete + arms the residue context. The loop-top
+    // guard then halts on the residue (the unchanged fallback safety net) rather
+    // than re-running the retry on the dirty/corrupt tree.
+    await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": GIT_FAILURE_SCRIPT });
     await seedTodo(root, "A", "a task");
     await seedTodo(root, "B", "b task");
 
@@ -408,16 +470,26 @@ test("residue guard: git-status failure halts (no silent proceed)", async () => 
     assert.equal(r.status, 1, `expected exit 1 (halt), got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
+    const warns = events.filter(
+      (e) => e.event === "engine.warning" && e.reason === "failed_cycle_teardown_incomplete",
+    );
+    assert.equal(warns.length, 1, "exactly one failed_cycle_teardown_incomplete warning");
+    assert.equal(warns[0].issue_id, "A");
+
     const halts = events.filter(
       (e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree",
     );
-    assert.equal(halts.length, 1, "exactly one failed_cycle_dirty_worktree halt");
+    assert.equal(halts.length, 1, "exactly one failed_cycle_dirty_worktree fallback halt");
     // A failed status check is surfaced via the halt message, not coerced to clean.
     assert.match(String(halts[0].message), /Residue check failed/);
 
-    // B must not have been popped (no silent proceed onto a corrupt tree).
+    // No silent proceed: the retry never re-ran and B was never popped.
     const starts = events.filter((e) => e.event === "cycle.start");
-    assert.equal(starts.length, 1, "only the first cycle ran");
+    assert.equal(starts.length, 1, "only the first cycle ran; retry did not re-run, B not popped");
+
+    const stops = events.filter((e) => e.event === "engine.stop");
+    assert.equal(stops.length, 1, "exactly one engine.stop");
+    assert.equal(stops[0].reason, "failed_cycle_dirty_worktree");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -555,25 +627,34 @@ test("residue guard: git-status failure during startup re-check halts (no silent
   }
 });
 
-test("residue guard: terminal-failure branch persists context to disk", async () => {
+test("residue guard: terminal teardown failure persists context to disk", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-residue-persist-"));
   try {
     const dist = await ensureDist();
-    // maxConsecutive 2 so the first terminal failure does not trip
-    // max_consecutive; the in-process loop-top guard halts on the residue. Before
-    // that halt, the terminal-failure branch persisted the context to disk.
-    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": RESIDUE_SCRIPT });
+    // maxCycleAttempts=1 ⇒ the first failure goes straight to the terminal branch.
+    // GIT_FAILURE_SCRIPT corrupts the repo so teardown fails (it cannot clean the
+    // tree); the terminal branch then arms + persists the residue context so a
+    // fresh start re-checks it. (On a clean teardown the terminal branch instead
+    // deletes any context — covered by the clean-tree test.)
+    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": GIT_FAILURE_SCRIPT });
     await seedTodo(root, "A", "a task");
 
     const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
 
-    assert.ok(await contextExists(root), "context file written at terminal-failure branch");
+    assert.ok(await contextExists(root), "context file written at the terminal teardown-failure branch");
     const persisted = JSON.parse(await readFile(join(root, CONTEXT_FILE), "utf8"));
     assert.equal(persisted.issueId, "A");
+    assert.equal(persisted.failingStep, "verify");
     const events = await readEvents(root);
     const start = events.find((e) => e.event === "cycle.start");
     assert.equal(persisted.cycleId, start!.cycle_id, "persisted cycleId matches the failed cycle");
+    // The terminal halt itself is max_cycle_attempts_exhausted (the residue context
+    // is armed for a *future* process, not re-checked in this same broken process).
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "max_cycle_attempts_exhausted",
+    );
+    assert.equal(halts.length, 1, "exactly one max_cycle_attempts_exhausted halt");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -581,26 +662,31 @@ test("residue guard: terminal-failure branch persists context to disk", async ()
 
 // --- Within-budget retry-arm persistence (cycle 0042) ---
 
-test("residue guard: within-budget retry arm persists context to disk", async () => {
+test("residue guard: within-budget retry teardown failure persists context to disk", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-residue-wbpersist-"));
   try {
     const dist = await ensureDist();
-    // maxCycleAttempts=2 ⇒ the first failure (attempt 0+1 < 2) takes the
-    // within-budget retry arm — the lone set-without-persist site before this
-    // cycle. The arm now persists the context before the loop-top guard halts
-    // on the dirty tree, symmetric with the four terminal-failure branches.
-    await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": RESIDUE_SCRIPT });
+    // maxCycleAttempts=2 ⇒ the first failure takes the within-budget retry arm.
+    // GIT_FAILURE_SCRIPT corrupts the repo so teardown fails there; the arm then
+    // emits failed_cycle_teardown_incomplete and persists the residue context
+    // before the loop-top guard halts on the residue (the fallback path). A clean
+    // retry teardown instead clears the context (covered by the clean-tree test).
+    await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": GIT_FAILURE_SCRIPT });
     await seedTodo(root, "A", "a task");
 
     const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 1, `expected exit 1, got ${r.status}\n${r.stderr}`);
 
-    assert.ok(await contextExists(root), "context file written at the within-budget retry arm");
+    assert.ok(await contextExists(root), "context file written at the within-budget retry teardown-failure arm");
     const persisted = JSON.parse(await readFile(join(root, CONTEXT_FILE), "utf8"));
     assert.equal(persisted.issueId, "A");
     assert.equal(persisted.failingStep, "verify");
 
     const events = await readEvents(root);
+    const warns = events.filter(
+      (e) => e.event === "engine.warning" && e.reason === "failed_cycle_teardown_incomplete",
+    );
+    assert.equal(warns.length, 1, "exactly one failed_cycle_teardown_incomplete warning");
     const starts = events.filter((e) => e.event === "cycle.start");
     assert.equal(starts.length, 1, "retry did not re-run; only the first cycle started");
     assert.equal(persisted.cycleId, starts[0].cycle_id, "persisted cycleId matches the failed cycle");
@@ -652,7 +738,10 @@ test("residue guard: write failure at within-budget arm warns and falls back to 
   const root = await mkdtemp(join(tmpdir(), "cycle-residue-wbwritefail-"));
   try {
     const dist = await ensureDist();
-    await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": RESIDUE_SCRIPT });
+    // GIT_FAILURE_SCRIPT corrupts the repo so the within-budget retry teardown
+    // fails and the arm reaches persistResidue. maxCycleAttempts=2 routes the
+    // first failure through that arm.
+    await bootstrapRepo(root, workflowYml(2, 2), { "verify.sh": GIT_FAILURE_SCRIPT });
     await seedTodo(root, "A", "a task");
     // Force the atomic write's final rename to fail by pre-creating the target
     // path as a (non-empty) directory: renameSync(tmp, <dir>) throws, so

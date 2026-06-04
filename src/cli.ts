@@ -32,6 +32,7 @@ import {
   formatFailedCycleResidueDiagnostic,
   type ResidueContext,
 } from "./engine/failed-residue-guard.ts";
+import { teardownFailedCycle } from "./engine/failed-cycle-teardown.ts";
 import {
   writeResidueContext,
   readResidueContext,
@@ -354,6 +355,7 @@ let failedCycles: string[] = [];
 let halted = false;
 let haltReason:
   | "max_consecutive_failures"
+  | "max_cycle_attempts_exhausted"
   | "triage_failed"
   | "failed_cycle_dirty_worktree"
   | null = null;
@@ -760,6 +762,8 @@ while (!halted) {
     typeof rawMin === "number" && Number.isFinite(rawMin) && rawMin > 0 ? rawMin : 0;
   const guardEnabled = thresholdMs > 0;
 
+  const artifactDir = join(cwd, "docs", "cycle", `${cycleId}-${workflowName}-${slugify(row.title)}`);
+
   if (exitCode === 3) {
     // Recognized no-op (already-satisfied) cycle. Skip commitCycle entirely (no
     // net code change to commit, mirroring the empty-diff reality), drain the
@@ -774,7 +778,6 @@ while (!halted) {
     pendingResidueContext = undefined;
     await unpersistResidue();
   } else if (exitCode === 0) {
-    const artifactDir = join(cwd, "docs", "cycle", `${cycleId}-${workflowName}-${slugify(row.title)}`);
     const cr = await commitCycle(cwd, {
       cycleId,
       title: row.title,
@@ -836,43 +839,56 @@ while (!halted) {
     fastFailKey = advanced.state.key;
     fastFailCount = advanced.state.count;
     const fastBail = advanced.fastBail;
+    const attemptsLeft = row.attempt + 1 < maxAttempts;
 
-    if (fastBail) {
-      await log.emit("step.warning", {
-        cycle_id: cycleId,
-        step: failingStep,
-        reason: "iteration_too_fast",
-        duration_ms: failure.durationMs,
-        threshold_ms: thresholdMs,
-      });
-      await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, failingStep, row.attempt + 1);
-      const acct = recordTerminalFailure(
-        { consecutiveFailures, failedCycles },
-        { cycleId, issueId: row.id, failingStep, maxConsecutiveFailures },
-      );
-      consecutiveFailures = acct.consecutiveFailures;
-      failedCycles = acct.failedCycles;
-      lastHaltContext = acct.lastHaltContext;
-      fastFailKey = acct.fastFail.key;
-      fastFailCount = acct.fastFail.count;
-      pendingResidueContext = { cycleId, issueId: row.id, failingStep };
-      await persistResidue(pendingResidueContext);
-      if (acct.halt) {
-        halted = true;
-        haltReason = "max_consecutive_failures";
-        activeCycleId = undefined;
-        break;
+    if (!fastBail && attemptsLeft) {
+      // Clean restart: tear down THIS attempt's worktree residue + wipe its
+      // documents, then re-queue so the cycle re-runs from step 1 on a clean
+      // tree (a fresh start, not a skip-completed resume). The old behavior
+      // armed pendingResidueContext here, which made the loop-top guard halt
+      // before the retry ever ran — that constant halt is the bug this replaces.
+      const td = teardownFailedCycle(cwd, { artifactDir, wipeDocs: true });
+      if (td.ok) {
+        await drainRetry(cwd, log, cycleId, row.id, failingStep);
+        await log.emit("cycle.restart", {
+          cycle_id: cycleId,
+          issue_id: row.id,
+          attempt: row.attempt + 1,
+          failing_step: failingStep,
+          reverted: td.reverted.length,
+        });
+        // Clean tree ⇒ no residue gate; clear any prior context.
+        pendingResidueContext = undefined;
+        await unpersistResidue();
+      } else {
+        // Teardown could not clean the tree — fall back to the residue halt so a
+        // new cycle never stacks on a dirty tree. The loop-top haltIfResidue()
+        // halts on the armed context.
+        await log.emit("engine.warning", {
+          reason: "failed_cycle_teardown_incomplete",
+          cycle_id: cycleId,
+          issue_id: row.id,
+          remaining: td.remaining,
+          ...(td.reason ? { detail: td.reason } : {}),
+        });
+        pendingResidueContext = { cycleId, issueId: row.id, failingStep };
+        await persistResidue(pendingResidueContext);
       }
-    } else if (row.attempt + 1 < maxAttempts) {
-      await drainRetry(cwd, log, cycleId, row.id, failingStep);
-      // retry-drain: counter unchanged; popNextPending will see the row again with attempt++.
-      // Residue-gate the retry: if this failed attempt dirtied the tree, the loop-top
-      // haltIfResidue() halts before drainRetry's re-run executes on top of it.
-      // Persist the context (cycle 0042) so a crash before the retry re-runs is still
-      // re-checked on a fresh start — symmetric with the four terminal-failure branches.
-      pendingResidueContext = { cycleId, issueId: row.id, failingStep };
-      await persistResidue(pendingResidueContext);
     } else {
+      // Terminal: attempts spent (max_cycle_attempts, default 3), or a tight
+      // instant-failure loop (fast-bail). Per policy a cycle gets at most 3
+      // tries; when they are spent the engine halts completely. Tear down the
+      // code residue (keep the documents for diagnosis), drain to failed/, halt.
+      if (fastBail) {
+        await log.emit("step.warning", {
+          cycle_id: cycleId,
+          step: failingStep,
+          reason: "iteration_too_fast",
+          duration_ms: failure.durationMs,
+          threshold_ms: thresholdMs,
+        });
+      }
+      const td = teardownFailedCycle(cwd, { artifactDir, wipeDocs: false });
       await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, failingStep, row.attempt + 1);
       const acct = recordTerminalFailure(
         { consecutiveFailures, failedCycles },
@@ -883,14 +899,26 @@ while (!halted) {
       lastHaltContext = acct.lastHaltContext;
       fastFailKey = acct.fastFail.key;
       fastFailCount = acct.fastFail.count;
-      pendingResidueContext = { cycleId, issueId: row.id, failingStep };
-      await persistResidue(pendingResidueContext);
-      if (acct.halt) {
-        halted = true;
-        haltReason = "max_consecutive_failures";
-        activeCycleId = undefined;
-        break;
+      if (td.ok) {
+        pendingResidueContext = undefined;
+        await unpersistResidue();
+      } else {
+        // Dirty tree remains; arm the residue context so a fresh start re-checks it.
+        pendingResidueContext = { cycleId, issueId: row.id, failingStep };
+        await persistResidue(pendingResidueContext);
       }
+      await log.emit("engine.halted", {
+        reason: "max_cycle_attempts_exhausted",
+        cycle_id: cycleId,
+        issue_id: row.id,
+        attempts: row.attempt + 1,
+        ...(failingStep !== undefined ? { failing_step: failingStep } : {}),
+        ...(fastBail ? { fast_bail: true } : {}),
+      });
+      halted = true;
+      haltReason = "max_cycle_attempts_exhausted";
+      activeCycleId = undefined;
+      break;
     }
   }
   activeCycleId = undefined;
@@ -913,6 +941,9 @@ if (!engineStopEmitted) {
     dry_run: false,
     cycles_processed: cyclesProcessed,
     ...(halted && haltReason === "triage_failed" ? { reason: "triage_failed" } : {}),
+    ...(halted && haltReason === "max_cycle_attempts_exhausted"
+      ? { reason: "max_cycle_attempts_exhausted" }
+      : {}),
     ...(halted && lastHaltContext
       ? { halted_at_issue: lastHaltContext.issueId, failing_step: lastHaltContext.failingStep }
       : {}),

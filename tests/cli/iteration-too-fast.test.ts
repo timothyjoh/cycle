@@ -117,7 +117,8 @@ test("iteration-too-fast: K=2 instant failures fast-bail with exactly one warnin
     await seedTodo(root, "A", "a task");
 
     const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
+    // Fast-bail routes through the terminal halt path, which exits 1.
+    assert.equal(r.status, 1, `expected exit 1 (terminal halt), got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
     const warnings = events.filter(
@@ -131,9 +132,29 @@ test("iteration-too-fast: K=2 instant failures fast-bail with exactly one warnin
     assert.equal(typeof w.duration_ms, "number");
     assert.ok((w.duration_ms as number) < 5000);
 
-    // Exactly K=2 cycle.start for the issue — bail prevented a third attempt.
+    // Exactly K=2 cycle.start for the issue — bail prevented a third attempt:
+    // attempt 0 fails sub-threshold (clean restart), attempt 1 fast-bails.
     const starts = events.filter((e) => e.event === "cycle.start");
     assert.equal(starts.length, 2, "fast-bailed after the second attempt, no third");
+
+    // Exactly one clean restart (after attempt 0), then the fast-bail terminates.
+    const restarts = events.filter((e) => e.event === "cycle.restart");
+    assert.equal(restarts.length, 1, "one clean restart before the fast-bail");
+
+    // Terminal halt is max_cycle_attempts_exhausted with fast_bail: true (not
+    // max_consecutive_failures).
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "max_cycle_attempts_exhausted",
+    );
+    assert.equal(halts.length, 1, "exactly one max_cycle_attempts_exhausted halt");
+    assert.equal(halts[0].fast_bail, true, "halt marked fast_bail");
+    assert.equal(halts[0].failing_step, "verify");
+    assert.equal(halts[0].attempts, 2, "halted on the second attempt");
+    assert.equal(
+      events.filter((e) => e.event === "engine.halted" && e.reason === "max_consecutive_failures").length,
+      0,
+      "no max_consecutive_failures halt — that is no longer the step-failure trigger",
+    );
 
     // No cycle.start occurs after the warning was emitted.
     const warnIdx = events.findIndex(
@@ -164,16 +185,27 @@ test("iteration-too-fast: slow legitimate failure (>= threshold) retries to budg
     await seedTodo(root, "A", "a task");
 
     const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
+    // A slow failure does not fast-bail; it consumes the budget then halts (exit 1).
+    assert.equal(r.status, 1, `expected exit 1 (terminal halt), got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
     const warnings = events.filter(
       (e) => e.event === "step.warning" && e.reason === "iteration_too_fast",
     );
     assert.equal(warnings.length, 0, "no iteration_too_fast warning for slow failure");
-    // Full attempt budget consumed: 2 cycle.start.
+    // Full attempt budget consumed via clean teardown+retry: 2 cycle.start,
+    // 1 cycle.restart (after attempt 0), then attempt 1 is terminal.
     const starts = events.filter((e) => e.event === "cycle.start");
     assert.equal(starts.length, 2, "retried to max_cycle_attempts");
+    const restarts = events.filter((e) => e.event === "cycle.restart");
+    assert.equal(restarts.length, 1, "one clean restart between the two attempts");
+    // Halts with max_cycle_attempts_exhausted, no fast_bail.
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "max_cycle_attempts_exhausted",
+    );
+    assert.equal(halts.length, 1, "exactly one max_cycle_attempts_exhausted halt");
+    assert.equal(halts[0].fast_bail, undefined, "slow failure is not a fast-bail");
+    assert.equal(halts[0].attempts, 2, "halted after the full 2-attempt budget");
     const failedFiles = await readdir(join(root, "docs/cycle/issues/failed"));
     assert.deepEqual(failedFiles, ["A.md"]);
   } finally {
@@ -194,7 +226,8 @@ test("iteration-too-fast: guard disabled (min_step_duration_ms: 0) consumes full
     await seedTodo(root, "A", "a task");
 
     const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
-    assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stderr}`);
+    // Guard disabled ⇒ no fast-bail; the budget is consumed then the engine halts (exit 1).
+    assert.equal(r.status, 1, `expected exit 1 (terminal halt), got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
     assert.equal(
@@ -202,8 +235,17 @@ test("iteration-too-fast: guard disabled (min_step_duration_ms: 0) consumes full
       0,
       "disabled guard emits no warning",
     );
+    // 3 attempts (cycle.start) via 2 clean teardown+restarts, then terminal halt.
     const starts = events.filter((e) => e.event === "cycle.start");
     assert.equal(starts.length, 3, "full budget consumed with guard disabled");
+    const restarts = events.filter((e) => e.event === "cycle.restart");
+    assert.equal(restarts.length, 2, "two clean restarts across the 3-attempt budget");
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "max_cycle_attempts_exhausted",
+    );
+    assert.equal(halts.length, 1, "exactly one max_cycle_attempts_exhausted halt");
+    assert.equal(halts[0].fast_bail, undefined, "guard disabled ⇒ no fast-bail");
+    assert.equal(halts[0].attempts, 3, "halted after the full 3-attempt budget");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -223,7 +265,9 @@ test("iteration-too-fast: malformed min_step_duration_ms disables guard without 
     await seedTodo(root, "A", "a task");
 
     const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
-    assert.equal(r.status, 0, `expected exit 0 (no throw), got ${r.status}\n${r.stderr}`);
+    // Malformed config disables the guard without throwing; the budget is consumed
+    // then the engine halts (exit 1) — exit 1 is the terminal halt, not a crash.
+    assert.equal(r.status, 1, `expected exit 1 (terminal halt, no throw), got ${r.status}\n${r.stderr}`);
 
     const events = await readEvents(root);
     assert.equal(
@@ -233,6 +277,19 @@ test("iteration-too-fast: malformed min_step_duration_ms disables guard without 
     );
     const starts = events.filter((e) => e.event === "cycle.start");
     assert.equal(starts.length, 3, "full budget consumed with malformed config");
+    const restarts = events.filter((e) => e.event === "cycle.restart");
+    assert.equal(restarts.length, 2, "two clean restarts across the 3-attempt budget");
+    const halts = events.filter(
+      (e) => e.event === "engine.halted" && e.reason === "max_cycle_attempts_exhausted",
+    );
+    assert.equal(halts.length, 1, "exactly one max_cycle_attempts_exhausted halt");
+    assert.equal(halts[0].fast_bail, undefined, "guard disabled ⇒ no fast-bail");
+    assert.equal(halts[0].attempts, 3, "halted after the full 3-attempt budget");
+    // Crucially: no uncaught throw on the way to the halt.
+    assert.ok(
+      !/throw|Error:|TypeError/.test(r.stderr ?? ""),
+      `malformed config must not throw; stderr:\n${r.stderr}`,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
