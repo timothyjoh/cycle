@@ -75,7 +75,7 @@ test("live lock → supervisor exits 1 with live-pid message, lock untouched", a
     const remaining = await readFile(lockPath, "utf8");
     assert.equal(remaining.trim(), String(process.pid));
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 });
 
@@ -104,7 +104,7 @@ test("stale lock → supervisor reclaims and exits 0 (empty queue), lock cleaned
     }
     assert.equal(lockExists, false, "lock file should be absent after normal exit");
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 });
 
@@ -241,7 +241,7 @@ test("SIGINT → supervisor exits, lock cleaned up", async () => {
     }
     assert.equal(lockExists, false, "lock should be absent after SIGINT");
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 });
 
@@ -289,7 +289,7 @@ test("SIGTERM → supervisor exits, lock cleaned up, cycle.killed logged", async
     assert.ok(typeof killed[0].cycle_id === "string", "cycle_id populated when cycle was in progress");
   } finally {
     child?.kill();
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 });
 
@@ -355,7 +355,7 @@ test("SIGTERM idle engine: cycle.killed written with cycle_id undefined", async 
     assert.strictEqual(killed[0].cycle_id, undefined, "cycle_id undefined when no cycle was in progress");
   } finally {
     child?.kill();
-    await rm(root, { recursive: true, force: true });
-    await rm(fakeBinDir, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    await rm(fakeBinDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 });
