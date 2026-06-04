@@ -75,3 +75,33 @@
 {"ts":"2026-06-03T23:28:40.739Z","event":"cycle.end","cycle_id":"0050","status":"ok"}
 {"ts":"2026-06-03T23:28:40.796Z","event":"cycle.checkout","cycle_id":"0050","status":"skipped","base":"master","head_before":"master","reason":"trunk"}
 {"ts":"2026-06-03T23:28:41.710Z","event":"cycle.base_pull","cycle_id":"0050","status":"ok","base":"master","sha_before":"e067a0197852086f459e92ddb781f1751f7fa063","sha_after":"e067a0197852086f459e92ddb781f1751f7fa063"}
+{"ts":"2026-06-03T23:28:49.423Z","event":"queue.drained","cycle_id":"0050","issue_id":"refl-0049-audit-gemini-lane-for-the-same-non-tty-s","outcome":"ok"}
+{"ts":"2026-06-03T23:28:49.429Z","event":"issue.ingested","issue_id":"refl-0046-regression-test-for-untracked-files-all","path":"/mnt/c/Users/butters/wrk/cycle/docs/cycle/issues/todo/refl-0046-regression-test-for-untracked-files-all.md"}
+{"ts":"2026-06-03T23:28:49.503Z","event":"cycle.start","cycle_id":"0048","workflow":"feature","title":"Add regression test for --untracked-files=all doc-deliverable subtree detection","issue_id":"refl-0046-regression-test-for-untracked-files-all"}
+{"ts":"2026-06-03T23:28:49.512Z","event":"step.skipped","cycle_id":"0048","step":"spec","reason":"artifact_present","artifact_path":"/mnt/c/Users/butters/wrk/cycle/docs/cycle/0048-feature-add-regression-test-for-untracked-files/SPEC.md"}
+{"ts":"2026-06-03T23:28:49.516Z","event":"step.skipped","cycle_id":"0048","step":"research","reason":"artifact_present","artifact_path":"/mnt/c/Users/butters/wrk/cycle/docs/cycle/0048-feature-add-regression-test-for-untracked-files/RESEARCH.md"}
+{"ts":"2026-06-03T23:28:49.520Z","event":"step.skipped","cycle_id":"0048","step":"plan","reason":"artifact_present","artifact_path":"/mnt/c/Users/butters/wrk/cycle/docs/cycle/0048-feature-add-regression-test-for-untracked-files/PLAN.md"}
+{"ts":"2026-06-03T23:28:49.522Z","event":"step.start","cycle_id":"0048","step":"build","agent":"claudecode"}
+{"ts":"2026-06-04T00:13:52.630Z","event":"step.timeout","cycle_id":"0048","step":"build","limit_ms":2700000}
+{"ts":"2026-06-04T00:13:52.638Z","event":"step.completion_check","cycle_id":"0048","step":"build","artifact":"/mnt/c/Users/butters/wrk/cycle/docs/cycle/0048-feature-add-regression-test-for-untracked-files/BUILD.md","status":"fail"}
+{"ts":"2026-06-04T00:13:52.640Z","event":"step.end","cycle_id":"0048","step":"build","status":"failed","exit_code":143,"duration_ms":2703118,"stderr":"build timed out (exit 143) and left /mnt/c/Users/butters/wrk/cycle/docs/cycle/0048-feature-add-regression-test-for-untracked-files/BUILD.md empty — treating as failure"}
+{"ts":"2026-06-04T00:13:52.642Z","event":"cycle.end","cycle_id":"0048","status":"failed","failing_step":"build"}
+{"ts":"2026-06-04T00:13:52.697Z","event":"cycle.checkout","cycle_id":"0048","status":"skipped","base":"master","head_before":"master","reason":"trunk"}
+{"ts":"2026-06-04T00:13:53.585Z","event":"cycle.base_pull","cycle_id":"0048","status":"ok","base":"master","sha_before":"2fc3b711ad5e873744679e88cb232ab11e743174","sha_after":"2fc3b711ad5e873744679e88cb232ab11e743174"}
+{"ts":"2026-06-04T00:13:53.601Z","event":"queue.drained","cycle_id":"0048","issue_id":"refl-0046-regression-test-for-untracked-files-all","outcome":"retry"}
+{"ts":"2026-06-04T00:13:53.602Z","event":"issue.failed","issue_id":"refl-0046-regression-test-for-untracked-files-all","failing_step":"build"}
+{"ts":"2026-06-04T00:13:54.992Z","event":"triage.start","count":1}
+{"ts":"2026-06-04T00:14:20.528Z","event":"triage.raw.ok","raw_id":"fix-next-cycle-id-derivation-survive-log-reset","children":["fix-next-cycle-id-derivation-survive-log-reset"]}
+{"ts":"2026-06-04T00:14:20.535Z","event":"triage.end","processed":1,"failed":0}
+{"ts":"2026-06-04T00:14:20.544Z","event":"issue.ingested","issue_id":"fix-next-cycle-id-derivation-survive-log-reset","path":"/mnt/c/Users/butters/wrk/cycle/docs/cycle/issues/todo/fix-next-cycle-id-derivation-survive-log-reset.md"}
+{"ts":"2026-06-04T00:14:20.617Z","event":"cycle.start","cycle_id":"0051","workflow":"feature","title":"Derive next cycle-id from max(existing cycle dirs, log) so a wiped log on fresh checkout can't restart numbering and collide","issue_id":"fix-next-cycle-id-derivation-survive-log-reset"}
+{"ts":"2026-06-04T00:14:20.622Z","event":"step.start","cycle_id":"0051","step":"spec","agent":"claudecode"}
+{"ts":"2026-06-04T00:15:25.234Z","event":"step.completion_check","cycle_id":"0051","step":"spec","artifact":"/mnt/c/Users/butters/wrk/cycle/docs/cycle/0051-feature-derive-next-cycle-id-from-max-existing-c/SPEC.md","status":"pass"}
+{"ts":"2026-06-04T00:15:25.235Z","event":"step.end","cycle_id":"0051","step":"spec","status":"ok","exit_code":0,"duration_ms":64613}
+{"ts":"2026-06-04T00:15:25.237Z","event":"step.start","cycle_id":"0051","step":"research","agent":"claudecode"}
+{"ts":"2026-06-04T00:16:45.028Z","event":"step.completion_check","cycle_id":"0051","step":"research","artifact":"/mnt/c/Users/butters/wrk/cycle/docs/cycle/0051-feature-derive-next-cycle-id-from-max-existing-c/RESEARCH.md","status":"pass"}
+{"ts":"2026-06-04T00:16:45.032Z","event":"step.end","cycle_id":"0051","step":"research","status":"ok","exit_code":0,"duration_ms":79795}
+{"ts":"2026-06-04T00:16:45.034Z","event":"step.start","cycle_id":"0051","step":"plan","agent":"claudecode"}
+{"ts":"2026-06-04T00:18:16.861Z","event":"step.completion_check","cycle_id":"0051","step":"plan","artifact":"/mnt/c/Users/butters/wrk/cycle/docs/cycle/0051-feature-derive-next-cycle-id-from-max-existing-c/PLAN.md","status":"pass"}
+{"ts":"2026-06-04T00:18:16.863Z","event":"step.end","cycle_id":"0051","step":"plan","status":"ok","exit_code":0,"duration_ms":91829}
+{"ts":"2026-06-04T00:18:16.865Z","event":"step.start","cycle_id":"0051","step":"build","agent":"claudecode"}

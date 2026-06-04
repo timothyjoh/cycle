@@ -1,0 +1,10 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "scripts/coverage-gate.mjs",
+    "src/engine/cycle-id.ts",
+    "tests/engine/cycle-id.test.ts",
+    "tests/engine/fix-guard.test.ts",
+    "tests/scripts/coverage-gate.test.ts"
+  ]
+}

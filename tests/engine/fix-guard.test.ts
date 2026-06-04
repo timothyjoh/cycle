@@ -97,6 +97,7 @@ test("fix-guard: MUST-FIX with tasks + FIX non-empty -> ok", async () => {
       issueId: "FG-NONEMPTY",
       title,
       workflow: "feature",
+      cycleId: "0001",
       env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
     });
     assert.equal(r.status, "ok");
@@ -117,6 +118,7 @@ test("fix-guard: MUST-FIX with tasks + FIX whitespace -> failed", async () => {
       issueId: "FG-WHITESPACE",
       title,
       workflow: "feature",
+      cycleId: "0001",
       env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
     });
     assert.equal(r.status, "failed");
@@ -140,6 +142,7 @@ test("fix-guard: MUST-FIX with tasks + FIX empty -> failed", async () => {
       issueId: "FG-EMPTY",
       title,
       workflow: "feature",
+      cycleId: "0001",
       env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
     });
     assert.equal(r.status, "failed");
@@ -161,6 +164,7 @@ test("fix-guard: MUST-FIX prose only (no task lines) -> ok", async () => {
       issueId: "FG-PROSE",
       title,
       workflow: "feature",
+      cycleId: "0001",
       env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
     });
     assert.equal(r.status, "ok");

@@ -270,9 +270,12 @@ guard. Either way the issue moves to `done/` and the failure budget is untouched
 4. **Process loop** (until `tbd.jsonl` has no runnable pending row):
    - **Pop** the next pending row, honoring priority tiers and the
      `depends_on` topological clamp.
-   - **Allocate the cycle ID** by scanning `log.jsonl` for the highest
-     existing ID and incrementing; create
-     `docs/cycle/<cycle-id>-<workflow>-<slug>/`.
+   - **Allocate the cycle ID** by taking the maximum of the highest ID in
+     `log.jsonl` and the highest committed `docs/cycle/NNNN-*` directory
+     basename, then incrementing; create
+     `docs/cycle/<cycle-id>-<workflow>-<slug>/`. Folding in the committed
+     directories keeps numbering monotonic on a fresh checkout where the
+     gitignored log starts empty.
    - **Attempt loop** (up to `max_cycle_attempts`, default 3): load the
      workflow, execute its steps in order (each honoring its own
      `on_fail` policy and post-conditions). On a code-level gate failure,
@@ -532,8 +535,10 @@ can keep or prune `docs/cycle/` later.
 ### Cycle ID
 
 4-digit zero-padded integer (`0001`–`9999`), globally unique within the
-project repo. Allocated at cycle start by scanning `log.jsonl` for the
-highest existing ID and incrementing. A run is just one process execution —
+project repo. Allocated at cycle start as `max(highest ID in log.jsonl,
+highest committed docs/cycle/NNNN-* directory) + 1`, so an empty or wiped
+log on a fresh checkout cannot restart numbering and collide with the
+historical cycle directories. A run is just one process execution —
 a temporal boundary, not a persistent identity; cycles are the only
 persistent identity the system mints.
 

@@ -32,6 +32,7 @@ const FLOORS = {
   "src/engine/walkthrough.ts": 95,
   "src/engine/reflection.ts": 95,
   "src/engine/rate-limit.ts": 100,
+  "src/engine/cycle-id.ts": 100,
   "src/engine/noop-marker.ts": 100,
   "src/engine/failed-residue-guard.ts": 100,
   "src/engine/residue-context-store.ts": 100,
