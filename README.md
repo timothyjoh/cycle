@@ -13,6 +13,8 @@ It is built for the two places autonomous development usually gets hard:
 
 cycle turns those inputs into an ordered queue of durable, auditable code-production cycles. It is deliberately **one engine per repository, one cycle at a time**: the unit of scale is another repo-local cycle instance, not parallel workers fighting over the same tree.
 
+> **Part of an ecosystem.** cycle is the **engine** — one autonomous SDLC lane per repository. **[maestro](https://github.com/timothyjoh/maestro)** is the **control plane** above it: a chat-first, event-sourced layer that observes and orchestrates a *fleet* of cycle engines across many repos. cycle runs perfectly well on its own; maestro is how you watch and steer a whole fleet of them at once. The bet behind both is **trustworthy AFK delivery** — fill the queues, walk away, and the fleet either finishes the work or fails loudly, with a durable record either way. cycle is agent-agnostic; the ecosystem aims to be engine-agnostic.
+
 ## Host prerequisites
 
 cycle installs a repo-local engine; it does **not** install the whole host environment. Before leaving it AFK, the machine needs the basic production-cell tooling already available:
@@ -40,6 +42,14 @@ An **issue** can be almost anything:
 - a reflection surfaced by a previous cycle
 
 cycle's job is to make that work machine-operable: triage it, enrich it with codebase context, decompose large asks into vertical slices, run the configured workflow for each slice, and emit branches, commits, logs, and artifacts as it goes. The output is not a claim of perfection; it is a tested, explained, readily useful deliverable for human feedback.
+
+## What cycle is not
+
+cycle's design is as much about what it refuses to be. The crowded field of agentic coding tools competes on interactive, parallel-agent UX; cycle deliberately does not — the negative space is the point.
+
+- **Not an interactive parallel-agent IDE.** No git worktrees racing over the same tree, no per-task diff-review or merge/PR UX. The human is **not in the loop per task**. The unit of parallelism is another repo-local cycle instance, coordinated from above (see **[maestro](https://github.com/timothyjoh/maestro)**) — not workers fighting over one working tree.
+- **Not mid-cycle steering.** You don't interrupt or redirect a running cycle mid-step. Steering happens **between cycles** — drop an issue, reprioritize the queue, let the reflection step self-feed. Steering *inside* a cycle is the engine's own job (the workflow, reflection), not the human's.
+- **Not a code-review tool.** Trust does not come from a human reading every diff. It comes from the engine's **guarantees** — completion-proof post-conditions, anti-slop empty-diff guards, verify-before-commit, halt accounting, rate-limit retries, no-op detection, and self-healing failure recovery. The point is that a cycle actually **finishes or fails loudly**, with an auditable trail — not that it produces diffs for someone to babysit.
 
 ## Why it exists
 
