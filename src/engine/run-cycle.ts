@@ -657,7 +657,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
               model: step.model,
               thinking: step.thinking,
               appendSystemPrompt: appendSP,
-              timeoutMs: cfg.engine.step_timeout_ms,
+              timeoutMs: step.timeout_ms,
               settingsPath,
             });
           } catch (err) {
@@ -717,7 +717,7 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
         await log.emit("engine.resumed", { reason: "rate_limit_cleared" });
       }
       if (r.timedOut) {
-        await log.emit("step.timeout", { cycle_id: cycleId, step: step.name, limit_ms: cfg.engine.step_timeout_ms ?? null });
+        await log.emit("step.timeout", { cycle_id: cycleId, step: step.name, limit_ms: step.timeout_ms ?? null });
       }
       if (step.agent !== "bash") {
         if ((r.status === "ok" || r.timedOut) && step.name) {

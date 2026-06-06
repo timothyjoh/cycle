@@ -169,6 +169,20 @@ Branching the message keeps `step.end.stderr` consistent with the non-zero `exit
 
 **Event + failure routing:** each checked step emits exactly one `step.completion_check { cycle_id, step, artifact, status }` event with `status` ∈ `"pass" | "fail"`. On `"fail"` the engine mutates `r.status = "failed"`, `r.exitCode = r.exitCode || 1`, `r.stderr = <policy message>` — identical to the other post-condition guards — so the failure falls through the standard `cycle.end status:"failed" failing_step` machinery and increments the same failure/attempt counters a non-zero exit would, eligible for retry under `max_cycle_attempts`. A non-empty artifact emits `status:"pass"` and the cycle proceeds unchanged. The empty-diff post-condition (build/fix only) still runs after this check.
 
+## Step timeout resolution
+
+Each agent step's wall-clock budget is **resolved at config-load time** and is the value the existing hard-timeout machinery enforces and reports. The resolution order is
+
+```
+step.timeout_ms ?? workflow.timeout_ms ?? engine.step_timeout_ms ?? (no timer)
+```
+
+`loadConfig` (`src/engine/workflow.ts`) computes this per step via the exported pure helper `resolveStepTimeoutMs(stepTimeout, workflowTimeout, engineTimeout)` and writes the effective value back onto each concrete `step.timeout_ms`, mirroring the top-level `defaults` resolution loop — so the rest of the engine reads one concrete number. `Step` and `Workflow` each carry an optional `timeout_ms?: number`.
+
+**Defensive coercion (step + workflow only).** A step-level or workflow-level `timeout_ms` is accepted only when it is a positive integer (`typeof === "number" && Number.isInteger && > 0`, via the internal `coerceTimeout`); any malformed/non-positive value (non-number / non-integer / `0` / negative / `NaN` / `Infinity` / string) is **ignored and falls through** to the next level — never throws (diverging from the unknown-agent throw path), never arms a zero/negative timer. The **engine-level** value is passed through **un-coerced** as the final fallback, so a config with no step/workflow override produces `step.timeout_ms === engine.step_timeout_ms` byte-for-byte; absent at every level ⇒ `undefined` ⇒ no timer armed (the pre-existing behavior — there is no new hard-coded numeric default).
+
+**Enforcement is unchanged.** `run-cycle.ts` passes the resolved `step.timeout_ms` into the existing `timeoutMs:` spawn argument and reports it as `step.timeout { cycle_id, step, limit_ms: step.timeout_ms ?? null }`. The SIGTERM→SIGKILL kill-tree, the 5 s grace, `result.timedOut` marking, `formatTimeoutProofError`, and `step.timeout_salvaged` are all reused byte-for-byte — only the *value* of the budget (and `limit_ms`) changes from a single global to the per-step resolved one. A step configured with a short `timeout_ms` is killed at that limit and routes through the unchanged fatal timeout path.
+
 ## Spec post-condition
 
 `SPEC_MIN_BYTES` (currently 200) gates the `spec` step. After artifact write, engine measures `Buffer.byteLength(sanitizeArtifactStdout(stdout), "utf8")` — if `< SPEC_MIN_BYTES`, mutates `r.status = "failed"` with stderr from `formatSpecGuardError`. Falls through standard `cycle.end status:"failed" failing_step:"spec"` branch. Bash `spec` steps bypass the guard.

@@ -11,6 +11,10 @@ export type Step = {
   skip_unless?: string;
   model?: string;
   thinking?: string;
+  /** Per-step wall-clock timeout (ms) override. Optional; resolved at load
+   * time as step.timeout_ms ?? workflow.timeout_ms ?? engine.step_timeout_ms.
+   * Malformed/non-positive ignored defensively (falls through). */
+  timeout_ms?: number;
 };
 
 export type CommitConfig = {
@@ -23,6 +27,9 @@ export type Workflow = {
   description?: string;
   max_cycle_attempts: number;
   steps: Step[];
+  /** Workflow-level default per-step wall-clock timeout (ms). Overridden by a
+   * step's own timeout_ms; overrides engine.step_timeout_ms. */
+  timeout_ms?: number;
 };
 
 export type EngineConfig = {
@@ -83,6 +90,22 @@ export type CycleConfig = {
   workflows: Workflow[];
   defaults?: Defaults;
 };
+
+const coerceTimeout = (v: unknown): number | undefined =>
+  typeof v === "number" && Number.isInteger(v) && v > 0 ? v : undefined;
+
+/** Resolve a step's effective wall-clock timeout:
+ * step.timeout_ms ?? workflow.timeout_ms ?? engine.step_timeout_ms.
+ * Step/workflow malformed/non-positive values are ignored (fall through);
+ * the engine value is passed through un-coerced as the final fallback so a
+ * config with no step/workflow override is byte-for-byte unchanged. */
+export function resolveStepTimeoutMs(
+  stepTimeout: unknown,
+  workflowTimeout: unknown,
+  engineTimeout: number | undefined
+): number | undefined {
+  return coerceTimeout(stepTimeout) ?? coerceTimeout(workflowTimeout) ?? engineTimeout;
+}
 
 export async function loadConfig(repoRoot: string, env: Record<string, string | undefined> = process.env as Record<string, string | undefined>): Promise<CycleConfig> {
   const path = join(repoRoot, ".cycle/workflows.yml");
@@ -161,6 +184,7 @@ export async function loadConfig(repoRoot: string, env: Record<string, string | 
       step.agent = agent;
       if (step.model === undefined && defaults.model !== undefined) step.model = defaults.model;
       if (step.thinking === undefined && defaults.thinking !== undefined) step.thinking = defaults.thinking;
+      step.timeout_ms = resolveStepTimeoutMs(step.timeout_ms, w.timeout_ms, parsed.engine.step_timeout_ms);
     }
   }
 

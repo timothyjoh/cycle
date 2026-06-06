@@ -22,9 +22,21 @@ function git(cwd: string, args: string[]) {
 // Workflow with a single nonempty-policy agent step (e.g. review) so the
 // empty-diff guard (build/fix only) does not interfere with the contract under
 // test. A trailing second step lets us assert the cycle advances on a pass.
-function workflowYml(steps: { name: string }[], stepTimeoutMs?: number): string {
+function workflowYml(
+  steps: { name: string; timeout_ms?: number }[],
+  stepTimeoutMs?: number,
+  workflowTimeoutMs?: number,
+): string {
   const stepLines = steps
-    .map((s) => `      - name: ${s.name}\n        agent: claudecode\n        prompt: prompts/${s.name}.md`)
+    .map((s) => {
+      const lines = [
+        `      - name: ${s.name}`,
+        `        agent: claudecode`,
+        `        prompt: prompts/${s.name}.md`,
+      ];
+      if (s.timeout_ms !== undefined) lines.push(`        timeout_ms: ${s.timeout_ms}`);
+      return lines.join("\n");
+    })
     .join("\n");
   return [
     "engine:",
@@ -41,6 +53,7 @@ function workflowYml(steps: { name: string }[], stepTimeoutMs?: number): string 
     "workflows:",
     "  - name: feature",
     "    max_cycle_attempts: 3",
+    ...(workflowTimeoutMs !== undefined ? [`    timeout_ms: ${workflowTimeoutMs}`] : []),
     "    steps:",
     stepLines,
   ].join("\n") + "\n";
@@ -48,8 +61,9 @@ function workflowYml(steps: { name: string }[], stepTimeoutMs?: number): string 
 
 async function setupRepo(
   fakeBody: string,
-  steps: { name: string }[],
+  steps: { name: string; timeout_ms?: number }[],
   stepTimeoutMs?: number,
+  workflowTimeoutMs?: number,
 ): Promise<{ root: string; bin: string }> {
   const root = await mkdtemp(join(tmpdir(), "cycle-completion-proof-"));
   const bin = await mkdtemp(join(tmpdir(), "cycle-completion-proof-bin-"));
@@ -58,7 +72,7 @@ async function setupRepo(
   git(root, ["config", "user.name", "t"]);
   git(root, ["commit", "--allow-empty", "-m", "init"]);
   await mkdir(join(root, ".cycle/prompts"), { recursive: true });
-  await writeFile(join(root, ".cycle/workflows.yml"), workflowYml(steps, stepTimeoutMs), "utf8");
+  await writeFile(join(root, ".cycle/workflows.yml"), workflowYml(steps, stepTimeoutMs, workflowTimeoutMs), "utf8");
   for (const s of steps) {
     await writeFile(join(root, `.cycle/prompts/${s.name}.md`), "noop", "utf8");
   }
@@ -290,6 +304,67 @@ test("completion-proof: review times out with empty artifact -> timeout wording,
     assert.doesNotMatch(stderr, /exited 0/);
     // Exit code is the non-zero kill code, not 0.
     assert.notEqual(ends[0].exit_code, 0);
+  } finally {
+    await cleanup(root, bin);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Per-step / per-workflow timeout_ms override (cycle 0262): the resolved value
+// is the one that actually arms the kill and is reported as step.timeout.limit_ms.
+// ---------------------------------------------------------------------------
+
+test("timeout override: a short step-level timeout_ms kills the step at the step value", async () => {
+  // Engine default is a large 100s; the step-level 200ms is what must arm the
+  // kill. The fake hangs (sleep 30 ≫ 200ms) so the step is SIGTERM-killed long
+  // before producing stdout, leaving an empty REVIEW.md ⇒ fatal timeout path.
+  const { root, bin } = await setupRepo(
+    SHEBANG + "\nsleep 30\n",
+    [{ name: "review", timeout_ms: 200 }],
+    100000,
+  );
+  try {
+    const r = await runCycle(root, {
+      issueId: "CP-STEP-TIMEOUT-OVERRIDE",
+      title: "step timeout override",
+      workflow: "feature",
+      env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "failed");
+    assert.equal(r.status === "failed" ? r.failingStep : null, "review");
+
+    const events = readEvents(await readFile(join(root, ".cycle/log.jsonl"), "utf8"));
+    const timeouts = events.filter((e) => e.event === "step.timeout" && e.step === "review");
+    assert.equal(timeouts.length, 1, "step.timeout must fire exactly once for review");
+    // limit_ms reports the resolved STEP value, not the 100s engine default.
+    assert.equal(timeouts[0].limit_ms, 200);
+  } finally {
+    await cleanup(root, bin);
+  }
+});
+
+test("timeout override: workflow-level timeout_ms applies when step omits it", async () => {
+  // No step-level timeout; the workflow-level 200ms wins over the 100s engine
+  // default and arms the kill.
+  const { root, bin } = await setupRepo(
+    SHEBANG + "\nsleep 30\n",
+    [{ name: "review" }],
+    100000,
+    200,
+  );
+  try {
+    const r = await runCycle(root, {
+      issueId: "CP-WF-TIMEOUT-OVERRIDE",
+      title: "workflow timeout override",
+      workflow: "feature",
+      env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
+    });
+    assert.equal(r.status, "failed");
+
+    const events = readEvents(await readFile(join(root, ".cycle/log.jsonl"), "utf8"));
+    const timeouts = events.filter((e) => e.event === "step.timeout" && e.step === "review");
+    assert.equal(timeouts.length, 1, "step.timeout must fire exactly once for review");
+    assert.equal(timeouts[0].limit_ms, 200);
   } finally {
     await cleanup(root, bin);
   }
