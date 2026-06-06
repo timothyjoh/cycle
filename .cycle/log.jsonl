@@ -2241,3 +2241,5 @@
 {"ts":"2026-06-04T15:44:51.806Z","event":"cycle.end","cycle_id":"0261","status":"ok"}
 {"ts":"2026-06-04T15:44:51.860Z","event":"cycle.checkout","cycle_id":"0261","status":"skipped","base":"master","head_before":"master","reason":"trunk"}
 {"ts":"2026-06-04T15:44:52.881Z","event":"cycle.base_pull","cycle_id":"0261","status":"ok","base":"master","sha_before":"b6e0be65c5c8c056348fb731350675b0f032045a","sha_after":"b6e0be65c5c8c056348fb731350675b0f032045a"}
+{"ts":"2026-06-04T15:45:03.060Z","event":"queue.drained","cycle_id":"0261","issue_id":"refl-0260-fix-ts2339-typecheck-error-in-iteration","outcome":"ok"}
+{"ts":"2026-06-04T15:45:03.066Z","event":"engine.stop","status":"ok","dry_run":false,"cycles_processed":2}
