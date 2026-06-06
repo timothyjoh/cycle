@@ -76,1067 +76,9 @@ var init_id = __esm({
   }
 });
 
-// src/engine/frontmatter.ts
-import { readFile as readFile2, writeFile as writeFile2, rename } from "node:fs/promises";
-function parseScalar(raw) {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    const inner = trimmed.slice(1, -1).trim();
-    if (inner === "") return [];
-    return inner.split(",").map((p) => p.trim().replace(/^"(.*)"$/s, "$1"));
-  }
-  if (/^-?\d+$/.test(trimmed)) return Number(trimmed);
-  return trimmed.replace(/^"((?:[^"\\]|\\.)*)"$/s, (_, inner) => inner.replace(/\\"/g, '"'));
-}
-function parseFrontmatter(body) {
-  const m = body.match(FM_RE);
-  if (!m) throw new Error("no frontmatter");
-  const fm = {};
-  for (const line of m[1].split("\n")) {
-    if (!line.trim()) continue;
-    const kv = line.match(/^(\w+):\s*(.*)$/);
-    if (kv) fm[kv[1]] = parseScalar(kv[2]);
-  }
-  const bodyAfter = body.slice(m[0].length);
-  return { fm, bodyAfter };
-}
-function needsQuote(s) {
-  if (s === "") return true;
-  if (/^[\s]/.test(s) || /[\s]$/.test(s)) return true;
-  if (/[:"#\n]/.test(s)) return true;
-  if (/^-?\d+$/.test(s)) return true;
-  return false;
-}
-function serializeValue(v) {
-  if (Array.isArray(v)) {
-    return "[" + v.map((s) => needsQuote(s) ? `"${s.replace(/"/g, '\\"')}"` : s).join(", ") + "]";
-  }
-  if (typeof v === "number") return String(v);
-  if (needsQuote(v)) return `"${v.replace(/"/g, '\\"')}"`;
-  return v;
-}
-function serializeFrontmatter(fm, bodyAfter) {
-  const lines = ["---"];
-  for (const [k, v] of Object.entries(fm)) {
-    lines.push(`${k}: ${serializeValue(v)}`);
-  }
-  lines.push("---");
-  return lines.join("\n") + "\n" + bodyAfter;
-}
-async function mutateFrontmatter(path, patch) {
-  const body = await readFile2(path, "utf8");
-  const { fm, bodyAfter } = parseFrontmatter(body);
-  const next = patch({ ...fm });
-  const out = serializeFrontmatter(next, bodyAfter);
-  const tmp = path + ".tmp";
-  await writeFile2(tmp, out, "utf8");
-  await rename(tmp, path);
-}
-var FM_RE;
-var init_frontmatter = __esm({
-  "src/engine/frontmatter.ts"() {
-    "use strict";
-    FM_RE = /^---\n([\s\S]*?)\n---\n/;
-  }
-});
-
-// src/engine/queue.ts
-import { readFile as readFile3, writeFile as writeFile3, rename as rename2, appendFile, mkdir as mkdir2, stat } from "node:fs/promises";
-import { join as join2 } from "node:path";
-function normalizePriority(raw) {
-  if (raw === "low" || raw === "medium" || raw === "high" || raw === "critical" || raw === "discuss") return raw;
-  if (typeof raw === "number") {
-    if (raw >= 7) return "critical";
-    if (raw >= 5) return "high";
-    if (raw >= 3) return "medium";
-    return "low";
-  }
-  return "medium";
-}
-function queuePath(repoRoot) {
-  return join2(repoRoot, ".cycle", "tbd.jsonl");
-}
-async function ensureCycleDir(repoRoot) {
-  await mkdir2(join2(repoRoot, ".cycle"), { recursive: true });
-}
-function isLegacyLine(parsed) {
-  if (!parsed || typeof parsed !== "object") return false;
-  const obj = parsed;
-  if (typeof obj.id !== "string") return false;
-  return obj.status === void 0;
-}
-function isQueueRow(parsed) {
-  if (!parsed || typeof parsed !== "object") return false;
-  const obj = parsed;
-  if (typeof obj.id !== "string") return false;
-  if (typeof obj.title !== "string") return false;
-  if (obj.status !== "pending" && obj.status !== "in_progress") return false;
-  if (typeof obj.attempt !== "number") return false;
-  if (!Array.isArray(obj.depends_on)) return false;
-  if (typeof obj.triaged_at !== "string") return false;
-  if (obj.priority !== "low" && obj.priority !== "medium" && obj.priority !== "high" && obj.priority !== "critical" && obj.priority !== "discuss") return false;
-  return true;
-}
-async function readQueue(repoRoot) {
-  const path = queuePath(repoRoot);
-  let raw;
-  try {
-    raw = await readFile3(path, "utf8");
-  } catch (e) {
-    if (e.code === "ENOENT") return [];
-    throw e;
-  }
-  const rows = [];
-  for (const line of raw.split("\n")) {
-    if (!line.trim()) continue;
-    let parsed;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (parsed && typeof parsed === "object") {
-      const o = parsed;
-      o.priority = normalizePriority(o.priority ?? o.priority_hint);
-      delete o.priority_hint;
-    }
-    if (!isQueueRow(parsed)) continue;
-    rows.push(parsed);
-  }
-  return rows;
-}
-async function writeQueue(repoRoot, rows) {
-  await ensureCycleDir(repoRoot);
-  const path = queuePath(repoRoot);
-  const body = rows.map((r) => JSON.stringify(r)).join("\n") + (rows.length ? "\n" : "");
-  const tmp = path + ".tmp";
-  await writeFile3(tmp, body, "utf8");
-  await rename2(tmp, path);
-}
-async function appendRow(repoRoot, row) {
-  await ensureCycleDir(repoRoot);
-  await appendFile(queuePath(repoRoot), JSON.stringify(row) + "\n", "utf8");
-}
-async function pickArchivePath(repoRoot) {
-  const base = join2(repoRoot, ".cycle", "tbd.jsonl.bootstrap-archive");
-  try {
-    await stat(base);
-  } catch {
-    return base;
-  }
-  for (let i = 1; i < 1e3; i++) {
-    const candidate = `${base}.${i}`;
-    try {
-      await stat(candidate);
-    } catch {
-      return candidate;
-    }
-  }
-  throw new Error("too many bootstrap archives");
-}
-async function bootstrapArchiveIfLegacy(repoRoot) {
-  const path = queuePath(repoRoot);
-  let raw;
-  try {
-    raw = await readFile3(path, "utf8");
-  } catch (e) {
-    if (e.code === "ENOENT") return false;
-    throw e;
-  }
-  let hasLegacy = false;
-  for (const line of raw.split("\n")) {
-    if (!line.trim()) continue;
-    let parsed;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (isLegacyLine(parsed)) {
-      hasLegacy = true;
-      break;
-    }
-  }
-  if (!hasLegacy) return false;
-  const archive = await pickArchivePath(repoRoot);
-  try {
-    await rename2(path, archive);
-  } catch (e) {
-    throw Object.assign(
-      new Error(`bootstrapArchiveIfLegacy: rename failed: ${e.message}`),
-      { code: e.code }
-    );
-  }
-  return true;
-}
-async function popNextPending(repoRoot) {
-  const rows = await readQueue(repoRoot);
-  const allIds = new Set(rows.map((r) => r.id));
-  const pending = rows.filter((r) => r.status === "pending" && r.priority !== "discuss").sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
-  for (const row of pending) {
-    const blocked = row.depends_on.some((dep) => allIds.has(dep) && dep !== row.id);
-    if (!blocked) return row;
-  }
-  return null;
-}
-async function markInProgress(repoRoot, id, cycleId) {
-  const rows = await readQueue(repoRoot);
-  let touched = false;
-  for (const r of rows) {
-    if (r.id !== id) continue;
-    if (r.status === "in_progress" && r.cycle_id && r.cycle_id !== cycleId) {
-      throw new Error(
-        `markInProgress: row ${id} already in_progress for cycle ${r.cycle_id}, refusing to overwrite with ${cycleId}`
-      );
-    }
-    r.status = "in_progress";
-    r.cycle_id = cycleId;
-    touched = true;
-  }
-  if (!touched) throw new Error(`markInProgress: id not found: ${id}`);
-  await writeQueue(repoRoot, rows);
-}
-async function drainOk(repoRoot, id) {
-  const rows = await readQueue(repoRoot);
-  const next = rows.filter((r) => r.id !== id);
-  await writeQueue(repoRoot, next);
-}
-async function drainFailedRetry(repoRoot, id) {
-  const rows = await readQueue(repoRoot);
-  for (const r of rows) {
-    if (r.id === id) {
-      r.attempt += 1;
-      r.status = "pending";
-    }
-  }
-  await writeQueue(repoRoot, rows);
-}
-async function drainFailedTerminal(repoRoot, id) {
-  const rows = await readQueue(repoRoot);
-  const next = rows.filter((r) => r.id !== id);
-  await writeQueue(repoRoot, next);
-}
-var PRIORITY_ORDER;
-var init_queue = __esm({
-  "src/engine/queue.ts"() {
-    "use strict";
-    PRIORITY_ORDER = {
-      critical: 0,
-      high: 1,
-      medium: 2,
-      low: 3,
-      discuss: 4
-    };
-  }
-});
-
-// src/engine/exec-spawn.ts
-import { spawn } from "node:child_process";
-import { readFile as readFile4 } from "node:fs/promises";
-import { join as join3 } from "node:path";
-async function runAgent(opts) {
-  const { binary, argv: argv2, promptDelivery, promptPath, repoRoot, env, signal } = opts;
-  const abs = join3(repoRoot, ".cycle", promptPath);
-  const prompt = await readFile4(abs, "utf8");
-  const finalArgv = promptDelivery === "argv" ? [...argv2, prompt] : argv2;
-  const base = { cwd: repoRoot, env: buildChildEnv(env ?? {}), shell: false, signal };
-  return new Promise((resolve2) => {
-    const child = promptDelivery === "argv" ? spawn(binary, finalArgv, { ...base, stdio: ["ignore", "pipe", "pipe"] }) : spawn(binary, finalArgv, base);
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (d) => {
-      stdout += d.toString();
-    });
-    child.stderr.on("data", (d) => {
-      stderr += d.toString();
-    });
-    child.on("close", (code) => {
-      resolve2({ status: code === 0 ? "ok" : "failed", exitCode: code ?? -1, stdout, stderr });
-    });
-    child.on("error", (err) => {
-      resolve2({ status: "failed", exitCode: -1, stdout: "", stderr: err.message });
-    });
-    if (promptDelivery === "stdin") {
-      child.stdin.on("error", () => {
-      });
-      child.stdin.write(prompt);
-      child.stdin.end();
-    }
-  });
-}
-var init_exec_spawn = __esm({
-  "src/engine/exec-spawn.ts"() {
-    "use strict";
-    init_child_env();
-  }
-});
-
-// src/engine/exec-auggie.ts
-var auggieExec;
-var init_exec_auggie = __esm({
-  "src/engine/exec-auggie.ts"() {
-    "use strict";
-    init_exec_spawn();
-    auggieExec = {
-      runStep({ model, thinking, ...args2 }) {
-        const argv2 = [];
-        if (model) argv2.push("--model", model);
-        if (thinking) argv2.push("--thinking", thinking);
-        return runAgent({ binary: "auggie", argv: argv2, promptDelivery: "stdin", ...args2 });
-      }
-    };
-  }
-});
-
-// src/engine/exec-claudecode.ts
-var claudecodeExec;
-var init_exec_claudecode = __esm({
-  "src/engine/exec-claudecode.ts"() {
-    "use strict";
-    init_exec_spawn();
-    claudecodeExec = {
-      runStep({ appendSystemPrompt, ...args2 }) {
-        const argv2 = ["--dangerously-skip-permissions"];
-        if (appendSystemPrompt) argv2.push("--append-system-prompt", appendSystemPrompt);
-        argv2.push("-p");
-        return runAgent({ binary: "claude", argv: argv2, promptDelivery: "argv", ...args2 });
-      }
-    };
-  }
-});
-
-// src/engine/exec-codex.ts
-var codexExec;
-var init_exec_codex = __esm({
-  "src/engine/exec-codex.ts"() {
-    "use strict";
-    init_exec_spawn();
-    codexExec = {
-      runStep({ model, thinking, ...args2 }) {
-        const argv2 = [];
-        if (model) argv2.push("--model", model);
-        if (thinking) argv2.push("--thinking", thinking);
-        return runAgent({ binary: "codex", argv: argv2, promptDelivery: "stdin", ...args2 });
-      }
-    };
-  }
-});
-
-// src/engine/exec-gemini.ts
-var geminiExec;
-var init_exec_gemini = __esm({
-  "src/engine/exec-gemini.ts"() {
-    "use strict";
-    init_exec_spawn();
-    geminiExec = {
-      runStep(args2) {
-        return runAgent({ binary: "gemini", argv: [], promptDelivery: "stdin", ...args2 });
-      }
-    };
-  }
-});
-
-// src/engine/exec-opencode.ts
-var opencodeExec;
-var init_exec_opencode = __esm({
-  "src/engine/exec-opencode.ts"() {
-    "use strict";
-    init_exec_spawn();
-    opencodeExec = {
-      runStep({ model, thinking, ...args2 }) {
-        const argv2 = [];
-        if (model) argv2.push("--model", model);
-        if (thinking) argv2.push("--thinking", thinking);
-        return runAgent({ binary: "opencode", argv: argv2, promptDelivery: "stdin", ...args2 });
-      }
-    };
-  }
-});
-
-// src/engine/exec-pi.ts
-var piExec;
-var init_exec_pi = __esm({
-  "src/engine/exec-pi.ts"() {
-    "use strict";
-    init_exec_spawn();
-    piExec = {
-      runStep({ model, thinking, ...args2 }) {
-        const argv2 = [];
-        if (model) argv2.push("--model", model);
-        if (thinking) argv2.push("--thinking", thinking);
-        return runAgent({ binary: "pi", argv: argv2, promptDelivery: "stdin", ...args2 });
-      }
-    };
-  }
-});
-
-// src/engine/exec.ts
-function resolveAgent(name) {
-  const mod = REGISTRY[name];
-  if (!mod) throw new UnknownAgentError(name, Object.keys(REGISTRY));
-  return mod;
-}
-var UnknownAgentError, REGISTRY;
-var init_exec = __esm({
-  "src/engine/exec.ts"() {
-    "use strict";
-    init_exec_auggie();
-    init_exec_claudecode();
-    init_exec_codex();
-    init_exec_gemini();
-    init_exec_opencode();
-    init_exec_pi();
-    UnknownAgentError = class extends Error {
-      constructor(name, known) {
-        const list = [...known].sort().join(", ");
-        super(`agent "${name}" is not registered; known agents: ${list}`);
-        this.name = "UnknownAgentError";
-      }
-    };
-    REGISTRY = {
-      auggie: auggieExec,
-      claudecode: claudecodeExec,
-      codex: codexExec,
-      gemini: geminiExec,
-      opencode: opencodeExec,
-      pi: piExec
-    };
-  }
-});
-
-// src/engine/log-fmt.ts
-function truncateHeadCapped(s, max) {
-  return s.length > max ? s.slice(0, max - 1) + "\u2026" : s;
-}
-function stripFences(s) {
-  const m = s.trim().match(/```(?:\w+)?\r?\n([\s\S]*?)\r?\n```/);
-  return m ? m[1] : s;
-}
-var init_log_fmt = __esm({
-  "src/engine/log-fmt.ts"() {
-    "use strict";
-  }
-});
-
-// src/engine/triage.ts
-import { randomBytes } from "node:crypto";
-import { readFile as readFile5, writeFile as writeFile4, readdir, mkdir as mkdir3, rename as rename3, unlink } from "node:fs/promises";
-import { join as join4, dirname as dirname3 } from "node:path";
-async function processRawWithRetry(raw, ctx) {
-  let lastError = "";
-  let attemptsRun = 0;
-  for (let attempt = raw.attempts; attempt < MAX_ATTEMPTS; attempt++) {
-    attemptsRun++;
-    const queueRows = await readQueue(ctx.repoRoot);
-    const todoListing = await listTodos(ctx.repoRoot);
-    const feedback = lastError ? `PREVIOUS ATTEMPT FAILED VALIDATION:
-${lastError}` : "";
-    const renderedPrompt = renderPrompt(
-      ctx.promptTemplate,
-      [raw],
-      queueRows,
-      todoListing,
-      feedback
-    );
-    let agentResult;
-    try {
-      agentResult = await ctx.runAgent(renderedPrompt, ctx.cfg.triage, ctx.repoRoot);
-    } catch (e) {
-      lastError = `agent failed: ${e.message}`;
-      if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
-      continue;
-    }
-    if (agentResult.exitCode !== 0) {
-      lastError = `agent exited ${agentResult.exitCode}: ${agentResult.stderr.trim()}`;
-      if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
-      continue;
-    }
-    const todoIds = new Set(todoListing.map((f) => f.replace(/\.md$/, "")));
-    const validation = validateOutput(
-      agentResult.stdout,
-      [raw],
-      queueRows,
-      ctx.cfg,
-      todoIds
-    );
-    if (!validation.ok) {
-      lastError = validation.reason;
-      if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
-      continue;
-    }
-    if (ctx.apply) {
-      try {
-        await ctx.apply(raw, validation.parsed);
-      } catch (e) {
-        lastError = `apply failed: ${e.message}`;
-        if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
-        continue;
-      }
-    }
-    return { status: "ok", parsed: validation.parsed, attempts: attemptsRun };
-  }
-  return { status: "failed", lastError, attempts: attemptsRun };
-}
-async function runTriage(repoRoot, cfg2, log2, deps = {}) {
-  const runAgent2 = deps.runAgent ?? runAgentViaDispatch;
-  await bootstrapArchiveIfLegacy(repoRoot);
-  const rawDir2 = join4(repoRoot, "docs/cycle/issues/raw");
-  await mkdir3(rawDir2, { recursive: true });
-  const raws = await loadRaws(rawDir2, log2);
-  await log2.emit("triage.start", { count: raws.length });
-  if (raws.length === 0) {
-    await log2.emit("triage.end", { processed: 0, failed: 0 });
-    return { status: "ok", processed: [], failed: [] };
-  }
-  const promptTemplate = await readFile5(
-    join4(repoRoot, ".cycle", cfg2.triage.prompt),
-    "utf8"
-  );
-  const processed = [];
-  const failed = [];
-  const lastErrors = [];
-  const failedRaws = [];
-  let lastOrdering = null;
-  for (const raw of raws) {
-    if (raw.fm.priority === "discuss") {
-      await parkForDiscussion(repoRoot, raw, log2);
-      continue;
-    }
-    const outcome = await processRawWithRetry(raw, {
-      repoRoot,
-      cfg: cfg2,
-      promptTemplate,
-      runAgent: runAgent2,
-      apply: (r, parsed) => applyRaw(repoRoot, r, parsed),
-      onAttemptFailed: async (attemptNumber, reason) => {
-        await bumpAttempts(raw.srcPath, attemptNumber);
-        await log2.emit("triage.raw.failed", {
-          raw_id: raw.id,
-          attempt: attemptNumber,
-          reason
-        });
-      }
-    });
-    if (outcome.status === "ok") {
-      lastOrdering = outcome.parsed.ordering;
-      await log2.emit("triage.raw.ok", {
-        raw_id: raw.id,
-        children: outcome.parsed.children.filter((c) => c.raw_id === raw.id).map((c) => c.id)
-      });
-      processed.push(raw.id);
-    } else {
-      failed.push(raw.id);
-      lastErrors.push(outcome.lastError);
-      failedRaws.push(raw);
-    }
-  }
-  if (lastOrdering) {
-    await rewriteOrdering(repoRoot, lastOrdering, log2);
-  }
-  const actionableCount = raws.filter((r) => r.fm.priority !== "discuss").length;
-  if (actionableCount > 0 && failed.length === actionableCount) {
-    for (const raw of failedRaws) {
-      try {
-        await mutateFrontmatter(raw.srcPath, (fm) => ({ ...fm, triage_attempts: 0 }));
-      } catch {
-      }
-    }
-    const raw_ids = failed;
-    const last_errors = failed.map((raw_id, i) => ({
-      raw_id,
-      error: truncateHeadCapped(lastErrors[i] ?? "", 2e3)
-    }));
-    await log2.emit("engine.paused", {
-      reason: "all_triage_failed",
-      raw_ids,
-      last_errors
-    });
-    return { status: "paused", processed, failed };
-  }
-  for (const raw of failedRaws) {
-    await moveToFailed(repoRoot, raw);
-  }
-  await log2.emit("triage.end", {
-    processed: processed.length,
-    failed: failed.length
-  });
-  return { status: "ok", processed, failed };
-}
-async function dryRunTriage(repoRoot, cfg2, deps = {}) {
-  const runAgent2 = deps.runAgent ?? runAgentViaDispatch;
-  const rawDir2 = join4(repoRoot, "docs/cycle/issues/raw");
-  const silentLog = { async emit() {
-  } };
-  const raws = await loadRaws(rawDir2, silentLog);
-  if (raws.length === 0) return [];
-  const promptPath = join4(repoRoot, ".cycle", cfg2.triage.prompt);
-  let promptTemplate;
-  try {
-    promptTemplate = await readFile5(promptPath, "utf8");
-  } catch (e) {
-    throw new Error(
-      `prompt template missing: ${promptPath}: ${e.message}`
-    );
-  }
-  const reports = [];
-  for (const raw of raws) {
-    if (raw.fm.priority === "discuss") continue;
-    const outcome = await processRawWithRetry(
-      { ...raw, attempts: 0 },
-      {
-        repoRoot,
-        cfg: cfg2,
-        promptTemplate,
-        runAgent: runAgent2
-      }
-    );
-    if (outcome.status === "ok") {
-      reports.push({
-        raw_id: raw.id,
-        status: "ok",
-        attempts: outcome.attempts,
-        children: outcome.parsed.children.filter((c) => c.raw_id === raw.id).map((c) => c.id)
-      });
-    } else {
-      reports.push({
-        raw_id: raw.id,
-        status: "failed",
-        attempts: outcome.attempts,
-        last_error: outcome.lastError
-      });
-    }
-  }
-  return reports;
-}
-async function loadRaws(rawDir2, log2) {
-  let files = [];
-  try {
-    files = (await readdir(rawDir2)).filter((f) => f.endsWith(".md")).sort();
-  } catch {
-    return [];
-  }
-  const raws = [];
-  for (const f of files) {
-    const srcPath = join4(rawDir2, f);
-    try {
-      const body = await readFile5(srcPath, "utf8");
-      const { fm, bodyAfter } = parseFrontmatter(body);
-      const id = String(fm.id);
-      const attempts = typeof fm.triage_attempts === "number" ? fm.triage_attempts : 0;
-      raws.push({ id, body: bodyAfter, fm, srcPath, attempts });
-    } catch (e) {
-      const raw_id = f.replace(/.md$/, "");
-      await log2.emit("triage.raw.load_error", {
-        raw_id,
-        error: truncateHeadCapped(String(e.message ?? e), 2e3)
-      });
-    }
-  }
-  return raws;
-}
-async function listTodos(repoRoot) {
-  const todoDir2 = join4(repoRoot, "docs/cycle/issues/todo");
-  try {
-    return (await readdir(todoDir2)).filter((f) => f.endsWith(".md")).sort();
-  } catch {
-    return [];
-  }
-}
-function renderPrompt(template, raws, queueRows, todoListing, retryFeedback) {
-  const rawsBlock = raws.map((r) => {
-    const fmSerialized = serializeFrontmatter(r.fm, r.body);
-    return `=== raw: ${r.id} ===
-${fmSerialized}`;
-  }).join("\n");
-  const tbd = queueRows.map((r) => JSON.stringify(r)).join("\n");
-  const todoText = todoListing.join("\n");
-  return template.replace("{{RAWS_BLOCK}}", rawsBlock).replace("{{TBD_JSONL}}", tbd).replace("{{TODO_LISTING}}", todoText).replace("{{RETRY_FEEDBACK}}", retryFeedback);
-}
-function validateOutput(rawStdout, raws, queueRows, cfg2, todoIds = /* @__PURE__ */ new Set()) {
-  let parsed;
-  try {
-    parsed = JSON.parse(stripFences(rawStdout));
-  } catch (e) {
-    return { ok: false, reason: `stdout is not valid JSON: ${e.message}` };
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { ok: false, reason: "stdout is not a JSON object" };
-  }
-  const obj = parsed;
-  if (!Array.isArray(obj.ordering)) {
-    return {
-      ok: false,
-      reason: `ordering: expected array, got ${typeof obj.ordering}`
-    };
-  }
-  for (let i = 0; i < obj.ordering.length; i++) {
-    if (typeof obj.ordering[i] !== "string") {
-      return { ok: false, reason: `ordering[${i}]: expected string` };
-    }
-  }
-  if (!Array.isArray(obj.children)) {
-    return {
-      ok: false,
-      reason: `children: expected array, got ${typeof obj.children}`
-    };
-  }
-  if (!Array.isArray(obj.decomposed_parents)) {
-    return {
-      ok: false,
-      reason: `decomposed_parents: expected array, got ${typeof obj.decomposed_parents}`
-    };
-  }
-  for (let i = 0; i < obj.decomposed_parents.length; i++) {
-    if (typeof obj.decomposed_parents[i] !== "string") {
-      return {
-        ok: false,
-        reason: `decomposed_parents[${i}]: expected string`
-      };
-    }
-  }
-  const children = [];
-  const childIds = /* @__PURE__ */ new Set();
-  const stringFields = [
-    "raw_id",
-    "slug",
-    "id",
-    "title",
-    "workflow",
-    "body"
-  ];
-  for (let i = 0; i < obj.children.length; i++) {
-    const c = obj.children[i];
-    if (!c || typeof c !== "object" || Array.isArray(c)) {
-      return { ok: false, reason: `children[${i}]: expected object` };
-    }
-    const co = c;
-    for (const field of stringFields) {
-      if (typeof co[field] !== "string") {
-        return {
-          ok: false,
-          reason: `children[${i}].${field}: expected string, got ${typeof co[field]}`
-        };
-      }
-    }
-    if (!Array.isArray(co.depends_on)) {
-      return {
-        ok: false,
-        reason: `children[${i}].depends_on: expected array, got ${typeof co.depends_on}`
-      };
-    }
-    for (let j = 0; j < co.depends_on.length; j++) {
-      if (typeof co.depends_on[j] !== "string") {
-        return {
-          ok: false,
-          reason: `children[${i}].depends_on[${j}]: expected string`
-        };
-      }
-    }
-    const child = co;
-    if (child.id !== child.raw_id && child.id !== `${child.raw_id}-${child.slug}`) {
-      return {
-        ok: false,
-        reason: `children[${i}].id: expected ${child.raw_id} or ${child.raw_id}-${child.slug}, got ${child.id}`
-      };
-    }
-    if (!cfg2.workflows.some((w) => w.name === child.workflow)) {
-      return {
-        ok: false,
-        reason: `children[${i}].workflow: ${child.workflow} not in configured workflows`
-      };
-    }
-    if (!raws.some((r) => r.id === child.raw_id)) {
-      return {
-        ok: false,
-        reason: `children[${i}].raw_id: ${child.raw_id} not in current batch`
-      };
-    }
-    if (childIds.has(child.id)) {
-      return {
-        ok: false,
-        reason: `children[${i}].id: duplicate ${child.id}`
-      };
-    }
-    childIds.add(child.id);
-    children.push(child);
-  }
-  for (const p of obj.decomposed_parents) {
-    if (!raws.some((r) => r.id === p)) {
-      return {
-        ok: false,
-        reason: `decomposed_parents: ${p} not in current batch`
-      };
-    }
-  }
-  const queueIds = new Set(queueRows.map((r) => r.id));
-  for (let i = 0; i < children.length; i++) {
-    if (queueIds.has(children[i].id)) {
-      return {
-        ok: false,
-        reason: `children[${i}].id: ${children[i].id} collides with existing queue row`
-      };
-    }
-  }
-  const pendingIds = new Set(
-    queueRows.filter((r) => r.status === "pending").map((r) => r.id)
-  );
-  const orderingArr = obj.ordering;
-  const orderingSeen = /* @__PURE__ */ new Set();
-  for (let i = 0; i < orderingArr.length; i++) {
-    const id = orderingArr[i];
-    if (orderingSeen.has(id)) {
-      return { ok: false, reason: `ordering[${i}]: duplicate ${id}` };
-    }
-    orderingSeen.add(id);
-    if (!pendingIds.has(id) && !childIds.has(id)) {
-      return {
-        ok: false,
-        reason: `ordering[${i}]: ${id} not in current pending and not in new children`
-      };
-    }
-  }
-  const knownIds = /* @__PURE__ */ new Set([...childIds, ...queueIds, ...todoIds]);
-  for (let i = 0; i < children.length; i++) {
-    const c = children[i];
-    for (let j = 0; j < c.depends_on.length; j++) {
-      const dep = c.depends_on[j];
-      if (dep === c.id) {
-        return {
-          ok: false,
-          reason: `children[${i}].depends_on[${j}]: ${c.id} depends on itself (self-loop)`
-        };
-      }
-      if (!knownIds.has(dep)) {
-        return {
-          ok: false,
-          reason: `children[${i}].depends_on[${j}]: ${dep} is not a sibling child, tbd.jsonl row, or todo/<id>.md file (offending child: ${c.id})`
-        };
-      }
-    }
-  }
-  return {
-    ok: true,
-    parsed: {
-      ordering: orderingArr,
-      children,
-      decomposed_parents: obj.decomposed_parents
-    }
-  };
-}
-async function applyRaw(repoRoot, raw, parsed) {
-  const children = parsed.children.filter((c) => c.raw_id === raw.id);
-  const appliedTodos = [];
-  const appliedIds = [];
-  const todoDir2 = join4(repoRoot, "docs/cycle/issues/todo");
-  const doneDir2 = join4(repoRoot, "docs/cycle/issues/done");
-  await mkdir3(todoDir2, { recursive: true });
-  try {
-    const triagedAt = (/* @__PURE__ */ new Date()).toISOString();
-    const priority = normalizePriority(raw.fm.priority);
-    for (const child of children) {
-      const todoPath = join4(todoDir2, `${child.id}.md`);
-      const fm = {
-        id: child.id,
-        title: child.title,
-        workflow: child.workflow,
-        depends_on: child.depends_on,
-        triaged_at: triagedAt,
-        source: "triage",
-        priority
-      };
-      if (child.id !== raw.id) fm.parent = raw.id;
-      const bodyTail = child.body.endsWith("\n") ? child.body : child.body + "\n";
-      const todoContent = serializeFrontmatter(fm, bodyTail);
-      await atomicWrite(todoPath, todoContent);
-      appliedTodos.push(todoPath);
-      const row = {
-        id: child.id,
-        title: child.title,
-        status: "pending",
-        attempt: 0,
-        depends_on: child.depends_on,
-        triaged_at: triagedAt,
-        priority
-      };
-      if (child.id !== raw.id) row.parent = raw.id;
-      await appendRow(repoRoot, row);
-      appliedIds.push(child.id);
-    }
-    await mkdir3(doneDir2, { recursive: true });
-    await rename3(raw.srcPath, join4(doneDir2, `${raw.id}_raw.md`));
-  } catch (e) {
-    for (const todo of appliedTodos) {
-      try {
-        await unlink(todo);
-      } catch {
-      }
-    }
-    if (appliedIds.length > 0) {
-      try {
-        const rows = await readQueue(repoRoot);
-        const idSet = new Set(appliedIds);
-        const next = rows.filter((r) => !idSet.has(r.id));
-        await writeQueue(repoRoot, next);
-      } catch {
-      }
-    }
-    throw e;
-  }
-}
-async function atomicWrite(path, content) {
-  await mkdir3(dirname3(path), { recursive: true });
-  const tmp = path + ".tmp";
-  await writeFile4(tmp, content, "utf8");
-  try {
-    await rename3(tmp, path);
-  } catch (e) {
-    try {
-      await unlink(tmp);
-    } catch {
-    }
-    throw e;
-  }
-}
-async function bumpAttempts(srcPath, attempts) {
-  try {
-    await mutateFrontmatter(srcPath, (fm) => ({
-      ...fm,
-      triage_attempts: attempts
-    }));
-  } catch {
-  }
-}
-async function moveToFailed(repoRoot, raw) {
-  const failedDir2 = join4(repoRoot, "docs/cycle/issues/failed");
-  await mkdir3(failedDir2, { recursive: true });
-  try {
-    await mutateFrontmatter(raw.srcPath, (fm) => ({
-      ...fm,
-      triage_attempts: MAX_ATTEMPTS,
-      failed_at: (/* @__PURE__ */ new Date()).toISOString(),
-      failed_step: "triage"
-    }));
-  } catch {
-  }
-  try {
-    await rename3(raw.srcPath, join4(failedDir2, `${raw.id}.md`));
-  } catch {
-  }
-}
-async function parkForDiscussion(repoRoot, raw, log2) {
-  const discussDir = join4(repoRoot, "docs/cycle/issues/discuss");
-  await mkdir3(discussDir, { recursive: true });
-  const destPath = join4(discussDir, `${raw.id}.md`);
-  let renamed = true;
-  try {
-    await rename3(raw.srcPath, destPath);
-  } catch (e) {
-    await log2.emit("issue.park_failed", { id: raw.id, error: String(e) });
-    renamed = false;
-  }
-  if (renamed) {
-    await log2.emit("issue.parked_for_discussion", {
-      id: raw.id,
-      priority: "discuss",
-      path: destPath
-    });
-  }
-}
-async function rewriteOrdering(repoRoot, ordering, log2) {
-  const rows = await readQueue(repoRoot);
-  const inProgress = rows.filter((r) => r.status === "in_progress");
-  const pending = rows.filter((r) => r.status === "pending");
-  const byId = new Map(pending.map((r) => [r.id, r]));
-  const ordered = [];
-  for (const id of ordering) {
-    const row = byId.get(id);
-    if (row) {
-      ordered.push(row);
-      byId.delete(id);
-    }
-  }
-  for (const [id, row] of byId) {
-    await log2.emit("triage.warning", { reason: "ordering_omitted", id });
-    ordered.push(row);
-  }
-  await writeQueue(repoRoot, [...inProgress, ...ordered]);
-}
-async function runAgentViaDispatch(prompt, cfg2, repoRoot) {
-  const mod = resolveAgent(cfg2.agent);
-  const cycleDir = join4(repoRoot, ".cycle");
-  await mkdir3(cycleDir, { recursive: true });
-  const tmpName = `.triage-${randomBytes(8).toString("hex")}.prompt.md`;
-  const tmpPath = join4(cycleDir, tmpName);
-  try {
-    await writeFile4(tmpPath, prompt, "utf8");
-    const r = await mod.runStep({ repoRoot, promptPath: tmpName });
-    return { exitCode: r.exitCode, stdout: r.stdout, stderr: r.stderr };
-  } finally {
-    await unlink(tmpPath).catch(() => {
-    });
-  }
-}
-var MAX_ATTEMPTS;
-var init_triage = __esm({
-  "src/engine/triage.ts"() {
-    "use strict";
-    init_frontmatter();
-    init_queue();
-    init_exec();
-    init_log_fmt();
-    MAX_ATTEMPTS = 3;
-  }
-});
-
-// src/engine/log.ts
-import { appendFile as appendFile2, mkdir as mkdir4 } from "node:fs/promises";
-import { join as join5 } from "node:path";
-async function createLogger(repoRoot, sink = console.log) {
-  const path = join5(repoRoot, ".cycle", "log.jsonl");
-  await mkdir4(join5(repoRoot, ".cycle"), { recursive: true });
-  return {
-    async emit(event, fields) {
-      const line = JSON.stringify({ ts: (/* @__PURE__ */ new Date()).toISOString(), event, ...fields });
-      await appendFile2(path, line + "\n", "utf8");
-      sink(line);
-    }
-  };
-}
-var init_log = __esm({
-  "src/engine/log.ts"() {
-    "use strict";
-  }
-});
-
-// src/engine/cycle-id.ts
-import { readFile as readFile6 } from "node:fs/promises";
-import { join as join6 } from "node:path";
-async function allocateCycleId(repoRoot) {
-  let highest = 0;
-  try {
-    const log2 = await readFile6(join6(repoRoot, ".cycle/log.jsonl"), "utf8");
-    for (const line of log2.split("\n")) {
-      if (!line) continue;
-      try {
-        const e = JSON.parse(line);
-        const id = typeof e.cycle_id === "string" ? parseInt(e.cycle_id, 10) : NaN;
-        if (!Number.isNaN(id) && id > highest) highest = id;
-      } catch {
-      }
-    }
-  } catch {
-  }
-  return String(highest + 1).padStart(4, "0");
-}
-var init_cycle_id = __esm({
-  "src/engine/cycle-id.ts"() {
-    "use strict";
-  }
-});
-
-// node_modules/yaml/dist/nodes/identity.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/identity.js
 var require_identity = __commonJS({
-  "node_modules/yaml/dist/nodes/identity.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/identity.js"(exports) {
     "use strict";
     var ALIAS = Symbol.for("yaml.alias");
     var DOC = Symbol.for("yaml.document");
@@ -1191,9 +133,9 @@ var require_identity = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/visit.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/visit.js
 var require_visit = __commonJS({
-  "node_modules/yaml/dist/visit.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/visit.js"(exports) {
     "use strict";
     var identity = require_identity();
     var BREAK = Symbol("break visit");
@@ -1349,9 +291,9 @@ var require_visit = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/doc/directives.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/doc/directives.js
 var require_directives = __commonJS({
-  "node_modules/yaml/dist/doc/directives.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/doc/directives.js"(exports) {
     "use strict";
     var identity = require_identity();
     var visit = require_visit();
@@ -1520,9 +462,9 @@ var require_directives = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/doc/anchors.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/doc/anchors.js
 var require_anchors = __commonJS({
-  "node_modules/yaml/dist/doc/anchors.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/doc/anchors.js"(exports) {
     "use strict";
     var identity = require_identity();
     var visit = require_visit();
@@ -1590,9 +532,9 @@ var require_anchors = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/doc/applyReviver.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/doc/applyReviver.js
 var require_applyReviver = __commonJS({
-  "node_modules/yaml/dist/doc/applyReviver.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/doc/applyReviver.js"(exports) {
     "use strict";
     function applyReviver(reviver, obj, key, val) {
       if (val && typeof val === "object") {
@@ -1640,9 +582,9 @@ var require_applyReviver = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/nodes/toJS.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/toJS.js
 var require_toJS = __commonJS({
-  "node_modules/yaml/dist/nodes/toJS.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/toJS.js"(exports) {
     "use strict";
     var identity = require_identity();
     function toJS(value, arg, ctx) {
@@ -1670,9 +612,9 @@ var require_toJS = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/nodes/Node.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/Node.js
 var require_Node = __commonJS({
-  "node_modules/yaml/dist/nodes/Node.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/Node.js"(exports) {
     "use strict";
     var applyReviver = require_applyReviver();
     var identity = require_identity();
@@ -1711,9 +653,9 @@ var require_Node = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/nodes/Alias.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/Alias.js
 var require_Alias = __commonJS({
-  "node_modules/yaml/dist/nodes/Alias.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/Alias.js"(exports) {
     "use strict";
     var anchors = require_anchors();
     var visit = require_visit();
@@ -1827,9 +769,9 @@ var require_Alias = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/nodes/Scalar.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/Scalar.js
 var require_Scalar = __commonJS({
-  "node_modules/yaml/dist/nodes/Scalar.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/Scalar.js"(exports) {
     "use strict";
     var identity = require_identity();
     var Node = require_Node();
@@ -1857,9 +799,9 @@ var require_Scalar = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/doc/createNode.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/doc/createNode.js
 var require_createNode = __commonJS({
-  "node_modules/yaml/dist/doc/createNode.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/doc/createNode.js"(exports) {
     "use strict";
     var Alias = require_Alias();
     var identity = require_identity();
@@ -1932,9 +874,9 @@ var require_createNode = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/nodes/Collection.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/Collection.js
 var require_Collection = __commonJS({
-  "node_modules/yaml/dist/nodes/Collection.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/Collection.js"(exports) {
     "use strict";
     var createNode = require_createNode();
     var identity = require_identity();
@@ -2075,9 +1017,9 @@ var require_Collection = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/stringify/stringifyComment.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/stringifyComment.js
 var require_stringifyComment = __commonJS({
-  "node_modules/yaml/dist/stringify/stringifyComment.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/stringifyComment.js"(exports) {
     "use strict";
     var stringifyComment = (str) => str.replace(/^(?!$)(?: $)?/gm, "#");
     function indentComment(comment, indent) {
@@ -2092,9 +1034,9 @@ var require_stringifyComment = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/stringify/foldFlowLines.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/foldFlowLines.js
 var require_foldFlowLines = __commonJS({
-  "node_modules/yaml/dist/stringify/foldFlowLines.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/foldFlowLines.js"(exports) {
     "use strict";
     var FOLD_FLOW = "flow";
     var FOLD_BLOCK = "block";
@@ -2228,9 +1170,9 @@ ${indent}${text.slice(fold + 1, end2)}`;
   }
 });
 
-// node_modules/yaml/dist/stringify/stringifyString.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/stringifyString.js
 var require_stringifyString = __commonJS({
-  "node_modules/yaml/dist/stringify/stringifyString.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/stringifyString.js"(exports) {
     "use strict";
     var Scalar = require_Scalar();
     var foldFlowLines = require_foldFlowLines();
@@ -2511,9 +1453,9 @@ ${indent}`);
   }
 });
 
-// node_modules/yaml/dist/stringify/stringify.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/stringify.js
 var require_stringify = __commonJS({
-  "node_modules/yaml/dist/stringify/stringify.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/stringify.js"(exports) {
     "use strict";
     var anchors = require_anchors();
     var identity = require_identity();
@@ -2635,9 +1577,9 @@ ${ctx.indent}${str}`;
   }
 });
 
-// node_modules/yaml/dist/stringify/stringifyPair.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/stringifyPair.js
 var require_stringifyPair = __commonJS({
-  "node_modules/yaml/dist/stringify/stringifyPair.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/stringifyPair.js"(exports) {
     "use strict";
     var identity = require_identity();
     var Scalar = require_Scalar();
@@ -2768,9 +1710,9 @@ ${ctx.indent}`;
   }
 });
 
-// node_modules/yaml/dist/log.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/log.js
 var require_log = __commonJS({
-  "node_modules/yaml/dist/log.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/log.js"(exports) {
     "use strict";
     var node_process = __require("process");
     function debug(logLevel, ...messages) {
@@ -2790,9 +1732,9 @@ var require_log = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/yaml-1.1/merge.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/merge.js
 var require_merge = __commonJS({
-  "node_modules/yaml/dist/schema/yaml-1.1/merge.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/merge.js"(exports) {
     "use strict";
     var identity = require_identity();
     var Scalar = require_Scalar();
@@ -2850,9 +1792,9 @@ var require_merge = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/nodes/addPairToJSMap.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/addPairToJSMap.js
 var require_addPairToJSMap = __commonJS({
-  "node_modules/yaml/dist/nodes/addPairToJSMap.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/addPairToJSMap.js"(exports) {
     "use strict";
     var log2 = require_log();
     var merge = require_merge();
@@ -2914,9 +1856,9 @@ var require_addPairToJSMap = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/nodes/Pair.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/Pair.js
 var require_Pair = __commonJS({
-  "node_modules/yaml/dist/nodes/Pair.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/Pair.js"(exports) {
     "use strict";
     var createNode = require_createNode();
     var stringifyPair = require_stringifyPair();
@@ -2954,9 +1896,9 @@ var require_Pair = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/stringify/stringifyCollection.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/stringifyCollection.js
 var require_stringifyCollection = __commonJS({
-  "node_modules/yaml/dist/stringify/stringifyCollection.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/stringifyCollection.js"(exports) {
     "use strict";
     var identity = require_identity();
     var stringify = require_stringify();
@@ -3105,9 +2047,9 @@ ${indent}${end}`;
   }
 });
 
-// node_modules/yaml/dist/nodes/YAMLMap.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/YAMLMap.js
 var require_YAMLMap = __commonJS({
-  "node_modules/yaml/dist/nodes/YAMLMap.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/YAMLMap.js"(exports) {
     "use strict";
     var stringifyCollection = require_stringifyCollection();
     var addPairToJSMap = require_addPairToJSMap();
@@ -3249,9 +2191,9 @@ var require_YAMLMap = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/common/map.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/common/map.js
 var require_map = __commonJS({
-  "node_modules/yaml/dist/schema/common/map.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/common/map.js"(exports) {
     "use strict";
     var identity = require_identity();
     var YAMLMap = require_YAMLMap();
@@ -3271,9 +2213,9 @@ var require_map = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/nodes/YAMLSeq.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/YAMLSeq.js
 var require_YAMLSeq = __commonJS({
-  "node_modules/yaml/dist/nodes/YAMLSeq.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/nodes/YAMLSeq.js"(exports) {
     "use strict";
     var createNode = require_createNode();
     var stringifyCollection = require_stringifyCollection();
@@ -3387,9 +2329,9 @@ var require_YAMLSeq = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/common/seq.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/common/seq.js
 var require_seq = __commonJS({
-  "node_modules/yaml/dist/schema/common/seq.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/common/seq.js"(exports) {
     "use strict";
     var identity = require_identity();
     var YAMLSeq = require_YAMLSeq();
@@ -3409,9 +2351,9 @@ var require_seq = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/common/string.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/common/string.js
 var require_string = __commonJS({
-  "node_modules/yaml/dist/schema/common/string.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/common/string.js"(exports) {
     "use strict";
     var stringifyString = require_stringifyString();
     var string = {
@@ -3428,9 +2370,9 @@ var require_string = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/common/null.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/common/null.js
 var require_null = __commonJS({
-  "node_modules/yaml/dist/schema/common/null.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/common/null.js"(exports) {
     "use strict";
     var Scalar = require_Scalar();
     var nullTag = {
@@ -3446,9 +2388,9 @@ var require_null = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/core/bool.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/core/bool.js
 var require_bool = __commonJS({
-  "node_modules/yaml/dist/schema/core/bool.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/core/bool.js"(exports) {
     "use strict";
     var Scalar = require_Scalar();
     var boolTag = {
@@ -3470,9 +2412,9 @@ var require_bool = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/stringify/stringifyNumber.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/stringifyNumber.js
 var require_stringifyNumber = __commonJS({
-  "node_modules/yaml/dist/stringify/stringifyNumber.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/stringifyNumber.js"(exports) {
     "use strict";
     function stringifyNumber({ format, minFractionDigits, tag, value }) {
       if (typeof value === "bigint")
@@ -3497,9 +2439,9 @@ var require_stringifyNumber = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/core/float.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/core/float.js
 var require_float = __commonJS({
-  "node_modules/yaml/dist/schema/core/float.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/core/float.js"(exports) {
     "use strict";
     var Scalar = require_Scalar();
     var stringifyNumber = require_stringifyNumber();
@@ -3543,9 +2485,9 @@ var require_float = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/core/int.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/core/int.js
 var require_int = __commonJS({
-  "node_modules/yaml/dist/schema/core/int.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/core/int.js"(exports) {
     "use strict";
     var stringifyNumber = require_stringifyNumber();
     var intIdentify = (value) => typeof value === "bigint" || Number.isInteger(value);
@@ -3588,9 +2530,9 @@ var require_int = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/core/schema.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/core/schema.js
 var require_schema = __commonJS({
-  "node_modules/yaml/dist/schema/core/schema.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/core/schema.js"(exports) {
     "use strict";
     var map = require_map();
     var _null = require_null();
@@ -3616,9 +2558,9 @@ var require_schema = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/json/schema.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/json/schema.js
 var require_schema2 = __commonJS({
-  "node_modules/yaml/dist/schema/json/schema.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/json/schema.js"(exports) {
     "use strict";
     var Scalar = require_Scalar();
     var map = require_map();
@@ -3683,9 +2625,9 @@ var require_schema2 = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/yaml-1.1/binary.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/binary.js
 var require_binary = __commonJS({
-  "node_modules/yaml/dist/schema/yaml-1.1/binary.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/binary.js"(exports) {
     "use strict";
     var node_buffer = __require("buffer");
     var Scalar = require_Scalar();
@@ -3749,9 +2691,9 @@ var require_binary = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/yaml-1.1/pairs.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/pairs.js
 var require_pairs = __commonJS({
-  "node_modules/yaml/dist/schema/yaml-1.1/pairs.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/pairs.js"(exports) {
     "use strict";
     var identity = require_identity();
     var Pair = require_Pair();
@@ -3827,9 +2769,9 @@ ${cn.comment}` : item.comment;
   }
 });
 
-// node_modules/yaml/dist/schema/yaml-1.1/omap.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/omap.js
 var require_omap = __commonJS({
-  "node_modules/yaml/dist/schema/yaml-1.1/omap.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/omap.js"(exports) {
     "use strict";
     var identity = require_identity();
     var toJS = require_toJS();
@@ -3905,9 +2847,9 @@ var require_omap = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/yaml-1.1/bool.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/bool.js
 var require_bool2 = __commonJS({
-  "node_modules/yaml/dist/schema/yaml-1.1/bool.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/bool.js"(exports) {
     "use strict";
     var Scalar = require_Scalar();
     function boolStringify({ value, source }, ctx) {
@@ -3937,9 +2879,9 @@ var require_bool2 = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/yaml-1.1/float.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/float.js
 var require_float2 = __commonJS({
-  "node_modules/yaml/dist/schema/yaml-1.1/float.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/float.js"(exports) {
     "use strict";
     var Scalar = require_Scalar();
     var stringifyNumber = require_stringifyNumber();
@@ -3986,9 +2928,9 @@ var require_float2 = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/yaml-1.1/int.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/int.js
 var require_int2 = __commonJS({
-  "node_modules/yaml/dist/schema/yaml-1.1/int.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/int.js"(exports) {
     "use strict";
     var stringifyNumber = require_stringifyNumber();
     var intIdentify = (value) => typeof value === "bigint" || Number.isInteger(value);
@@ -4065,9 +3007,9 @@ var require_int2 = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/yaml-1.1/set.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/set.js
 var require_set = __commonJS({
-  "node_modules/yaml/dist/schema/yaml-1.1/set.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/set.js"(exports) {
     "use strict";
     var identity = require_identity();
     var Pair = require_Pair();
@@ -4154,9 +3096,9 @@ var require_set = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/yaml-1.1/timestamp.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/timestamp.js
 var require_timestamp = __commonJS({
-  "node_modules/yaml/dist/schema/yaml-1.1/timestamp.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/timestamp.js"(exports) {
     "use strict";
     var stringifyNumber = require_stringifyNumber();
     function parseSexagesimal(str, asBigInt) {
@@ -4242,9 +3184,9 @@ var require_timestamp = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/yaml-1.1/schema.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/schema.js
 var require_schema3 = __commonJS({
-  "node_modules/yaml/dist/schema/yaml-1.1/schema.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/yaml-1.1/schema.js"(exports) {
     "use strict";
     var map = require_map();
     var _null = require_null();
@@ -4286,9 +3228,9 @@ var require_schema3 = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/tags.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/tags.js
 var require_tags = __commonJS({
-  "node_modules/yaml/dist/schema/tags.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/tags.js"(exports) {
     "use strict";
     var map = require_map();
     var _null = require_null();
@@ -4380,9 +3322,9 @@ var require_tags = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/schema/Schema.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/Schema.js
 var require_Schema = __commonJS({
-  "node_modules/yaml/dist/schema/Schema.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/schema/Schema.js"(exports) {
     "use strict";
     var identity = require_identity();
     var map = require_map();
@@ -4412,9 +3354,9 @@ var require_Schema = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/stringify/stringifyDocument.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/stringifyDocument.js
 var require_stringifyDocument = __commonJS({
-  "node_modules/yaml/dist/stringify/stringifyDocument.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/stringify/stringifyDocument.js"(exports) {
     "use strict";
     var identity = require_identity();
     var stringify = require_stringify();
@@ -4492,9 +3434,9 @@ var require_stringifyDocument = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/doc/Document.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/doc/Document.js
 var require_Document = __commonJS({
-  "node_modules/yaml/dist/doc/Document.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/doc/Document.js"(exports) {
     "use strict";
     var Alias = require_Alias();
     var Collection = require_Collection();
@@ -4801,9 +3743,9 @@ var require_Document = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/errors.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/errors.js
 var require_errors = __commonJS({
-  "node_modules/yaml/dist/errors.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/errors.js"(exports) {
     "use strict";
     var YAMLError = class extends Error {
       constructor(name, pos, code, message) {
@@ -4866,9 +3808,9 @@ ${pointer}
   }
 });
 
-// node_modules/yaml/dist/compose/resolve-props.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/resolve-props.js
 var require_resolve_props = __commonJS({
-  "node_modules/yaml/dist/compose/resolve-props.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/resolve-props.js"(exports) {
     "use strict";
     function resolveProps(tokens, { flow, indicator, next, offset, onError, parentIndent, startOnNewline }) {
       let spaceBefore = false;
@@ -5000,9 +3942,9 @@ var require_resolve_props = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/util-contains-newline.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/util-contains-newline.js
 var require_util_contains_newline = __commonJS({
-  "node_modules/yaml/dist/compose/util-contains-newline.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/util-contains-newline.js"(exports) {
     "use strict";
     function containsNewline(key) {
       if (!key)
@@ -5042,9 +3984,9 @@ var require_util_contains_newline = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/util-flow-indent-check.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/util-flow-indent-check.js
 var require_util_flow_indent_check = __commonJS({
-  "node_modules/yaml/dist/compose/util-flow-indent-check.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/util-flow-indent-check.js"(exports) {
     "use strict";
     var utilContainsNewline = require_util_contains_newline();
     function flowIndentCheck(indent, fc, onError) {
@@ -5060,9 +4002,9 @@ var require_util_flow_indent_check = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/util-map-includes.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/util-map-includes.js
 var require_util_map_includes = __commonJS({
-  "node_modules/yaml/dist/compose/util-map-includes.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/util-map-includes.js"(exports) {
     "use strict";
     var identity = require_identity();
     function mapIncludes(ctx, items, search) {
@@ -5076,9 +4018,9 @@ var require_util_map_includes = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/resolve-block-map.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/resolve-block-map.js
 var require_resolve_block_map = __commonJS({
-  "node_modules/yaml/dist/compose/resolve-block-map.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/resolve-block-map.js"(exports) {
     "use strict";
     var Pair = require_Pair();
     var YAMLMap = require_YAMLMap();
@@ -5184,9 +4126,9 @@ var require_resolve_block_map = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/resolve-block-seq.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/resolve-block-seq.js
 var require_resolve_block_seq = __commonJS({
-  "node_modules/yaml/dist/compose/resolve-block-seq.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/resolve-block-seq.js"(exports) {
     "use strict";
     var YAMLSeq = require_YAMLSeq();
     var resolveProps = require_resolve_props();
@@ -5235,9 +4177,9 @@ var require_resolve_block_seq = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/resolve-end.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/resolve-end.js
 var require_resolve_end = __commonJS({
-  "node_modules/yaml/dist/compose/resolve-end.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/resolve-end.js"(exports) {
     "use strict";
     function resolveEnd(end, offset, reqSpace, onError) {
       let comment = "";
@@ -5278,9 +4220,9 @@ var require_resolve_end = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/resolve-flow-collection.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/resolve-flow-collection.js
 var require_resolve_flow_collection = __commonJS({
-  "node_modules/yaml/dist/compose/resolve-flow-collection.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/resolve-flow-collection.js"(exports) {
     "use strict";
     var identity = require_identity();
     var Pair = require_Pair();
@@ -5472,9 +4414,9 @@ var require_resolve_flow_collection = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/compose-collection.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/compose-collection.js
 var require_compose_collection = __commonJS({
-  "node_modules/yaml/dist/compose/compose-collection.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/compose-collection.js"(exports) {
     "use strict";
     var identity = require_identity();
     var Scalar = require_Scalar();
@@ -5537,9 +4479,9 @@ var require_compose_collection = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/resolve-block-scalar.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/resolve-block-scalar.js
 var require_resolve_block_scalar = __commonJS({
-  "node_modules/yaml/dist/compose/resolve-block-scalar.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/resolve-block-scalar.js"(exports) {
     "use strict";
     var Scalar = require_Scalar();
     function resolveBlockScalar(ctx, scalar, onError) {
@@ -5720,9 +4662,9 @@ var require_resolve_block_scalar = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/resolve-flow-scalar.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/resolve-flow-scalar.js
 var require_resolve_flow_scalar = __commonJS({
-  "node_modules/yaml/dist/compose/resolve-flow-scalar.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/resolve-flow-scalar.js"(exports) {
     "use strict";
     var Scalar = require_Scalar();
     var resolveEnd = require_resolve_end();
@@ -5940,9 +4882,9 @@ var require_resolve_flow_scalar = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/compose-scalar.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/compose-scalar.js
 var require_compose_scalar = __commonJS({
-  "node_modules/yaml/dist/compose/compose-scalar.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/compose-scalar.js"(exports) {
     "use strict";
     var identity = require_identity();
     var Scalar = require_Scalar();
@@ -6021,9 +4963,9 @@ var require_compose_scalar = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/util-empty-scalar-position.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/util-empty-scalar-position.js
 var require_util_empty_scalar_position = __commonJS({
-  "node_modules/yaml/dist/compose/util-empty-scalar-position.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/util-empty-scalar-position.js"(exports) {
     "use strict";
     function emptyScalarPosition(offset, before, pos) {
       if (before) {
@@ -6051,9 +4993,9 @@ var require_util_empty_scalar_position = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/compose-node.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/compose-node.js
 var require_compose_node = __commonJS({
-  "node_modules/yaml/dist/compose/compose-node.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/compose-node.js"(exports) {
     "use strict";
     var Alias = require_Alias();
     var identity = require_identity();
@@ -6157,9 +5099,9 @@ var require_compose_node = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/compose-doc.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/compose-doc.js
 var require_compose_doc = __commonJS({
-  "node_modules/yaml/dist/compose/compose-doc.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/compose-doc.js"(exports) {
     "use strict";
     var Document = require_Document();
     var composeNode = require_compose_node();
@@ -6200,9 +5142,9 @@ var require_compose_doc = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/compose/composer.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/composer.js
 var require_composer = __commonJS({
-  "node_modules/yaml/dist/compose/composer.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/compose/composer.js"(exports) {
     "use strict";
     var node_process = __require("process");
     var directives = require_directives();
@@ -6408,9 +5350,9 @@ ${end.comment}` : end.comment;
   }
 });
 
-// node_modules/yaml/dist/parse/cst-scalar.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/parse/cst-scalar.js
 var require_cst_scalar = __commonJS({
-  "node_modules/yaml/dist/parse/cst-scalar.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/parse/cst-scalar.js"(exports) {
     "use strict";
     var resolveBlockScalar = require_resolve_block_scalar();
     var resolveFlowScalar = require_resolve_flow_scalar();
@@ -6593,9 +5535,9 @@ var require_cst_scalar = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/parse/cst-stringify.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/parse/cst-stringify.js
 var require_cst_stringify = __commonJS({
-  "node_modules/yaml/dist/parse/cst-stringify.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/parse/cst-stringify.js"(exports) {
     "use strict";
     var stringify = (cst) => "type" in cst ? stringifyToken(cst) : stringifyItem(cst);
     function stringifyToken(token) {
@@ -6654,9 +5596,9 @@ var require_cst_stringify = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/parse/cst-visit.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/parse/cst-visit.js
 var require_cst_visit = __commonJS({
-  "node_modules/yaml/dist/parse/cst-visit.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/parse/cst-visit.js"(exports) {
     "use strict";
     var BREAK = Symbol("break visit");
     var SKIP = Symbol("skip children");
@@ -6716,9 +5658,9 @@ var require_cst_visit = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/parse/cst.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/parse/cst.js
 var require_cst = __commonJS({
-  "node_modules/yaml/dist/parse/cst.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/parse/cst.js"(exports) {
     "use strict";
     var cstScalar = require_cst_scalar();
     var cstStringify = require_cst_stringify();
@@ -6818,9 +5760,9 @@ var require_cst = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/parse/lexer.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/parse/lexer.js
 var require_lexer = __commonJS({
-  "node_modules/yaml/dist/parse/lexer.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/parse/lexer.js"(exports) {
     "use strict";
     var cst = require_cst();
     function isEmpty(ch) {
@@ -7407,9 +6349,9 @@ var require_lexer = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/parse/line-counter.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/parse/line-counter.js
 var require_line_counter = __commonJS({
-  "node_modules/yaml/dist/parse/line-counter.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/parse/line-counter.js"(exports) {
     "use strict";
     var LineCounter = class {
       constructor() {
@@ -7438,9 +6380,9 @@ var require_line_counter = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/parse/parser.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/parse/parser.js
 var require_parser = __commonJS({
-  "node_modules/yaml/dist/parse/parser.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/parse/parser.js"(exports) {
     "use strict";
     var node_process = __require("process");
     var cst = require_cst();
@@ -8312,9 +7254,9 @@ var require_parser = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/public-api.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/public-api.js
 var require_public_api = __commonJS({
-  "node_modules/yaml/dist/public-api.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/public-api.js"(exports) {
     "use strict";
     var composer = require_composer();
     var Document = require_Document();
@@ -8409,9 +7351,9 @@ var require_public_api = __commonJS({
   }
 });
 
-// node_modules/yaml/dist/index.js
+// ../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/index.js
 var require_dist = __commonJS({
-  "node_modules/yaml/dist/index.js"(exports) {
+  "../../mnt/c/Users/butters/wrk/cycle/node_modules/yaml/dist/index.js"(exports) {
     "use strict";
     var composer = require_composer();
     var Document = require_Document();
@@ -8461,6 +7403,1128 @@ var require_dist = __commonJS({
   }
 });
 
+// src/engine/frontmatter.ts
+import { readFile as readFile2, writeFile as writeFile2, rename } from "node:fs/promises";
+function parseFrontmatter(body) {
+  const m = body.match(FM_RE);
+  if (!m) throw new Error("no frontmatter");
+  const fm = import_yaml.default.parse(m[1]) ?? {};
+  const bodyAfter = body.slice(m[0].length);
+  return { fm, bodyAfter };
+}
+function serializeFrontmatter(fm, bodyAfter) {
+  return "---\n" + import_yaml.default.stringify(fm) + "---\n" + bodyAfter;
+}
+async function mutateFrontmatter(path, patch) {
+  const body = await readFile2(path, "utf8");
+  const { fm, bodyAfter } = parseFrontmatter(body);
+  const next = patch({ ...fm });
+  const out = serializeFrontmatter(next, bodyAfter);
+  const tmp = path + ".tmp";
+  await writeFile2(tmp, out, "utf8");
+  await rename(tmp, path);
+}
+var import_yaml, FM_RE;
+var init_frontmatter = __esm({
+  "src/engine/frontmatter.ts"() {
+    "use strict";
+    import_yaml = __toESM(require_dist(), 1);
+    FM_RE = /^---\n([\s\S]*?)\n---\n/;
+  }
+});
+
+// src/engine/queue.ts
+import { readFile as readFile3, writeFile as writeFile3, rename as rename2, appendFile, mkdir as mkdir2, stat } from "node:fs/promises";
+import { join as join2 } from "node:path";
+function normalizePriority(raw) {
+  if (raw === "discuss") return "idea";
+  if (raw === "low" || raw === "medium" || raw === "high" || raw === "critical" || raw === "idea") return raw;
+  if (typeof raw === "number") {
+    if (raw >= 7) return "critical";
+    if (raw >= 5) return "high";
+    if (raw >= 3) return "medium";
+    return "low";
+  }
+  return "medium";
+}
+function queuePath(repoRoot) {
+  return join2(repoRoot, ".cycle", "tbd.jsonl");
+}
+async function ensureCycleDir(repoRoot) {
+  await mkdir2(join2(repoRoot, ".cycle"), { recursive: true });
+}
+function isLegacyLine(parsed) {
+  if (!parsed || typeof parsed !== "object") return false;
+  const obj = parsed;
+  if (typeof obj.id !== "string") return false;
+  return obj.status === void 0;
+}
+function isQueueRow(parsed) {
+  if (!parsed || typeof parsed !== "object") return false;
+  const obj = parsed;
+  if (typeof obj.id !== "string") return false;
+  if (typeof obj.title !== "string") return false;
+  if (obj.status !== "pending" && obj.status !== "in_progress") return false;
+  if (typeof obj.attempt !== "number") return false;
+  if (!Array.isArray(obj.depends_on)) return false;
+  if (typeof obj.triaged_at !== "string") return false;
+  if (obj.priority !== "low" && obj.priority !== "medium" && obj.priority !== "high" && obj.priority !== "critical" && obj.priority !== "idea") return false;
+  return true;
+}
+async function readQueue(repoRoot, ops = defaultQueueFsOps) {
+  const path = queuePath(repoRoot);
+  let raw;
+  try {
+    raw = await ops.readFile(path, "utf8");
+  } catch (e) {
+    if (e.code === "ENOENT") return [];
+    throw e;
+  }
+  const rows = [];
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (parsed && typeof parsed === "object") {
+      const o = parsed;
+      o.priority = normalizePriority(o.priority ?? o.priority_hint);
+      delete o.priority_hint;
+    }
+    if (!isQueueRow(parsed)) continue;
+    rows.push(parsed);
+  }
+  return rows;
+}
+async function writeQueue(repoRoot, rows, ops = defaultQueueFsOps) {
+  await ensureCycleDir(repoRoot);
+  const path = queuePath(repoRoot);
+  const body = rows.map((r) => JSON.stringify(r)).join("\n") + (rows.length ? "\n" : "");
+  const tmp = path + ".tmp";
+  await ops.writeFile(tmp, body, "utf8");
+  await ops.rename(tmp, path);
+}
+async function appendRow(repoRoot, row, ops = defaultQueueFsOps) {
+  await ensureCycleDir(repoRoot);
+  await ops.appendFile(queuePath(repoRoot), JSON.stringify(row) + "\n", "utf8");
+}
+async function pickArchivePath(repoRoot) {
+  const base = join2(repoRoot, ".cycle", "tbd.jsonl.bootstrap-archive");
+  try {
+    await stat(base);
+  } catch {
+    return base;
+  }
+  for (let i = 1; i < 1e3; i++) {
+    const candidate = `${base}.${i}`;
+    try {
+      await stat(candidate);
+    } catch {
+      return candidate;
+    }
+  }
+  throw new Error("too many bootstrap archives");
+}
+async function bootstrapArchiveIfLegacy(repoRoot, ops = defaultQueueFsOps) {
+  const path = queuePath(repoRoot);
+  let raw;
+  try {
+    raw = await ops.readFile(path, "utf8");
+  } catch (e) {
+    if (e.code === "ENOENT") return false;
+    throw e;
+  }
+  let hasLegacy = false;
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (isLegacyLine(parsed)) {
+      hasLegacy = true;
+      break;
+    }
+  }
+  if (!hasLegacy) return false;
+  const archive = await pickArchivePath(repoRoot);
+  try {
+    await ops.rename(path, archive);
+  } catch (e) {
+    throw Object.assign(
+      new Error(`bootstrapArchiveIfLegacy: rename failed: ${e.message}`),
+      { code: e.code }
+    );
+  }
+  return true;
+}
+async function popNextPending(repoRoot) {
+  const rows = await readQueue(repoRoot);
+  const allIds = new Set(rows.map((r) => r.id));
+  const pending = rows.filter((r) => r.status === "pending" && r.priority !== "idea").sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+  for (const row of pending) {
+    const blocked = row.depends_on.some((dep) => allIds.has(dep) && dep !== row.id);
+    if (!blocked) return row;
+  }
+  return null;
+}
+async function markInProgress(repoRoot, id, cycleId) {
+  const rows = await readQueue(repoRoot);
+  let touched = false;
+  for (const r of rows) {
+    if (r.id !== id) continue;
+    if (r.status === "in_progress" && r.cycle_id && r.cycle_id !== cycleId) {
+      throw new Error(
+        `markInProgress: row ${id} already in_progress for cycle ${r.cycle_id}, refusing to overwrite with ${cycleId}`
+      );
+    }
+    r.status = "in_progress";
+    r.cycle_id = cycleId;
+    touched = true;
+  }
+  if (!touched) throw new Error(`markInProgress: id not found: ${id}`);
+  await writeQueue(repoRoot, rows);
+}
+async function drainOk(repoRoot, id) {
+  const rows = await readQueue(repoRoot);
+  const next = rows.filter((r) => r.id !== id);
+  await writeQueue(repoRoot, next);
+}
+async function drainFailedRetry(repoRoot, id) {
+  const rows = await readQueue(repoRoot);
+  for (const r of rows) {
+    if (r.id === id) {
+      r.attempt += 1;
+      r.status = "pending";
+    }
+  }
+  await writeQueue(repoRoot, rows);
+}
+async function drainFailedTerminal(repoRoot, id) {
+  const rows = await readQueue(repoRoot);
+  const next = rows.filter((r) => r.id !== id);
+  await writeQueue(repoRoot, next);
+}
+var defaultQueueFsOps, PRIORITY_ORDER;
+var init_queue = __esm({
+  "src/engine/queue.ts"() {
+    "use strict";
+    defaultQueueFsOps = { readFile: readFile3, writeFile: writeFile3, rename: rename2, appendFile };
+    PRIORITY_ORDER = {
+      critical: 0,
+      high: 1,
+      medium: 2,
+      low: 3,
+      idea: 4
+    };
+  }
+});
+
+// src/engine/exec-spawn.ts
+import { spawn } from "node:child_process";
+import { readFile as readFile4 } from "node:fs/promises";
+import { join as join3 } from "node:path";
+async function runAgent(opts) {
+  const { binary, argv: argv2, promptDelivery, promptPath, repoRoot, env, signal, timeoutMs } = opts;
+  const abs = join3(repoRoot, ".cycle", promptPath);
+  const base = { cwd: repoRoot, env: buildChildEnv(env ?? {}), shell: false, signal, detached: true };
+  let finalArgv;
+  let prompt;
+  if (promptDelivery === "file") {
+    finalArgv = [...argv2, abs];
+  } else {
+    prompt = await readFile4(abs, "utf8");
+    finalArgv = promptDelivery === "argv" ? [...argv2, prompt] : argv2;
+  }
+  return new Promise((resolve2) => {
+    const child = promptDelivery === "stdin" ? spawn(binary, finalArgv, base) : spawn(binary, finalArgv, { ...base, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    let settled = false;
+    let timer;
+    let killTimer;
+    const done = (r) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
+      resolve2(r);
+    };
+    child.stdout.on("data", (d) => {
+      stdout += d.toString();
+    });
+    child.stderr.on("data", (d) => {
+      stderr += d.toString();
+    });
+    child.on("close", (code) => {
+      done(timedOut ? { status: "failed", exitCode: code ?? -1, stdout, stderr, timedOut: true } : { status: code === 0 ? "ok" : "failed", exitCode: code ?? -1, stdout, stderr });
+    });
+    child.on("error", (err) => {
+      done({ status: "failed", exitCode: -1, stdout: "", stderr: err.message });
+    });
+    const killTree = (sig) => {
+      try {
+        if (child.pid) process.kill(-child.pid, sig);
+      } catch {
+        try {
+          child.kill(sig);
+        } catch {
+        }
+      }
+    };
+    if (timeoutMs && timeoutMs > 0) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        killTree("SIGTERM");
+        killTimer = setTimeout(() => killTree("SIGKILL"), 5e3);
+        if (killTimer.unref) killTimer.unref();
+      }, timeoutMs);
+      if (timer.unref) timer.unref();
+    }
+    if (promptDelivery === "stdin") {
+      child.stdin.on("error", () => {
+      });
+      child.stdin.write(prompt);
+      child.stdin.end();
+    }
+  });
+}
+var init_exec_spawn = __esm({
+  "src/engine/exec-spawn.ts"() {
+    "use strict";
+    init_child_env();
+  }
+});
+
+// src/engine/rate-limit.ts
+function isRateLimitError(result) {
+  if (result.exitCode === 429) return true;
+  if (result.exitCode !== 1) return false;
+  const combined = (result.stderr + result.stdout).toLowerCase();
+  return RATE_LIMIT_PATTERNS.some((p) => combined.includes(p));
+}
+var RATE_LIMIT_PATTERNS;
+var init_rate_limit = __esm({
+  "src/engine/rate-limit.ts"() {
+    "use strict";
+    RATE_LIMIT_PATTERNS = ["rate limit", "429", "too many requests"];
+  }
+});
+
+// src/engine/exec-auggie.ts
+var auggieExec;
+var init_exec_auggie = __esm({
+  "src/engine/exec-auggie.ts"() {
+    "use strict";
+    init_exec_spawn();
+    init_rate_limit();
+    auggieExec = {
+      async runStep({ model, thinking, ...args2 }) {
+        const binary = process.env.CYCLE_AUGGIE_BIN ?? "auggie";
+        const argv2 = ["--print", "--instruction-file"];
+        if (model) argv2.push("--model", model);
+        const r = await runAgent({ binary, argv: argv2, promptDelivery: "file", ...args2 });
+        if (isRateLimitError(r)) return { ...r, status: "failed", rateLimited: true };
+        return r;
+      }
+    };
+  }
+});
+
+// src/engine/exec-claudecode.ts
+var claudecodeExec;
+var init_exec_claudecode = __esm({
+  "src/engine/exec-claudecode.ts"() {
+    "use strict";
+    init_exec_spawn();
+    init_rate_limit();
+    claudecodeExec = {
+      async runStep({ appendSystemPrompt, model, thinking, settingsPath, ...args2 }) {
+        const argv2 = ["--permission-mode", "auto"];
+        if (appendSystemPrompt) argv2.push("--append-system-prompt", appendSystemPrompt);
+        if (model) argv2.push("--model", model);
+        if (settingsPath) argv2.push("--settings", settingsPath);
+        argv2.push("-p");
+        const binary = process.env.CYCLE_CLAUDE_BIN ?? "claude";
+        const r = await runAgent({ binary, argv: argv2, promptDelivery: "argv", ...args2 });
+        if (isRateLimitError(r)) return { ...r, status: "failed", rateLimited: true };
+        return r;
+      }
+    };
+  }
+});
+
+// src/engine/exec-codex.ts
+var codexExec;
+var init_exec_codex = __esm({
+  "src/engine/exec-codex.ts"() {
+    "use strict";
+    init_exec_spawn();
+    init_rate_limit();
+    codexExec = {
+      async runStep({ model, thinking, ...args2 }) {
+        const argv2 = ["exec"];
+        if (model) argv2.push("--model", model);
+        if (thinking) argv2.push("-c", `model_reasoning_effort="${thinking}"`);
+        const binary = process.env.CYCLE_CODEX_BIN ?? "codex";
+        const r = await runAgent({ binary, argv: argv2, promptDelivery: "stdin", ...args2 });
+        if (isRateLimitError(r)) return { ...r, status: "failed", rateLimited: true };
+        return r;
+      }
+    };
+  }
+});
+
+// src/engine/exec-gemini.ts
+var geminiExec;
+var init_exec_gemini = __esm({
+  "src/engine/exec-gemini.ts"() {
+    "use strict";
+    init_exec_spawn();
+    init_rate_limit();
+    geminiExec = {
+      async runStep({ model, thinking, ...args2 }) {
+        const argv2 = [];
+        if (model) argv2.push("--model", model);
+        const binary = process.env.CYCLE_GEMINI_BIN ?? "gemini";
+        const r = await runAgent({ binary, argv: argv2, promptDelivery: "stdin", ...args2 });
+        if (isRateLimitError(r)) return { ...r, status: "failed", rateLimited: true };
+        return r;
+      }
+    };
+  }
+});
+
+// src/engine/exec-opencode.ts
+var opencodeExec;
+var init_exec_opencode = __esm({
+  "src/engine/exec-opencode.ts"() {
+    "use strict";
+    init_exec_spawn();
+    init_rate_limit();
+    opencodeExec = {
+      async runStep({ model, thinking, ...args2 }) {
+        const argv2 = ["run"];
+        if (model) argv2.push("--model", model);
+        if (thinking) argv2.push("--thinking", thinking);
+        const binary = process.env.CYCLE_OPENCODE_BIN ?? "opencode";
+        const r = await runAgent({ binary, argv: argv2, promptDelivery: "argv", ...args2 });
+        if (isRateLimitError(r)) return { ...r, status: "failed", rateLimited: true };
+        return r;
+      }
+    };
+  }
+});
+
+// src/engine/exec-pi.ts
+var piExec;
+var init_exec_pi = __esm({
+  "src/engine/exec-pi.ts"() {
+    "use strict";
+    init_exec_spawn();
+    init_rate_limit();
+    piExec = {
+      async runStep({ model, thinking, ...args2 }) {
+        const binary = process.env.CYCLE_PI_BIN ?? "pi";
+        const argv2 = ["--print"];
+        if (model) argv2.push("--model", model);
+        if (thinking) argv2.push("--thinking", thinking);
+        const r = await runAgent({ binary, argv: argv2, promptDelivery: "stdin", ...args2 });
+        if (isRateLimitError(r)) return { ...r, status: "failed", rateLimited: true };
+        return r;
+      }
+    };
+  }
+});
+
+// src/engine/exec.ts
+function knownAgents() {
+  return Object.keys(REGISTRY);
+}
+function resolveAgent(name) {
+  const mod = REGISTRY[name];
+  if (!mod) throw new UnknownAgentError(name, Object.keys(REGISTRY));
+  return mod;
+}
+var UnknownAgentError, REGISTRY;
+var init_exec = __esm({
+  "src/engine/exec.ts"() {
+    "use strict";
+    init_exec_auggie();
+    init_exec_claudecode();
+    init_exec_codex();
+    init_exec_gemini();
+    init_exec_opencode();
+    init_exec_pi();
+    UnknownAgentError = class extends Error {
+      constructor(name, known) {
+        const list = [...known].sort().join(", ");
+        super(`agent "${name}" is not registered; known agents: ${list}`);
+        this.name = "UnknownAgentError";
+      }
+    };
+    REGISTRY = {
+      auggie: auggieExec,
+      claudecode: claudecodeExec,
+      codex: codexExec,
+      gemini: geminiExec,
+      opencode: opencodeExec,
+      pi: piExec
+    };
+  }
+});
+
+// src/engine/log-fmt.ts
+function truncateHeadCapped(s, max) {
+  return s.length > max ? s.slice(0, max - 1) + "\u2026" : s;
+}
+function stripFences(s) {
+  const m = s.trim().match(/```(?:\w+)?\r?\n([\s\S]*?)\r?\n```/);
+  return m ? m[1] : s;
+}
+var init_log_fmt = __esm({
+  "src/engine/log-fmt.ts"() {
+    "use strict";
+  }
+});
+
+// src/engine/triage.ts
+import { randomBytes } from "node:crypto";
+import { readFile as readFile5, writeFile as writeFile4, readdir, mkdir as mkdir3, rename as rename3, unlink } from "node:fs/promises";
+import { join as join4, dirname as dirname3 } from "node:path";
+async function processRawWithRetry(raw, ctx) {
+  let lastError = "";
+  let attemptsRun = 0;
+  for (let attempt = raw.attempts; attempt < MAX_ATTEMPTS; attempt++) {
+    attemptsRun++;
+    const queueRows = await readQueue(ctx.repoRoot, ctx.fs);
+    const todoListing = await listTodos(ctx.repoRoot);
+    const feedback = lastError ? `PREVIOUS ATTEMPT FAILED VALIDATION:
+${lastError}` : "";
+    const renderedPrompt = renderPrompt(
+      ctx.promptTemplate,
+      [raw],
+      queueRows,
+      todoListing,
+      feedback
+    );
+    let agentResult;
+    try {
+      agentResult = await ctx.runAgent(renderedPrompt, ctx.cfg.triage, ctx.repoRoot);
+    } catch (e) {
+      lastError = `agent failed: ${e.message}`;
+      if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
+      continue;
+    }
+    if (agentResult.exitCode !== 0) {
+      lastError = `agent exited ${agentResult.exitCode}: ${agentResult.stderr.trim()}`;
+      if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
+      continue;
+    }
+    const todoIds = new Set(todoListing.map((f) => f.replace(/\.md$/, "")));
+    const validation = validateOutput(
+      agentResult.stdout,
+      [raw],
+      queueRows,
+      ctx.cfg,
+      todoIds
+    );
+    if (!validation.ok) {
+      lastError = validation.reason;
+      if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
+      continue;
+    }
+    if (ctx.apply) {
+      try {
+        await ctx.apply(raw, validation.parsed);
+      } catch (e) {
+        lastError = `apply failed: ${e.message}`;
+        if (ctx.onAttemptFailed) await ctx.onAttemptFailed(attempt + 1, lastError);
+        continue;
+      }
+    }
+    return { status: "ok", parsed: validation.parsed, attempts: attemptsRun };
+  }
+  return { status: "failed", lastError, attempts: attemptsRun };
+}
+async function runTriage(repoRoot, cfg2, log2, deps = {}) {
+  const runAgent2 = deps.runAgent ?? runAgentViaDispatch;
+  const fs = deps.fs ?? defaultQueueFsOps;
+  await bootstrapArchiveIfLegacy(repoRoot, fs);
+  const rawDir2 = join4(repoRoot, "docs/cycle/issues/inbox");
+  await mkdir3(rawDir2, { recursive: true });
+  const raws = await loadRaws(rawDir2, log2, fs);
+  await log2.emit("triage.start", { count: raws.length });
+  if (raws.length === 0) {
+    await log2.emit("triage.end", { processed: 0, failed: 0 });
+    return { status: "ok", processed: [], failed: [] };
+  }
+  const promptTemplate = await readFile5(
+    join4(repoRoot, ".cycle", cfg2.triage.prompt),
+    "utf8"
+  );
+  const processed = [];
+  const failed = [];
+  const lastErrors = [];
+  const failedRaws = [];
+  let lastOrdering = null;
+  for (const raw of raws) {
+    if (raw.fm.priority === "idea") {
+      await parkForIdeas(repoRoot, raw, log2);
+      continue;
+    }
+    const outcome = await processRawWithRetry(raw, {
+      repoRoot,
+      cfg: cfg2,
+      promptTemplate,
+      runAgent: runAgent2,
+      fs,
+      apply: (r, parsed) => applyRaw(repoRoot, r, parsed, fs),
+      onAttemptFailed: async (attemptNumber, reason) => {
+        await bumpAttempts(raw.srcPath, attemptNumber);
+        await log2.emit("triage.raw.failed", {
+          raw_id: raw.id,
+          attempt: attemptNumber,
+          reason
+        });
+      }
+    });
+    if (outcome.status === "ok") {
+      lastOrdering = outcome.parsed.ordering;
+      await log2.emit("triage.raw.ok", {
+        raw_id: raw.id,
+        children: outcome.parsed.children.filter((c) => c.raw_id === raw.id).map((c) => c.id)
+      });
+      processed.push(raw.id);
+    } else {
+      failed.push(raw.id);
+      lastErrors.push(outcome.lastError);
+      failedRaws.push(raw);
+    }
+  }
+  if (lastOrdering) {
+    await rewriteOrdering(repoRoot, lastOrdering, log2, fs);
+  }
+  const actionableCount = raws.filter((r) => r.fm.priority !== "idea").length;
+  if (actionableCount > 0 && failed.length === actionableCount) {
+    for (const raw of failedRaws) {
+      try {
+        await mutateFrontmatter(raw.srcPath, (fm) => ({ ...fm, triage_attempts: 0 }));
+      } catch {
+      }
+    }
+    const raw_ids = failed;
+    const last_errors = failed.map((raw_id, i) => ({
+      raw_id,
+      error: truncateHeadCapped(lastErrors[i] ?? "", 2e3)
+    }));
+    await log2.emit("engine.paused", {
+      reason: "all_triage_failed",
+      raw_ids,
+      last_errors
+    });
+    return { status: "paused", processed, failed };
+  }
+  for (const raw of failedRaws) {
+    await moveToFailed(repoRoot, raw);
+  }
+  await log2.emit("triage.end", {
+    processed: processed.length,
+    failed: failed.length
+  });
+  return { status: "ok", processed, failed };
+}
+async function dryRunTriage(repoRoot, cfg2, deps = {}) {
+  const runAgent2 = deps.runAgent ?? runAgentViaDispatch;
+  const fs = deps.fs ?? defaultQueueFsOps;
+  const rawDir2 = join4(repoRoot, "docs/cycle/issues/inbox");
+  const silentLog = { async emit() {
+  } };
+  const raws = await loadRaws(rawDir2, silentLog, fs);
+  if (raws.length === 0) return [];
+  const promptPath = join4(repoRoot, ".cycle", cfg2.triage.prompt);
+  let promptTemplate;
+  try {
+    promptTemplate = await readFile5(promptPath, "utf8");
+  } catch (e) {
+    throw new Error(
+      `prompt template missing: ${promptPath}: ${e.message}`
+    );
+  }
+  const reports = [];
+  for (const raw of raws) {
+    if (raw.fm.priority === "idea") continue;
+    const outcome = await processRawWithRetry(
+      { ...raw, attempts: 0 },
+      {
+        repoRoot,
+        cfg: cfg2,
+        promptTemplate,
+        runAgent: runAgent2,
+        fs
+      }
+    );
+    if (outcome.status === "ok") {
+      reports.push({
+        raw_id: raw.id,
+        status: "ok",
+        attempts: outcome.attempts,
+        children: outcome.parsed.children.filter((c) => c.raw_id === raw.id).map((c) => c.id)
+      });
+    } else {
+      reports.push({
+        raw_id: raw.id,
+        status: "failed",
+        attempts: outcome.attempts,
+        last_error: outcome.lastError
+      });
+    }
+  }
+  return reports;
+}
+async function loadRaws(rawDir2, log2, fs = defaultQueueFsOps) {
+  let files = [];
+  try {
+    files = (await readdir(rawDir2)).filter((f) => f.endsWith(".md")).sort();
+  } catch {
+    return [];
+  }
+  const raws = [];
+  for (const f of files) {
+    const srcPath = join4(rawDir2, f);
+    try {
+      const body = await fs.readFile(srcPath, "utf8");
+      const { fm, bodyAfter } = parseFrontmatter(body);
+      const id = String(fm.id);
+      const attempts = typeof fm.triage_attempts === "number" ? fm.triage_attempts : 0;
+      raws.push({ id, body: bodyAfter, fm, srcPath, attempts });
+    } catch (e) {
+      const raw_id = f.replace(/.md$/, "");
+      await log2.emit("triage.raw.load_error", {
+        raw_id,
+        error: truncateHeadCapped(String(e.message ?? e), 2e3)
+      });
+    }
+  }
+  return raws;
+}
+async function listTodos(repoRoot) {
+  const todoDir2 = join4(repoRoot, "docs/cycle/issues/todo");
+  try {
+    return (await readdir(todoDir2)).filter((f) => f.endsWith(".md")).sort();
+  } catch {
+    return [];
+  }
+}
+function renderPrompt(template, raws, queueRows, todoListing, retryFeedback) {
+  const rawsBlock = raws.map((r) => {
+    const fmSerialized = serializeFrontmatter(r.fm, r.body);
+    return `=== raw: ${r.id} ===
+${fmSerialized}`;
+  }).join("\n");
+  const tbd = queueRows.map((r) => JSON.stringify(r)).join("\n");
+  const todoText = todoListing.join("\n");
+  return template.replace("{{RAWS_BLOCK}}", rawsBlock).replace("{{TBD_JSONL}}", tbd).replace("{{TODO_LISTING}}", todoText).replace("{{RETRY_FEEDBACK}}", retryFeedback);
+}
+function validateOutput(rawStdout, raws, queueRows, cfg2, todoIds = /* @__PURE__ */ new Set()) {
+  let parsed;
+  try {
+    parsed = JSON.parse(stripFences(rawStdout));
+  } catch (e) {
+    return { ok: false, reason: `stdout is not valid JSON: ${e.message}` };
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false, reason: "stdout is not a JSON object" };
+  }
+  const obj = parsed;
+  if (!Array.isArray(obj.ordering)) {
+    return {
+      ok: false,
+      reason: `ordering: expected array, got ${typeof obj.ordering}`
+    };
+  }
+  for (let i = 0; i < obj.ordering.length; i++) {
+    if (typeof obj.ordering[i] !== "string") {
+      return { ok: false, reason: `ordering[${i}]: expected string` };
+    }
+  }
+  if (!Array.isArray(obj.children)) {
+    return {
+      ok: false,
+      reason: `children: expected array, got ${typeof obj.children}`
+    };
+  }
+  if (!Array.isArray(obj.decomposed_parents)) {
+    return {
+      ok: false,
+      reason: `decomposed_parents: expected array, got ${typeof obj.decomposed_parents}`
+    };
+  }
+  for (let i = 0; i < obj.decomposed_parents.length; i++) {
+    if (typeof obj.decomposed_parents[i] !== "string") {
+      return {
+        ok: false,
+        reason: `decomposed_parents[${i}]: expected string`
+      };
+    }
+  }
+  const children = [];
+  const childIds = /* @__PURE__ */ new Set();
+  const stringFields = [
+    "raw_id",
+    "slug",
+    "id",
+    "title",
+    "workflow",
+    "body"
+  ];
+  for (let i = 0; i < obj.children.length; i++) {
+    const c = obj.children[i];
+    if (!c || typeof c !== "object" || Array.isArray(c)) {
+      return { ok: false, reason: `children[${i}]: expected object` };
+    }
+    const co = c;
+    for (const field of stringFields) {
+      if (typeof co[field] !== "string") {
+        return {
+          ok: false,
+          reason: `children[${i}].${field}: expected string, got ${typeof co[field]}`
+        };
+      }
+    }
+    if (!Array.isArray(co.depends_on)) {
+      return {
+        ok: false,
+        reason: `children[${i}].depends_on: expected array, got ${typeof co.depends_on}`
+      };
+    }
+    for (let j = 0; j < co.depends_on.length; j++) {
+      if (typeof co.depends_on[j] !== "string") {
+        return {
+          ok: false,
+          reason: `children[${i}].depends_on[${j}]: expected string`
+        };
+      }
+    }
+    const child = co;
+    if (child.id !== child.raw_id && child.id !== `${child.raw_id}-${child.slug}`) {
+      return {
+        ok: false,
+        reason: `children[${i}].id: expected ${child.raw_id} or ${child.raw_id}-${child.slug}, got ${child.id}`
+      };
+    }
+    if (!cfg2.workflows.some((w) => w.name === child.workflow)) {
+      return {
+        ok: false,
+        reason: `children[${i}].workflow: ${child.workflow} not in configured workflows`
+      };
+    }
+    if (!raws.some((r) => r.id === child.raw_id)) {
+      return {
+        ok: false,
+        reason: `children[${i}].raw_id: ${child.raw_id} not in current batch`
+      };
+    }
+    if (childIds.has(child.id)) {
+      return {
+        ok: false,
+        reason: `children[${i}].id: duplicate ${child.id}`
+      };
+    }
+    childIds.add(child.id);
+    children.push(child);
+  }
+  for (const p of obj.decomposed_parents) {
+    if (!raws.some((r) => r.id === p)) {
+      return {
+        ok: false,
+        reason: `decomposed_parents: ${p} not in current batch`
+      };
+    }
+  }
+  const queueIds = new Set(queueRows.map((r) => r.id));
+  for (let i = 0; i < children.length; i++) {
+    if (queueIds.has(children[i].id)) {
+      return {
+        ok: false,
+        reason: `children[${i}].id: ${children[i].id} collides with existing queue row`
+      };
+    }
+  }
+  const pendingIds = new Set(
+    queueRows.filter((r) => r.status === "pending").map((r) => r.id)
+  );
+  const orderingArr = obj.ordering;
+  const orderingSeen = /* @__PURE__ */ new Set();
+  for (let i = 0; i < orderingArr.length; i++) {
+    const id = orderingArr[i];
+    if (orderingSeen.has(id)) {
+      return { ok: false, reason: `ordering[${i}]: duplicate ${id}` };
+    }
+    orderingSeen.add(id);
+    if (!pendingIds.has(id) && !childIds.has(id)) {
+      return {
+        ok: false,
+        reason: `ordering[${i}]: ${id} not in current pending and not in new children`
+      };
+    }
+  }
+  const knownIds = /* @__PURE__ */ new Set([...childIds, ...queueIds, ...todoIds]);
+  for (let i = 0; i < children.length; i++) {
+    const c = children[i];
+    for (let j = 0; j < c.depends_on.length; j++) {
+      const dep = c.depends_on[j];
+      if (dep === c.id) {
+        return {
+          ok: false,
+          reason: `children[${i}].depends_on[${j}]: ${c.id} depends on itself (self-loop)`
+        };
+      }
+      if (!knownIds.has(dep)) {
+        return {
+          ok: false,
+          reason: `children[${i}].depends_on[${j}]: ${dep} is not a sibling child, tbd.jsonl row, or todo/<id>.md file (offending child: ${c.id})`
+        };
+      }
+    }
+  }
+  return {
+    ok: true,
+    parsed: {
+      ordering: orderingArr,
+      children,
+      decomposed_parents: obj.decomposed_parents
+    }
+  };
+}
+async function applyRaw(repoRoot, raw, parsed, fs = defaultQueueFsOps) {
+  const children = parsed.children.filter((c) => c.raw_id === raw.id);
+  const appliedTodos = [];
+  const appliedIds = [];
+  const todoDir2 = join4(repoRoot, "docs/cycle/issues/todo");
+  const doneDir2 = join4(repoRoot, "docs/cycle/issues/done");
+  await mkdir3(todoDir2, { recursive: true });
+  try {
+    const triagedAt = (/* @__PURE__ */ new Date()).toISOString();
+    const priority = normalizePriority(raw.fm.priority);
+    for (const child of children) {
+      const todoPath = join4(todoDir2, `${child.id}.md`);
+      const fm = {
+        id: child.id,
+        title: child.title,
+        workflow: child.workflow,
+        depends_on: child.depends_on,
+        triaged_at: triagedAt,
+        source: "triage",
+        priority
+      };
+      if (child.id !== raw.id) fm.parent = raw.id;
+      const bodyTail = child.body.endsWith("\n") ? child.body : child.body + "\n";
+      const todoContent = serializeFrontmatter(fm, bodyTail);
+      await atomicWrite(todoPath, todoContent, fs);
+      appliedTodos.push(todoPath);
+      const row = {
+        id: child.id,
+        title: child.title,
+        status: "pending",
+        attempt: 0,
+        depends_on: child.depends_on,
+        triaged_at: triagedAt,
+        priority
+      };
+      if (child.id !== raw.id) row.parent = raw.id;
+      await appendRow(repoRoot, row, fs);
+      appliedIds.push(child.id);
+    }
+    await mkdir3(doneDir2, { recursive: true });
+    await fs.rename(raw.srcPath, join4(doneDir2, `${raw.id}_raw.md`));
+  } catch (e) {
+    for (const todo of appliedTodos) {
+      try {
+        await unlink(todo);
+      } catch {
+      }
+    }
+    if (appliedIds.length > 0) {
+      try {
+        const rows = await readQueue(repoRoot, fs);
+        const idSet = new Set(appliedIds);
+        const next = rows.filter((r) => !idSet.has(r.id));
+        await writeQueue(repoRoot, next, fs);
+      } catch {
+      }
+    }
+    throw e;
+  }
+}
+async function atomicWrite(path, content, fs = defaultQueueFsOps) {
+  await mkdir3(dirname3(path), { recursive: true });
+  const tmp = path + ".tmp";
+  await fs.writeFile(tmp, content, "utf8");
+  try {
+    await fs.rename(tmp, path);
+  } catch (e) {
+    try {
+      await unlink(tmp);
+    } catch {
+    }
+    throw e;
+  }
+}
+async function bumpAttempts(srcPath, attempts) {
+  try {
+    await mutateFrontmatter(srcPath, (fm) => ({
+      ...fm,
+      triage_attempts: attempts
+    }));
+  } catch {
+  }
+}
+async function moveToFailed(repoRoot, raw) {
+  const failedDir2 = join4(repoRoot, "docs/cycle/issues/failed");
+  await mkdir3(failedDir2, { recursive: true });
+  try {
+    await mutateFrontmatter(raw.srcPath, (fm) => ({
+      ...fm,
+      triage_attempts: MAX_ATTEMPTS,
+      failed_at: (/* @__PURE__ */ new Date()).toISOString(),
+      failed_step: "triage"
+    }));
+  } catch {
+  }
+  try {
+    await rename3(raw.srcPath, join4(failedDir2, `${raw.id}.md`));
+  } catch {
+  }
+}
+async function parkForIdeas(repoRoot, raw, log2) {
+  const discussDir = join4(repoRoot, "docs/cycle/issues/ideas");
+  await mkdir3(discussDir, { recursive: true });
+  const destPath = join4(discussDir, `${raw.id}.md`);
+  let renamed = true;
+  try {
+    await rename3(raw.srcPath, destPath);
+  } catch (e) {
+    await log2.emit("issue.park_failed", { id: raw.id, error: String(e) });
+    renamed = false;
+  }
+  if (renamed) {
+    await log2.emit("issue.parked_for_ideas", {
+      id: raw.id,
+      priority: "idea",
+      path: destPath
+    });
+  }
+}
+async function rewriteOrdering(repoRoot, ordering, log2, fs = defaultQueueFsOps) {
+  const rows = await readQueue(repoRoot, fs);
+  const inProgress = rows.filter((r) => r.status === "in_progress");
+  const pending = rows.filter((r) => r.status === "pending");
+  const byId = new Map(pending.map((r) => [r.id, r]));
+  const ordered = [];
+  for (const id of ordering) {
+    const row = byId.get(id);
+    if (row) {
+      ordered.push(row);
+      byId.delete(id);
+    }
+  }
+  for (const [id, row] of byId) {
+    await log2.emit("triage.warning", { reason: "ordering_omitted", id });
+    ordered.push(row);
+  }
+  await writeQueue(repoRoot, [...inProgress, ...ordered], fs);
+}
+async function runAgentViaDispatch(prompt, cfg2, repoRoot) {
+  const mod = resolveAgent(cfg2.agent);
+  const cycleDir = join4(repoRoot, ".cycle");
+  await mkdir3(cycleDir, { recursive: true });
+  const tmpName = `.triage-${randomBytes(8).toString("hex")}.prompt.md`;
+  const tmpPath = join4(cycleDir, tmpName);
+  try {
+    await writeFile4(tmpPath, prompt, "utf8");
+    const r = await mod.runStep({ repoRoot, promptPath: tmpName });
+    return { exitCode: r.exitCode, stdout: r.stdout, stderr: r.stderr };
+  } finally {
+    await unlink(tmpPath).catch(() => {
+    });
+  }
+}
+var MAX_ATTEMPTS;
+var init_triage = __esm({
+  "src/engine/triage.ts"() {
+    "use strict";
+    init_frontmatter();
+    init_queue();
+    init_exec();
+    init_log_fmt();
+    MAX_ATTEMPTS = 3;
+  }
+});
+
+// src/engine/log.ts
+import { appendFile as appendFile2, mkdir as mkdir4 } from "node:fs/promises";
+import { join as join5 } from "node:path";
+async function createLogger(repoRoot, sink = console.log) {
+  const path = join5(repoRoot, ".cycle", "log.jsonl");
+  await mkdir4(join5(repoRoot, ".cycle"), { recursive: true });
+  return {
+    async emit(event, fields) {
+      const line = JSON.stringify({ ts: (/* @__PURE__ */ new Date()).toISOString(), event, ...fields });
+      await appendFile2(path, line + "\n", "utf8");
+      sink(line);
+    }
+  };
+}
+var init_log = __esm({
+  "src/engine/log.ts"() {
+    "use strict";
+  }
+});
+
+// src/engine/cycle-id.ts
+import { readFile as readFile6, readdir as readdir2 } from "node:fs/promises";
+import { join as join6 } from "node:path";
+async function allocateCycleId(repoRoot) {
+  let highest = 0;
+  try {
+    const log2 = await readFile6(join6(repoRoot, ".cycle/log.jsonl"), "utf8");
+    for (const line of log2.split("\n")) {
+      if (!line) continue;
+      try {
+        const e = JSON.parse(line);
+        const id = typeof e.cycle_id === "string" ? parseInt(e.cycle_id, 10) : NaN;
+        if (!Number.isNaN(id) && id > highest) highest = id;
+      } catch {
+      }
+    }
+  } catch {
+  }
+  try {
+    const entries = await readdir2(join6(repoRoot, "docs/cycle"), { withFileTypes: true });
+    for (const ent of entries) {
+      if (!ent.isDirectory()) continue;
+      const m = /^(\d{4})-/.exec(ent.name);
+      if (!m) continue;
+      const id = parseInt(m[1], 10);
+      if (!Number.isNaN(id) && id > highest) highest = id;
+    }
+  } catch {
+  }
+  return String(highest + 1).padStart(4, "0");
+}
+var init_cycle_id = __esm({
+  "src/engine/cycle-id.ts"() {
+    "use strict";
+  }
+});
+
 // src/engine/workflow.ts
 import { readFile as readFile7 } from "node:fs/promises";
 import { join as join7 } from "node:path";
@@ -8472,7 +8536,7 @@ async function loadConfig(repoRoot, env = process.env) {
   } catch {
     throw new Error(`workflows.yml missing: ${path}`);
   }
-  const parsed = import_yaml.default.parse(body);
+  const parsed = import_yaml2.default.parse(body);
   if (!parsed || typeof parsed !== "object") {
     throw new Error(`workflows.yml malformed: not an object (${path})`);
   }
@@ -8508,19 +8572,47 @@ async function loadConfig(repoRoot, env = process.env) {
     commitConfig.mode = "trunk";
   }
   parsed.engine.commit = commitConfig;
+  if (typeof parsed.engine.shell !== "string" || parsed.engine.shell.trim() === "") {
+    delete parsed.engine.shell;
+  }
+  const rawDefaults = parsed.defaults;
+  if (rawDefaults !== void 0 && (rawDefaults === null || typeof rawDefaults !== "object" || Array.isArray(rawDefaults))) {
+    throw new Error(`workflows.yml malformed: defaults must be an object (${path})`);
+  }
+  const defaults = rawDefaults ?? {};
+  const validAgents = /* @__PURE__ */ new Set([...knownAgents(), "bash"]);
+  for (const w of parsed.workflows) {
+    for (const step of w.steps) {
+      const agent = step.agent ?? defaults.agent;
+      if (!agent) {
+        throw new Error(
+          `workflows.yml malformed: workflow "${w.name}" step "${step.name}" has no agent and no defaults.agent (${path})`
+        );
+      }
+      if (!validAgents.has(agent)) {
+        throw new Error(
+          `workflows.yml malformed: workflow "${w.name}" step "${step.name}" has unknown agent "${agent}" (${path})`
+        );
+      }
+      step.agent = agent;
+      if (step.model === void 0 && defaults.model !== void 0) step.model = defaults.model;
+      if (step.thinking === void 0 && defaults.thinking !== void 0) step.thinking = defaults.thinking;
+    }
+  }
   return parsed;
 }
-var import_yaml;
+var import_yaml2;
 var init_workflow = __esm({
   "src/engine/workflow.ts"() {
     "use strict";
-    import_yaml = __toESM(require_dist(), 1);
+    import_yaml2 = __toESM(require_dist(), 1);
+    init_exec();
   }
 });
 
 // src/engine/log-tail.ts
 import { readFile as readFile8 } from "node:fs/promises";
-import { join as join8 } from "node:path";
+import { join as join9 } from "node:path";
 function parseLogTail(text) {
   const events = [];
   for (const line of text.split("\n")) {
@@ -8602,7 +8694,7 @@ function parseLogTail(text) {
 }
 async function readLogTail(repoRoot) {
   try {
-    const text = await readFile8(join8(repoRoot, ".cycle", "log.jsonl"), "utf8");
+    const text = await readFile8(join9(repoRoot, ".cycle", "log.jsonl"), "utf8");
     return parseLogTail(text);
   } catch (e) {
     if (e.code === "ENOENT") return null;
@@ -8618,7 +8710,7 @@ var init_log_tail = __esm({
 // src/engine/branch.ts
 import { spawn as spawn2 } from "node:child_process";
 import { mkdir as mkdir5 } from "node:fs/promises";
-import { join as join9 } from "node:path";
+import { join as join10 } from "node:path";
 function git(repoRoot, args2) {
   return new Promise((resolve2, reject) => {
     const child = spawn2("git", args2, { cwd: repoRoot, shell: false });
@@ -8649,14 +8741,14 @@ async function createCycleBranch(repoRoot, opts) {
   } else {
     await git(repoRoot, ["checkout", "-b", branch]);
   }
-  const artifactDir = join9(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
+  const artifactDir = join10(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
   await mkdir5(artifactDir, { recursive: true });
   return { branch, artifactDir };
 }
 async function checkoutCycleBranch(repoRoot, opts) {
   const branch = `cycle/${opts.workflow}/${opts.slug}`;
   await git(repoRoot, ["checkout", branch]);
-  const artifactDir = join9(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
+  const artifactDir = join10(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
   await mkdir5(artifactDir, { recursive: true });
   return { branch, artifactDir };
 }
@@ -8664,7 +8756,7 @@ async function checkoutBase(repoRoot, base) {
   await git(repoRoot, ["checkout", base]);
 }
 async function prepareTrunkArtifactDir(repoRoot, opts) {
-  const artifactDir = join9(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
+  const artifactDir = join10(repoRoot, "docs", "cycle", `${opts.cycleId}-${opts.workflow}-${opts.slug}`);
   await mkdir5(artifactDir, { recursive: true });
   return { artifactDir };
 }
@@ -8774,12 +8866,12 @@ var init_branch = __esm({
 
 // src/engine/path-utils.ts
 function isDenied(p) {
-  const q = p.replace(/\/$/, "");
+  const q2 = p.replace(/\/$/, "");
   for (const prefix of DENYLIST_PREFIXES) {
-    if (q === prefix || q.startsWith(prefix + "/")) return true;
+    if (q2 === prefix || q2.startsWith(prefix + "/")) return true;
   }
-  if (DENYLIST_EXACT.includes(q)) return true;
-  if (q.endsWith(".lock")) return true;
+  if (DENYLIST_EXACT.includes(q2)) return true;
+  if (q2.endsWith(".lock")) return true;
   return false;
 }
 var DENYLIST_PREFIXES, DENYLIST_EXACT;
@@ -8794,35 +8886,37 @@ var init_path_utils = __esm({
 // src/cli/init.ts
 var init_exports = {};
 __export(init_exports, {
+  locateDefaultsDir: () => locateDefaultsDir,
+  locateEngineBundle: () => locateEngineBundle,
   runInit: () => runInit
 });
 import { cp, mkdir as mkdir6, stat as stat3, chmod, copyFile, writeFile as writeFile6 } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname4, join as join14 } from "node:path";
+import { dirname as dirname4, join as join17 } from "node:path";
 async function runInit(opts) {
   const t = opts.targetRoot;
   const enginePath = await locateEngineBundle();
-  await mkdir6(join14(t, ".cycle/bin"), { recursive: true });
-  await copyFile(enginePath, join14(t, ".cycle/bin/cycle.js"));
-  await chmod(join14(t, ".cycle/bin/cycle.js"), 493);
+  await mkdir6(join17(t, ".cycle/bin"), { recursive: true });
+  await copyFile(enginePath, join17(t, ".cycle/bin/cycle.js"));
+  await chmod(join17(t, ".cycle/bin/cycle.js"), 493);
   await writeFile6(
-    join14(t, ".cycle/package.json"),
+    join17(t, ".cycle/package.json"),
     JSON.stringify({ type: "module", private: true }, null, 2) + "\n"
   );
   const defaults = await locateDefaultsDir();
-  await mkdir6(join14(t, ".cycle"), { recursive: true });
-  await copyFile(join14(defaults, "workflows.yml"), join14(t, ".cycle/workflows.yml"));
-  await cp(join14(defaults, "prompts"), join14(t, ".cycle/prompts"), { recursive: true });
-  await cp(join14(defaults, "scripts"), join14(t, ".cycle/scripts"), { recursive: true });
-  for (const sub of ["raw", "todo", "done", "blocked", "failed"]) {
-    await mkdir6(join14(t, "docs/cycle/issues", sub), { recursive: true });
+  await mkdir6(join17(t, ".cycle"), { recursive: true });
+  await copyFile(join17(defaults, "workflows.yml"), join17(t, ".cycle/workflows.yml"));
+  await cp(join17(defaults, "prompts"), join17(t, ".cycle/prompts"), { recursive: true });
+  await cp(join17(defaults, "scripts"), join17(t, ".cycle/scripts"), { recursive: true });
+  for (const sub of ["ideas", "inbox", "todo", "done", "blocked", "failed"]) {
+    await mkdir6(join17(t, "docs/cycle/issues", sub), { recursive: true });
   }
 }
 async function locateEngineBundle() {
   const candidates = [
-    join14(HERE, "..", "..", "dist", "cycle.js"),
-    join14(HERE, "..", "dist", "cycle.js"),
-    join14(HERE, "cycle.js")
+    join17(HERE, "..", "..", "dist", "cycle.js"),
+    join17(HERE, "..", "dist", "cycle.js"),
+    join17(HERE, "cycle.js")
   ];
   for (const c of candidates) {
     try {
@@ -8835,13 +8929,13 @@ async function locateEngineBundle() {
 }
 async function locateDefaultsDir() {
   const candidates = [
-    join14(HERE, "defaults"),
+    join17(HERE, "defaults"),
     // dist/defaults next to dist/cycle.js
-    join14(HERE, "..", "defaults"),
+    join17(HERE, "..", "defaults"),
     // dist/../defaults
-    join14(HERE, "..", "..", "src", "defaults"),
+    join17(HERE, "..", "..", "src", "defaults"),
     // local dev from src/cli/
-    join14(HERE, "..", "src", "defaults")
+    join17(HERE, "..", "src", "defaults")
     // local dev from src/
   ];
   for (const c of candidates) {
@@ -8861,17 +8955,104 @@ var init_init = __esm({
   }
 });
 
+// src/cli/upgrade.ts
+var upgrade_exports = {};
+__export(upgrade_exports, {
+  runUpgrade: () => runUpgrade
+});
+import { cp as cp2, mkdir as mkdir7, stat as stat4, chmod as chmod2, copyFile as copyFile2, writeFile as writeFile7, rm } from "node:fs/promises";
+import { join as join18 } from "node:path";
+async function runUpgrade(opts) {
+  const { targetRoot: t, argv: argv2 } = opts;
+  const unknown = argv2.filter((a) => a.startsWith("-") && !KNOWN_FLAGS.includes(a));
+  if (unknown.length > 0) {
+    return { exitCode: 1, stdout: "", stderr: "Unknown flag(s): " + unknown.join(", ") };
+  }
+  const all = argv2.includes("--overwrite-all");
+  const owPrompts = all || argv2.includes("--overwrite-prompts");
+  const owWorkflows = all || argv2.includes("--overwrite-workflows");
+  const owScripts = all || argv2.includes("--overwrite-scripts");
+  try {
+    const sb = await stat4(join18(t, ".cycle"));
+    if (!sb.isDirectory()) throw new Error("not a directory");
+  } catch {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "cycle upgrade: no .cycle/ found in " + t + " \u2014 run `cycle init` first."
+    };
+  }
+  const enginePath = await locateEngineBundle();
+  const defaults = await locateDefaultsDir();
+  await mkdir7(join18(t, ".cycle/bin"), { recursive: true });
+  await copyFile2(enginePath, join18(t, ".cycle/bin/cycle.js"));
+  await chmod2(join18(t, ".cycle/bin/cycle.js"), 493);
+  await writeFile7(
+    join18(t, ".cycle/package.json"),
+    JSON.stringify({ type: "module", private: true }, null, 2) + "\n"
+  );
+  const refreshed = [".cycle/bin/cycle.js", ".cycle/package.json"];
+  const preserved = [];
+  const overwritten = [];
+  if (owWorkflows) {
+    await copyFile2(join18(defaults, "workflows.yml"), join18(t, ".cycle/workflows.yml"));
+    overwritten.push(".cycle/workflows.yml");
+  } else {
+    preserved.push(".cycle/workflows.yml");
+  }
+  for (const [flag, name] of [
+    [owPrompts, "prompts"],
+    [owScripts, "scripts"]
+  ]) {
+    const dest = join18(t, ".cycle", name);
+    if (flag) {
+      await rm(dest, { recursive: true, force: true });
+      await cp2(join18(defaults, name), dest, { recursive: true });
+      overwritten.push(`.cycle/${name}/`);
+    } else {
+      preserved.push(`.cycle/${name}/`);
+    }
+  }
+  const lines = [
+    "cycle upgrade complete.",
+    "  Refreshed (engine): " + refreshed.join(", ")
+  ];
+  if (overwritten.length) {
+    lines.push("  Overwritten (from defaults): " + overwritten.join(", "));
+  }
+  if (preserved.length) {
+    lines.push("  Preserved (user config): " + preserved.join(", "));
+  }
+  lines.push(
+    "  Untouched (state): .cycle/.env, .cycle/tbd.jsonl, .cycle/log.jsonl, docs/cycle/issues/**"
+  );
+  return { exitCode: 0, stdout: lines.join("\n") + "\n", stderr: "" };
+}
+var KNOWN_FLAGS;
+var init_upgrade = __esm({
+  "src/cli/upgrade.ts"() {
+    "use strict";
+    init_init();
+    KNOWN_FLAGS = [
+      "--overwrite-prompts",
+      "--overwrite-workflows",
+      "--overwrite-scripts",
+      "--overwrite-all"
+    ];
+  }
+});
+
 // src/cli/status.ts
 var status_exports = {};
 __export(status_exports, {
   ISSUE_FOLDERS: () => ISSUE_FOLDERS,
   runStatus: () => runStatus
 });
-import { readdir as readdir2 } from "node:fs/promises";
-import { join as join15 } from "node:path";
+import { readdir as readdir3 } from "node:fs/promises";
+import { join as join19 } from "node:path";
 async function countMd(dir) {
   try {
-    const entries = await readdir2(dir);
+    const entries = await readdir3(dir);
     return entries.filter((f) => f.endsWith(".md")).length;
   } catch (e) {
     if (e.code === "ENOENT") return 0;
@@ -8887,7 +9068,7 @@ async function runStatus({ cwd: cwd2 }) {
     blocked: 0
   };
   for (const name of ISSUE_FOLDERS) {
-    counts[name] = await countMd(join15(cwd2, "docs/cycle/issues", name));
+    counts[name] = await countMd(join19(cwd2, "docs/cycle/issues", name));
   }
   const rows = await readQueue(cwd2);
   const pending = rows.filter((r) => r.status === "pending").length;
@@ -8953,7 +9134,7 @@ var init_triage2 = __esm({
     HELP = `Usage: cycle triage --dry-run [--help]
 
 Re-run the configured triage agent against every file in
-docs/cycle/issues/raw/ and print a per-raw report as JSON.
+docs/cycle/issues/inbox/ and print a per-raw report as JSON.
 
 The --dry-run mode performs no engine-side filesystem mutations:
   - no writes under docs/cycle/issues/{raw,todo,done,failed}
@@ -8970,13 +9151,52 @@ runs as part of \`cycle run\`.`;
   }
 });
 
+// src/engine/shell.ts
+function resolveShell(input) {
+  const cfg2 = input.config;
+  if (typeof cfg2 === "string" && cfg2.trim() !== "") return { ok: true, path: cfg2 };
+  const envShell = input.env.CYCLE_SHELL;
+  if (typeof envShell === "string" && envShell.trim() !== "") return { ok: true, path: envShell };
+  if (input.platform !== "win32") return { ok: true, path: POSIX_DEFAULT_SHELL };
+  for (const cand of WINDOWS_SHELL_CANDIDATES) {
+    if (input.existsSync(cand)) return { ok: true, path: cand };
+  }
+  return {
+    ok: false,
+    searched: [...WINDOWS_SHELL_CANDIDATES],
+    message: "cycle: no POSIX shell found for bash steps on Windows. Searched:\n" + WINDOWS_SHELL_CANDIDATES.map((p) => `  - ${p}`).join("\n") + "\nFix: install Git for Windows (git-bash) or WSL, or set engine.shell in .cycle/workflows.yml or the CYCLE_SHELL environment variable to a bash path."
+  };
+}
+var WINDOWS_SHELL_CANDIDATES, POSIX_DEFAULT_SHELL;
+var init_shell = __esm({
+  "src/engine/shell.ts"() {
+    "use strict";
+    WINDOWS_SHELL_CANDIDATES = [
+      "C:\\Program Files\\Git\\bin\\bash.exe",
+      "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+      "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+      "C:\\Windows\\System32\\bash.exe"
+    ];
+    POSIX_DEFAULT_SHELL = "/bin/bash";
+  }
+});
+
 // src/engine/exec-bash.ts
 import { spawn as spawn3 } from "node:child_process";
-import { join as join16 } from "node:path";
-function execBashStep(repoRoot, command, env) {
+import { existsSync as existsSync2 } from "node:fs";
+import { join as join20 } from "node:path";
+function execBashStep(repoRoot, command, env, shell = resolveShell({
+  platform: process.platform,
+  env: process.env,
+  existsSync: existsSync2
+})) {
   return new Promise((resolve2) => {
-    const abs = join16(repoRoot, ".cycle", command);
-    const child = spawn3("/bin/bash", [abs], {
+    if (!shell.ok) {
+      resolve2({ status: "failed", exitCode: 1, stdout: "", stderr: shell.message });
+      return;
+    }
+    const abs = join20(repoRoot, ".cycle", command);
+    const child = spawn3(shell.path, [abs], {
       cwd: repoRoot,
       env: buildChildEnv(env),
       shell: false
@@ -8989,6 +9209,7 @@ function execBashStep(repoRoot, command, env) {
     child.stderr.on("data", (d) => {
       stderr += d.toString();
     });
+    child.on("error", (err) => resolve2({ status: "failed", exitCode: -1, stdout, stderr: stderr + String(err) }));
     child.on("close", (code) => {
       resolve2({
         status: code === 0 ? "ok" : "failed",
@@ -9003,23 +9224,24 @@ var init_exec_bash = __esm({
   "src/engine/exec-bash.ts"() {
     "use strict";
     init_child_env();
+    init_shell();
   }
 });
 
 // src/engine/reflection.ts
-import { mkdir as mkdir7, readdir as readdir3, readFile as readFile11, rename as rename6, unlink as unlink3, writeFile as writeFile7 } from "node:fs/promises";
-import { dirname as dirname5, join as join17 } from "node:path";
+import { mkdir as mkdir8, readdir as readdir4, readFile as readFile12, rename as rename6, unlink as unlink3, writeFile as writeFile8 } from "node:fs/promises";
+import { dirname as dirname5, join as join21 } from "node:path";
 async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2, artifactDir, touchedJsonPath) {
-  const rawDir2 = join17(repoRoot, "docs/cycle/issues/raw");
-  const todoDir2 = join17(repoRoot, "docs/cycle/issues/todo");
-  const discussDir = join17(repoRoot, "docs/cycle/issues/discuss");
-  await mkdir7(rawDir2, { recursive: true });
-  const existing = await readdir3(rawDir2);
+  const rawDir2 = join21(repoRoot, "docs/cycle/issues/inbox");
+  const todoDir2 = join21(repoRoot, "docs/cycle/issues/todo");
+  const discussDir = join21(repoRoot, "docs/cycle/issues/ideas");
+  await mkdir8(rawDir2, { recursive: true });
+  const existing = await readdir4(rawDir2);
   const re = new RegExp(`^refl-${cycleId}-.+\\.md$`);
   for (const name of existing) {
     if (re.test(name)) {
       try {
-        await unlink3(join17(rawDir2, name));
+        await unlink3(join21(rawDir2, name));
       } catch {
       }
     }
@@ -9051,12 +9273,12 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2, art
   const entries = parsed.sharp_edges;
   let touchedFiles = [];
   try {
-    const tj = JSON.parse(await readFile11(touchedJsonPath, "utf8"));
+    const tj = JSON.parse(await readFile12(touchedJsonPath, "utf8"));
     if (Array.isArray(tj.files)) touchedFiles = tj.files;
   } catch {
   }
-  const logPath = join17(repoRoot, ".cycle", "log.jsonl");
-  const scopeWarnings = await readScopeWarnings(logPath, cycleId);
+  const logPath2 = join21(repoRoot, ".cycle", "log.jsonl");
+  const scopeWarnings = await readScopeWarnings(logPath2, cycleId);
   const syntheticEntries = scopeWarnings.map((files) => ({
     title: `scope-warning cleanup: ${files.slice(0, 3).join(", ")}${files.length > 3 ? " \u2026" : ""}`,
     body: `Files committed outside the cycle footprint: ${files.join(", ")}. These files were not tracked in touched.json. Investigate whether touched.json accumulation needs updating or whether the commit included unintended changes.`,
@@ -9130,7 +9352,7 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2, art
       });
       continue;
     }
-    const priority = e.bucket === "discuss" ? "discuss" : e.priority ?? "medium";
+    const priority = e.bucket === "idea" ? "idea" : e.priority ?? "medium";
     const content = serializeFrontmatter(
       {
         id,
@@ -9143,7 +9365,7 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2, art
       },
       "\n" + e.body + "\n"
     );
-    await atomicWrite2(join17(rawDir2, `${id}.md`), content);
+    await atomicWrite2(join21(rawDir2, `${id}.md`), content);
     written.push(id);
     deferredCount++;
     await log2.emit("reflection.deferred_issue_written", {
@@ -9156,7 +9378,7 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2, art
   }
   if (fixNowItems.length > 0) {
     const content = buildFinalFixesContent(cycleId, fixNowItems, touchedFiles);
-    await atomicWrite2(join17(artifactDir, "FINAL_FIXES.md"), content);
+    await atomicWrite2(join21(artifactDir, "FINAL_FIXES.md"), content);
   }
   const reflContent = buildReflectionContent(cycleId, allEntries.length, {
     fixNow,
@@ -9165,7 +9387,7 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2, art
     capDropped,
     validationSkipped
   });
-  await atomicWrite2(join17(artifactDir, "REFLECTION.md"), reflContent);
+  await atomicWrite2(join21(artifactDir, "REFLECTION.md"), reflContent);
   await log2.emit("reflection.summary", {
     cycle_id: cycleId,
     count: written.length,
@@ -9176,9 +9398,9 @@ async function ingestReflection(repoRoot, cycleId, _cycleSlug, stdout, log2, art
   });
   return { written, skipped, fixNow };
 }
-async function readScopeWarnings(logPath, cycleId) {
+async function readScopeWarnings(logPath2, cycleId) {
   try {
-    const text = await readFile11(logPath, "utf8");
+    const text = await readFile12(logPath2, "utf8");
     const results = [];
     for (const line of text.split("\n")) {
       if (!line.trim()) continue;
@@ -9200,10 +9422,10 @@ async function buildDedupeMap(rawDir2, todoDir2, discussDir) {
   for (const [dir, label] of [
     [rawDir2, "raw"],
     [todoDir2, "todo"],
-    [discussDir, "discuss"]
+    [discussDir, "idea"]
   ]) {
     try {
-      const entries = await readdir3(dir, { withFileTypes: true });
+      const entries = await readdir4(dir, { withFileTypes: true });
       for (const ent of entries) {
         if (ent.isFile() && ent.name.endsWith(".md")) {
           map.set(ent.name.slice(0, -3), label);
@@ -9237,7 +9459,7 @@ function buildReflectionContent(cycleId, edgeCount, routing) {
     "| Category | Count |",
     "|---|---|",
     `| fix_now | ${routing.fixNow} |`,
-    `| deferred to raw/ | ${routing.deferred} |`,
+    `| deferred to inbox/ | ${routing.deferred} |`,
     `| dedup skipped | ${routing.dedupSkipped} |`,
     `| cap dropped | ${routing.capDropped} |`,
     `| validation skipped | ${routing.validationSkipped} |`,
@@ -9330,7 +9552,7 @@ async function writeParseError(rawDir2, cycleId, stdout) {
     },
     "\n" + body + "\n"
   );
-  await atomicWrite2(join17(rawDir2, `${id}.md`), content);
+  await atomicWrite2(join21(rawDir2, `${id}.md`), content);
   return id;
 }
 function validateEntry(e) {
@@ -9344,9 +9566,9 @@ function validateEntry(e) {
   return null;
 }
 async function atomicWrite2(path, content) {
-  await mkdir7(dirname5(path), { recursive: true });
+  await mkdir8(dirname5(path), { recursive: true });
   const tmp = path + ".tmp";
-  await writeFile7(tmp, content, "utf8");
+  await writeFile8(tmp, content, "utf8");
   try {
     await rename6(tmp, path);
   } catch (e) {
@@ -9366,7 +9588,7 @@ var init_reflection = __esm({
     init_log_fmt();
     TRUNC_BUDGET = 8192;
     TRUNC_MARKER = "\n\u2026\n";
-    VALID_BUCKETS = /* @__PURE__ */ new Set(["fix_now", "defer", "discuss"]);
+    VALID_BUCKETS = /* @__PURE__ */ new Set(["fix_now", "defer", "idea"]);
     VALID_PRIORITIES = /* @__PURE__ */ new Set(["low", "medium", "high", "critical"]);
     DEFERRED_CAP = 2;
   }
@@ -9394,10 +9616,238 @@ var init_sanitize_artifact = __esm({
   }
 });
 
+// src/engine/compress-filter.ts
+function compressOutput(stdout, opts = {}) {
+  const thresholdBytes = opts.thresholdBytes ?? DEFAULT_THRESHOLD_BYTES;
+  const headLines = opts.headLines ?? DEFAULT_HEAD_LINES;
+  const tailLines = opts.tailLines ?? DEFAULT_TAIL_LINES;
+  if (Buffer.byteLength(stdout, "utf8") <= thresholdBytes) {
+    return { text: stdout, compressed: false };
+  }
+  const lines = stdout.split("\n");
+  if (lines.length <= headLines + tailLines) {
+    return { text: stdout, compressed: false };
+  }
+  const head = lines.slice(0, headLines);
+  const tail = lines.slice(lines.length - tailLines);
+  const middle = lines.slice(headLines, lines.length - tailLines);
+  const retained = middle.filter((l) => ERROR_LINE_PATTERN.test(l));
+  const elided = middle.filter((l) => !ERROR_LINE_PATTERN.test(l));
+  const elidedBytes = Buffer.byteLength(elided.join("\n"), "utf8");
+  const marker = `[\u2026 ${elided.length} lines/${elidedBytes} bytes elided \u2026]`;
+  const text = [...head, marker, ...retained, ...tail].join("\n");
+  return { text, compressed: true };
+}
+function classifyCommand(command) {
+  const c = command.trim();
+  if (c.length === 0) return { rewrite: false };
+  if (DENY_PATTERN.test(c)) return { rewrite: false };
+  const first = c.split(/\s+/)[0];
+  if (!ALLOWLIST.has(first)) return { rewrite: false };
+  return { rewrite: true };
+}
+function q(s) {
+  return `"${s}"`;
+}
+function buildRewriteCommand({ execPath, cliPath, command }) {
+  return `${q(execPath)} ${q(cliPath)} compress-output -- ${command.trim()}`;
+}
+function buildCompressHookSettings({ execPath, cliPath }) {
+  return {
+    hooks: {
+      PreToolUse: [
+        {
+          matcher: "Bash",
+          hooks: [
+            {
+              type: "command",
+              command: `${q(execPath)} ${q(cliPath)} compress-output-hook`
+            }
+          ]
+        }
+      ]
+    }
+  };
+}
+var DEFAULT_THRESHOLD_BYTES, DEFAULT_HEAD_LINES, DEFAULT_TAIL_LINES, ALLOWLIST, DENY_PATTERN, ERROR_LINE_PATTERN;
+var init_compress_filter = __esm({
+  "src/engine/compress-filter.ts"() {
+    "use strict";
+    DEFAULT_THRESHOLD_BYTES = 4e3;
+    DEFAULT_HEAD_LINES = 40;
+    DEFAULT_TAIL_LINES = 20;
+    ALLOWLIST = /* @__PURE__ */ new Set([
+      "git",
+      "ls",
+      "cat",
+      "grep",
+      "rg",
+      "diff",
+      "head",
+      "tail",
+      "wc",
+      "tree",
+      "stat"
+    ]);
+    DENY_PATTERN = /[|&;<>$`(){}\n\r]/;
+    ERROR_LINE_PATTERN = /\b(error|fatal|fail(ed|ure)?|denied|cannot|no such|warning)\b/i;
+  }
+});
+
+// src/engine/noop-marker.ts
+import { readFile as readFile13 } from "node:fs/promises";
+function parseNoopMarker(content) {
+  let reason;
+  let evidenceCount = 0;
+  for (const line of content.split("\n")) {
+    const m = REASON_RE.exec(line);
+    if (m && reason === void 0) {
+      const r = m[1].toLowerCase();
+      if (NOOP_REASONS.has(r)) reason = r;
+    }
+    if (EVIDENCE_RE.test(line)) evidenceCount++;
+  }
+  if (reason !== void 0 && evidenceCount >= 1) return { valid: true, reason };
+  return { valid: false };
+}
+async function classifyNoopMarker(markerPath) {
+  let content;
+  try {
+    content = await readFile13(markerPath, "utf8");
+  } catch {
+    return { valid: false };
+  }
+  return parseNoopMarker(content);
+}
+var NOOP_REASONS, EVIDENCE_RE, REASON_RE;
+var init_noop_marker = __esm({
+  "src/engine/noop-marker.ts"() {
+    "use strict";
+    NOOP_REASONS = /* @__PURE__ */ new Set([
+      "already-satisfied",
+      "duplicate",
+      "not-actionable"
+    ]);
+    EVIDENCE_RE = /[\w./-]+\.\w+:\d+\b/;
+    REASON_RE = /^\s*reason\s*:\s*([a-z-]+)\s*$/i;
+  }
+});
+
+// src/engine/walkthrough.ts
+import { spawn as spawn4 } from "node:child_process";
+import { existsSync as existsSync3 } from "node:fs";
+import { stat as stat5, readdir as readdir5, writeFile as writeFile9 } from "node:fs/promises";
+import { join as join22, isAbsolute, relative } from "node:path";
+function walkthroughManifestName(phase) {
+  return phase ? `walkthrough-${phase}-artifacts.json` : WALKTHROUGH_MANIFEST;
+}
+async function resolveWalkthroughHook(repoRoot, cfg2) {
+  const raw = cfg2.engine.walkthrough_hook;
+  const configured = typeof raw === "string" && raw.trim() ? raw.trim() : void 0;
+  const candidate = configured ? isAbsolute(configured) ? configured : join22(repoRoot, configured) : join22(repoRoot, ".cycle", "walkthrough.sh");
+  try {
+    const st = await stat5(candidate);
+    if (st.isFile() && (st.mode & 73) !== 0) return candidate;
+  } catch {
+  }
+  return null;
+}
+function execWalkthroughHook(repoRoot, hookAbsPath, env, opts = {}) {
+  return new Promise((resolve2) => {
+    const shell = opts.shell ?? resolveShell({
+      platform: process.platform,
+      env: process.env,
+      existsSync: existsSync3
+    });
+    if (!shell.ok) {
+      resolve2({ status: "failed", exitCode: 1, stdout: "", stderr: shell.message });
+      return;
+    }
+    const child = spawn4(shell.path, [hookAbsPath], {
+      cwd: repoRoot,
+      env: buildChildEnv(env),
+      shell: false,
+      detached: true
+    });
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    let settled = false;
+    const timer = opts.timer ?? defaultTimer;
+    let timeoutHandle;
+    let killHandle;
+    const done = (r) => {
+      if (settled) return;
+      settled = true;
+      timeoutHandle?.clear();
+      killHandle?.clear();
+      resolve2(r);
+    };
+    const killTree = (sig) => {
+      try {
+        if (child.pid) process.kill(-child.pid, sig);
+      } catch {
+        try {
+          child.kill(sig);
+        } catch {
+        }
+      }
+    };
+    child.stdout.on("data", (d) => {
+      stdout += d.toString();
+    });
+    child.stderr.on("data", (d) => {
+      stderr += d.toString();
+    });
+    child.on("error", (err) => done({ status: "failed", exitCode: -1, stdout, stderr: stderr + String(err) }));
+    child.on("close", (code) => done(timedOut ? { status: "failed", exitCode: code ?? -1, stdout, stderr, timedOut: true } : { status: code === 0 ? "ok" : "failed", exitCode: code ?? -1, stdout, stderr }));
+    if (opts.timeoutMs && opts.timeoutMs > 0) {
+      timeoutHandle = timer(opts.timeoutMs, () => {
+        timedOut = true;
+        killTree("SIGTERM");
+        killHandle = timer(WALKTHROUGH_KILL_GRACE_MS, () => killTree("SIGKILL"));
+      });
+    }
+  });
+}
+async function collectWalkthroughMedia(artifactDir, phase) {
+  const mediaDir = phase ? join22(artifactDir, WALKTHROUGH_MEDIA_DIRNAME, phase) : join22(artifactDir, WALKTHROUGH_MEDIA_DIRNAME);
+  let entries;
+  try {
+    entries = await readdir5(mediaDir, { recursive: true, withFileTypes: true });
+  } catch (err) {
+    if (err.code === "ENOENT") return [];
+    throw err;
+  }
+  return entries.filter((e) => e.isFile()).map((e) => relative(artifactDir, join22(e.parentPath ?? mediaDir, e.name))).sort();
+}
+async function writeWalkthroughManifest(artifactDir, media, phase) {
+  const manifestPath = join22(artifactDir, walkthroughManifestName(phase));
+  await writeFile9(manifestPath, JSON.stringify({ media, count: media.length }, null, 2), "utf8");
+  return manifestPath;
+}
+var WALKTHROUGH_MEDIA_DIRNAME, WALKTHROUGH_MANIFEST, WALKTHROUGH_KILL_GRACE_MS, defaultTimer;
+var init_walkthrough = __esm({
+  "src/engine/walkthrough.ts"() {
+    "use strict";
+    init_child_env();
+    init_shell();
+    WALKTHROUGH_MEDIA_DIRNAME = "walkthrough";
+    WALKTHROUGH_MANIFEST = "walkthrough-artifacts.json";
+    WALKTHROUGH_KILL_GRACE_MS = 5e3;
+    defaultTimer = (ms, cb) => {
+      const t = setTimeout(cb, ms);
+      if (t.unref) t.unref();
+      return { clear: () => clearTimeout(t) };
+    };
+  }
+});
+
 // src/engine/run-cycle.ts
-import { writeFile as writeFile8, readFile as readFile12, stat as stat4 } from "node:fs/promises";
-import { join as join18 } from "node:path";
-import { spawnSync as spawnSync2 } from "node:child_process";
+import { writeFile as writeFile10, readFile as readFile14, stat as stat6 } from "node:fs/promises";
+import { existsSync as existsSync4 } from "node:fs";
+import { join as join23 } from "node:path";
+import { spawnSync as spawnSync5 } from "node:child_process";
 function parseSnapshotPaths(snapshot) {
   const paths = /* @__PURE__ */ new Set();
   for (const raw of snapshot.split("\n")) {
@@ -9418,24 +9868,51 @@ function parseSnapshotPaths(snapshot) {
   }
   return paths;
 }
+function resolveExpectsCode(fm) {
+  return fm?.expects_code === false ? false : true;
+}
+function parseDocDeliverablePaths(stdout) {
+  const out = [];
+  for (const raw of (stdout ?? "").split("\n")) {
+    if (!raw.trim()) continue;
+    const xy = raw.slice(0, 2);
+    let p = raw.slice(3);
+    if (xy[0] === "R" || xy[0] === "C") {
+      const arrow = p.lastIndexOf(" -> ");
+      if (arrow !== -1) p = p.slice(arrow + 4);
+    }
+    p = p.replace(/^"/, "").replace(/"$/, "");
+    if (!p.startsWith("docs/")) continue;
+    if (isDenied(p) || p.startsWith("docs/cycle/")) continue;
+    out.push(p);
+  }
+  return out;
+}
+function parseTouchedFilesSection(text) {
+  const lines = text.split("\n");
+  const headerIdx = lines.findIndex((l) => l.trim() === "## Touched Files");
+  if (headerIdx === -1) return /* @__PURE__ */ new Set();
+  const out = /* @__PURE__ */ new Set();
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    if (lines[i].startsWith("##")) break;
+    const m = /^\s*-\s+(.+)/.exec(lines[i]);
+    if (m) out.add(m[1].trim());
+  }
+  return out;
+}
 async function appendDocumentationPaths(repoRoot, buildMdPath, log2, cycleId, preSnapshot) {
   let text;
   try {
-    text = await readFile12(buildMdPath, "utf8");
+    text = await readFile14(buildMdPath, "utf8");
   } catch {
     return;
   }
   const lines = text.split("\n");
   const headerIdx = lines.findIndex((l) => l.trim() === "## Touched Files");
   if (headerIdx === -1) return;
-  const touchedSet = /* @__PURE__ */ new Set();
-  for (let i = headerIdx + 1; i < lines.length; i++) {
-    if (lines[i].startsWith("##")) break;
-    const m = /^\s*-\s+(.+)/.exec(lines[i]);
-    if (m) touchedSet.add(m[1].trim());
-  }
+  const touchedSet = parseTouchedFilesSection(text);
   const prePaths = parseSnapshotPaths(preSnapshot);
-  const result = spawnSync2("git", ["status", "--porcelain"], {
+  const result = spawnSync5("git", ["status", "--porcelain"], {
     cwd: repoRoot,
     encoding: "utf8",
     shell: false
@@ -9453,36 +9930,70 @@ async function appendDocumentationPaths(repoRoot, buildMdPath, log2, cycleId, pr
     insertIdx--;
   }
   lines.splice(insertIdx, 0, ...toAppend.map((p) => `- ${p}`));
-  await writeFile8(buildMdPath, lines.join("\n"), "utf8");
+  await writeFile10(buildMdPath, lines.join("\n"), "utf8");
   await log2.emit("documentation.paths_appended", { cycle_id: cycleId, appended: toAppend });
 }
 async function accumulateTouchedFiles(repoRoot, artifactDir, preSnapshot) {
   const prePaths = parseSnapshotPaths(preSnapshot);
-  const post = spawnSync2("git", ["status", "--porcelain"], {
+  const post = spawnSync5("git", ["status", "--porcelain"], {
     cwd: repoRoot,
     encoding: "utf8",
     shell: false
   });
   const newFiles = Array.from(parseSnapshotPaths(post.stdout ?? "")).filter((p) => !isDenied(p) && !prePaths.has(p));
-  const touchedPath = join18(artifactDir, "touched.json");
+  const touchedPath = join23(artifactDir, "touched.json");
   let existing = [];
   try {
-    const raw = await readFile12(touchedPath, "utf8");
+    const raw = await readFile14(touchedPath, "utf8");
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed.files)) existing = parsed.files;
   } catch {
   }
   const merged = Array.from(/* @__PURE__ */ new Set([...existing, ...newFiles])).sort();
-  await writeFile8(touchedPath, JSON.stringify({ files: merged }, null, 2) + "\n", "utf8");
+  await writeFile10(touchedPath, JSON.stringify({ files: merged }, null, 2) + "\n", "utf8");
+}
+async function recoverTouchedFiles(repoRoot, artifactDir, log2, cycleId) {
+  const touchedPath = join23(artifactDir, "touched.json");
+  let existing = [];
+  try {
+    const raw = await readFile14(touchedPath, "utf8");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed.files)) existing = parsed.files;
+  } catch {
+  }
+  if (existing.length > 0) return;
+  let declared = /* @__PURE__ */ new Set();
+  try {
+    declared = parseTouchedFilesSection(await readFile14(join23(artifactDir, "BUILD.md"), "utf8"));
+  } catch {
+  }
+  const status = spawnSync5("git", ["status", "--porcelain"], { cwd: repoRoot, encoding: "utf8", shell: false });
+  const current = status.status === 0 ? parseSnapshotPaths(status.stdout ?? "") : /* @__PURE__ */ new Set();
+  const merged = Array.from(/* @__PURE__ */ new Set([...declared, ...current])).filter((p) => !isDenied(p)).sort();
+  if (merged.length === 0) {
+    await log2.emit("engine.warning", { reason: "touched_recovery_empty", cycle_id: cycleId });
+    return;
+  }
+  try {
+    await writeFile10(touchedPath, JSON.stringify({ files: merged }, null, 2) + "\n", "utf8");
+  } catch {
+    await log2.emit("engine.warning", { reason: "touched_recovery_write_failed", cycle_id: cycleId });
+    return;
+  }
+  await log2.emit("touched.recovered", { cycle_id: cycleId, source: TOUCHED_RECOVERY_SOURCE, count: merged.length });
+}
+async function classifyArtifact(artifactPath) {
+  try {
+    const content = await readFile14(artifactPath, "utf8");
+    return content.trim().length === 0 ? "empty" : "nonempty";
+  } catch {
+    return "empty";
+  }
 }
 async function shouldSkipForArtifact(artifactDir, stepName) {
   if (!SKIP_ELIGIBLE_STEPS.has(stepName)) return { skip: false };
-  const artifactPath = join18(artifactDir, `${stepName.toUpperCase()}.md`);
-  try {
-    const st = await stat4(artifactPath);
-    if (st.isFile() && st.size > 0) return { skip: true, artifactPath };
-  } catch {
-  }
+  const artifactPath = join23(artifactDir, `${stepName.toUpperCase()}.md`);
+  if (await classifyArtifact(artifactPath) === "nonempty") return { skip: true, artifactPath };
   return { skip: false };
 }
 function formatSpecGuardError(path, bytes, threshold) {
@@ -9494,10 +10005,19 @@ function formatFixGuardError(fixPath, mustFixPath, count) {
 function formatEmptyDiffGuardError(stepName) {
   return `${stepName} post-condition failed: no code changes detected (step reported ok but git status --porcelain -- src scripts tests is empty)`;
 }
+function formatCompletionProofError(stepName, artifactPath) {
+  return `${stepName} exited 0 but ${artifactPath} is empty \u2014 treating as failure`;
+}
+function formatTimeoutProofError(stepName, artifactPath, exitCode) {
+  return `${stepName} timed out (exit ${exitCode}) and left ${artifactPath} empty \u2014 treating as failure`;
+}
+function formatWalkthroughTimeoutError(stepName, exitCode) {
+  return `${stepName} timed out (exit ${exitCode}) \u2014 hook killed (SIGTERM\u2192SIGKILL) \u2014 treating as failure`;
+}
 async function findPriorStepHeadSha(repoRoot, cycleId, stepName) {
   let text;
   try {
-    text = await readFile12(join18(repoRoot, ".cycle", "log.jsonl"), "utf8");
+    text = await readFile14(join23(repoRoot, ".cycle", "log.jsonl"), "utf8");
   } catch {
     return null;
   }
@@ -9555,12 +10075,27 @@ async function runCycle(repoRoot, opts) {
     ...opts.issueId ? { CYCLE_ISSUE_ID: opts.issueId } : {},
     ...opts.env ?? {}
   };
+  const sleepFn = opts.sleepFn ?? ((ms) => new Promise((resolve2) => setTimeout(resolve2, ms)));
+  const nowFn = opts.nowFn ?? (() => Date.now());
   try {
     const startIdx = opts.resume?.startStepIndex ?? 0;
+    if (opts.resume) {
+      const maxResetIdx = wf.steps.reduce(
+        (max, s, idx) => RESET_ELIGIBLE_STEPS.has(s.name) ? idx : max,
+        -1
+      );
+      if (maxResetIdx >= 0 && startIdx > maxResetIdx) {
+        try {
+          await recoverTouchedFiles(repoRoot, artifactDir, log2, cycleId);
+        } catch {
+        }
+      }
+    }
     const attempt = opts.attempt ?? 0;
     const skipEnabled = opts.skipCompletedOnRetry !== false;
     for (let i = startIdx; i < wf.steps.length; i++) {
       const step = wf.steps[i];
+      const stepStart = nowFn();
       let headSha = null;
       const isResetEligible = RESET_ELIGIBLE_STEPS.has(step.name);
       const isResumeEntry = !!opts.resume && i === startIdx;
@@ -9577,10 +10112,10 @@ async function runCycle(repoRoot, opts) {
         }
       }
       if (step.skip_unless) {
-        const guardPath = join18(artifactDir, step.skip_unless);
+        const guardPath = join23(artifactDir, step.skip_unless);
         let present = false;
         try {
-          const st = await stat4(guardPath);
+          const st = await stat6(guardPath);
           present = st.isFile();
         } catch {
         }
@@ -9590,10 +10125,72 @@ async function runCycle(repoRoot, opts) {
             step: step.name,
             status: "skipped",
             reason: "skip_unless_artifact_missing",
-            artifact: step.skip_unless
+            artifact: step.skip_unless,
+            duration_ms: Math.max(0, Math.round(nowFn() - stepStart))
           });
           continue;
         }
+      }
+      if (WALKTHROUGH_PHASES.has(step.name)) {
+        const phase = WALKTHROUGH_PHASES.get(step.name);
+        const hook = await resolveWalkthroughHook(repoRoot, cfg2);
+        if (!hook) {
+          await log2.emit("step.end", {
+            cycle_id: cycleId,
+            step: step.name,
+            status: "skipped",
+            reason: "walkthrough_hook_absent",
+            duration_ms: Math.max(0, Math.round(nowFn() - stepStart))
+          });
+          continue;
+        }
+        await log2.emit("step.start", { cycle_id: cycleId, step: step.name, agent: "bash" });
+        const rawWtTimeout = cfg2.engine.walkthrough_hook_timeout_ms;
+        const walkthroughTimeoutMs = typeof rawWtTimeout === "number" && Number.isInteger(rawWtTimeout) && rawWtTimeout > 0 ? rawWtTimeout : 0;
+        const wtShell = resolveShell({ platform: process.platform, env: process.env, config: cfg2.engine.shell, existsSync: existsSync4 });
+        const wr = await execWalkthroughHook(
+          repoRoot,
+          hook,
+          { ...cycleEnv, CYCLE_ARTIFACT_DIR: artifactDir, ...phase ? { CYCLE_WALKTHROUGH_PHASE: phase } : {} },
+          { timeoutMs: walkthroughTimeoutMs, shell: wtShell }
+        );
+        if (wr.status === "failed") {
+          const failStderr = wr.timedOut ? truncateHeadCapped(`${formatWalkthroughTimeoutError(step.name, wr.exitCode)}
+${wr.stderr}`, MAX_STEP_END_STDERR) : truncateHeadCapped(wr.stderr, MAX_STEP_END_STDERR);
+          await log2.emit("step.end", {
+            cycle_id: cycleId,
+            step: step.name,
+            status: "failed",
+            exit_code: wr.exitCode,
+            duration_ms: Math.max(0, Math.round(nowFn() - stepStart)),
+            stderr: failStderr
+          });
+          await log2.emit("cycle.end", { cycle_id: cycleId, status: "failed", failing_step: step.name });
+          return { cycleId, artifactDir, status: "failed", failingStep: step.name };
+        }
+        let walkthroughArtifact;
+        try {
+          const media = await collectWalkthroughMedia(artifactDir, phase);
+          if (media.length > 0) {
+            walkthroughArtifact = await writeWalkthroughManifest(artifactDir, media, phase);
+          }
+        } catch (err) {
+          await log2.emit("step.walkthrough_capture_failed", {
+            cycle_id: cycleId,
+            step: step.name,
+            artifact: join23(artifactDir, walkthroughManifestName(phase)),
+            error: err instanceof Error ? err.message : String(err)
+          });
+        }
+        await log2.emit("step.end", {
+          cycle_id: cycleId,
+          step: step.name,
+          status: "ok",
+          exit_code: wr.exitCode,
+          duration_ms: Math.max(0, Math.round(nowFn() - stepStart)),
+          ...walkthroughArtifact ? { walkthrough_artifacts: walkthroughArtifact } : {}
+        });
+        continue;
       }
       if (isResetEligible && cfg2.engine.commit.mode === "worktree-pr") {
         if (!isResumeEntry) {
@@ -9623,75 +10220,194 @@ async function runCycle(repoRoot, opts) {
       });
       let preSnapshot = "";
       if (step.name === "documentation" || RESET_ELIGIBLE_STEPS.has(step.name)) {
-        const snap = spawnSync2("git", ["status", "--porcelain"], { cwd: repoRoot, encoding: "utf8", shell: false });
+        const snap = spawnSync5("git", ["status", "--porcelain"], { cwd: repoRoot, encoding: "utf8", shell: false });
         preSnapshot = snap.stdout ?? "";
       }
-      let r;
-      if (step.agent === "bash") {
-        r = await execBashStep(repoRoot, step.command, cycleEnv);
-      } else {
+      const appendSP = step.agent !== "bash" && ARTIFACT_STEPS.has(step.name ?? "") ? ARTIFACT_SUPPRESS_PROMPT : void 0;
+      if (appendSP !== void 0 && step.agent !== "claudecode") {
+        await log2.emit("step.warning", {
+          cycle_id: cycleId,
+          step: step.name,
+          reason: "append_system_prompt_ignored",
+          agent: step.agent
+        });
+      }
+      let settingsPath;
+      if (cfg2.engine.compress_output === true && step.agent === "claudecode") {
         try {
-          const mod = resolveAgent(step.agent);
-          const appendSP = ARTIFACT_STEPS.has(step.name ?? "") ? ARTIFACT_SUPPRESS_PROMPT : void 0;
-          if (appendSP !== void 0 && step.agent !== "claudecode") {
-            await log2.emit("step.warning", {
-              cycle_id: cycleId,
-              step: step.name,
-              reason: "append_system_prompt_ignored",
-              agent: step.agent
-            });
-          }
-          r = await mod.runStep({
-            repoRoot,
-            promptPath: step.prompt,
-            env: cycleEnv,
-            model: step.model,
-            thinking: step.thinking,
-            appendSystemPrompt: appendSP
-          });
+          const obj = buildCompressHookSettings({ execPath: process.execPath, cliPath: process.argv[1] });
+          const p = join23(repoRoot, ".cycle", "compress-hook-settings.json");
+          await writeFile10(p, JSON.stringify(obj, null, 2), "utf8");
+          settingsPath = p;
         } catch (err) {
-          if (err instanceof UnknownAgentError) {
-            r = { status: "failed", exitCode: -1, stdout: "", stderr: err.message };
-          } else {
-            throw err;
+          await log2.emit("step.warning", {
+            cycle_id: cycleId,
+            step: step.name,
+            reason: "compress_hook_settings_failed",
+            error: err.message
+          });
+        }
+      }
+      let r = { status: "failed", exitCode: -1, stdout: "", stderr: "" };
+      let noopOutcome = null;
+      let wasRateLimited = false;
+      let rateLimitRetries = 0;
+      const rawCap = cfg2.engine.max_rate_limit_retries;
+      const maxRateLimitRetries = typeof rawCap === "number" && Number.isInteger(rawCap) && rawCap > 0 ? rawCap : 24;
+      while (true) {
+        if (step.agent === "bash") {
+          const bashShell = resolveShell({ platform: process.platform, env: process.env, config: cfg2.engine.shell, existsSync: existsSync4 });
+          r = await execBashStep(repoRoot, step.command, cycleEnv, bashShell);
+        } else {
+          try {
+            const mod = resolveAgent(step.agent);
+            r = await mod.runStep({
+              repoRoot,
+              promptPath: step.prompt,
+              env: cycleEnv,
+              model: step.model,
+              thinking: step.thinking,
+              appendSystemPrompt: appendSP,
+              timeoutMs: cfg2.engine.step_timeout_ms,
+              settingsPath
+            });
+          } catch (err) {
+            if (err instanceof UnknownAgentError) {
+              r = { status: "failed", exitCode: -1, stdout: "", stderr: err.message };
+            } else {
+              throw err;
+            }
           }
         }
-        if (r.status === "ok" && step.name) {
-          const sanitized = sanitizeArtifactStdout(r.stdout);
-          const artifactPath = join18(artifactDir, `${step.name.toUpperCase()}.md`);
-          await writeFile8(artifactPath, sanitized, "utf8");
-          if (step.name === "spec") {
-            const bytes = Buffer.byteLength(sanitized, "utf8");
-            if (bytes < SPEC_MIN_BYTES) {
-              r.status = "failed";
-              r.exitCode = r.exitCode || 1;
-              r.stderr = formatSpecGuardError(artifactPath, bytes, SPEC_MIN_BYTES);
-            }
+        if (r.rateLimited) {
+          rateLimitRetries++;
+          if (rateLimitRetries > maxRateLimitRetries) {
+            await log2.emit("step.end", {
+              cycle_id: cycleId,
+              step: step.name,
+              status: "failed",
+              exit_code: r.exitCode,
+              duration_ms: Math.max(0, Math.round(nowFn() - stepStart)),
+              stderr: truncateHeadCapped(r.stderr, MAX_STEP_END_STDERR)
+            });
+            await log2.emit("engine.halted", {
+              reason: "rate_limit_max_retries",
+              retries: rateLimitRetries,
+              step_index: i
+            });
+            await log2.emit("cycle.end", { cycle_id: cycleId, status: "failed", failing_step: step.name });
+            return { cycleId, artifactDir, status: "failed", failingStep: step.name };
           }
-          if (r.status === "ok" && step.name === "fix") {
-            const mustFixPath = join18(artifactDir, "MUST-FIX.md");
-            let mustFixContent = "";
-            try {
-              mustFixContent = await readFile12(mustFixPath, "utf8");
-            } catch {
+          const backoffMs = cfg2.engine.rate_limit_backoff_ms ?? 36e5;
+          const retryAt = new Date(Date.now() + backoffMs).toISOString();
+          await log2.emit("engine.paused", { reason: "rate_limit", retry_at: retryAt });
+          await sleepFn(backoffMs);
+          wasRateLimited = true;
+          continue;
+        }
+        break;
+      }
+      if (wasRateLimited && r.status === "ok") {
+        await log2.emit("engine.resumed", { reason: "rate_limit_cleared" });
+      }
+      if (r.timedOut) {
+        await log2.emit("step.timeout", { cycle_id: cycleId, step: step.name, limit_ms: cfg2.engine.step_timeout_ms ?? null });
+      }
+      if (step.agent !== "bash") {
+        if ((r.status === "ok" || r.timedOut) && step.name) {
+          const sanitized = sanitizeArtifactStdout(r.stdout);
+          const artifactPath = join23(artifactDir, `${step.name.toUpperCase()}.md`);
+          await writeFile10(artifactPath, sanitized, "utf8");
+          if (STEP_ARTIFACTS.has(step.name)) {
+            const { proof } = STEP_ARTIFACTS.get(step.name);
+            let proofError = null;
+            if (proof === "spec-min-bytes") {
+              const bytes = Buffer.byteLength(sanitized, "utf8");
+              if (bytes < SPEC_MIN_BYTES) proofError = formatSpecGuardError(artifactPath, bytes, SPEC_MIN_BYTES);
+            } else if (proof === "fix-conditional") {
+              const mustFixPath = join23(artifactDir, "MUST-FIX.md");
+              let mustFixContent = "";
+              try {
+                mustFixContent = await readFile14(mustFixPath, "utf8");
+              } catch {
+              }
+              const taskCount = mustFixContent.split("\n").filter((l) => /^\s*[-*]\s*\[/.test(l)).length;
+              if (taskCount >= 1 && sanitized.trim().length === 0) {
+                proofError = formatFixGuardError(artifactPath, mustFixPath, taskCount);
+              }
+            } else {
+              if (await classifyArtifact(artifactPath) === "empty") {
+                proofError = r.timedOut ? formatTimeoutProofError(step.name, artifactPath, r.exitCode) : formatCompletionProofError(step.name, artifactPath);
+              }
             }
-            const taskCount = mustFixContent.split("\n").filter((l) => /^\s*[-*]\s*\[/.test(l)).length;
-            if (taskCount >= 1 && sanitized.trim().length === 0) {
+            await log2.emit("step.completion_check", {
+              cycle_id: cycleId,
+              step: step.name,
+              artifact: artifactPath,
+              status: proofError ? "fail" : "pass"
+            });
+            if (proofError) {
               r.status = "failed";
               r.exitCode = r.exitCode || 1;
-              r.stderr = formatFixGuardError(artifactPath, mustFixPath, taskCount);
+              r.stderr = proofError;
+            } else if (r.timedOut) {
+              r.status = "ok";
+              await log2.emit("step.timeout_salvaged", { cycle_id: cycleId, step: step.name, artifact: artifactPath });
             }
           }
           if (r.status === "ok" && (step.name === "build" || step.name === "fix")) {
-            const changed = spawnSync2("git", ["status", "--porcelain", "--", "src", "scripts", "tests"], {
+            const changed = spawnSync5("git", ["status", "--porcelain", "--", "src", "scripts", "tests"], {
               cwd: repoRoot,
               encoding: "utf8",
               shell: false
             });
             if (!changed.stdout || !changed.stdout.trim()) {
-              r.status = "failed";
-              r.exitCode = r.exitCode || 1;
-              r.stderr = formatEmptyDiffGuardError(step.name);
+              let expectsCode = true;
+              try {
+                const issueBody = await readFile14(
+                  join23(repoRoot, "docs/cycle/issues/todo", `${opts.issueId}.md`),
+                  "utf8"
+                );
+                expectsCode = resolveExpectsCode(parseFrontmatter(issueBody).fm);
+              } catch {
+                expectsCode = true;
+              }
+              let docDeliverable = false;
+              if (!expectsCode) {
+                const docs = spawnSync5("git", ["status", "--porcelain", "--untracked-files=all", "--", "docs"], {
+                  cwd: repoRoot,
+                  encoding: "utf8",
+                  shell: false
+                });
+                docDeliverable = docs.status === 0 && parseDocDeliverablePaths(docs.stdout ?? "").length > 0;
+              }
+              if (!expectsCode && docDeliverable) {
+              } else {
+                let marker = { valid: false };
+                try {
+                  marker = await classifyNoopMarker(join23(artifactDir, "NOOP.md"));
+                } catch {
+                  marker = { valid: false };
+                }
+                if (marker.valid) {
+                  noopOutcome = { reason: marker.reason, step: step.name };
+                } else {
+                  r.status = "failed";
+                  r.exitCode = r.exitCode || 1;
+                  r.stderr = formatEmptyDiffGuardError(step.name);
+                }
+              }
+            }
+          }
+          if (r.status === "ok" && step.name === "research") {
+            let marker = { valid: false };
+            try {
+              marker = await classifyNoopMarker(join23(artifactDir, "NOOP.md"));
+            } catch {
+              marker = { valid: false };
+            }
+            if (marker.valid) {
+              noopOutcome = { reason: marker.reason, step: step.name };
             }
           }
         }
@@ -9703,12 +10419,12 @@ async function runCycle(repoRoot, opts) {
             r.stdout,
             log2,
             artifactDir,
-            join18(artifactDir, "touched.json")
+            join23(artifactDir, "touched.json")
           );
         }
         if (r.status === "ok" && step.name === "documentation") {
           try {
-            await appendDocumentationPaths(repoRoot, join18(artifactDir, "BUILD.md"), log2, cycleId, preSnapshot);
+            await appendDocumentationPaths(repoRoot, join23(artifactDir, "BUILD.md"), log2, cycleId, preSnapshot);
           } catch {
           }
         }
@@ -9719,13 +10435,53 @@ async function runCycle(repoRoot, opts) {
           }
         }
       }
+      let stdoutArtifact;
+      const isFailedBash = step.agent === "bash" && r.status === "failed";
+      if (isFailedBash) {
+        const outPath = join23(artifactDir, `${step.name}.out`);
+        const fullOutput = `=== stdout ===
+${r.stdout}
+=== stderr ===
+${r.stderr}
+`;
+        try {
+          await writeFile10(outPath, fullOutput, "utf8");
+          stdoutArtifact = outPath;
+        } catch (err) {
+          await log2.emit("step.output_capture_failed", {
+            cycle_id: cycleId,
+            step: step.name,
+            artifact: outPath,
+            error: err instanceof Error ? err.message : String(err)
+          });
+        }
+      }
       await log2.emit("step.end", {
         cycle_id: cycleId,
         step: step.name,
         status: r.status,
         exit_code: r.exitCode,
-        ...r.status === "failed" ? { stderr: truncateHeadCapped(r.stderr, MAX_STEP_END_STDERR) } : {}
+        duration_ms: Math.max(0, Math.round(nowFn() - stepStart)),
+        ...r.status === "failed" ? { stderr: truncateHeadCapped(r.stderr, MAX_STEP_END_STDERR) } : {},
+        ...isFailedBash ? { stdout: truncateHeadCapped(r.stdout, MAX_STEP_END_STDOUT) } : {},
+        ...stdoutArtifact ? { stdout_artifact: stdoutArtifact } : {}
       });
+      if (noopOutcome) {
+        await log2.emit("cycle.noop", {
+          cycle_id: cycleId,
+          issue_id: opts.issueId,
+          reason: noopOutcome.reason,
+          detected_at_step: noopOutcome.step
+        });
+        await log2.emit("cycle.end", { cycle_id: cycleId, status: "noop" });
+        return {
+          cycleId,
+          artifactDir,
+          status: "noop",
+          reason: noopOutcome.reason,
+          detectedAtStep: noopOutcome.step
+        };
+      }
       if (r.status === "failed") {
         if (step.name === "reflection") {
           await log2.emit("reflection.skipped", { cycle_id: cycleId, reason: "exec_failed", exit_code: r.exitCode });
@@ -9768,7 +10524,7 @@ async function runCycle(repoRoot, opts) {
     }
   }
 }
-var RESET_ELIGIBLE_STEPS, SKIP_ELIGIBLE_STEPS, ARTIFACT_STEPS, ARTIFACT_SUPPRESS_PROMPT, SPEC_MIN_BYTES, MAX_STEP_END_STDERR;
+var RESET_ELIGIBLE_STEPS, WALKTHROUGH_PHASES, SKIP_ELIGIBLE_STEPS, STEP_ARTIFACTS, ARTIFACT_STEPS, ARTIFACT_SUPPRESS_PROMPT, TOUCHED_RECOVERY_SOURCE, SPEC_MIN_BYTES, MAX_STEP_END_STDERR, MAX_STEP_END_STDOUT;
 var init_run_cycle = __esm({
   "src/engine/run-cycle.ts"() {
     "use strict";
@@ -9781,14 +10537,39 @@ var init_run_cycle = __esm({
     init_reflection();
     init_sanitize_artifact();
     init_id();
+    init_shell();
     init_log_fmt();
+    init_compress_filter();
     init_path_utils();
+    init_noop_marker();
+    init_frontmatter();
+    init_walkthrough();
     RESET_ELIGIBLE_STEPS = /* @__PURE__ */ new Set(["build", "fix", "final_fix", "quick_fix", "test_fix", "test_build"]);
+    WALKTHROUGH_PHASES = /* @__PURE__ */ new Map([
+      ["walkthrough_capture", void 0],
+      ["walkthrough_before", "before"],
+      ["walkthrough_after", "after"]
+    ]);
     SKIP_ELIGIBLE_STEPS = /* @__PURE__ */ new Set(["spec", "research", "plan"]);
-    ARTIFACT_STEPS = /* @__PURE__ */ new Set(["spec", "research", "plan", "build", "review", "fix", "final_fix", "documentation"]);
+    STEP_ARTIFACTS = /* @__PURE__ */ new Map([
+      ["spec", { artifact: "SPEC.md", proof: "spec-min-bytes" }],
+      ["research", { artifact: "RESEARCH.md", proof: "nonempty" }],
+      ["plan", { artifact: "PLAN.md", proof: "nonempty" }],
+      ["build", { artifact: "BUILD.md", proof: "nonempty" }],
+      ["review", { artifact: "REVIEW.md", proof: "nonempty" }],
+      ["fix", { artifact: "FIX.md", proof: "fix-conditional" }],
+      ["final_fix", { artifact: "FINAL_FIX.md", proof: "nonempty" }],
+      ["documentation", { artifact: "DOCUMENTATION.md", proof: "nonempty" }],
+      ["plan_documents", { artifact: "PLAN_DOCUMENTS.md", proof: "nonempty" }],
+      ["authoring", { artifact: "AUTHORING.md", proof: "nonempty" }],
+      ["review_documents", { artifact: "REVIEW_DOCUMENTS.md", proof: "nonempty" }]
+    ]);
+    ARTIFACT_STEPS = new Set(STEP_ARTIFACTS.keys());
     ARTIFACT_SUPPRESS_PROMPT = "You are in File Artifact Mode for this invocation. Output only the requested document content as clean structured Markdown. Do not include insight blocks, star-marker commentary, educational explanations, contribution requests, confirmation sentences, narration, or trailing commentary. Produce the file \u2014 nothing else.";
+    TOUCHED_RECOVERY_SOURCE = "BUILD.md";
     SPEC_MIN_BYTES = 200;
     MAX_STEP_END_STDERR = 2e3;
+    MAX_STEP_END_STDOUT = 2e3;
   }
 });
 
@@ -9869,7 +10650,7 @@ async function runOne(argv2, cwd2) {
       baseBranch: params.baseBranch,
       ...params.resumeFromStep !== void 0 ? { resume: { startStepIndex: params.resumeFromStep } } : {}
     });
-    process.exit(result.status === "ok" ? 0 : 1);
+    process.exit(result.status === "ok" ? 0 : result.status === "noop" ? 3 : 1);
   } catch {
     process.exit(2);
   }
@@ -9887,8 +10668,8 @@ __export(cleanup_exports, {
   runCliCleanup: () => runCliCleanup,
   runCliCleanupWithDeps: () => runCliCleanupWithDeps
 });
-import { readFile as readFile13 } from "node:fs/promises";
-import { join as join19 } from "node:path";
+import { readFile as readFile15 } from "node:fs/promises";
+import { join as join24 } from "node:path";
 async function resolveBranchName(root, rowId, rowTitle, readTodoFile) {
   for (const dir of ISSUE_DIRS) {
     const body = await readTodoFile(root, dir + "/" + rowId);
@@ -9975,7 +10756,7 @@ async function runCliCleanup(repoRoot, argv2) {
     readQueue,
     readTodoFile: async (root, relId) => {
       try {
-        return await readFile13(join19(root, "docs/cycle/issues", relId + ".md"), "utf8");
+        return await readFile15(join24(root, "docs/cycle/issues", relId + ".md"), "utf8");
       } catch {
         return null;
       }
@@ -10002,18 +10783,116 @@ var init_cleanup = __esm({
   }
 });
 
+// src/cli/compress-output.ts
+var compress_output_exports = {};
+__export(compress_output_exports, {
+  runCompressOutput: () => runCompressOutput
+});
+import { spawnSync as spawnSync6 } from "node:child_process";
+function parseNum(v) {
+  if (v === void 0) return void 0;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : void 0;
+}
+function runCompressOutput(argv2, spawnFn = spawnSync6) {
+  let thresholdBytes;
+  let headLines;
+  let tailLines;
+  let i = 0;
+  for (; i < argv2.length; i++) {
+    const a = argv2[i];
+    if (a === "--") {
+      i++;
+      break;
+    }
+    if (a === "--threshold-bytes") thresholdBytes = parseNum(argv2[++i]);
+    else if (a === "--head-lines") headLines = parseNum(argv2[++i]);
+    else if (a === "--tail-lines") tailLines = parseNum(argv2[++i]);
+    else {
+      return { stdout: "", stderr: USAGE, exitCode: 2 };
+    }
+  }
+  const cmd = argv2.slice(i);
+  if (cmd.length === 0) {
+    return { stdout: "", stderr: USAGE, exitCode: 2 };
+  }
+  const [bin, ...rest] = cmd;
+  const res = spawnFn(bin, rest, {
+    shell: false,
+    encoding: "utf8",
+    env: buildChildEnv({}),
+    maxBuffer: 64 * 1024 * 1024
+  });
+  if (res.error) {
+    return { stdout: "", stderr: String(res.error.message) + "\n", exitCode: 127 };
+  }
+  const { text } = compressOutput(res.stdout ?? "", { thresholdBytes, headLines, tailLines });
+  return { stdout: text, stderr: res.stderr ?? "", exitCode: res.status ?? 0 };
+}
+var USAGE;
+var init_compress_output = __esm({
+  "src/cli/compress-output.ts"() {
+    "use strict";
+    init_child_env();
+    init_compress_filter();
+    USAGE = "usage: cycle compress-output [--threshold-bytes N] [--head-lines N] [--tail-lines N] -- <cmd> [args...]\n";
+  }
+});
+
+// src/cli/compress-output-hook.ts
+var compress_output_hook_exports = {};
+__export(compress_output_hook_exports, {
+  runCompressOutputHook: () => runCompressOutputHook
+});
+function runCompressOutputHook(stdinJson, ctx) {
+  try {
+    const evt = JSON.parse(stdinJson);
+    const command = evt?.tool_input?.command;
+    if (typeof command !== "string")
+      return {
+        stdout: "",
+        exitCode: 0,
+        stderr: "cycle compress-output-hook: degraded (no rewrite) \u2014 PreToolUse event has no string tool_input.command (schema drift?); command passed through unchanged"
+      };
+    if (!classifyCommand(command).rewrite) return { stdout: "", exitCode: 0 };
+    const updatedCommand = buildRewriteCommand({ ...ctx, command });
+    return {
+      stdout: JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse",
+          updatedInput: { command: updatedCommand }
+        }
+      }),
+      exitCode: 0
+    };
+  } catch {
+    return {
+      stdout: "",
+      exitCode: 0,
+      stderr: "cycle compress-output-hook: degraded (no rewrite) \u2014 could not parse PreToolUse event; command passed through unchanged"
+    };
+  }
+}
+var init_compress_output_hook = __esm({
+  "src/cli/compress-output-hook.ts"() {
+    "use strict";
+    init_compress_filter();
+  }
+});
+
 // src/cli.ts
 init_child_env();
-import { readFile as readFile14, readdir as readdir4, rename as rename7, mkdir as mkdir8 } from "node:fs/promises";
-import { join as join20 } from "node:path";
-import { spawn as spawn4 } from "node:child_process";
+import { appendFileSync } from "node:fs";
+import { readFile as readFile16, readdir as readdir6, rename as rename7, mkdir as mkdir9 } from "node:fs/promises";
+import { join as join25 } from "node:path";
+import { spawn as spawn5 } from "node:child_process";
 
 // src/version.ts
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname as dirname2, resolve } from "node:path";
 async function getVersion() {
-  if (true) return "0.0.3";
+  if (true) return "0.2.0";
   const pkgPath = resolve(dirname2(fileURLToPath(import.meta.url)), "..", "package.json");
   const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
   return pkg.version;
@@ -10039,14 +10918,16 @@ function parseArgs(argv2) {
     if (!text2) throw new Error("drop requires task text");
     return { command: "drop", text: text2 };
   }
-  if (argv2[0] !== "run") throw new Error(`unknown command: ${argv2[0] ?? "(none)"}`);
+  if (argv2.length > 0 && argv2[0] !== "run") throw new Error(`unknown command: ${argv2[0]}`);
   const { values, positionals } = nodeParseArgs({
     args: argv2.slice(1),
     options: {
       workflow: { type: "string", default: "feature" },
       "dry-run": { type: "boolean", default: false },
       "no-skip-completed": { type: "boolean", default: false },
-      trunk: { type: "boolean", default: false }
+      trunk: { type: "boolean", default: false },
+      "skip-preflight": { type: "boolean", default: false },
+      help: { type: "boolean", default: false }
     },
     allowPositionals: true
   });
@@ -10057,7 +10938,8 @@ function parseArgs(argv2) {
     workflow: String(values.workflow),
     dryRun: Boolean(values["dry-run"]),
     noSkipCompleted: Boolean(values["no-skip-completed"]),
-    trunk: Boolean(values.trunk)
+    trunk: Boolean(values.trunk),
+    skipPreflight: Boolean(values["skip-preflight"])
   };
 }
 
@@ -10067,7 +10949,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 async function materializeFreeformIssue(text, repoRoot, now = /* @__PURE__ */ new Date()) {
   const id = freeformId(text, now);
-  const dir = join(repoRoot, "docs", "cycle", "issues", "raw");
+  const dir = join(repoRoot, "docs", "cycle", "issues", "inbox");
   await mkdir(dir, { recursive: true });
   const path = join(dir, `${id}.md`);
   const frontmatter = [
@@ -10093,6 +10975,155 @@ init_log();
 init_cycle_id();
 init_queue();
 init_workflow();
+
+// src/engine/preflight.ts
+init_child_env();
+init_exec();
+import { spawnSync } from "node:child_process";
+import { readFileSync, statSync, accessSync, constants } from "node:fs";
+import { join as join8 } from "node:path";
+var AGENT_BINARY = {
+  claudecode: { env: "CYCLE_CLAUDE_BIN", bin: "claude", install: "reinstall the Claude Code CLI natively for your platform" },
+  codex: { env: "CYCLE_CODEX_BIN", bin: "codex", install: "npm i -g @openai/codex@latest" },
+  gemini: { env: "CYCLE_GEMINI_BIN", bin: "gemini", install: "reinstall the Gemini CLI natively for your platform" },
+  auggie: { env: "CYCLE_AUGGIE_BIN", bin: "auggie", install: "reinstall the Auggie CLI natively for your platform" },
+  opencode: { env: "CYCLE_OPENCODE_BIN", bin: "opencode", install: "reinstall the opencode CLI natively for your platform" },
+  pi: { env: "CYCLE_PI_BIN", bin: "pi", install: "reinstall the pi CLI natively for your platform" }
+};
+function readProcVersion() {
+  try {
+    return readFileSync("/proc/version", "utf8");
+  } catch {
+    return null;
+  }
+}
+function isWsl(procVersion) {
+  return !!procVersion && procVersion.toLowerCase().includes("microsoft");
+}
+function resolveOnPath(bin, pathEnv) {
+  if (bin.includes("/")) return bin;
+  for (const dir of pathEnv.split(":")) {
+    if (!dir) continue;
+    const candidate = join8(dir, bin);
+    try {
+      const st = statSync(candidate);
+      if (!st.isFile()) continue;
+      accessSync(candidate, constants.X_OK);
+      return candidate;
+    } catch {
+    }
+  }
+  return null;
+}
+function findWorkflow(cfg2, workflowName) {
+  return cfg2.workflows.find((w) => w.name === workflowName);
+}
+function distinctAgents(cfg2, workflowName) {
+  const known = new Set(knownAgents());
+  const set = /* @__PURE__ */ new Set();
+  const wf = findWorkflow(cfg2, workflowName);
+  if (wf) {
+    for (const step of wf.steps) {
+      if (step.agent !== "bash" && known.has(step.agent)) set.add(step.agent);
+    }
+  }
+  const triageAgent = cfg2.triage?.agent;
+  if (triageAgent && known.has(triageAgent)) set.add(triageAgent);
+  return [...set];
+}
+function detectTools(cfg2, workflowName) {
+  const set = /* @__PURE__ */ new Set(["bash", "git"]);
+  const wf = findWorkflow(cfg2, workflowName);
+  if (wf) {
+    for (const step of wf.steps) {
+      if (step.agent !== "bash") continue;
+      const command = step.command?.trim();
+      if (!command) continue;
+      const head = command.split(/\s+/)[0];
+      if (head && !head.includes("/")) set.add(head);
+    }
+  }
+  return [...set];
+}
+function shadowWarning(target, resolvedPath) {
+  return {
+    kind: "wsl_shadow",
+    target,
+    resolvedPath,
+    message: `${target} resolves under ${resolvedPath} (WSL /mnt/c) \u2014 this likely shadows a native Linux install; prefer a linux-x64 build or set CYCLE_<AGENT>_BIN.`
+  };
+}
+function agentFix(agent, resolved, spec, shadowPrefix, probe) {
+  if (resolved.startsWith(shadowPrefix)) {
+    return `${agent} resolved to ${resolved} \u2014 a Windows build missing the linux-x64 binary. Install natively: ${spec.install}`;
+  }
+  return `${agent} resolved to ${resolved} \u2014 its \`--version\` probe failed (exit ${probe.status}). ${spec.install}`;
+}
+function runPreflight(opts) {
+  try {
+    const env = opts.env ?? process.env;
+    const childPath = opts.pathEnv ?? buildChildEnv({}).PATH ?? "";
+    const wsl = isWsl(opts.procVersion === void 0 ? readProcVersion() : opts.procVersion);
+    const shadowPrefix = opts.shadowPrefix ?? "/mnt/c/";
+    const checks = [];
+    const failures = [];
+    const warnings = [];
+    for (const agent of distinctAgents(opts.cfg, opts.workflowName)) {
+      const spec = AGENT_BINARY[agent];
+      const override = env[spec.env];
+      const resolved = override ?? resolveOnPath(spec.bin, childPath);
+      if (!resolved) {
+        failures.push({
+          kind: "agent",
+          name: agent,
+          resolvedPath: null,
+          fix: `${agent} binary "${spec.bin}" not found on PATH. Install it or set ${spec.env} to its path.`
+        });
+        checks.push({ kind: "agent", name: agent, resolvedPath: null, ok: false });
+        continue;
+      }
+      const probe = spawnSync(resolved, ["--version"], { env: buildChildEnv({}), shell: false });
+      const ok = !probe.error && probe.status === 0;
+      checks.push({ kind: "agent", name: agent, resolvedPath: resolved, ok });
+      if (!ok) {
+        failures.push({
+          kind: "agent",
+          name: agent,
+          resolvedPath: resolved,
+          fix: agentFix(agent, resolved, spec, shadowPrefix, probe)
+        });
+      }
+      if (wsl && resolved.startsWith(shadowPrefix)) warnings.push(shadowWarning(agent, resolved));
+    }
+    for (const tool of detectTools(opts.cfg, opts.workflowName)) {
+      const resolved = resolveOnPath(tool, childPath);
+      const ok = resolved !== null;
+      checks.push({ kind: "tool", name: tool, resolvedPath: resolved, ok });
+      if (!ok) {
+        failures.push({
+          kind: "tool",
+          name: tool,
+          resolvedPath: null,
+          fix: `${tool} not found on PATH. Install ${tool} before running cycle (or use --skip-preflight).`
+        });
+      } else if (wsl && resolved.startsWith(shadowPrefix)) {
+        warnings.push(shadowWarning(tool, resolved));
+      }
+    }
+    return { ok: failures.length === 0, checks, failures, warnings };
+  } catch (err) {
+    return {
+      ok: false,
+      checks: [],
+      warnings: [],
+      failures: [
+        { kind: "internal", name: "preflight", resolvedPath: null, fix: err.message }
+      ]
+    };
+  }
+}
+
+// src/cli.ts
 init_frontmatter();
 init_log_tail();
 init_branch();
@@ -10100,23 +11131,28 @@ init_branch();
 // src/engine/commit-cycle.ts
 init_child_env();
 init_path_utils();
-import { spawnSync } from "node:child_process";
+import { spawnSync as spawnSync2 } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile as readFile9 } from "node:fs/promises";
-import { join as join10 } from "node:path";
-function spawnGit(args2, cwd2, envExtra) {
-  const env = buildChildEnv(envExtra ?? {});
-  const r = spawnSync("git", args2, { cwd: cwd2, shell: false, encoding: "utf8", env });
-  return { ok: r.status === 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
-}
-async function stageFiles(repoRoot, envExtra) {
-  const env = buildChildEnv(envExtra ?? {});
-  const lsStage = spawnSync("git", ["ls-files", "--stage"], {
-    cwd: repoRoot,
+import { join as join11 } from "node:path";
+var STATE_FILES = [".cycle/log.jsonl", ".cycle/tbd.jsonl"];
+var defaultSpawn = (cmd, args2, opts) => {
+  const r = spawnSync2(cmd, args2, {
+    cwd: opts.cwd,
     shell: false,
     encoding: "utf8",
-    env
+    env: opts.env
   });
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+};
+function spawnGit(args2, cwd2, envExtra, spawn6) {
+  const env = buildChildEnv(envExtra ?? {});
+  const r = spawn6("git", args2, { cwd: cwd2, env });
+  return { ok: r.status === 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+async function stageFiles(repoRoot, envExtra, spawn6) {
+  const env = buildChildEnv(envExtra ?? {});
+  const lsStage = spawn6("git", ["ls-files", "--stage"], { cwd: repoRoot, env });
   const gitlinkPaths = /* @__PURE__ */ new Set();
   for (const line of (lsStage.stdout ?? "").split("\n")) {
     if (line.startsWith("160000 ")) {
@@ -10124,10 +11160,8 @@ async function stageFiles(repoRoot, envExtra) {
       if (parts[1]) gitlinkPaths.add(parts[1].trim());
     }
   }
-  const status = spawnSync("git", ["status", "--porcelain", "--untracked-files=all"], {
+  const status = spawn6("git", ["status", "--porcelain", "--untracked-files=all"], {
     cwd: repoRoot,
-    shell: false,
-    encoding: "utf8",
     env
   });
   for (const raw of (status.stdout ?? "").split("\n")) {
@@ -10140,20 +11174,25 @@ async function stageFiles(repoRoot, envExtra) {
     }
     p = p.replace(/^"/, "").replace(/"$/, "");
     if (isDenied(p) || gitlinkPaths.has(p.replace(/\/$/, ""))) continue;
-    const full = join10(repoRoot, p);
+    const full = join11(repoRoot, p);
     if (!existsSync(full)) {
       if (xy[0] === "D") continue;
-      spawnSync("git", ["add", "-u", "--", p], { cwd: repoRoot, shell: false, env });
+      spawn6("git", ["add", "-u", "--", p], { cwd: repoRoot, env });
     } else {
-      spawnSync("git", ["add", "--", p], { cwd: repoRoot, shell: false, env });
+      spawn6("git", ["add", "--", p], { cwd: repoRoot, env });
     }
   }
-  const diff = spawnGit(["diff", "--cached", "--quiet"], repoRoot, envExtra);
+  for (const sf of STATE_FILES) {
+    if (existsSync(join11(repoRoot, sf))) {
+      spawn6("git", ["add", "--", sf], { cwd: repoRoot, env });
+    }
+  }
+  const diff = spawnGit(["diff", "--cached", "--quiet"], repoRoot, envExtra, spawn6);
   return !diff.ok;
 }
-async function buildClosesBlock(issueId, repoRoot, envExtra) {
+async function buildClosesBlock(issueId, repoRoot, envExtra, spawn6 = defaultSpawn) {
   if (!issueId) return "";
-  const issuePath = join10(repoRoot, "docs/cycle/issues/todo", `${issueId}.md`);
+  const issuePath = join11(repoRoot, "docs/cycle/issues/todo", `${issueId}.md`);
   let body;
   try {
     body = await readFile9(issuePath, "utf8");
@@ -10161,10 +11200,10 @@ async function buildClosesBlock(issueId, repoRoot, envExtra) {
     return "";
   }
   const env = buildChildEnv(envExtra ?? {});
-  const ghResult = spawnSync(
+  const ghResult = spawn6(
     "gh",
     ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
-    { cwd: repoRoot, shell: false, encoding: "utf8", env }
+    { cwd: repoRoot, env }
   );
   const repoSlug = (ghResult.stdout ?? "").trim();
   if (!repoSlug) return "";
@@ -10183,16 +11222,17 @@ async function buildClosesBlock(issueId, repoRoot, envExtra) {
 }
 async function commitCycle(repoRoot, opts) {
   const { envExtra } = opts;
+  const spawn6 = opts.spawnFn ?? defaultSpawn;
   let touchedFiles = /* @__PURE__ */ new Set();
   if (opts.artifactDir) {
     try {
-      const raw = await readFile9(join10(opts.artifactDir, "touched.json"), "utf8");
+      const raw = await readFile9(join11(opts.artifactDir, "touched.json"), "utf8");
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed.files)) touchedFiles = new Set(parsed.files);
     } catch {
     }
   }
-  const statusOut = spawnGit(["status", "--porcelain"], repoRoot, envExtra);
+  const statusOut = spawnGit(["status", "--porcelain"], repoRoot, envExtra, spawn6);
   const warnFiles = [];
   for (const raw of statusOut.stdout.split("\n")) {
     if (!raw) continue;
@@ -10211,19 +11251,19 @@ async function commitCycle(repoRoot, opts) {
   if (warnFiles.length > 0) {
     await opts.log?.emit("commit.scope_warning", { cycle_id: opts.cycleId, files: warnFiles });
   }
-  const hasChanges = await stageFiles(repoRoot, envExtra);
+  const hasChanges = await stageFiles(repoRoot, envExtra, spawn6);
   if (!hasChanges) return { status: "skipped", reason: "nothing_to_commit" };
-  const closes = await buildClosesBlock(opts.issueId, repoRoot, envExtra);
+  const closes = await buildClosesBlock(opts.issueId, repoRoot, envExtra, spawn6);
   const subject = `cycle ${opts.cycleId}: ${opts.title}`;
   const commitArgs = closes ? ["commit", "-m", subject, "-m", closes] : ["commit", "-m", subject];
-  const commitResult = spawnGit(commitArgs, repoRoot, envExtra);
+  const commitResult = spawnGit(commitArgs, repoRoot, envExtra, spawn6);
   if (!commitResult.ok) return { status: "failed", reason: "commit_failed" };
-  const shaResult = spawnGit(["rev-parse", "HEAD"], repoRoot, envExtra);
+  const shaResult = spawnGit(["rev-parse", "HEAD"], repoRoot, envExtra, spawn6);
   const sha = shaResult.stdout.trim();
   if (!opts.config.push || opts.config.mode === "local-only") return { status: "ok", sha };
   const BACKOFF_MS = [1e3, 2e3, 4e3];
   for (let attempt = 0; attempt < 3; attempt++) {
-    const pushResult = spawnGit(["push", "origin", opts.baseBranch], repoRoot, envExtra);
+    const pushResult = spawnGit(["push", "origin", opts.baseBranch], repoRoot, envExtra, spawn6);
     if (pushResult.ok) return { status: "ok", sha };
     if (attempt < 2) {
       await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
@@ -10236,16 +11276,16 @@ async function commitCycle(repoRoot, opts) {
 init_frontmatter();
 init_queue();
 import { readFile as readFile10, rename as rename5, writeFile as writeFile5, unlink as unlink2 } from "node:fs/promises";
-import { join as join12 } from "node:path";
+import { join as join13 } from "node:path";
 
 // src/engine/blocked.ts
 init_queue();
 init_frontmatter();
 import { rename as rename4 } from "node:fs/promises";
-import { join as join11 } from "node:path";
-async function propagateBlocked(repoRoot, failedId, log2) {
-  const todoDir2 = join11(repoRoot, "docs/cycle/issues/todo");
-  const blockedDir = join11(repoRoot, "docs/cycle/issues/blocked");
+import { join as join12 } from "node:path";
+async function propagateBlocked(repoRoot, failedId, log2, renameFn = rename4) {
+  const todoDir2 = join12(repoRoot, "docs/cycle/issues/todo");
+  const blockedDir = join12(repoRoot, "docs/cycle/issues/blocked");
   const rows = await readQueue(repoRoot);
   const visited = /* @__PURE__ */ new Set([failedId]);
   const orderedMoves = [];
@@ -10266,17 +11306,17 @@ async function propagateBlocked(repoRoot, failedId, log2) {
   const rollback = [];
   try {
     for (const { row, predecessors } of orderedMoves) {
-      const src = join11(todoDir2, `${row.id}.md`);
-      const dst = join11(blockedDir, `${row.id}.md`);
+      const src = join12(todoDir2, `${row.id}.md`);
+      const dst = join12(blockedDir, `${row.id}.md`);
       await mutateFrontmatter(src, (fm) => ({
         ...fm,
         blocked_at: (/* @__PURE__ */ new Date()).toISOString(),
         blocked_by: predecessors
       }));
-      await rename4(src, dst);
+      await renameFn(src, dst);
       rollback.push(async () => {
         try {
-          await rename4(dst, src);
+          await renameFn(dst, src);
         } catch {
         }
       });
@@ -10313,7 +11353,7 @@ async function terminalDrain(cwd2, log2, todoPath, failedDir2, cycleId, issueId,
   } catch (e) {
     mutateErr = e;
   }
-  const failedPath = join12(failedDir2, `${issueId}.md`);
+  const failedPath = join13(failedDir2, `${issueId}.md`);
   if (mutateErr) {
     let originalBody = "";
     try {
@@ -10363,12 +11403,346 @@ async function terminalDrain(cwd2, log2, todoPath, failedDir2, cycleId, issueId,
   await log2.emit("queue.drained", { cycle_id: cycleId, issue_id: issueId, outcome: "terminal" });
   await log2.emit("issue.failed", { issue_id: issueId, failing_step: failingStep });
 }
+async function noopDrain(cwd2, log2, todoPath, doneDir2, cycleId, issueId, reason, detectedAtStep) {
+  let mutateErr = null;
+  try {
+    await mutateFrontmatter(todoPath, (fm) => ({
+      ...fm,
+      noop_at: (/* @__PURE__ */ new Date()).toISOString(),
+      ...reason ? { noop_reason: reason } : {},
+      ...detectedAtStep ? { noop_step: detectedAtStep } : {},
+      last_cycle_id: cycleId
+    }));
+  } catch (e) {
+    mutateErr = e;
+  }
+  const donePath = join13(doneDir2, `${issueId}.md`);
+  if (mutateErr) {
+    let originalBody = "";
+    try {
+      originalBody = await readFile10(todoPath, "utf8");
+    } catch (e) {
+      if (e.code !== "ENOENT") throw e;
+    }
+    let baseFm = {};
+    let bodyAfter = originalBody;
+    try {
+      const parsed = parseFrontmatter(originalBody);
+      baseFm = { ...parsed.fm };
+      bodyAfter = parsed.bodyAfter;
+    } catch {
+    }
+    const fm = {
+      ...baseFm,
+      noop_at: (/* @__PURE__ */ new Date()).toISOString(),
+      ...reason ? { noop_reason: reason } : {},
+      ...detectedAtStep ? { noop_step: detectedAtStep } : {},
+      last_cycle_id: cycleId,
+      drain_error: mutateErr.message
+    };
+    const out = serializeFrontmatter(fm, bodyAfter);
+    const tmpPath = `${donePath}.tmp`;
+    await writeFile5(tmpPath, out, "utf8");
+    await rename5(tmpPath, donePath);
+    try {
+      await unlink2(todoPath);
+    } catch (e) {
+      if (e.code !== "ENOENT") throw e;
+    }
+    await log2.emit("queue.drain_warning", {
+      cycle_id: cycleId,
+      issue_id: issueId,
+      reason: `mutateFrontmatter failed: ${mutateErr.message}`
+    });
+  } else {
+    try {
+      await rename5(todoPath, donePath);
+    } catch (e) {
+      if (e.code !== "ENOENT") throw e;
+    }
+  }
+  await drainOk(cwd2, issueId);
+  await log2.emit("queue.drained", {
+    cycle_id: cycleId,
+    issue_id: issueId,
+    outcome: "noop",
+    ...reason ? { reason } : {}
+  });
+}
+
+// src/engine/iteration-guard.ts
+import { readFile as readFile11 } from "node:fs/promises";
+import { join as join14 } from "node:path";
+async function readCycleEndFailure(repoRoot, cycleId) {
+  try {
+    const text = await readFile11(join14(repoRoot, ".cycle", "log.jsonl"), "utf8");
+    const lines = text.split("\n");
+    let failingStep;
+    let sawCycleEnd = false;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      let ev;
+      try {
+        ev = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (!sawCycleEnd && ev.event === "cycle.end" && ev.cycle_id === cycleId && ev.status === "failed") {
+        failingStep = typeof ev.failing_step === "string" ? ev.failing_step : void 0;
+        sawCycleEnd = true;
+        if (failingStep === void 0) break;
+        continue;
+      }
+      if (sawCycleEnd && ev.event === "step.end" && ev.cycle_id === cycleId && ev.step === failingStep) {
+        const d = ev.duration_ms;
+        const durationMs = typeof d === "number" && Number.isFinite(d) ? d : void 0;
+        return { failingStep, durationMs };
+      }
+    }
+    return { failingStep, durationMs: void 0 };
+  } catch {
+    return { failingStep: void 0, durationMs: void 0 };
+  }
+}
+async function readCycleNoop(repoRoot, cycleId) {
+  try {
+    const text = await readFile11(join14(repoRoot, ".cycle", "log.jsonl"), "utf8");
+    const lines = text.split("\n");
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      let ev;
+      try {
+        ev = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (ev.event === "cycle.noop" && ev.cycle_id === cycleId) {
+        return {
+          reason: typeof ev.reason === "string" ? ev.reason : void 0,
+          detectedAtStep: typeof ev.detected_at_step === "string" ? ev.detected_at_step : void 0
+        };
+      }
+    }
+    return void 0;
+  } catch {
+    return void 0;
+  }
+}
+function advanceFastFailCounter(prev, opts) {
+  const subThreshold = opts.guardEnabled && opts.failingStep !== void 0 && typeof opts.durationMs === "number" && opts.durationMs < opts.thresholdMs;
+  if (!subThreshold) {
+    return { state: { key: null, count: 0 }, fastBail: false };
+  }
+  const count = opts.key === prev.key ? prev.count + 1 : 1;
+  return { state: { key: opts.key, count }, fastBail: count >= opts.k };
+}
+
+// src/engine/halt-accounting.ts
+function recordTerminalFailure(prev, opts) {
+  const consecutiveFailures2 = prev.consecutiveFailures + 1;
+  const failedCycles2 = [...prev.failedCycles, opts.cycleId];
+  return {
+    consecutiveFailures: consecutiveFailures2,
+    failedCycles: failedCycles2,
+    lastHaltContext: { issueId: opts.issueId, failingStep: opts.failingStep },
+    fastFail: { key: null, count: 0 },
+    halt: consecutiveFailures2 >= opts.maxConsecutiveFailures
+  };
+}
+
+// src/engine/failed-residue-guard.ts
+init_path_utils();
+import { spawnSync as spawnSync3 } from "node:child_process";
+function parseDirtyPaths(snapshot) {
+  const paths = /* @__PURE__ */ new Set();
+  for (const raw of snapshot.split("\n")) {
+    if (!raw) continue;
+    const xy = raw.slice(0, 2);
+    if (xy === "??") {
+      paths.add(raw.slice(3).replace(/^"/, "").replace(/"$/, ""));
+      continue;
+    }
+    let p = raw.slice(3);
+    if (xy[0] === "R" || xy[0] === "C") {
+      const arrow = p.lastIndexOf(" -> ");
+      if (arrow !== -1) p = p.slice(arrow + 4);
+    }
+    paths.add(p.replace(/^"/, "").replace(/"$/, ""));
+  }
+  return [...paths];
+}
+function isEngineOwned(p) {
+  const q2 = p.replace(/\/$/, "");
+  if (isDenied(q2)) return true;
+  if (q2 === ".cycle" || q2.startsWith(".cycle/")) return true;
+  if (q2 === "docs/cycle" || q2.startsWith("docs/cycle/")) return true;
+  return false;
+}
+function readFailedCycleResidue(cwd2) {
+  const r = spawnSync3(
+    "git",
+    ["status", "--porcelain", "--untracked-files=all"],
+    { cwd: cwd2, encoding: "utf8", shell: false }
+  );
+  if (r.status !== 0) {
+    const detail = r.stderr || r.stdout || r.error?.message || `exit ${r.status}`;
+    throw new Error(`git status --porcelain --untracked-files=all failed: ${detail}`);
+  }
+  const paths = parseDirtyPaths(r.stdout).filter((p) => !isEngineOwned(p));
+  return { stdout: r.stdout, paths: [...new Set(paths)].sort() };
+}
+function formatFailedCycleResidueDiagnostic(ctx, dirtyPaths) {
+  const cycleText = ctx?.cycleId ? ` from failed cycle ${ctx.cycleId}` : "";
+  return [
+    `Dirty worktree residue${cycleText} remains after terminal failure.`,
+    "Resolve it before the engine starts or resumes another cycle:",
+    "  - commit it, or",
+    "  - stash it (git stash), or",
+    "  - discard it (git reset --hard).",
+    "Dirty paths:",
+    ...dirtyPaths.map((p) => `- ${p}`)
+  ].join("\n");
+}
+
+// src/engine/failed-cycle-teardown.ts
+import { spawnSync as spawnSync4 } from "node:child_process";
+import { rmSync } from "node:fs";
+import { join as join15 } from "node:path";
+function git2(cwd2, args2) {
+  const r = spawnSync4("git", args2, { cwd: cwd2, encoding: "utf8", shell: false });
+  if (r.status !== 0) {
+    return { ok: false, detail: r.stderr || r.stdout || r.error?.message || `exit ${r.status}` };
+  }
+  return { ok: true, detail: r.stdout };
+}
+function categorize(snapshot) {
+  const tracked = /* @__PURE__ */ new Set();
+  const untracked = /* @__PURE__ */ new Set();
+  for (const raw of snapshot.split("\n")) {
+    if (!raw) continue;
+    const xy = raw.slice(0, 2);
+    const [p] = parseDirtyPaths(raw);
+    if (p === void 0 || isEngineOwned(p)) continue;
+    if (xy === "??") untracked.add(p);
+    else tracked.add(p);
+  }
+  return { tracked: [...tracked], untracked: [...untracked] };
+}
+function teardownFailedCycle(cwd2, opts) {
+  const reverted = [];
+  let snapshot;
+  try {
+    snapshot = readFailedCycleResidue(cwd2).stdout;
+  } catch (err) {
+    return { ok: false, reverted, remaining: [], reason: err.message };
+  }
+  const { tracked, untracked } = categorize(snapshot);
+  const all = [...tracked, ...untracked];
+  if (all.length > 0) {
+    const reset = git2(cwd2, ["reset", "-q", "HEAD", "--", ...all]);
+    if (!reset.ok) {
+      return { ok: false, reverted, remaining: all, reason: `git reset failed: ${reset.detail}` };
+    }
+  }
+  let snap2;
+  try {
+    snap2 = readFailedCycleResidue(cwd2).stdout;
+  } catch (err) {
+    return { ok: false, reverted, remaining: all, reason: err.message };
+  }
+  const cat2 = categorize(snap2);
+  if (cat2.tracked.length > 0) {
+    const co = git2(cwd2, ["checkout", "--", ...cat2.tracked]);
+    if (!co.ok) {
+      return {
+        ok: false,
+        reverted,
+        remaining: [...cat2.tracked, ...cat2.untracked],
+        reason: `git checkout failed: ${co.detail}`
+      };
+    }
+    reverted.push(...cat2.tracked);
+  }
+  for (const p of cat2.untracked) {
+    try {
+      rmSync(join15(cwd2, p), { recursive: true, force: true });
+      reverted.push(p);
+    } catch {
+    }
+  }
+  if (opts.wipeDocs && opts.artifactDir) {
+    try {
+      rmSync(opts.artifactDir, { recursive: true, force: true });
+      reverted.push(opts.artifactDir);
+    } catch {
+    }
+  }
+  let remaining;
+  try {
+    remaining = readFailedCycleResidue(cwd2).paths;
+  } catch (err) {
+    return { ok: false, reverted, remaining: [], reason: err.message };
+  }
+  return { ok: remaining.length === 0, reverted, remaining };
+}
+
+// src/engine/residue-context-store.ts
+import { readFileSync as readFileSync2, writeFileSync, renameSync, unlinkSync } from "node:fs";
+var defaultDeps = { readFileSync: readFileSync2, writeFileSync, renameSync, unlinkSync };
+function writeResidueContext(path, ctx, deps = defaultDeps) {
+  const body = JSON.stringify({
+    cycleId: ctx.cycleId,
+    issueId: ctx.issueId,
+    failingStep: ctx.failingStep ?? null
+  });
+  const tmp = path + ".tmp";
+  deps.writeFileSync(tmp, body, "utf8");
+  deps.renameSync(tmp, path);
+}
+function readResidueContext(path, deps = defaultDeps) {
+  let raw;
+  try {
+    raw = deps.readFileSync(path, "utf8");
+  } catch (e) {
+    const err = e;
+    if (err.code === "ENOENT") return { status: "none" };
+    return { status: "corrupt", error: err.message };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    return { status: "corrupt", error: e.message };
+  }
+  if (!isValidContext(parsed)) {
+    return { status: "corrupt", error: "missing or invalid required fields" };
+  }
+  const o = parsed;
+  return {
+    status: "ok",
+    ctx: { cycleId: o.cycleId, issueId: o.issueId, failingStep: o.failingStep ?? void 0 }
+  };
+}
+function isValidContext(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const o = v;
+  return typeof o.cycleId === "string" && o.cycleId.length > 0 && typeof o.issueId === "string" && o.issueId.length > 0 && (o.failingStep === null || o.failingStep === void 0 || typeof o.failingStep === "string");
+}
+function deleteResidueContext(path, deps = defaultDeps) {
+  try {
+    deps.unlinkSync(path);
+  } catch (e) {
+    if (e.code !== "ENOENT") throw e;
+  }
+}
 
 // src/engine/stale-dist.ts
 import { stat as stat2 } from "node:fs/promises";
-import { join as join13 } from "node:path";
+import { join as join16 } from "node:path";
 async function emitStaleDistWarning(log2, processStart2, cwd2, statFn = stat2) {
-  const distPath = join13(cwd2, "dist", "cycle.js");
+  const distPath = join16(cwd2, "dist", "cycle.js");
   let mtimeMs;
   try {
     const s = await statFn(distPath);
@@ -10388,14 +11762,14 @@ async function emitStaleDistWarning(log2, processStart2, cwd2, statFn = stat2) {
 }
 
 // src/engine/engine-lock.ts
-import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
-var defaultDeps = {
-  readFileSync,
-  writeFileSync,
-  unlinkSync,
+import { readFileSync as readFileSync3, writeFileSync as writeFileSync2, unlinkSync as unlinkSync2 } from "node:fs";
+var defaultDeps2 = {
+  readFileSync: readFileSync3,
+  writeFileSync: writeFileSync2,
+  unlinkSync: unlinkSync2,
   kill: (pid, sig) => process.kill(pid, sig)
 };
-function acquireLock(lockPath2, deps = defaultDeps) {
+function acquireLock(lockPath2, deps = defaultDeps2) {
   try {
     const raw = deps.readFileSync(lockPath2, "utf8").trim();
     const pid = parseInt(raw, 10);
@@ -10419,7 +11793,7 @@ function acquireLock(lockPath2, deps = defaultDeps) {
   }
   deps.writeFileSync(lockPath2, String(process.pid), "utf8");
 }
-function releaseLock(lockPath2, deps = defaultDeps) {
+function releaseLock(lockPath2, deps = defaultDeps2) {
   try {
     const raw = deps.readFileSync(lockPath2, "utf8").trim();
     if (raw === String(process.pid)) {
@@ -10430,11 +11804,12 @@ function releaseLock(lockPath2, deps = defaultDeps) {
 }
 
 // src/engine/dot-env.ts
-import { readFileSync as readFileSync2 } from "node:fs";
-function loadDotEnv(filePath) {
+import { readFileSync as readFileSync4 } from "node:fs";
+var defaultReadFile = (filePath) => readFileSync4(filePath, "utf8");
+function loadDotEnv(filePath, readFile17 = defaultReadFile) {
   let content;
   try {
-    content = readFileSync2(filePath, "utf8");
+    content = readFile17(filePath);
   } catch (e) {
     const err = e;
     if (err.code !== "ENOENT") {
@@ -10472,6 +11847,13 @@ if (argv[0] === "init") {
   await runInit2({ targetRoot: process.cwd(), force });
   process.exit(0);
 }
+if (argv[0] === "upgrade") {
+  const { runUpgrade: runUpgrade2 } = await Promise.resolve().then(() => (init_upgrade(), upgrade_exports));
+  const result = await runUpgrade2({ targetRoot: process.cwd(), argv: argv.slice(1) });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr + String.fromCharCode(10));
+  process.exit(result.exitCode);
+}
 if (argv[0] === "status") {
   const { runStatus: runStatus2 } = await Promise.resolve().then(() => (init_status(), status_exports));
   const out = await runStatus2({ cwd: process.cwd() });
@@ -10496,6 +11878,51 @@ if (argv[0] === "cleanup") {
   if (result.stderr) process.stderr.write(result.stderr + String.fromCharCode(10));
   process.exit(result.exitCode);
 }
+if (argv[0] === "compress-output") {
+  const { runCompressOutput: runCompressOutput2 } = await Promise.resolve().then(() => (init_compress_output(), compress_output_exports));
+  const result = runCompressOutput2(argv.slice(1));
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  process.exit(result.exitCode);
+}
+if (argv[0] === "compress-output-hook") {
+  const { runCompressOutputHook: runCompressOutputHook2 } = await Promise.resolve().then(() => (init_compress_output_hook(), compress_output_hook_exports));
+  const chunks = [];
+  for await (const c of process.stdin) chunks.push(c);
+  const result = runCompressOutputHook2(Buffer.concat(chunks).toString("utf8"), {
+    execPath: process.execPath,
+    cliPath: process.argv[1]
+  });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr + "\n");
+  process.exit(result.exitCode);
+}
+if (argv[0] === "help" || argv[0] === "--help" || argv.includes("--help")) {
+  console.log(`cycle \u2014 issue-driven workflow engine for autonomous code changes
+
+Usage:
+  cycle [run] [<task>] [flags]  Triage and run the queue (optionally add a freeform task first)
+  cycle drop <task>             Add a freeform task to the inbox without running
+  cycle status                  Print queue counts and in-flight state
+  cycle triage [--dry-run]      Re-run triage diagnostics
+  cycle cleanup [--dry-run] [--yes] [--force]
+                                List or delete orphaned cycle/* branches
+  cycle compress-output -- <cmd>   Run <cmd> and density-filter its stdout (token saver)
+  cycle upgrade [--overwrite-prompts] [--overwrite-workflows]
+                [--overwrite-scripts] [--overwrite-all]
+                                Refresh engine bundle in place; preserve user config by default
+  cycle help                    Show this help
+
+Flags for run:
+  --workflow <name>             Force a workflow (default: feature)
+  --dry-run                     Preview triage/queue; no execution
+  --no-skip-completed           Re-derive pre-build artifacts on retry
+  --trunk                       Commit to base branch instead of per-cycle branches
+
+  --version                     Print version and exit
+  --help                        Show this help`);
+  process.exit(0);
+}
 var args = parseArgs(argv);
 var cwd = process.cwd();
 if (args.command === "drop") {
@@ -10514,7 +11941,7 @@ if (args.dryRun) {
       ts: (/* @__PURE__ */ new Date()).toISOString(),
       event: "issue.ingested",
       issue_id: row.id,
-      path: join20(cwd, "docs/cycle/issues/todo", `${row.id}.md`)
+      path: join25(cwd, "docs/cycle/issues/todo", `${row.id}.md`)
     }));
   }
   console.log(JSON.stringify({
@@ -10526,7 +11953,7 @@ if (args.dryRun) {
   }));
   process.exit(0);
 }
-var lockPath = join20(cwd, ".cycle", "engine.lock");
+var lockPath = join25(cwd, ".cycle", "engine.lock");
 try {
   acquireLock(lockPath);
 } catch (err) {
@@ -10537,18 +11964,98 @@ process.on("exit", () => releaseLock(lockPath));
 process.on("SIGINT", () => process.exit(130));
 process.on("SIGTERM", () => process.exit(143));
 var log = await createLogger(cwd);
-var todoDir = join20(cwd, "docs/cycle/issues/todo");
-var doneDir = join20(cwd, "docs/cycle/issues/done");
-var failedDir = join20(cwd, "docs/cycle/issues/failed");
-var rawDir = join20(cwd, "docs/cycle/issues/raw");
-await mkdir8(doneDir, { recursive: true });
-await mkdir8(failedDir, { recursive: true });
+var logPath = join25(cwd, ".cycle", "log.jsonl");
+var activeCycleId;
+process.prependListener("SIGTERM", () => {
+  try {
+    const line = JSON.stringify({ ts: (/* @__PURE__ */ new Date()).toISOString(), event: "cycle.killed", cycle_id: activeCycleId });
+    appendFileSync(logPath, line + "\n", "utf8");
+  } catch {
+  }
+  process.exit(143);
+});
+var todoDir = join25(cwd, "docs/cycle/issues/todo");
+var doneDir = join25(cwd, "docs/cycle/issues/done");
+var failedDir = join25(cwd, "docs/cycle/issues/failed");
+var rawDir = join25(cwd, "docs/cycle/issues/inbox");
+await mkdir9(doneDir, { recursive: true });
+await mkdir9(failedDir, { recursive: true });
 if (args.trunk) process.env.CYCLE_TRUNK_BASED = "1";
-loadDotEnv(join20(cwd, ".cycle", ".env"));
+loadDotEnv(join25(cwd, ".cycle", ".env"));
 var cfg = await loadConfig(cwd);
 var skipCompletedOnRetry = args.noSkipCompleted ? false : cfg?.engine?.skip_completed_on_retry ?? true;
 await emitStaleDistWarning(log, processStart, cwd);
 await log.emit("engine.start", { skip_completed_on_retry: skipCompletedOnRetry });
+var residueContextPath = join25(cwd, ".cycle", "failed-residue-context.json");
+var cyclesProcessed = 0;
+var pendingResidueContext;
+var engineStopEmitted = false;
+async function persistResidue(ctx) {
+  try {
+    writeResidueContext(residueContextPath, ctx);
+  } catch (err) {
+    await log.emit("engine.warning", {
+      reason: "residue_context_write_failed",
+      cycle_id: ctx.cycleId,
+      issue_id: ctx.issueId,
+      error: err.message
+    });
+  }
+}
+async function unpersistResidue() {
+  try {
+    deleteResidueContext(residueContextPath);
+  } catch (err) {
+    await log.emit("engine.warning", {
+      reason: "residue_context_delete_failed",
+      error: err.message
+    });
+  }
+}
+if (cfg && !args.skipPreflight) {
+  const pf = runPreflight({ cfg, workflowName: args.workflow });
+  for (const w of pf.warnings) {
+    await log.emit("engine.preflight.warning", {
+      kind: w.kind,
+      target: w.target,
+      resolved_path: w.resolvedPath,
+      message: w.message
+    });
+  }
+  if (!pf.ok) {
+    await log.emit("engine.preflight.failed", {
+      failures: pf.failures.map((f) => ({
+        kind: f.kind,
+        name: f.name,
+        resolved_path: f.resolvedPath,
+        fix: f.fix
+      }))
+    });
+    await log.emit("engine.stop", {
+      status: "halted",
+      dry_run: false,
+      cycles_processed: 0,
+      reason: "preflight_failed"
+    });
+    process.exit(1);
+  }
+  await log.emit("engine.preflight.ok", { checks: pf.checks.length });
+}
+{
+  const persisted = readResidueContext(residueContextPath);
+  if (persisted.status === "corrupt") {
+    await log.emit("engine.warning", {
+      reason: "residue_context_unreadable",
+      error: persisted.error
+    });
+    await unpersistResidue();
+  } else if (persisted.status === "ok") {
+    pendingResidueContext = persisted.ctx;
+    if (await haltIfResidue()) {
+      process.exit(1);
+    }
+  }
+}
 if (cfg) {
   const triageResult = await runTriage(cwd, cfg, log);
   if (triageResult.status === "paused") {
@@ -10563,23 +12070,25 @@ if (cfg) {
 }
 async function rawHasFiles() {
   try {
-    const entries = await readdir4(rawDir);
+    const entries = await readdir6(rawDir);
     return entries.some((f) => f.endsWith(".md"));
   } catch {
     return false;
   }
 }
-var cyclesProcessed = 0;
 var consecutiveFailures = 0;
 var failedCycles = [];
 var halted = false;
 var haltReason = null;
 var lastHaltContext;
 var maxConsecutiveFailures = cfg?.engine?.max_consecutive_failures ?? 2;
+var ITERATION_TOO_FAST_K = 2;
+var fastFailKey = null;
+var fastFailCount = 0;
 async function drainSuccess(cwd2, log2, todoPath, doneDir2, cycleId, issueId) {
   await drainOk(cwd2, issueId);
   try {
-    await rename7(todoPath, join20(doneDir2, `${issueId}.md`));
+    await rename7(todoPath, join25(doneDir2, `${issueId}.md`));
   } catch {
   }
   await log2.emit("queue.drained", { cycle_id: cycleId, issue_id: issueId, outcome: "ok" });
@@ -10608,7 +12117,7 @@ function spawnRunOne(params) {
     args2.push("--resume-from-step", String(params.resumeFromStep));
   const extra = process.env.CYCLE_TRUNK_BASED === "1" ? { CYCLE_TRUNK_BASED: "1" } : {};
   return new Promise((resolve2, reject) => {
-    const child = spawn4(
+    const child = spawn5(
       process.execPath,
       [process.argv[1], "run-one", ...args2],
       { env: buildChildEnv(extra), stdio: "inherit", shell: false }
@@ -10617,29 +12126,10 @@ function spawnRunOne(params) {
     child.on("error", reject);
   });
 }
-async function readCycleEndFailingStep(repoRoot, cycleId) {
-  try {
-    const text = await readFile14(join20(repoRoot, ".cycle", "log.jsonl"), "utf8");
-    const lines = text.split("\n");
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      try {
-        const ev = JSON.parse(line);
-        if (ev.event === "cycle.end" && ev.cycle_id === cycleId && ev.status === "failed") {
-          return typeof ev.failing_step === "string" ? ev.failing_step : void 0;
-        }
-      } catch {
-      }
-    }
-  } catch {
-  }
-  return void 0;
-}
 async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, failedDir2) {
   let fmBaseBranch;
   try {
-    const body = await readFile14(join20(todoDir2, `${tail.issueId}.md`), "utf8");
+    const body = await readFile16(join25(todoDir2, `${tail.issueId}.md`), "utf8");
     const { fm } = parseFrontmatter(body);
     fmBaseBranch = typeof fm.base_branch === "string" && fm.base_branch.length > 0 ? fm.base_branch : void 0;
   } catch {
@@ -10672,7 +12162,7 @@ async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, 
   if (!baseOk) return { processed: 0, outcome: "skipped" };
   let workflowName = tail.workflow || args2.workflow;
   try {
-    const body = await readFile14(join20(todoDir2, `${tail.issueId}.md`), "utf8");
+    const body = await readFile16(join25(todoDir2, `${tail.issueId}.md`), "utf8");
     const { fm } = parseFrontmatter(body);
     if (typeof fm.workflow === "string" && fm.workflow.length > 0) {
       workflowName = fm.workflow;
@@ -10713,10 +12203,18 @@ async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, 
     skipCompletedOnRetry,
     resumeFromStep: startStepIndex
   });
-  const failingStep = exitCode !== 0 ? await readCycleEndFailingStep(cwd2, tail.cycleId) : void 0;
-  const todoPath = join20(todoDir2, `${tail.issueId}.md`);
+  const failingStep = exitCode !== 0 && exitCode !== 3 ? (await readCycleEndFailure(cwd2, tail.cycleId)).failingStep : void 0;
+  const todoPath = join25(todoDir2, `${tail.issueId}.md`);
+  if (exitCode === 3) {
+    const noop = await readCycleNoop(cwd2, tail.cycleId);
+    if (!noop || noop.reason === void 0) {
+      await log2.emit("engine.warning", { reason: "noop_reason_unreadable", cycle_id: tail.cycleId, issue_id: tail.issueId });
+    }
+    await noopDrain(cwd2, log2, todoPath, doneDir2, tail.cycleId, tail.issueId, noop?.reason, noop?.detectedAtStep);
+    return { processed: 1, outcome: "noop" };
+  }
   if (exitCode === 0) {
-    const artifactDir = join20(cwd2, "docs", "cycle", `${tail.cycleId}-${workflowName}-${slugify(tail.title)}`);
+    const artifactDir2 = join25(cwd2, "docs", "cycle", `${tail.cycleId}-${workflowName}-${slugify(tail.title)}`);
     const cr = await commitCycle(cwd2, {
       cycleId: tail.cycleId,
       title: tail.title,
@@ -10724,7 +12222,7 @@ async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, 
       config: cfg2.engine.commit,
       baseBranch: cfg2.engine.base_branch,
       log: log2,
-      artifactDir
+      artifactDir: artifactDir2
     });
     if (cr.status === "failed") {
       if (row.attempt + 1 < maxAttempts) {
@@ -10737,34 +12235,126 @@ async function runResumeOnce(cwd2, log2, cfg2, args2, tail, todoDir2, doneDir2, 
     await drainSuccess(cwd2, log2, todoPath, doneDir2, tail.cycleId, tail.issueId);
     return { processed: 1, outcome: "ok" };
   }
+  const artifactDir = join25(cwd2, "docs", "cycle", `${tail.cycleId}-${workflowName}-${slugify(tail.title)}`);
   if (row.attempt + 1 < maxAttempts) {
+    const td2 = teardownFailedCycle(cwd2, { artifactDir, wipeDocs: true });
     await drainRetry(cwd2, log2, tail.cycleId, tail.issueId, failingStep);
-    return { processed: 0, outcome: "retry", issueId: tail.issueId, failingStep };
+    if (td2.ok) {
+      await log2.emit("cycle.restart", {
+        cycle_id: tail.cycleId,
+        issue_id: tail.issueId,
+        attempt: row.attempt + 1,
+        failing_step: failingStep,
+        reverted: td2.reverted.length
+      });
+    } else {
+      await log2.emit("engine.warning", {
+        reason: "failed_cycle_teardown_incomplete",
+        cycle_id: tail.cycleId,
+        issue_id: tail.issueId,
+        remaining: td2.remaining,
+        ...td2.reason ? { detail: td2.reason } : {}
+      });
+    }
+    return { processed: 0, outcome: "retry", issueId: tail.issueId, failingStep, teardownOk: td2.ok };
   }
+  const td = teardownFailedCycle(cwd2, { artifactDir, wipeDocs: false });
   await terminalDrain(cwd2, log2, todoPath, failedDir2, tail.cycleId, tail.issueId, failingStep, row.attempt + 1);
-  return { processed: 0, outcome: "terminal", issueId: tail.issueId, failingStep };
+  return { processed: 0, outcome: "terminal", issueId: tail.issueId, failingStep, teardownOk: td.ok };
+}
+async function haltIfResidue() {
+  if (!pendingResidueContext) return false;
+  const ctx = pendingResidueContext;
+  let dirtyPaths;
+  let message;
+  try {
+    dirtyPaths = readFailedCycleResidue(cwd).paths;
+  } catch (err) {
+    dirtyPaths = [];
+    message = `Residue check failed after cycle ${ctx.cycleId}: ${err.message}`;
+    await emitResidueHalt(ctx, dirtyPaths, message);
+    return true;
+  }
+  if (dirtyPaths.length === 0) {
+    pendingResidueContext = void 0;
+    await unpersistResidue();
+    return false;
+  }
+  message = formatFailedCycleResidueDiagnostic(ctx, dirtyPaths);
+  await emitResidueHalt(ctx, dirtyPaths, message);
+  return true;
+}
+async function emitResidueHalt(ctx, dirtyPaths, message) {
+  await log.emit("engine.halted", {
+    reason: "failed_cycle_dirty_worktree",
+    failed_cycle_id: ctx.cycleId,
+    issue_id: ctx.issueId,
+    dirty_paths: dirtyPaths,
+    message
+  });
+  await log.emit("engine.stop", {
+    status: "halted",
+    dry_run: false,
+    cycles_processed: cyclesProcessed,
+    reason: "failed_cycle_dirty_worktree",
+    halted_at_issue: ctx.issueId,
+    failing_step: ctx.failingStep
+  });
+  engineStopEmitted = true;
+  process.stderr.write(message + "\n");
 }
 if (cfg) {
   const tail = await readLogTail(cwd);
   if (tail) {
-    const result = await runResumeOnce(cwd, log, cfg, args, tail, todoDir, doneDir, failedDir);
-    cyclesProcessed += result.processed;
-    if (result.outcome === "ok") {
-      consecutiveFailures = 0;
-      failedCycles = [];
-      lastHaltContext = void 0;
-    } else if (result.outcome === "terminal") {
-      consecutiveFailures += 1;
-      failedCycles.push(tail.cycleId);
-      lastHaltContext = { issueId: result.issueId, failingStep: result.failingStep };
-      if (consecutiveFailures >= maxConsecutiveFailures) {
-        halted = true;
-        haltReason = "max_consecutive_failures";
+    activeCycleId = tail.cycleId;
+    pendingResidueContext = { cycleId: tail.cycleId, issueId: tail.issueId, failingStep: void 0 };
+    if (await haltIfResidue()) {
+      halted = true;
+      haltReason = "failed_cycle_dirty_worktree";
+    } else {
+      const result = await runResumeOnce(cwd, log, cfg, args, tail, todoDir, doneDir, failedDir);
+      cyclesProcessed += result.processed;
+      if (result.outcome === "ok") {
+        consecutiveFailures = 0;
+        failedCycles = [];
+        lastHaltContext = void 0;
+        pendingResidueContext = void 0;
+        await unpersistResidue();
+      } else if (result.outcome === "terminal") {
+        consecutiveFailures += 1;
+        failedCycles.push(tail.cycleId);
+        lastHaltContext = { issueId: result.issueId, failingStep: result.failingStep };
+        if (result.teardownOk) {
+          pendingResidueContext = void 0;
+          await unpersistResidue();
+        } else {
+          pendingResidueContext = { cycleId: tail.cycleId, issueId: result.issueId, failingStep: result.failingStep };
+          await persistResidue(pendingResidueContext);
+        }
+        if (consecutiveFailures >= maxConsecutiveFailures) {
+          halted = true;
+          haltReason = "max_consecutive_failures";
+        }
+      } else if (result.outcome === "noop") {
+        pendingResidueContext = void 0;
+        await unpersistResidue();
+      } else if (result.outcome === "retry" && result.teardownOk === false) {
+        pendingResidueContext = { cycleId: tail.cycleId, issueId: result.issueId, failingStep: result.failingStep };
+        await persistResidue(pendingResidueContext);
+      } else {
+        pendingResidueContext = void 0;
+        await unpersistResidue();
       }
     }
+    activeCycleId = void 0;
   }
 }
 while (!halted) {
+  if (await haltIfResidue()) {
+    halted = true;
+    haltReason = "failed_cycle_dirty_worktree";
+    break;
+  }
   if (cfg && await rawHasFiles()) {
     const r = await runTriage(cwd, cfg, log);
     if (r.status === "paused") {
@@ -10776,12 +12366,14 @@ while (!halted) {
   }
   const row = await popNextPending(cwd);
   if (!row) break;
-  const todoPath = join20(todoDir, `${row.id}.md`);
+  const todoPath = join25(todoDir, `${row.id}.md`);
+  const cycleId = row.cycle_id ?? await allocateCycleId(cwd);
+  activeCycleId = cycleId;
   await log.emit("issue.ingested", { issue_id: row.id, path: todoPath });
   let workflowName = args.workflow;
   let fmBaseBranch;
   try {
-    const body = await readFile14(todoPath, "utf8");
+    const body = await readFile16(todoPath, "utf8");
     const { fm } = parseFrontmatter(body);
     if (typeof fm.workflow === "string" && fm.workflow.length > 0) {
       workflowName = fm.workflow;
@@ -10794,7 +12386,6 @@ while (!halted) {
   const wfCfg = cfg?.workflows.find((w) => w.name === workflowName);
   const rawMax = wfCfg?.max_cycle_attempts ?? 3;
   const maxAttempts = rawMax < 1 ? 1 : rawMax;
-  const cycleId = row.cycle_id ?? await allocateCycleId(cwd);
   await markInProgress(cwd, row.id, cycleId);
   const exitCode = await spawnRunOne({
     cycleId,
@@ -10805,9 +12396,22 @@ while (!halted) {
     skipCompletedOnRetry,
     baseBranch: fmBaseBranch
   });
-  const failingStep = exitCode !== 0 ? await readCycleEndFailingStep(cwd, cycleId) : void 0;
-  if (exitCode === 0) {
-    const artifactDir = join20(cwd, "docs", "cycle", `${cycleId}-${workflowName}-${slugify(row.title)}`);
+  const failure = exitCode !== 0 && exitCode !== 3 ? await readCycleEndFailure(cwd, cycleId) : { failingStep: void 0, durationMs: void 0 };
+  const failingStep = failure.failingStep;
+  const rawMin = cfg?.engine?.min_step_duration_ms;
+  const thresholdMs = typeof rawMin === "number" && Number.isFinite(rawMin) && rawMin > 0 ? rawMin : 0;
+  const guardEnabled = thresholdMs > 0;
+  const artifactDir = join25(cwd, "docs", "cycle", `${cycleId}-${workflowName}-${slugify(row.title)}`);
+  if (exitCode === 3) {
+    const noop = await readCycleNoop(cwd, cycleId);
+    if (!noop || noop.reason === void 0) {
+      await log.emit("engine.warning", { reason: "noop_reason_unreadable", cycle_id: cycleId, issue_id: row.id });
+    }
+    await noopDrain(cwd, log, todoPath, doneDir, cycleId, row.id, noop?.reason, noop?.detectedAtStep);
+    cyclesProcessed++;
+    pendingResidueContext = void 0;
+    await unpersistResidue();
+  } else if (exitCode === 0) {
     const cr = await commitCycle(cwd, {
       cycleId,
       title: row.title,
@@ -10822,12 +12426,21 @@ while (!halted) {
         await drainRetry(cwd, log, cycleId, row.id, "commit");
       } else {
         await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, "commit", row.attempt + 1);
-        consecutiveFailures += 1;
-        failedCycles.push(cycleId);
-        lastHaltContext = { issueId: row.id, failingStep: "commit" };
-        if (consecutiveFailures >= maxConsecutiveFailures) {
+        const acct = recordTerminalFailure(
+          { consecutiveFailures, failedCycles },
+          { cycleId, issueId: row.id, failingStep: "commit", maxConsecutiveFailures }
+        );
+        consecutiveFailures = acct.consecutiveFailures;
+        failedCycles = acct.failedCycles;
+        lastHaltContext = acct.lastHaltContext;
+        fastFailKey = acct.fastFail.key;
+        fastFailCount = acct.fastFail.count;
+        pendingResidueContext = { cycleId, issueId: row.id, failingStep: "commit" };
+        await persistResidue(pendingResidueContext);
+        if (acct.halt) {
           halted = true;
           haltReason = "max_consecutive_failures";
+          activeCycleId = void 0;
           break;
         }
       }
@@ -10837,20 +12450,89 @@ while (!halted) {
       consecutiveFailures = 0;
       failedCycles = [];
       lastHaltContext = void 0;
+      fastFailKey = null;
+      fastFailCount = 0;
+      pendingResidueContext = void 0;
+      await unpersistResidue();
     }
-  } else if (row.attempt + 1 < maxAttempts) {
-    await drainRetry(cwd, log, cycleId, row.id, failingStep);
   } else {
-    await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, failingStep, row.attempt + 1);
-    consecutiveFailures += 1;
-    failedCycles.push(cycleId);
-    lastHaltContext = { issueId: row.id, failingStep };
-    if (consecutiveFailures >= maxConsecutiveFailures) {
-      halted = true;
-      haltReason = "max_consecutive_failures";
-      break;
+    const key = `${cycleId}::${failingStep ?? ""}`;
+    const advanced = advanceFastFailCounter(
+      { key: fastFailKey, count: fastFailCount },
+      {
+        key,
+        guardEnabled,
+        failingStep,
+        durationMs: failure.durationMs,
+        thresholdMs,
+        k: ITERATION_TOO_FAST_K
+      }
+    );
+    fastFailKey = advanced.state.key;
+    fastFailCount = advanced.state.count;
+    const fastBail = advanced.fastBail;
+    const attemptsLeft = row.attempt + 1 < maxAttempts;
+    if (!fastBail && attemptsLeft) {
+      const td = teardownFailedCycle(cwd, { artifactDir, wipeDocs: true });
+      if (td.ok) {
+        await drainRetry(cwd, log, cycleId, row.id, failingStep);
+        await log.emit("cycle.restart", {
+          cycle_id: cycleId,
+          issue_id: row.id,
+          attempt: row.attempt + 1,
+          failing_step: failingStep,
+          reverted: td.reverted.length
+        });
+        pendingResidueContext = void 0;
+        await unpersistResidue();
+      } else {
+        await log.emit("engine.warning", {
+          reason: "failed_cycle_teardown_incomplete",
+          cycle_id: cycleId,
+          issue_id: row.id,
+          remaining: td.remaining,
+          ...td.reason ? { detail: td.reason } : {}
+        });
+        pendingResidueContext = { cycleId, issueId: row.id, failingStep };
+        await persistResidue(pendingResidueContext);
+      }
+    } else {
+      if (fastBail) {
+        await log.emit("step.warning", {
+          cycle_id: cycleId,
+          step: failingStep,
+          reason: "iteration_too_fast",
+          duration_ms: failure.durationMs,
+          threshold_ms: thresholdMs
+        });
+      }
+      const td = teardownFailedCycle(cwd, { artifactDir, wipeDocs: false });
+      await terminalDrain(cwd, log, todoPath, failedDir, cycleId, row.id, failingStep, row.attempt + 1);
+      const acct = recordTerminalFailure(
+        { consecutiveFailures, failedCycles },
+        { cycleId, issueId: row.id, failingStep, maxConsecutiveFailures }
+      );
+      consecutiveFailures = acct.consecutiveFailures;
+      failedCycles = acct.failedCycles;
+      lastHaltContext = acct.lastHaltContext;
+      fastFailKey = acct.fastFail.key;
+      fastFailCount = acct.fastFail.count;
+      if (td.ok) {
+        pendingResidueContext = void 0;
+        await unpersistResidue();
+      } else {
+        pendingResidueContext = { cycleId, issueId: row.id, failingStep };
+        await persistResidue(pendingResidueContext);
+      }
+      if (acct.halt) {
+        halted = true;
+        haltReason = "max_consecutive_failures";
+        activeCycleId = void 0;
+        break;
+      }
     }
   }
+  activeCycleId = void 0;
 }
 if (halted && haltReason === "max_consecutive_failures" && failedCycles.length > 0) {
   await log.emit("engine.halted", {
@@ -10859,11 +12541,13 @@ if (halted && haltReason === "max_consecutive_failures" && failedCycles.length >
     threshold: maxConsecutiveFailures
   });
 }
-await log.emit("engine.stop", {
-  status: halted ? "halted" : "ok",
-  dry_run: false,
-  cycles_processed: cyclesProcessed,
-  ...halted && haltReason === "triage_failed" ? { reason: "triage_failed" } : {},
-  ...halted && lastHaltContext ? { halted_at_issue: lastHaltContext.issueId, failing_step: lastHaltContext.failingStep } : {}
-});
+if (!engineStopEmitted) {
+  await log.emit("engine.stop", {
+    status: halted ? "halted" : "ok",
+    dry_run: false,
+    cycles_processed: cyclesProcessed,
+    ...halted && haltReason === "triage_failed" ? { reason: "triage_failed" } : {},
+    ...halted && lastHaltContext ? { halted_at_issue: lastHaltContext.issueId, failing_step: lastHaltContext.failingStep } : {}
+  });
+}
 process.exit(halted ? 1 : 0);
