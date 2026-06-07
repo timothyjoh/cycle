@@ -280,6 +280,33 @@ Test runners and build tools print their failure cause to **stdout**, not stderr
 
 The success path is untouched — a passing bash step's `step.end` gains no `stdout`/`stdout_artifact` field and no `.out` file is written. Agent (non-`bash`) steps are unaffected (they already write `<STEP>.md` artifacts under the completion-proof contract). The artifact write is a best-effort observability side-effect: if `writeFile` fails (unwritable/missing dir, ENOSPC, EISDIR), the engine emits `step.output_capture_failed { cycle_id, step, artifact, error }`, omits the `stdout_artifact` pointer, and proceeds — the original `exit_code`, the capped `stdout` excerpt, the `step.end` event, and the terminal-failure routing are all preserved, so the write error can never mask the real step failure. The write is idempotent (deterministic path, last-write-wins); bash steps are excluded from all skip/proof machinery, so the `.out` file never gates control flow.
 
+## Degenerate verification gate
+
+The engine's Core thesis (`BRIEF.md`) is *no false greens*: a cycle reports working software only when verification actually ran. A test run that exits `0` **solely because every meaningful test skipped** — e.g. an e2e suite that `test.skip`s itself when required env (`INSTANT_ADMIN_TOKEN`, `PUBLIC_INSTANTDB_APP_ID`) is unset — asserted nothing about the app yet would historically drain the issue to `done/ ok` on its exit code alone. The degenerate-verification gate closes this hole.
+
+**Parser** (`src/engine/verify-counts.ts`). A pure, side-effect-free `parseVerifyCounts(output: string): { executed, skipped, total } | null` extracts counts from common reporter summaries, returning `null` when no recognized summary line is present:
+
+- **vitest** — `Tests  12 passed | 3 skipped (15)` (the trailing `(N)` is the explicit total).
+- **jest** — `Tests:       12 passed, 3 skipped, 15 total` (parsed field-wise from the `Tests:` clause).
+- **node:test** — the `# tests N` / `# pass N` / `# fail N` / `# skip N` / `# todo N` marker block.
+- **pytest** — `===== 12 passed, 3 skipped in 1.23s =====`.
+- **cargo** — `test result: ok. 12 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out`.
+
+`executed = passed + failed` (non-skipped tests that produced a pass/fail result); `skipped` folds in skipped/ignored/todo synonyms; `total` is the reporter's explicit total when present, else `executed + skipped`. The function is built from module-level regex constants, **never throws** on any string, and returns `null` on garbage/empty/partial/non-string input — the fail-open contract. Modeled on the pure half of `noop-marker.ts`.
+
+**Hook** (`src/engine/run-cycle.ts`). After a step exits the dispatch loop, a name-keyed gate fires **only** when `step.agent === "bash"`, `r.status === "ok"`, and `step.name` is `verify` or `final_verify`. It reads the **full in-memory `r.stdout` buffer** (reporter summaries live at the tail; the `MAX_STEP_END_STDOUT` head-cap applies only to the persisted event field, not the buffer the parser sees) and parses it inside a `try/catch`. On a **confident degenerate verdict** — a non-null parse whose `executed < minExecuted` **and** (`skipped > 0` **or** `total > 0`) — the engine:
+
+1. emits `verify.unverified { cycle_id, step, executed, skipped, total, reason: "zero_executed" }` (exactly once per degenerate step; cardinality-pin tests with `filter(...).length === 1`);
+2. sets `r.status = "failed"`, `r.exitCode = r.exitCode || 1`, and `r.stderr = formatVerifyUnverifiedError(skipped, executed)` (`verification incomplete: N tests skipped, M executed — cannot confirm the app works`).
+
+The flip reuses the existing failed-bash `.out` capture, `step.end { status: "failed" }`, and the supervisor's `max_cycle_attempts` retry / terminal-drain path — **no new halt reason** and no special-casing of `final_verify` (flipping it to failed routes identically to a native non-zero `final_verify` exit, so downstream `documentation`/`walkthrough_capture` steps never run).
+
+**Threshold knob** `engine.verify_min_executed` — the minimum non-skipped tests required for an exit-0 to count as verified. Read-site coerced (mirroring `max_rate_limit_retries`): `typeof === "number" && Number.isInteger && >= 0 ? raw : 1`. Default `1` reproduces the SPEC's `executed === 0` rule; absent/non-integer/negative ⇒ `1` (fail-closed); `0` disables the gate.
+
+**Fail-closed / fail-open split.** A confident degenerate parse blocks (fail-closed). Unparseable output (`parseVerifyCounts ⇒ null`) or a contained parser-internal throw degrades to today's exit-code-only behavior — **no event, no status change, byte-for-byte unchanged** outcome (fail-open) — so an unrecognized reporter dialect never produces a false block. The `(skipped > 0 || total > 0)` precondition further keeps a parsed `0/0/0` empty suite (no tests defined at all — not the "everything skipped" target) from blocking. The hook never fires for agent steps, non-`verify`/`final_verify` bash steps, or a non-zero exit (the native failure path is untouched).
+
+This is the agnostic, universal slice of the no-false-greens thesis; sibling work covers putting e2e into the verify path (`fix-verify-must-exercise-running-app`) and walkthrough-degradation gating (`fix-walkthrough-degradation-is-a-blocking-gate`).
+
 ## Walkthrough capture
 
 The `feature` workflow's final step, `walkthrough_capture` (`agent: bash`, **no** `command`), turns a delivered feature into something a human can review visually: it runs an optional, project-provided walkthrough hook and collects any screenshots/video the hook emits as first-class cycle artifacts. The step is handled by a **name-keyed, phase-aware intercept** in `run-cycle.ts` (`if (WALKTHROUGH_PHASES.has(step.name))`), which sits after the retry-skip and `skip_unless` gates and `continue`s — so the step never reaches the generic exec dispatch, `execBashStep`, the completion-proof machinery, or the shared `step.end`/terminal-routing tail. The same intercept also serves the `quickfix` workflow's two phase-scoped steps `walkthrough_before` / `walkthrough_after` (see *Phase-aware quickfix capture* below). All discovery/exec/collection logic lives in `src/engine/walkthrough.ts`.

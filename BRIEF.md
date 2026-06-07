@@ -21,6 +21,13 @@ unit tests look. Verification that is skipped, degraded, or stubbed is not
 verification, and a false green is a failure: such a cycle must block or fail
 loudly, never drain to `done/` as if it had delivered working software.
 
+This thesis is being operationalized incrementally. The first landed slice is
+the **degenerate-verification gate** (see [`docs/ENGINE.md`](docs/ENGINE.md) →
+*Degenerate verification gate*): a `verify`/`final_verify` step that exits green
+having executed **zero** non-skipped tests now blocks as unverified rather than
+draining to `done/`. Sibling work extends this to exercising the running app in
+the verify path and to treating walkthrough degradation as a blocking gate.
+
 ## Overview
 
 **cycle** is a repo-local production cell that turns work items into

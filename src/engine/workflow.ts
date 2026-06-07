@@ -70,6 +70,10 @@ export type EngineConfig = {
    * verbatim when set (existence is the user's responsibility). See
    * src/engine/shell.ts resolveShell precedence. */
   shell?: string;
+  /** Minimum non-skipped tests a verify/final_verify step must execute for its
+   * exit-0 to count as verified. Default 1; absent/non-integer/negative ⇒ 1
+   * (fail-closed). Resolved defensively at the run-cycle read site. */
+  verify_min_executed?: number;
 };
 
 export type TriageConfig = {

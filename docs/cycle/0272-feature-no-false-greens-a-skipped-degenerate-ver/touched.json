@@ -1,0 +1,12 @@
+{
+  "files": [
+    "BRIEF.md",
+    "CLAUDE.md",
+    "docs/ENGINE.md",
+    "scripts/coverage-gate.mjs",
+    "src/engine/run-cycle.ts",
+    "src/engine/verify-counts.ts",
+    "src/engine/workflow.ts",
+    "tests/scripts/coverage-gate.test.ts"
+  ]
+}

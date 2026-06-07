@@ -51,7 +51,7 @@ Most agentic coding tools compete on interactive, parallel-agent UX. cycle skips
 
 - **Not an interactive parallel-agent IDE.** No git worktrees racing over the same tree, no per-task diff-review or merge/PR UX. The human stays **out of the per-task loop**. The unit of parallelism is another repo-local cycle instance, coordinated from above (see **[maestro](https://github.com/timothyjoh/maestro)**), rather than workers fighting over one working tree.
 - **Not mid-cycle steering.** You don't interrupt or redirect a running cycle mid-step. You steer **between cycles**: drop an issue, reprioritize the queue, let the reflection step self-feed. Steering inside a cycle is the engine's job (the workflow, reflection), not yours.
-- **Not a code-review tool.** Trust comes from the engine's **guarantees**, not from a human reading every diff: completion-proof post-conditions, anti-slop empty-diff guards, verify-before-commit, halt accounting, rate-limit retries, no-op detection, and self-healing failure recovery. A cycle **finishes or fails loudly** with an auditable trail, rather than producing diffs for someone to babysit.
+- **Not a code-review tool.** Trust comes from the engine's **guarantees**, not from a human reading every diff: completion-proof post-conditions, anti-slop empty-diff guards, verify-before-commit, degenerate-verification blocking, halt accounting, rate-limit retries, no-op detection, and self-healing failure recovery. A cycle **finishes or fails loudly** with an auditable trail, rather than producing diffs for someone to babysit.
 
 ## Why it exists
 
@@ -189,7 +189,7 @@ The `feature` workflow runs a full SDLC loop on every slice. Each step has one j
 4. **build** implements one vertical slice with tests, covering the failure paths the spec named, not just the happy path.
 5. **review** reads the diff for the things that bite later: swallowed errors, fail-open defaults, missing edge cases. Anything real goes into `MUST-FIX.md`.
 6. **fix** runs only when review found something, and clears that list.
-7. **verify** runs your real verify command (tests, build, whatever you configure) before anything is committed. A failing verify fails the cycle.
+7. **verify** runs your real verify command (tests, build, whatever you configure) before anything is committed. A failing verify fails the cycle — and so does a *degenerate* one: a verify step that exits green having executed zero non-skipped tests (e.g. a suite that skips itself when env is unset) is treated as unverified, not passing, and blocks with a `verify.unverified` event rather than draining to `done/`. Tune the floor with `engine.verify_min_executed` (default `1`; `0` disables).
 8. **reflection** looks back at the finished slice and files what it learned: follow-up issues for later, plus fix-now items it applies in this same cycle.
 9. **final_fix** and **final_verify** apply those fix-now items and re-run verify.
 10. **documentation** updates the docs the change actually touched.

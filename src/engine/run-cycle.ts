@@ -28,6 +28,7 @@ import { buildCompressHookSettings } from "./compress-filter.ts";
 import { spawnSync } from "node:child_process";
 import { isDenied } from "./path-utils.ts";
 import { classifyNoopMarker, type NoopClassification } from "./noop-marker.ts";
+import { parseVerifyCounts } from "./verify-counts.ts";
 import { parseFrontmatter } from "./frontmatter.ts";
 import {
   resolveWalkthroughHook,
@@ -322,6 +323,10 @@ export function formatTimeoutProofError(stepName: string, artifactPath: string, 
 
 export function formatWalkthroughTimeoutError(stepName: string, exitCode: number): string {
   return `${stepName} timed out (exit ${exitCode}) — hook killed (SIGTERM→SIGKILL) — treating as failure`;
+}
+
+export function formatVerifyUnverifiedError(skipped: number, executed: number): string {
+  return `verification incomplete: ${skipped} tests skipped, ${executed} executed — cannot confirm the app works`;
 }
 
 export async function findPriorStepHeadSha(
@@ -887,6 +892,42 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           try {
             await accumulateTouchedFiles(repoRoot, artifactDir, preSnapshot);
           } catch { /* best-effort; never fail the cycle */ }
+        }
+      }
+      // Degenerate-verification gate (no false greens): a verify/final_verify
+      // bash step that exits 0 but executed zero non-skipped tests is
+      // unverified, not green. Fail-closed on a confident degenerate parse;
+      // fail-open (byte-for-byte unchanged) when the reporter output is
+      // unparseable (parseVerifyCounts ⇒ null) or the parser throws. Agent
+      // steps and non-zero exits are untouched. Reuses r.status="failed" → the
+      // existing failed-bash .out capture + step.end{failed} + retry/terminal
+      // path below; no new halt reason.
+      if (
+        step.agent === "bash" &&
+        r.status === "ok" &&
+        (step.name === "verify" || step.name === "final_verify")
+      ) {
+        const rawFloor = cfg.engine.verify_min_executed;
+        const minExecuted =
+          typeof rawFloor === "number" && Number.isInteger(rawFloor) && rawFloor >= 0 ? rawFloor : 1;
+        let counts: ReturnType<typeof parseVerifyCounts> = null;
+        try {
+          counts = parseVerifyCounts(r.stdout);
+        } catch {
+          counts = null; // fail-open: a parser internal error degrades to exit-code-only
+        }
+        if (counts && counts.executed < minExecuted && (counts.skipped > 0 || counts.total > 0)) {
+          await log.emit("verify.unverified", {
+            cycle_id: cycleId,
+            step: step.name,
+            executed: counts.executed,
+            skipped: counts.skipped,
+            total: counts.total,
+            reason: "zero_executed",
+          });
+          r.status = "failed";
+          r.exitCode = r.exitCode || 1;
+          r.stderr = formatVerifyUnverifiedError(counts.skipped, counts.executed);
         }
       }
       // Failed bash steps print their failure cause to stdout (test runners,
