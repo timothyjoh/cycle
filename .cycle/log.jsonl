@@ -2330,3 +2330,5 @@
 {"ts":"2026-06-07T00:57:41.315Z","event":"cycle.end","cycle_id":"0263","status":"ok"}
 {"ts":"2026-06-07T00:57:41.375Z","event":"cycle.checkout","cycle_id":"0263","status":"skipped","base":"master","head_before":"master","reason":"trunk"}
 {"ts":"2026-06-07T00:57:42.337Z","event":"cycle.base_pull","cycle_id":"0263","status":"ok","base":"master","sha_before":"e54b4808422f9bbafb3a9854e568fb2b34246b55","sha_after":"e54b4808422f9bbafb3a9854e568fb2b34246b55"}
+{"ts":"2026-06-07T00:57:52.740Z","event":"queue.drained","cycle_id":"0263","issue_id":"feat-cycle-doctor-command","outcome":"ok"}
+{"ts":"2026-06-07T00:57:52.746Z","event":"engine.stop","status":"ok","dry_run":false,"cycles_processed":2}
