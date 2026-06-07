@@ -31,6 +31,8 @@ See [`docs/runtime-environment.md`](docs/runtime-environment.md) for setup guida
 
 ## What cycle is
 
+**cycle's contract:** the engine and its workflows must deliver working software and *demonstrate* it. Every cycle leaves the application in a working state, shown to run both locally and when deployed, and meeting the human-given criteria. Specs are never complete on the first pass, so some divergence is expected, but the working state is not negotiable. Passing unit tests is not proof; a cycle that cannot demonstrate the software runs and meets its criteria has not succeeded, and must block or fail loudly rather than report success. A false green is a failure.
+
 You install cycle into a repository and invoke it from a parent agent, a CI job, a cloud VM, or your laptop. It runs until the queue empties or a safety gate stops it.
 
 An **issue** can be almost anything:

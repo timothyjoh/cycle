@@ -4,6 +4,23 @@
 > [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); for engine internals, see
 > [`docs/ENGINE.md`](docs/ENGINE.md).
 
+## Core thesis
+
+It is up to the cycle engine and workflows to ensure the stable delivery of
+working software to the user, and to demonstrate that it runs both locally and
+when deployed and meets the human-given criteria.
+
+An application can never be fully specified on the first pass, so some divergence
+along the way is expected and acceptable. What is not negotiable is the end
+state: every cycle must leave the application in a working, demonstrated state.
+"Demonstrated" is the operative word. Passing unit tests is not proof that the
+software works; the engine must actually exercise the running app (locally and,
+where applicable, deployed) and show it meets the issue's acceptance criteria. A
+cycle that cannot demonstrate this has not succeeded, no matter how green its
+unit tests look. Verification that is skipped, degraded, or stubbed is not
+verification, and a false green is a failure: such a cycle must block or fail
+loudly, never drain to `done/` as if it had delivered working software.
+
 ## Overview
 
 **cycle** is a repo-local production cell that turns work items into
