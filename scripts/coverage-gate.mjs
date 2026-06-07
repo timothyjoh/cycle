@@ -30,6 +30,7 @@ const FLOORS = {
   "src/engine/queue.ts": 90,
   "src/engine/run-cycle.ts": 90,
   "src/engine/walkthrough.ts": 95,
+  "src/engine/walkthrough-gate.ts": 95,
   "src/engine/reflection.ts": 95,
   "src/engine/rate-limit.ts": 100,
   "src/engine/cycle-id.ts": 100,

@@ -74,6 +74,9 @@ export type EngineConfig = {
    * exit-0 to count as verified. Default 1; absent/non-integer/negative ⇒ 1
    * (fail-closed). Resolved defensively at the run-cycle read site. */
   verify_min_executed?: number;
+  /** Opt-in: a degraded walkthrough on a UI-shipping feature cycle fails the
+   *  cycle (cycle 0274). Default false (coerced `=== true` at the read site). */
+  walkthrough_required?: boolean;
 };
 
 export type TriageConfig = {

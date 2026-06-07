@@ -21,7 +21,7 @@ import { sanitizeArtifactStdout } from "./sanitize-artifact.ts";
 import { slugify } from "../issue/id.ts";
 import { writeFile, readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { resolveShell } from "./shell.ts";
 import { truncateHeadCapped } from "./log-fmt.ts";
 import { buildCompressHookSettings } from "./compress-filter.ts";
@@ -36,7 +36,13 @@ import {
   collectWalkthroughMedia,
   writeWalkthroughManifest,
   walkthroughManifestName,
+  WALKTHROUGH_MEDIA_DIRNAME,
 } from "./walkthrough.ts";
+import {
+  resolveWalkthroughRequired,
+  resolveExpectsUi,
+  readWalkthroughDegradation,
+} from "./walkthrough-gate.ts";
 
 export const RESET_ELIGIBLE_STEPS = new Set(["build", "fix", "final_fix", "quick_fix", "test_fix", "test_build"]);
 
@@ -325,6 +331,10 @@ export function formatWalkthroughTimeoutError(stepName: string, exitCode: number
   return `${stepName} timed out (exit ${exitCode}) — hook killed (SIGTERM→SIGKILL) — treating as failure`;
 }
 
+export function formatWalkthroughDegradedError(reason: string): string {
+  return `walkthrough did not demonstrate the feature: ${reason} — failing cycle (engine.walkthrough_required)`;
+}
+
 export function formatVerifyUnverifiedError(skipped: number, executed: number): string {
   return `verification incomplete: ${skipped} tests skipped, ${executed} executed — cannot confirm the app works`;
 }
@@ -540,6 +550,48 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
           });
           await log.emit("cycle.end", { cycle_id: cycleId, status: "failed", failing_step: step.name });
           return { cycleId, artifactDir, status: "failed" as const, failingStep: step.name };
+        }
+        // Cycle 0274 — degradation blocking gate (un-phased feature
+        // walkthrough_capture only). Config check FIRST: when the repo has not
+        // opted in, no issue read and no sidecar parse run — the default-off
+        // path is byte-for-byte unchanged.
+        if (phase === undefined && resolveWalkthroughRequired(cfg)) {
+          // Per-issue UI-scope. Reuse the lazy source-issue read + degrade-to-
+          // fail-closed-default pattern (mirrors the expects_code guard read):
+          // any read/parse error ⇒ UI-shipping (gated).
+          let uiShipping = true;
+          try {
+            const issueBody = await readFile(
+              join(repoRoot, "docs/cycle/issues/todo", `${opts.issueId}.md`),
+              "utf8",
+            );
+            const fm = parseFrontmatter(issueBody).fm;
+            uiShipping = resolveExpectsCode(fm) !== false && resolveExpectsUi(fm) !== false;
+          } catch {
+            uiShipping = true;
+          }
+          if (uiShipping) {
+            const sidecarPath = join(artifactDir, WALKTHROUGH_MEDIA_DIRNAME, "walkthrough-status.json");
+            const verdict = await readWalkthroughDegradation(sidecarPath);
+            if (verdict.degraded) {
+              await log.emit("walkthrough.degraded", {
+                cycle_id: cycleId,
+                step: step.name,
+                reason: verdict.reason,
+                sidecar: relative(repoRoot, sidecarPath),
+              });
+              await log.emit("step.end", {
+                cycle_id: cycleId,
+                step: step.name,
+                status: "failed",
+                exit_code: wr.exitCode,
+                duration_ms: Math.max(0, Math.round(nowFn() - stepStart)),
+                stderr: truncateHeadCapped(formatWalkthroughDegradedError(verdict.reason), MAX_STEP_END_STDERR),
+              });
+              await log.emit("cycle.end", { cycle_id: cycleId, status: "failed", failing_step: step.name });
+              return { cycleId, artifactDir, status: "failed" as const, failingStep: step.name };
+            }
+          }
         }
         let walkthroughArtifact: string | undefined;
         try {
