@@ -27,6 +27,16 @@ const WHITELIST = /failingStep:\s*undefined/;
 const PERSIST = /await\s+persistResidue\s*\(/;
 const SKIPPABLE = /^\s*(\/\/|\/\*|\*|$)/; // comment or blank line
 
+// Relational invariant: every src/engine/exec-*.ts lane that calls spawn( must
+// reap its child by registering and unregistering its PID with the active-child
+// registry (cycle 0265), so run-one's suspend handler can kill the detached
+// subtree on an operator "pause". \b anchors prevent `unregisterActiveChild`
+// from satisfying the register probe and `spawnSync(` from satisfying the spawn
+// probe — both genuine substring traps in this codebase.
+const SPAWN_CALL = /\bspawn\s*\(/;
+const REGISTER_CHILD = /\bregisterActiveChild\s*\(/;
+const UNREGISTER_CHILD = /\bunregisterActiveChild\s*\(/;
+
 /**
  * One INVARIANTS table entry. Two mutually exclusive kinds share this shape:
  *   - count-based:  requires `pattern` + `expected`.
@@ -73,6 +83,33 @@ function validateResidueArmPersist(text) {
     };
   }
   return { ok: true, actual: `${paired} paired` };
+}
+
+/**
+ * Every src/engine/exec-*.ts lane that calls spawn( must also call both
+ * registerActiveChild and unregisterActiveChild. A lane with no spawn( passes
+ * vacuously. Returns a named { ok:false, message } (does not throw) for the
+ * genuine missing-call case so the operator sees the actionable file + call.
+ * @param {string} text
+ * @param {string} file
+ * @returns {{ ok: boolean, actual?: string, message?: string }}
+ */
+export function validateActiveChildRegistration(text, file) {
+  if (!SPAWN_CALL.test(text)) return { ok: true, actual: 'no spawn( — vacuous' };
+  const missing = [];
+  if (!REGISTER_CHILD.test(text)) missing.push('registerActiveChild');
+  if (!UNREGISTER_CHILD.test(text)) missing.push('unregisterActiveChild');
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      message:
+        `${file} calls spawn( but is missing ${missing.join(' and ')} — ` +
+        'every spawning exec lane must register and unregister its child PID ' +
+        'with the active-child registry (cycle 0265) so run-one can reap the ' +
+        'detached subtree on suspend',
+    };
+  }
+  return { ok: true, actual: 'spawn( paired with register/unregister' };
 }
 
 /** @type {Invariant[]} */
@@ -239,6 +276,21 @@ export const INVARIANTS = [
     expected: 0,
     reason: 'pi exec tests inject via CYCLE_PI_BIN, never PATH-stub',
   },
+
+  // --- Exec-lane active-child registration (cycle 0267) ---
+  // Any src/engine/exec-*.ts lane that calls spawn( must register + unregister
+  // its child PID (cycle 0265 orphan-reap contract) so run-one's suspend handler
+  // can kill the detached subtree. One relational entry per current lane sharing
+  // the validateActiveChildRegistration predicate; non-spawning lanes pass
+  // vacuously. The dispatch reads one fixed file per entry (no globbing), so when
+  // adding a new exec lane, register its entry here.
+  ...['exec-spawn', 'exec-bash', 'exec-auggie', 'exec-claudecode',
+    'exec-codex', 'exec-gemini', 'exec-opencode', 'exec-pi'].map((name) => ({
+    file: `src/engine/${name}.ts`,
+    validate: validateActiveChildRegistration,
+    reason:
+      'active-child registration: a spawn( lane must call registerActiveChild + unregisterActiveChild (cycle 0265 orphan-reap contract)',
+  })),
 ];
 
 // Run every entry in `invariants`, reading each target file relative to `cwd`.

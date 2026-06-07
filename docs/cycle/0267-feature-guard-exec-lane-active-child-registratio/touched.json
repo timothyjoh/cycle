@@ -1,0 +1,7 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "scripts/structural-invariants.mjs",
+    "tests/scripts/structural-invariants.test.ts"
+  ]
+}
