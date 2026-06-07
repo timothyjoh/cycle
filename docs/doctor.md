@@ -21,7 +21,10 @@ cycle preflight [--workflow <name>]
   value and listing the available workflow names, **before** any agent/tool probe
   runs. This is validated against the config's workflow set (not a hand-coded
   list), so a typo surfaces immediately instead of a false `doctor: all checks
-  passed`. The no-arg path is unaffected — it still defaults to `feature`.
+  passed`. The no-arg path defaults to `feature`, and that default is now itself
+  membership-validated: against a `workflows.yml` that defines no `feature`
+  workflow, `cycle doctor` with no flag fails loud with the same `unknown
+  workflow "feature"` diagnostic instead of false-passing.
 - `doctor` and `preflight` are the same command; their output is byte-identical
   for the same repo and flags.
 
@@ -55,8 +58,10 @@ A clean run ends with `doctor: all checks passed`.
 - **0** — all checks passed. Warnings (e.g. `wsl_shadow`) are reported but do
   **not** flip the exit code.
 - **non-zero** — at least one check failed, the config could not be loaded
-  (uninitialized repo / malformed `workflows.yml`), or an explicit `--workflow`
-  value was unknown or value-less. In the config-load and workflow-validation
+  (uninitialized repo / malformed `workflows.yml`), or the selected workflow was
+  unknown or value-less — an explicit `--workflow` name absent from the config, a
+  value-less trailing `--workflow`, or the no-flag default `feature` against a
+  config that does not define it. In the config-load and workflow-validation
   cases a clear diagnostic is printed to stderr (run `cycle init` first, or pick
   one of the listed workflows) with no stack trace and no probe run.
 

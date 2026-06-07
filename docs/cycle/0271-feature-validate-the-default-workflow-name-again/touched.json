@@ -1,0 +1,8 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "src/cli/parse-args.ts",
+    "src/cli/validate-workflow.ts",
+    "tests/cli/validate-workflow.test.ts"
+  ]
+}

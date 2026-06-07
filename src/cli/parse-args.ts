@@ -1,4 +1,5 @@
 import { parseArgs as nodeParseArgs } from "node:util";
+import { DEFAULT_WORKFLOW } from "./validate-workflow.ts";
 
 export type RunArgs = {
   command: "run";
@@ -92,7 +93,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   return {
     command: "run",
     text: text === "" ? null : text,
-    workflow: workflowExplicit === undefined ? "feature" : workflowExplicit,
+    workflow: workflowExplicit === undefined ? DEFAULT_WORKFLOW : workflowExplicit,
     workflowExplicit,
     dryRun: Boolean(values["dry-run"]),
     noSkipCompleted: Boolean(values["no-skip-completed"]),

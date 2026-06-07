@@ -9,9 +9,44 @@ import { runDoctor } from "../../src/cli/doctor.ts";
 
 const AVAILABLE = ["feature", "e2e-tests", "quickfix"];
 
-test("undefined (flag absent) ⇒ ok, defaults to feature", () => {
+test("undefined (flag absent) ⇒ ok when feature is configured", () => {
   const v = validateWorkflowName(undefined, AVAILABLE, "run");
   assert.deepEqual(v, { ok: true, name: "feature" });
+});
+
+test("undefined (flag absent) ⇒ rejected when feature not configured (run)", () => {
+  const v = validateWorkflowName(undefined, ["e2e-tests", "quickfix"], "run");
+  assert.deepEqual(v, {
+    ok: false,
+    message:
+      'run: unknown workflow "feature" — available workflows: e2e-tests, quickfix',
+  });
+});
+
+test("undefined (flag absent) ⇒ rejected when feature not configured (doctor)", () => {
+  const v = validateWorkflowName(undefined, ["e2e-tests", "quickfix"], "doctor");
+  assert.deepEqual(v, {
+    ok: false,
+    message:
+      'doctor: unknown workflow "feature" — available workflows: e2e-tests, quickfix',
+  });
+});
+
+test("undefined + empty available ⇒ rejected, does not throw", () => {
+  const v = validateWorkflowName(undefined, [], "run");
+  assert.equal(v.ok, false);
+  if (!v.ok) {
+    assert.match(v.message, /unknown workflow "feature"/);
+    assert.match(v.message, /available workflows: $/);
+  }
+});
+
+test("undefined-rejection body matches explicit-feature-unknown rejection", () => {
+  const a = validateWorkflowName(undefined, ["e2e-tests"], "run");
+  const b = validateWorkflowName("feature", ["e2e-tests"], "run");
+  assert.equal(a.ok, false);
+  assert.equal(b.ok, false);
+  if (!a.ok && !b.ok) assert.equal(a.message, b.message);
 });
 
 test("valid explicit name ⇒ ok with that name", () => {

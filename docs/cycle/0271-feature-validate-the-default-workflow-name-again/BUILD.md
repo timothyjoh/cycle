@@ -1,0 +1,17 @@
+## Summary
+
+Implemented cycle 0271 — validating the default workflow name against the configured set so the no-flag path fails loud in feature-less repos. Modified `src/cli/validate-workflow.ts` (+22/-8 lines): introduced the exported single-source-of-truth constant `DEFAULT_WORKFLOW = "feature"`, reordered the value-less (`""`) check above the membership check to preserve its distinct message, and rewrote the `undefined` (flag-absent) branch to resolve `workflow ?? DEFAULT_WORKFLOW` and fall through to the shared `!available.includes(resolved)` check — so the accept (`{ ok: true, name }`) and reject (`unknown workflow "feature" — available workflows: …`) paths are produced by one code path and cannot drift in shape; updated the JSDoc to drop "never rejected." Modified `src/cli/parse-args.ts` (+2/-1): imported `DEFAULT_WORKFLOW` and referenced it in place of the re-typed `"feature"` literal at the `workflow` default, collapsing the duplicate so the code-level default lives in exactly one place. Extended `tests/cli/validate-workflow.test.ts` (+37 lines): retitled the existing happy-path test ("ok when feature is configured"), and added no-flag-but-no-`feature` rejection tests for both `run:` and `doctor:` prefixes (exact message asserted), the `undefined` + empty `available` edge (rejected, lists empty set, does not throw), and a body-equivalence assertion between the `undefined`-rejection and the explicit-`"feature"`-unknown rejection. Updated `CLAUDE.md` (2 edits): the `src/cli/validate-workflow.ts` architecture note now describes the membership-validated `undefined` path and the single `DEFAULT_WORKFLOW` source of truth, and the `cycle doctor` table row notes the no-arg default is now membership-validated.
+
+All four PLAN.md tasks are complete (Task 1 helper change, Task 2 literal collapse, Task 3 tests, Task 4 docs). Ran the full suite via `npm test`: **1208 tests pass, 0 fail**. Ran `npm run test:coverage`: `src/cli/validate-workflow.ts` holds **100.00% line / 100.00% branch / 100.00% function** (floor 100/100, the new branch exercised in both accept and reject directions); no per-file regressions; `coverage-gate` and `check:invariants` both green. `npm run typecheck` is clean (no warnings).
+
+Failure modes handled this cycle: the function remains pure and total — it never throws for any `string | undefined` input or any `available` array including `[]`; the no-flag rejection in a feature-less config is surfaced as a discriminated `{ ok: false, message }` value (never thrown, never swallowed) that the existing `cycle run` gate renders to stderr and exits `2` on before `engine.start`/preflight/`markInProgress`, and the existing `runDoctor` gate renders under the `doctor:` prefix and exits non-zero before any probe. Failure-path tests covering these: the two no-flag-no-`feature` rejection tests (both prefixes), the empty-`available` edge test (asserts `does not throw` and the empty-set message), and the preserved value-less/explicit-unknown/never-throws regression tests; the existing `runDoctor` behavioral-equivalence and structural-reference tests confirm both commands inherit the helper end-to-end.
+
+No deviations from PLAN.md. No deferred work; the engine-side `runCycle` `unknown workflow:` throw remains as the now-unreachable defense-in-depth backstop, intentionally untouched per SPEC scope.
+
+## Touched Files
+- src/cli/validate-workflow.ts
+- src/cli/parse-args.ts
+- tests/cli/validate-workflow.test.ts
+- CLAUDE.md
+- docs/ENGINE.md
+- docs/doctor.md
