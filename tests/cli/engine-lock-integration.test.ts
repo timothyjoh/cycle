@@ -1,9 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile, readFile, mkdir, chmod, appendFile, stat } from "node:fs/promises";
+import { realpathSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync, spawn } from "node:child_process";
+
+// The supervisor canonicalizes its lock path via realpathSync(cwd); on systems
+// where tmpdir() is itself a symlink (e.g. macOS /tmp → /private/tmp) the test's
+// raw root would not match. Resolve every expected lock path the same way.
+function canonicalLockPath(root: string): string {
+  return join(realpathSync(root), ".cycle", "engine.lock");
+}
 
 const REPO = process.cwd();
 
@@ -51,13 +59,18 @@ workflows:
   await mkdir(join(root, "docs/cycle/issues/failed"), { recursive: true });
 }
 
-test("live lock → supervisor exits 1 with live-pid message, lock untouched", async () => {
+test("live lock → supervisor exits 75 with live-pid message, lock + log untouched", async () => {
   const dist = await ensureDist();
   const root = await mkdtemp(join(tmpdir(), "cycle-lock-live-"));
   try {
     await bootstrapRepo(root);
-    const lockPath = join(root, ".cycle", "engine.lock");
+    const lockPath = canonicalLockPath(root);
     await writeFile(lockPath, String(process.pid), "utf8");
+
+    // Capture log state before the rejected run. The shared log.jsonl must gain
+    // zero bytes — the rejection precedes createLogger/engine.start.
+    const logPath = join(realpathSync(root), ".cycle", "log.jsonl");
+    const logSizeBefore = existsSync(logPath) ? statSync(logPath).size : -1;
 
     const result = spawnSync("node", [dist, "run", "--skip-preflight"], {
       cwd: root,
@@ -65,7 +78,7 @@ test("live lock → supervisor exits 1 with live-pid message, lock untouched", a
       timeout: 10_000,
     });
 
-    assert.notEqual(result.status, 0, `expected non-zero exit, got ${result.status}`);
+    assert.equal(result.status, 75, `expected dedicated exit code 75, got ${result.status}`);
     assert.ok(
       result.stderr.includes(`engine already running, pid ${process.pid}`),
       `expected live-pid message in stderr, got: ${result.stderr}`,
@@ -74,6 +87,21 @@ test("live lock → supervisor exits 1 with live-pid message, lock untouched", a
     // supervisor did not own the lock — must not delete it
     const remaining = await readFile(lockPath, "utf8");
     assert.equal(remaining.trim(), String(process.pid));
+
+    // log.jsonl is byte-unchanged: no engine.start / preflight / triage / halt / stop
+    const logSizeAfter = existsSync(logPath) ? statSync(logPath).size : -1;
+    assert.equal(logSizeAfter, logSizeBefore, "rejected run must not write to log.jsonl");
+    if (existsSync(logPath)) {
+      const raw = await readFile(logPath, "utf8");
+      const events = raw.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+      for (const ev of ["engine.start", "engine.preflight.ok", "engine.halted", "engine.stop"]) {
+        assert.equal(
+          events.filter((e: { event: string }) => e.event === ev).length,
+          0,
+          `rejected run must not emit ${ev}`,
+        );
+      }
+    }
   } finally {
     await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
@@ -84,7 +112,7 @@ test("stale lock → supervisor reclaims and exits 0 (empty queue), lock cleaned
   const root = await mkdtemp(join(tmpdir(), "cycle-lock-stale-"));
   try {
     await bootstrapRepo(root);
-    const lockPath = join(root, ".cycle", "engine.lock");
+    const lockPath = canonicalLockPath(root);
     await writeFile(lockPath, "999999999", "utf8");
 
     const result = spawnSync("node", [dist, "run", "--skip-preflight"], {
@@ -104,6 +132,51 @@ test("stale lock → supervisor reclaims and exits 0 (empty queue), lock cleaned
     }
     assert.equal(lockExists, false, "lock file should be absent after normal exit");
   } finally {
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  }
+});
+
+test("lifetime: lock present + PID-correct throughout the drain, removed only on exit", async () => {
+  const dist = await ensureDist();
+  const root = await mkdtemp(join(tmpdir(), "cycle-lock-lifetime-"));
+  let child!: ReturnType<typeof spawn>;
+  try {
+    await bootstrapRepo(root);
+    await writeFile(join(root, ".cycle", "workflows.yml"), slowWorkflowYml, "utf8");
+    const slowScript = join(root, ".cycle", "scripts", "slow.sh");
+    await writeFile(slowScript, "#!/bin/bash\nsleep 30\n", "utf8");
+    await chmod(slowScript, 0o755);
+
+    const todoId = "test-lifetime-issue";
+    await writeFile(join(root, "docs/cycle/issues/todo", `${todoId}.md`), todoFm(todoId, "lifetime test"), "utf8");
+    await appendFile(join(root, ".cycle/tbd.jsonl"), JSON.stringify(queueRow(todoId, "lifetime test")) + "\n", "utf8");
+
+    const lockPath = canonicalLockPath(root);
+    const logPath = join(realpathSync(root), ".cycle", "log.jsonl");
+    child = spawn("node", [dist, "run", "--skip-preflight"], { cwd: root, stdio: "ignore" });
+    await waitForLock(lockPath, 30_000);
+    // The slow bash step keeps the supervisor mid-drain; wait until a cycle is
+    // genuinely in flight so we observe the lock during the run, not at startup.
+    await waitForLogEvent(logPath, "issue.ingested", 30_000);
+
+    // Mid-drain: lock is on disk and holds the live supervisor's PID.
+    assert.ok(existsSync(lockPath), "lock present during drain");
+    const held = (await readFile(lockPath, "utf8")).trim();
+    assert.equal(held, String(child.pid), "lock holds the live supervisor PID");
+
+    // Removed only when the supervisor itself exits.
+    let exitCode: number | null = null;
+    child.kill("SIGTERM");
+    await Promise.race([
+      new Promise<void>((r) => child.on("exit", (code) => { exitCode = code; r(); })),
+      new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error("child did not exit after SIGTERM")), 10_000),
+      ),
+    ]);
+    assert.strictEqual(exitCode, 143, "should exit 143 on SIGTERM");
+    await waitForAbsence(lockPath);
+  } finally {
+    child?.kill();
     await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 });
@@ -221,7 +294,7 @@ test("SIGINT → supervisor exits, lock cleaned up", async () => {
     await writeFile(join(root, "docs/cycle/issues/todo", `${todoId}.md`), todoFm(todoId, "sigint test"), "utf8");
     await appendFile(join(root, ".cycle/tbd.jsonl"), JSON.stringify(queueRow(todoId, "sigint test")) + "\n", "utf8");
 
-    const lockPath = join(root, ".cycle", "engine.lock");
+    const lockPath = canonicalLockPath(root);
     const child = spawn("node", [dist, "run", "--skip-preflight"], { cwd: root, stdio: "ignore" });
     await waitForLock(lockPath);
 
@@ -260,7 +333,7 @@ test("SIGTERM → supervisor exits, lock cleaned up, cycle.killed logged", async
     await writeFile(join(root, "docs/cycle/issues/todo", `${todoId}.md`), todoFm(todoId, "sigterm test"), "utf8");
     await appendFile(join(root, ".cycle/tbd.jsonl"), JSON.stringify(queueRow(todoId, "sigterm test")) + "\n", "utf8");
 
-    const lockPath = join(root, ".cycle", "engine.lock");
+    const lockPath = canonicalLockPath(root);
     const logPath = join(root, ".cycle", "log.jsonl");
     child = spawn("node", [dist, "run", "--skip-preflight"], { cwd: root, stdio: "ignore" });
     // issue.ingested is emitted by the supervisor after activeCycleId is set (both happen
@@ -324,7 +397,7 @@ test("SIGTERM idle engine: cycle.killed written with cycle_id undefined", async 
       "utf8",
     );
 
-    const lockPath = join(root, ".cycle", "engine.lock");
+    const lockPath = canonicalLockPath(root);
     const logPath = join(root, ".cycle", "log.jsonl");
     child = spawn("node", [dist, "run", "--skip-preflight"], {
       cwd: root,

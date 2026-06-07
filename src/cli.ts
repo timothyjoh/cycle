@@ -1,4 +1,4 @@
-import { appendFileSync } from "node:fs";
+import { appendFileSync, realpathSync } from "node:fs";
 import { readFile, readdir, rename, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -39,7 +39,12 @@ import {
   deleteResidueContext,
 } from "./engine/residue-context-store.ts";
 import { emitStaleDistWarning } from "./engine/stale-dist.ts";
-import { acquireLock, releaseLock } from "./engine/engine-lock.ts";
+import {
+  acquireLock,
+  releaseLock,
+  ALREADY_RUNNING_CODE,
+  LOCK_HELD_EXIT_CODE,
+} from "./engine/engine-lock.ts";
 import { loadDotEnv } from "./engine/dot-env.ts";
 import { slugify } from "./issue/id.ts";
 import type { Logger } from "./engine/log.ts";
@@ -203,12 +208,21 @@ if (args.dryRun) {
   process.exit(0);
 }
 
-const lockPath = join(cwd, ".cycle", "engine.lock");
+// Canonicalize via realpathSync so two sessions reaching this repo through
+// different mount/symlink views (e.g. /mnt/c/... vs the real path) resolve the
+// same physical lockfile and always coordinate on one engine.
+const lockPath = join(realpathSync(cwd), ".cycle", "engine.lock");
 try {
   acquireLock(lockPath);
 } catch (err) {
   console.error((err as Error).message);
-  process.exit(1);
+  // A live-lock rejection (typed ENGINE_ALREADY_RUNNING) exits with the
+  // dedicated LOCK_HELD_EXIT_CODE; genuine read/probe/write failures exit 1.
+  const code =
+    (err as NodeJS.ErrnoException).code === ALREADY_RUNNING_CODE
+      ? LOCK_HELD_EXIT_CODE
+      : 1;
+  process.exit(code);
 }
 process.on("exit", () => releaseLock(lockPath));
 process.on("SIGINT", () => process.exit(130));

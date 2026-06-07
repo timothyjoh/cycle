@@ -144,6 +144,8 @@ Re-run triage as a read-only diagnostic (no state mutation):
 
 **Preflight gate.** Before the first cycle starts, `cycle run` validates the execution environment: it probes every agent CLI the active workflow + triage will use (`<bin> --version`, resolving binaries the same way the engine dispatches them, honoring any `CYCLE_<AGENT>_BIN` override) and confirms the required external tools (`bash`, `git`, plus any literal tools your bash steps invoke) resolve on PATH. A wrong-platform agent build, a missing agent CLI, or a missing tool produces a single clean halt naming the resolved path and the fix, instead of a cryptic stack trace discovered mid-cycle. Under WSL, an agent or tool resolving under `/mnt/c/...` emits a non-fatal warning (it may shadow a native Linux install). Pass `--skip-preflight` to bypass the gate.
 
+**One engine per repo.** A second `cycle run` against a repo that already has a live engine is rejected immediately — before any engine event is written — with `engine already running, pid X` on stderr and a dedicated exit code **75** (so scripts can detect "already running" specifically, distinct from the generic `1`). The running engine's `log.jsonl` and lockfile are left completely untouched. A stale lock left by a crashed engine is reclaimed automatically so a fresh `cycle run` after a crash still works.
+
 ## Upgrading
 
 `cycle init` is for first-time scaffolding in a fresh repo: it writes every artifact unconditionally, so re-running it would clobber any prompts, workflows, or scripts you have customized. To refresh the engine in a repo that is *already* initialized, use `cycle upgrade` instead:

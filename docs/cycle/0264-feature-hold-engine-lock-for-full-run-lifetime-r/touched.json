@@ -1,0 +1,11 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "README.md",
+    "docs/ENGINE.md",
+    "src/cli.ts",
+    "src/engine/engine-lock.ts",
+    "tests/cli/engine-lock-integration.test.ts",
+    "tests/engine/engine-lock.test.ts"
+  ]
+}

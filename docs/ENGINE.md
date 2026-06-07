@@ -410,7 +410,17 @@ At engine start, before emitting `engine.start`, the engine compares the mtime o
 
 ## Single-engine lock
 
-Only one engine runs per repo at a time. At startup `cli.ts` calls `acquireLock(.cycle/engine.lock)` (`src/engine/engine-lock.ts`), which writes the current PID to the lockfile; a second concurrent invocation whose stored PID is still live exits non-zero rather than racing the first. A stale lock (dead PID) is reclaimed. The lock is released via a `process.on("exit")` handler.
+Only one engine runs per repo at a time. At startup `cli.ts` calls `acquireLock(join(realpathSync(cwd), ".cycle", "engine.lock"))` (`src/engine/engine-lock.ts`), which writes the supervisor's PID to the lockfile. The acquire happens **before** `createLogger`, `engine.start`, preflight, the startup residue re-check, and triage — so the ordering is **acquire → reject-if-live → only then `engine.start`/preflight/triage**, and a rejected concurrent run writes **zero** bytes to `log.jsonl`.
+
+The lockfile is held on disk for the supervisor's full run lifetime: written once at acquire and removed **only** on the supervisor's own `process.on("exit")` handler (PID-match-guarded). The child `run-one` process never acquires or releases the lock.
+
+**Concurrent-run rejection.** When the stored PID is still live, `acquireLock` throws a typed error (`.code === "ENGINE_ALREADY_RUNNING"`, exported as `ALREADY_RUNNING_CODE`). `cli.ts` prints `engine already running, pid X` to stderr and exits with the **dedicated `LOCK_HELD_EXIT_CODE = 75`** (EX_TEMPFAIL — "temporary failure, retry may succeed"). This code is distinct from the generic `1`, `run-one`'s `2` (thrown) / `3` (noop), and the signal codes `130` (SIGINT) / `143` (SIGTERM), so a caller can detect "already running" specifically. A genuine acquire failure (unreadable lock, failed liveness probe, write failure) throws its native error and exits `1`, not `75`.
+
+**Canonical path.** The lock path is built from `realpathSync(cwd)` so two sessions reaching the same repo through divergent mount/symlink views (e.g. `/mnt/c/...` vs the underlying real path) resolve the same physical lockfile and always coordinate on one engine. (Root cause of the original ineffectiveness: the lock path was built from the raw `process.cwd()` string, so divergent views computed divergent lock paths and never coordinated.)
+
+**Stale reclaim & fail-loud.** A stale lock (dead PID: `kill(pid, 0)` ⇒ `ESRCH`) is reclaimed — overwritten with the new PID — and the run proceeds. A malformed (non-numeric) PID is likewise overwritten. A failed liveness probe that is neither `ESRCH` nor `EPERM`, an unreadable-but-present lockfile (read error ≠ `ENOENT`), and a write failure at acquire each **propagate** (the run fails loudly) — a failed check is never coerced into "stale, reclaim it," and the engine never proceeds lockless. `EPERM` (lock owned by a process we can't signal) is treated as live and rejected.
+
+**Release guard.** `releaseLock` deletes the lockfile **only** when its trimmed contents equal `String(process.pid)` — the PID-match guard — so a rejected concurrent run never deletes the live owner's lock under any path. It is idempotent (missing file ⇒ no-op) and swallows all errors so it never throws out of the `exit` handler.
 
 `.cycle/cycle.pid` remains in the commit denylist (`DENYLIST_EXACT` in `src/engine/path-utils.ts`) so any future PID-based daemon state is never staged.
 

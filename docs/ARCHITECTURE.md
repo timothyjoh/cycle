@@ -179,8 +179,10 @@ Subcommands:
   engine runs until `tbd.jsonl` is empty or a failure stops the queue. CI
   jobs and ephemeral containers depend on this contract.
 - **One engine per repo, one cycle at a time.** At startup the engine
-  acquires a PID lockfile at `.cycle/engine.lock`; a second concurrent
-  invocation exits non-zero rather than racing the first. This is an
+  acquires a PID lockfile at `.cycle/engine.lock` (held for the full run,
+  released only on supervisor exit); a second concurrent invocation is
+  rejected before any engine event is emitted, exiting with the dedicated
+  code `75` (EX_TEMPFAIL) rather than racing the first. This is an
   explicit product constraint, not a missing scheduler: repo-local
   serialization preserves deterministic integration and avoids avoidable
   merge/state conflicts.
