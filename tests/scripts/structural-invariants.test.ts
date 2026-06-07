@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { runInvariants, INVARIANTS, validateActiveChildRegistration, validateDetachedSpawn } from "../../scripts/structural-invariants.mjs";
+import { runInvariants, INVARIANTS, validateActiveChildRegistration, validateDetachedSpawn, validateVerifyStepNames, deriveGateVerifyNames, extractVerifyStepNames } from "../../scripts/structural-invariants.mjs";
 
 const SCRIPT = join(process.cwd(), "scripts/structural-invariants.mjs");
 const FIXTURES = join(process.cwd(), "tests/fixtures/structural-invariants");
@@ -58,6 +58,24 @@ async function setup(cwd: string, content: string, cliContent = "// stub\nconsec
       `const child = spawn(bin, args, { detached: true });\nregisterActiveChild(child.pid);\nunregisterActiveChild(child.pid);\n`,
     );
   }
+
+  // cycle 0275: the verify-step-name lockstep invariant reads
+  // src/defaults/workflows.yml (the entry's file) and src/engine/run-cycle.ts
+  // (the gate source, via process.cwd() = this synthetic root in the spawned run).
+  await mkdir(join(cwd, "src/defaults"), { recursive: true });
+  await writeFile(
+    join(cwd, "src/defaults/workflows.yml"),
+    "workflows:\n" +
+      "  - name: feature\n" +
+      "    steps:\n" +
+      "      - { name: verify,       agent: bash, command: scripts/verify.sh }\n" +
+      "      - { name: final_verify, agent: bash, command: scripts/verify.sh }\n",
+  );
+  await writeFile(
+    join(cwd, "src/engine/run-cycle.ts"),
+    "// Degenerate-verification gate (no false greens)\n" +
+      'if (step.agent === "bash" && (step.name === "verify" || step.name === "final_verify")) {\n}\n',
+  );
 }
 
 function run(cwd: string) {
@@ -417,4 +435,197 @@ test("structural-invariants: real repo root -> exit 0 (regression pin)", () => {
   const result = run(process.cwd());
   assert.equal(result.status, 0);
   assert.equal(result.stderr, "");
+});
+
+// --- Verify-step-name / gate lockstep (cycle 0275) ---
+
+const REAL_WF = join(process.cwd(), "src/defaults/workflows.yml");
+const REAL_RC = join(process.cwd(), "src/engine/run-cycle.ts");
+
+test("deriveGateVerifyNames: real run-cycle.ts -> {verify, final_verify}", async () => {
+  const rc = await readFile(REAL_RC, "utf8");
+  const res = deriveGateVerifyNames(rc);
+  assert.equal(res.ok, true);
+  assert.ok(res.ok && res.names.has("verify"));
+  assert.ok(res.ok && res.names.has("final_verify"));
+  // Exactly the gate's two literals — the window excludes the other
+  // step.name === "…" comparisons elsewhere in run-cycle.ts.
+  assert.equal(res.ok && res.names.size, 2);
+});
+
+test("deriveGateVerifyNames: no anchor -> ok:false (fail-closed)", () => {
+  const res = deriveGateVerifyNames('if (step.name === "verify") {}\n');
+  assert.equal(res.ok, false);
+  assert.match(String(res.ok ? "" : res.message), /anchor/);
+});
+
+test("deriveGateVerifyNames: anchor but no step.name literals -> ok:false", () => {
+  const res = deriveGateVerifyNames("// Degenerate-verification gate\nif (foo) {}\n");
+  assert.equal(res.ok, false);
+  assert.match(String(res.ok ? "" : res.message), /step\.name/);
+});
+
+test("deriveGateVerifyNames: comment-brace before the if is not the window boundary", () => {
+  // The real comment carries `step.end{failed}`; the window must start at `if (`,
+  // not at that comment brace, or zero literals would be captured.
+  const text =
+    "// Degenerate-verification gate: reuses step.end{failed} capture\n" +
+    'if (step.agent === "bash" && (step.name === "verify" || step.name === "final_verify")) {\n}\n';
+  const res = deriveGateVerifyNames(text);
+  assert.equal(res.ok, true);
+  assert.equal(res.ok && res.names.size, 2);
+});
+
+test("deriveGateVerifyNames: anchor with no following if -> ok:false (fail-closed)", () => {
+  const res = deriveGateVerifyNames("// Degenerate-verification gate\nconst x = 1;\n");
+  assert.equal(res.ok, false);
+});
+
+test("extractVerifyStepNames: real workflows.yml -> 5 attributed steps", async () => {
+  const wf = await readFile(REAL_WF, "utf8");
+  const res = extractVerifyStepNames(wf);
+  assert.equal(res.ok, true);
+  assert.ok(res.ok);
+  if (res.ok) {
+    assert.equal(res.steps.length, 5);
+    const byWf = res.steps.map((s) => `${s.workflow}:${s.stepName}`);
+    assert.ok(byWf.includes("feature:verify"));
+    assert.ok(byWf.includes("feature:final_verify"));
+    assert.ok(byWf.includes("document:verify"));
+    assert.ok(byWf.includes("quickfix:verify"));
+    assert.ok(byWf.includes("e2e-tests:verify"));
+    // walkthrough_* bash steps (no command) are not extracted.
+    assert.ok(!byWf.some((s) => s.includes("walkthrough")));
+  }
+});
+
+test("extractVerifyStepNames: no workflows: block -> ok:false", () => {
+  const res = extractVerifyStepNames("not: yaml\ncommand: scripts/verify.sh\n");
+  assert.equal(res.ok, false);
+  assert.match(String(res.ok ? "" : res.message), /workflows:/);
+});
+
+test("extractVerifyStepNames: verify.sh line with no resolvable name -> ok:false", () => {
+  const text = "workflows:\n  - name: feature\n    steps:\n      - { command: scripts/verify.sh }\n";
+  const res = extractVerifyStepNames(text);
+  assert.equal(res.ok, false);
+  assert.match(String(res.ok ? "" : res.message), /cannot resolve verify-script step/);
+});
+
+test("extractVerifyStepNames: verify.sh line with no preceding workflow -> ok:false", () => {
+  const text = "workflows:\n  steps:\n      - { name: verify, command: scripts/verify.sh }\n";
+  const res = extractVerifyStepNames(text);
+  assert.equal(res.ok, false);
+});
+
+test("validateVerifyStepNames: real files (injected gate) -> ok:true", async () => {
+  const wf = await readFile(REAL_WF, "utf8");
+  const rc = await readFile(REAL_RC, "utf8");
+  const res = validateVerifyStepNames(wf, "src/defaults/workflows.yml", { gateText: rc });
+  assert.equal(res.ok, true);
+  assert.match(res.actual ?? "", /5 verify step\(s\)/);
+});
+
+test("validateVerifyStepNames: renamed verify step -> ok:false naming workflow + step", async () => {
+  const wf = await readFile(REAL_WF, "utf8");
+  const rc = await readFile(REAL_RC, "utf8");
+  const renamed = wf.replace("name: verify,", "name: verify_app,");
+  const res = validateVerifyStepNames(renamed, "src/defaults/workflows.yml", { gateText: rc });
+  assert.equal(res.ok, false);
+  assert.match(String(res.ok ? "" : res.message), /feature/);
+  assert.match(String(res.ok ? "" : res.message), /verify_app/);
+});
+
+test("validateVerifyStepNames: unparseable gate source -> ok:false", async () => {
+  const wf = await readFile(REAL_WF, "utf8");
+  const res = validateVerifyStepNames(wf, "src/defaults/workflows.yml", { gateText: "no gate here" });
+  assert.equal(res.ok, false);
+  assert.match(String(res.ok ? "" : res.message), /gate literals/);
+});
+
+test("validateVerifyStepNames: unparseable workflows text -> ok:false", async () => {
+  const rc = await readFile(REAL_RC, "utf8");
+  const res = validateVerifyStepNames("not yaml at all", "src/defaults/workflows.yml", { gateText: rc });
+  assert.equal(res.ok, false);
+  assert.match(String(res.ok ? "" : res.message), /workflows:/);
+});
+
+test("validateVerifyStepNames: missing gate source (no inject, cwd lacks file) -> ok:false naming path", async () => {
+  // No gateText injected and process.cwd() in this scenario is a temp root with
+  // no src/engine/run-cycle.ts — the read fails and is surfaced as ok:false.
+  const root = await mkdtemp(join(tmpdir(), "cycle-si-verify-noread-"));
+  const prev = process.cwd();
+  try {
+    process.chdir(root);
+    const res = validateVerifyStepNames("workflows:\n", "src/defaults/workflows.yml");
+    assert.equal(res.ok, false);
+    assert.match(String(res.ok ? "" : res.message), /run-cycle\.ts/);
+  } finally {
+    process.chdir(prev);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("validateVerifyStepNames: drift-coupling -> accepted set is derived, not hardcoded", () => {
+  // Gate literals say only `verify_app`; a workflow whose step is verify_app passes.
+  const driftGate =
+    "// Degenerate-verification gate\n" + 'if (step.name === "verify_app") {\n}\n';
+  const wf =
+    "workflows:\n  - name: feature\n    steps:\n      - { name: verify_app, agent: bash, command: scripts/verify.sh }\n";
+  const pass = validateVerifyStepNames(wf, "src/defaults/workflows.yml", { gateText: driftGate });
+  assert.equal(pass.ok, true);
+  // The SAME workflow against the real gate literals (verify/final_verify) fails —
+  // proving the set tracks run-cycle.ts rather than being re-declared.
+  const realGate =
+    "// Degenerate-verification gate\n" +
+    'if (step.name === "verify" || step.name === "final_verify") {\n}\n';
+  const fail = validateVerifyStepNames(wf, "src/defaults/workflows.yml", { gateText: realGate });
+  assert.equal(fail.ok, false);
+  assert.match(String(fail.ok ? "" : fail.message), /verify_app/);
+});
+
+test("structural-invariants: verify-step-name lockstep entry present and passes via runInvariants against live repo", async () => {
+  const entry = INVARIANTS.find((i) => i.reason.includes("verify-step-name lockstep"));
+  assert.ok(entry, "verify-step-name lockstep invariant must be registered");
+  const cap = captureConsoleError();
+  let failed: number;
+  try {
+    failed = await runInvariants([entry], process.cwd());
+  } finally {
+    cap.restore();
+  }
+  assert.equal(failed, 0);
+});
+
+test("structural-invariants: verify-step-name lockstep fails via runInvariants on a renamed step", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-si-verify-rename-"));
+  try {
+    await mkdir(join(root, "src/defaults"), { recursive: true });
+    await mkdir(join(root, "src/engine"), { recursive: true });
+    await writeFile(
+      join(root, "src/defaults/workflows.yml"),
+      "workflows:\n" +
+        "  - name: feature\n" +
+        "    steps:\n" +
+        "      - { name: verify_app, agent: bash, command: scripts/verify.sh }\n",
+    );
+    await writeFile(
+      join(root, "src/engine/run-cycle.ts"),
+      "// Degenerate-verification gate\n" +
+        'if (step.name === "verify" || step.name === "final_verify") {\n}\n',
+    );
+    const entry = INVARIANTS.find((i) => i.reason.includes("verify-step-name lockstep"));
+    assert.ok(entry);
+    const cap = captureConsoleError();
+    let failed: number;
+    try {
+      failed = await runInvariants([entry], root);
+    } finally {
+      cap.restore();
+    }
+    assert.equal(failed, 1);
+    assert.ok(cap.lines.some((l) => l.includes("FAIL") && l.includes("verify_app") && l.includes("feature")));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

@@ -13,6 +13,7 @@
 // Extend INVARIANTS to register new build-time structural rules. Same posture
 // as the FLOORS table in coverage-gate.mjs -- single source of truth, in-file.
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs'; // sync read inside the sync predicate
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -43,6 +44,141 @@ const UNREGISTER_CHILD = /\bunregisterActiveChild\s*\(/;
 // 0265/0268). Scanned file-level (not line-adjacent) because exec-spawn.ts puts
 // detached: true in a shared `base` options object, not on the spawn( call line.
 const DETACHED_TRUE = /detached\s*:\s*true/;
+
+// --- Verify-step-name / gate lockstep (cycle 0275) ---
+// Degenerate-verification gate (cycle 0272) recognized-name derivation.
+// Anchor on the gate's comment, then collect step.name === "…" literals in the
+// windowed if-condition (excludes the unrelated step.name comparisons elsewhere
+// in run-cycle.ts). No anchor / no literals ⇒ fail-closed (can't confirm wiring).
+const GATE_ANCHOR = /Degenerate-verification gate/;
+const GATE_STEP_NAME = /step\.name\s*===\s*"([^"]+)"/g;
+const WF_NAME = /^\s*-\s*name:\s*([A-Za-z0-9._-]+)/; // top-level workflow entry
+const VERIFY_CMD = /command:\s*scripts\/verify\.sh\b/; // verify-script step line
+const STEP_NAME = /name:\s*([A-Za-z0-9._-]+)/; // inline-flow step name
+const GATE_SOURCE_FILE = 'src/engine/run-cycle.ts';
+
+/**
+ * Parse run-cycle.ts source into the degenerate-verification gate's recognized
+ * step-name set. Fail-closed: returns { ok:false, message } when the gate
+ * anchor or its step.name literals can't be located.
+ * @param {string} runCycleText
+ * @returns {{ ok: true, names: Set<string> } | { ok: false, message: string }}
+ */
+export function deriveGateVerifyNames(runCycleText) {
+  const anchor = runCycleText.search(GATE_ANCHOR);
+  if (anchor < 0) {
+    return {
+      ok: false,
+      message:
+        'cannot derive gate literals from src/engine/run-cycle.ts: no "Degenerate-verification gate" anchor found',
+    };
+  }
+  // Window: from the gate's `if (` (the first one after the anchor comment —
+  // skips any `{` inside the comment prose, e.g. `step.end{failed}`) to the `{`
+  // that opens the if-block, capturing only the gate's own step.name literals
+  // (not the other comparisons elsewhere in run-cycle.ts). No `if (` after the
+  // anchor ⇒ fail-closed via the empty-literal-set check below.
+  const afterAnchor = runCycleText.slice(anchor);
+  const ifIdx = afterAnchor.search(/\bif\s*\(/);
+  const rest = ifIdx >= 0 ? afterAnchor.slice(ifIdx) : '';
+  const brace = rest.indexOf('{');
+  const window = brace >= 0 ? rest.slice(0, brace) : rest.slice(0, 600);
+  const names = new Set();
+  GATE_STEP_NAME.lastIndex = 0;
+  let m;
+  while ((m = GATE_STEP_NAME.exec(window)) !== null) names.add(m[1]);
+  if (names.size === 0) {
+    return {
+      ok: false,
+      message:
+        'cannot derive gate literals from src/engine/run-cycle.ts: no `step.name === "…"` comparisons at the gate site',
+    };
+  }
+  return { ok: true, names };
+}
+
+/**
+ * Extract every scripts/verify.sh bash step from workflows.yml text as
+ * { workflow, stepName }. Fail-closed: returns { ok:false, message } when there
+ * is no recognizable `workflows:` structure, or a verify-script line whose
+ * enclosing workflow or `name:` cannot be resolved.
+ * @param {string} workflowsText
+ * @returns {{ ok: true, steps: { workflow: string, stepName: string }[] } | { ok: false, message: string }}
+ */
+export function extractVerifyStepNames(workflowsText) {
+  if (!/^\s*workflows:\s*$/m.test(workflowsText)) {
+    return {
+      ok: false,
+      message: 'cannot parse src/defaults/workflows.yml: no top-level `workflows:` block',
+    };
+  }
+  const lines = workflowsText.split('\n');
+  const steps = [];
+  let currentWorkflow = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const wf = line.match(WF_NAME);
+    if (wf) {
+      currentWorkflow = wf[1];
+      continue;
+    }
+    if (!VERIFY_CMD.test(line)) continue;
+    const nm = line.match(STEP_NAME);
+    if (!currentWorkflow || !nm) {
+      return {
+        ok: false,
+        message: `cannot resolve verify-script step at workflows.yml line ${i + 1}: ${line.trim()}`,
+      };
+    }
+    steps.push({ workflow: currentWorkflow, stepName: nm[1] });
+  }
+  return { ok: true, steps };
+}
+
+/**
+ * Relational invariant: every scripts/verify.sh bash verify step in
+ * src/defaults/workflows.yml must be named one of the degenerate-verification
+ * gate's recognized literals, DERIVED from the gate's own source (run-cycle.ts)
+ * — not re-declared here. A rename that would orphan the gate (cycle 0272) fails
+ * the build instead of silently disabling the no-false-greens verification gate.
+ * Fail-closed: an unreadable gate source, no derivable literals, an unparseable
+ * workflows.yml, or an out-of-set step name each return { ok:false, message }.
+ * @param {string} workflowsText  text of src/defaults/workflows.yml
+ * @param {string} file
+ * @param {{ gateText?: string }} [opts]  inject gate source for tests
+ * @returns {{ ok: boolean, actual?: string, message?: string }}
+ */
+export function validateVerifyStepNames(workflowsText, file, opts = {}) {
+  let gateText = opts.gateText;
+  if (gateText === undefined) {
+    try {
+      gateText = readFileSync(join(process.cwd(), GATE_SOURCE_FILE), 'utf8');
+    } catch (e) {
+      const cause = /** @type {{ code?: string, message?: string }} */ (e);
+      return {
+        ok: false,
+        message: `cannot read ${GATE_SOURCE_FILE} to derive gate literals: ${cause.code ?? cause.message}`,
+      };
+    }
+  }
+  const derived = deriveGateVerifyNames(gateText);
+  if (!derived.ok) return derived;
+  const extracted = extractVerifyStepNames(workflowsText);
+  if (!extracted.ok) return extracted;
+  const recognized = derived.names;
+  const offending = extracted.steps.find((s) => !recognized.has(s.stepName));
+  if (offending) {
+    return {
+      ok: false,
+      message:
+        `workflow "${offending.workflow}" verify-script step is named "${offending.stepName}", ` +
+        `outside the degenerate-verification gate's recognized set {${[...recognized].join(', ')}} ` +
+        `(src/engine/run-cycle.ts). Rename it back to verify/final_verify or the gate (cycle 0272) ` +
+        `goes silently inert for this workflow.`,
+    };
+  }
+  return { ok: true, actual: `${extracted.steps.length} verify step(s) in {${[...recognized].join(', ')}}` };
+}
 
 /**
  * One INVARIANTS table entry. Two mutually exclusive kinds share this shape:
@@ -341,6 +477,19 @@ export const INVARIANTS = [
     reason:
       'detached-spawn: a spawn( lane must pass detached: true so the reaper can group-kill/-probe the subtree on suspend (cycle 0265/0268)',
   })),
+
+  // --- Verify-step-name / gate lockstep (cycle 0275) ---
+  // Each default workflow's terminal scripts/verify.sh bash step must be named
+  // one of the degenerate-verification gate's recognized literals, derived from
+  // the gate's own source (run-cycle.ts) — a rename fails the build instead of
+  // silently disabling the no-false-greens gate (cycle 0272). The predicate reads
+  // run-cycle.ts itself (process.cwd()); tests inject gateText directly.
+  {
+    file: 'src/defaults/workflows.yml',
+    validate: validateVerifyStepNames,
+    reason:
+      'verify-step-name lockstep: every scripts/verify.sh bash step must be named verify/final_verify (derived from the gate literals in run-cycle.ts) so the degenerate-verification gate (cycle 0272) cannot silently go inert',
+  },
 ];
 
 // Run every entry in `invariants`, reading each target file relative to `cwd`.
