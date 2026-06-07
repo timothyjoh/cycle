@@ -3,7 +3,7 @@ id: refl-0272-verify-gate-step-names-are-unguarded-aga
 source: reflection
 title: verify-gate step names are unguarded against workflow renames
 added_at: 2026-06-07T15:08:41.354Z
-triage_attempts: 0
+triage_attempts: 1
 priority: medium
 origin_cycle_id: "0272"
 ---

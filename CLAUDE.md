@@ -8,6 +8,8 @@ cycle exists to deliver working software and *demonstrate* it: every cycle must 
 
 Implication for anyone changing the engine or workflows: **no false greens.** Passing unit tests is not proof the app works. Verification that is skipped, degraded, or stubbed is not verification. A cycle that cannot demonstrate the running app meets its criteria must block or fail loudly, never drain to `done/`. Gates fail closed.
 
+The default verify gate (`src/defaults/scripts/verify.sh`, cycle 0273) operationalizes this: after the unit `npm test`, it detects a by-convention running-app (e2e/integration) suite — a `test:e2e`/`e2e` npm script, or a `playwright.config.*`/`cypress.config.*` file via `npx`, in that precedence — and runs it; either suite failing fails verify. So an **app repo's `feature` cycles must let verify drive the running app**, not just its units. Detection is convention-based and skips cleanly when no such suite exists, so **cycle's own CLI repo has no running-app suite and is unaffected** (unit-only, byte-for-byte as before). Complements the degenerate-verification gate (cycle 0272). See [docs/ENGINE.md](docs/ENGINE.md) → *Running-app verify suite*.
+
 ## Workflow style
 
 - **Trunk-based development.** All work goes directly on `master`. Commits land via fast-forward merge from local branches that are immediately deleted.

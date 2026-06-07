@@ -10,6 +10,22 @@ if [ -f package.json ] && grep -q '"test"' package.json; then
     exit 1
   fi
   npm test
+  # Running-app (e2e/integration) suite — Core thesis (BRIEF.md): verify must
+  # drive the running app, not just its units. Runs only after units pass.
+  # Precedence: explicit test:e2e script → e2e script → playwright/cypress
+  # config via npx. Keys are matched anchored ("<key>":) so an unrelated script
+  # whose name merely contains e2e is NOT matched. No suite detected ⇒ unit-only
+  # (no output, no failure). A detected suite's non-zero exit fails verify via
+  # set -euo pipefail — never swallowed; a missing runner is an operator problem.
+  if grep -Eq '"test:e2e"[[:space:]]*:' package.json; then
+    npm run test:e2e
+  elif grep -Eq '"e2e"[[:space:]]*:' package.json; then
+    npm run e2e
+  elif compgen -G 'playwright.config.*' >/dev/null; then
+    npx playwright test
+  elif compgen -G 'cypress.config.*' >/dev/null; then
+    npx cypress run
+  fi
 elif [ -f Cargo.toml ]; then
   cargo test
 elif [ -f pyproject.toml ]; then

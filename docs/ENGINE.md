@@ -305,7 +305,20 @@ The flip reuses the existing failed-bash `.out` capture, `step.end { status: "fa
 
 **Fail-closed / fail-open split.** A confident degenerate parse blocks (fail-closed). Unparseable output (`parseVerifyCounts ⇒ null`) or a contained parser-internal throw degrades to today's exit-code-only behavior — **no event, no status change, byte-for-byte unchanged** outcome (fail-open) — so an unrecognized reporter dialect never produces a false block. The `(skipped > 0 || total > 0)` precondition further keeps a parsed `0/0/0` empty suite (no tests defined at all — not the "everything skipped" target) from blocking. The hook never fires for agent steps, non-`verify`/`final_verify` bash steps, or a non-zero exit (the native failure path is untouched).
 
-This is the agnostic, universal slice of the no-false-greens thesis; sibling work covers putting e2e into the verify path (`fix-verify-must-exercise-running-app`) and walkthrough-degradation gating (`fix-walkthrough-degradation-is-a-blocking-gate`).
+This is the agnostic, universal slice of the no-false-greens thesis; sibling work covers putting e2e into the verify path (*Running-app verify suite*, below) and walkthrough-degradation gating (`fix-walkthrough-degradation-is-a-blocking-gate`).
+
+### Running-app verify suite
+
+The degenerate gate (above) ensures *a verify run that ran nothing can't pass*. Its complementary leg — operationalized in the default `src/defaults/scripts/verify.sh` (cycle 0273) — ensures the verify run actually *drives the running app*, not just its units. Both serve `BRIEF.md` → *Core thesis* (`BRIEF.md:7`): every cycle must leave the app demonstrably working.
+
+In the Node branch, after the existing `node_modules` guard and unit `npm test` succeed, the script detects a by-convention running-app (e2e/integration) suite and runs it. Detection is precedence-ordered:
+
+1. a `test:e2e` npm script ⇒ `npm run test:e2e`;
+2. else an `e2e` npm script ⇒ `npm run e2e`;
+3. else a `playwright.config.*` file ⇒ `npx playwright test`;
+4. else a `cypress.config.*` file ⇒ `npx cypress run`.
+
+Script keys are matched **anchored** (`grep -Eq '"test:e2e"[[:space:]]*:'`), so an unrelated script whose name merely contains `e2e` is not matched. Config files are detected with the `compgen -G` bash builtin (non-zero when the glob matches nothing — no PATH dependency). The run commands sit in statement position under `set -euo pipefail`, so a detected suite's **non-zero exit fails verify** — surfaced to the engine's failed-bash `.out`/`stdout_artifact` capture and the step-failure/retry path, never swallowed. A config detected but its runner unresolvable fails loud via the `npx` non-zero exit (intentional strictness, consistent with the script header — a missing dependency is an operator problem). A repo with **no** recognized suite (cycle's own CLI repo included) runs exactly as before: unit-only, no e2e invocation, no spurious failure. Probe suppression (condition-position `grep`/`compgen`) applies only to *detection*, never to *execution*. The Cargo/pytest/no-runner branches are unchanged. After editing the default, `npm run sync-defaults` propagates it to the engine-run `.cycle/scripts/verify.sh`.
 
 ## Walkthrough capture
 

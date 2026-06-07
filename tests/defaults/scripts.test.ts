@@ -2,7 +2,7 @@ import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import { readFile, stat } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync, existsSync, chmodSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -61,6 +61,151 @@ const HERMETIC_ENV: NodeJS.ProcessEnv = { PATH: "" };
 // before `npm test` is ever reached, so npm's presence on PATH is irrelevant and
 // the guard fires deterministically on any host (grep is a universal precondition).
 const NODE_GUARD_ENV: NodeJS.ProcessEnv = { PATH: process.env.PATH ?? "" };
+
+// Seed a Node project fixture: a package.json with the given scripts map plus an
+// (empty) node_modules/ directory so the Node branch passes its node_modules
+// guard and reaches `npm test` (and the new e2e detection that follows it).
+function seedNode(dir: string, scripts: Record<string, string>): void {
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts }), "utf8");
+  mkdirSync(join(dir, "node_modules"));
+}
+
+// Write an executable shell stub named `name` into <dir>/.bin (created on first
+// use). Tests prepend that dir to PATH so the stub shadows host npm/npx while
+// real grep/ls/compgen still resolve via the inherited PATH.
+function fakeBin(dir: string, name: string, body: string): void {
+  const binDir = join(dir, ".bin");
+  if (!existsSync(binDir)) mkdirSync(binDir);
+  const p = join(binDir, name);
+  writeFileSync(p, `#!/usr/bin/env bash\n${body}\n`, "utf8");
+  chmodSync(p, 0o755);
+}
+
+// PATH with the fixture's stub dir prepended, so fake npm/npx win over any host
+// copy while the real grep/ls/compgen remain reachable for the script's probes.
+function stubPath(dir: string): string {
+  return `${join(dir, ".bin")}:${process.env.PATH ?? ""}`;
+}
+
+// Fake `npm`: `npm test` exits 0 (records the invocation); `npm run <s>` touches
+// an e2e sentinel and exits ${E2E_EXIT:-0}. Every invocation is appended to
+// npm.log so a test can assert which subcommands ran.
+const FAKE_NPM = `
+echo "npm $*" >>"$PWD/npm.log"
+if [ "$1" = "test" ]; then
+  exit 0
+elif [ "$1" = "run" ]; then
+  touch "$PWD/e2e.sentinel"
+  exit "\${E2E_EXIT:-0}"
+fi
+exit 0
+`;
+
+// Fake `npx`: echoes a marker to stdout for the detected runner, then exits
+// ${E2E_EXIT:-0}, so a config-only failure path is both surfaced and non-zero.
+const FAKE_NPX = `
+echo "NPX_RAN $*"
+exit "\${E2E_EXIT:-0}"
+`;
+
+test("verify.sh: e2e present and passing runs unit + e2e and exits 0", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cycle-verify-"));
+  try {
+    seedNode(dir, { test: "exit 0", "test:e2e": "exit 0" });
+    fakeBin(dir, "npm", FAKE_NPM);
+    const result = spawnSync(BASH, [VERIFY_SH], {
+      cwd: dir,
+      env: { PATH: stubPath(dir) },
+      encoding: "utf8",
+      timeout: 30000,
+    });
+    assert.equal(result.error, undefined, `bash failed to launch: ${result.error}`);
+    assert.equal(result.status, 0, `expected exit 0; stderr: ${result.stderr} | stdout: ${result.stdout}`);
+    assert.ok(existsSync(join(dir, "e2e.sentinel")), "e2e suite must have run (sentinel absent)");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("verify.sh: e2e present and failing exits non-zero though unit passed", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cycle-verify-"));
+  try {
+    seedNode(dir, { test: "exit 0", "test:e2e": "exit 1" });
+    fakeBin(dir, "npm", FAKE_NPM);
+    const result = spawnSync(BASH, [VERIFY_SH], {
+      cwd: dir,
+      env: { PATH: stubPath(dir), E2E_EXIT: "1" },
+      encoding: "utf8",
+      timeout: 30000,
+    });
+    assert.equal(result.error, undefined, `bash failed to launch: ${result.error}`);
+    assert.notEqual(result.status, 0, `expected non-zero; stdout: ${result.stdout}`);
+    assert.notEqual(result.status, null, "expected a real exit code, not a signal/timeout");
+    assert.ok(existsSync(join(dir, "e2e.sentinel")), "e2e suite must have run before failing");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("verify.sh: config-only with failing runner exits non-zero and surfaces failure", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cycle-verify-"));
+  try {
+    seedNode(dir, { test: "exit 0" });
+    writeFileSync(join(dir, "playwright.config.ts"), "export default {};\n", "utf8");
+    fakeBin(dir, "npm", FAKE_NPM);
+    fakeBin(dir, "npx", FAKE_NPX);
+    const result = spawnSync(BASH, [VERIFY_SH], {
+      cwd: dir,
+      env: { PATH: stubPath(dir), E2E_EXIT: "1" },
+      encoding: "utf8",
+      timeout: 30000,
+    });
+    assert.equal(result.error, undefined, `bash failed to launch: ${result.error}`);
+    assert.notEqual(result.status, 0, `expected non-zero; stdout: ${result.stdout}`);
+    assert.notEqual(result.status, null, "expected a real exit code, not a signal/timeout");
+    const combined = `${result.stdout}${result.stderr}`;
+    assert.ok(combined.includes("NPX_RAN"), "the e2e runner invocation must be surfaced, not silently skipped");
+    assert.ok(/playwright/.test(combined), "playwright runner must have been invoked");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("verify.sh: no e2e signal runs unit-only and exits 0 with no e2e invocation", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cycle-verify-"));
+  try {
+    seedNode(dir, { test: "exit 0" });
+    fakeBin(dir, "npm", FAKE_NPM);
+    const result = spawnSync(BASH, [VERIFY_SH], {
+      cwd: dir,
+      env: { PATH: stubPath(dir) },
+      encoding: "utf8",
+      timeout: 30000,
+    });
+    assert.equal(result.error, undefined, `bash failed to launch: ${result.error}`);
+    assert.equal(result.status, 0, `expected exit 0; stderr: ${result.stderr} | stdout: ${result.stdout}`);
+    const log = existsSync(join(dir, "npm.log"))
+      ? readFileSync(join(dir, "npm.log"), "utf8")
+      : "";
+    assert.match(log, /^npm test$/m, "unit npm test must have run");
+    assert.doesNotMatch(log, /npm run/, "no e2e (npm run) invocation may occur when no suite is detected");
+    assert.ok(!existsSync(join(dir, "e2e.sentinel")), "no e2e sentinel may be written");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("verify.sh: e2e block is key-anchored, precedence-ordered, with Core-thesis comment", async () => {
+  const body = await readFile("src/defaults/scripts/verify.sh", "utf8");
+  assert.match(body, /npm run test:e2e/, "must run test:e2e script");
+  assert.match(body, /npm run e2e/, "must run e2e script");
+  assert.match(body, /npx playwright test/, "must run playwright via npx");
+  assert.match(body, /npx cypress run/, "must run cypress via npx");
+  assert.match(body, /"test:e2e"\[\[:space:\]\]\*:/, "must match the script key anchored, not a loose substring");
+  assert.match(body, /Core thesis/, "must reference the Core thesis in an inline comment");
+  // npm test must precede the e2e detection block (units run first).
+  assert.ok(body.indexOf("npm test") < body.indexOf("npm run test:e2e"), "unit npm test must run before e2e");
+});
 
 for (const s of ["verify.sh"]) {
   test(`${s} has shebang and is executable`, async () => {

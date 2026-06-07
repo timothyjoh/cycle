@@ -1,0 +1,9 @@
+{
+  "files": [
+    ".cycle/scripts/verify.sh",
+    "CLAUDE.md",
+    "docs/ENGINE.md",
+    "src/defaults/scripts/verify.sh",
+    "tests/defaults/scripts.test.ts"
+  ]
+}
