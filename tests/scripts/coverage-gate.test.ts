@@ -51,6 +51,7 @@ const ALL_PASSING = makeLcov({
   "src/cli/compress-output.ts": { lf: 100, lh: 100 },
   "src/cli/compress-output-hook.ts": { lf: 100, lh: 100 },
   "src/cli/doctor.ts": { lf: 100, lh: 100 },
+  "src/cli/validate-workflow.ts": { lf: 100, lh: 100 },
 });
 
 function runGate(cwd: string) {
@@ -121,6 +122,7 @@ test("coverage-gate: triage.ts below floor → exit 1, stderr names file and per
         "src/cli/compress-output.ts": { lf: 100, lh: 100 },
         "src/cli/compress-output-hook.ts": { lf: 100, lh: 100 },
         "src/cli/doctor.ts": { lf: 100, lh: 100 },
+        "src/cli/validate-workflow.ts": { lf: 100, lh: 100 },
       }),
     );
     const result = runGate(root);
@@ -201,6 +203,7 @@ test("coverage-gate: absolute SF: paths normalized via relative() → exit 0", a
       "src/cli/compress-output.ts",
       "src/cli/compress-output-hook.ts",
       "src/cli/doctor.ts",
+      "src/cli/validate-workflow.ts",
     ]) {
       files[`${realRoot}/${rel}`] = { lf: 100, lh: 100 };
     }

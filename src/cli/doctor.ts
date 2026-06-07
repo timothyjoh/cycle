@@ -1,5 +1,6 @@
 import { loadConfig } from "../engine/workflow.ts";
 import { runPreflight, type PreflightResult } from "../engine/preflight.ts";
+import { validateWorkflowName } from "./validate-workflow.ts";
 
 export type DoctorResult = { stdout: string; stderr: string; exitCode: number };
 
@@ -73,30 +74,13 @@ export async function runDoctor({ cwd, workflow, env }: DoctorOpts): Promise<Doc
     };
   }
 
-  const available = cfg.workflows.map((w) => w.name);
-  const availableList = available.join(", ");
-
   // `undefined` ⇒ no `--workflow` flag ⇒ default. An explicit value (including
   // `""`, the value-less-flag signal) is user-supplied and must validate against
-  // the config set before any probe runs.
-  let effective: string;
-  if (workflow === undefined) {
-    effective = "feature";
-  } else if (workflow === "") {
-    return {
-      stdout: "",
-      stderr: `doctor: --workflow requires a value — available workflows: ${availableList}`,
-      exitCode: 1,
-    };
-  } else if (!available.includes(workflow)) {
-    return {
-      stdout: "",
-      stderr: `doctor: unknown workflow "${workflow}" — available workflows: ${availableList}`,
-      exitCode: 1,
-    };
-  } else {
-    effective = workflow;
-  }
+  // the config set before any probe runs. Shared with the `cycle run` start path
+  // via the single `validateWorkflowName` helper so the two cannot drift.
+  const v = validateWorkflowName(workflow, cfg.workflows.map((w) => w.name), "doctor");
+  if (!v.ok) return { stdout: "", stderr: v.message, exitCode: 1 };
+  const effective = v.name;
 
   const result = runPreflight({ cfg, workflowName: effective, env: sourceEnv });
   return { stdout: renderReport(result), stderr: "", exitCode: result.ok ? 0 : 1 };

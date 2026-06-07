@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import { buildChildEnv } from "./engine/child-env.ts";
 import { getVersion } from "./version.ts";
 import { parseArgs } from "./cli/parse-args.ts";
+import { validateWorkflowName } from "./cli/validate-workflow.ts";
 import { materializeFreeformIssue } from "./issue/materialize.ts";
 import { runTriage } from "./engine/triage.ts";
 import { createLogger } from "./engine/log.ts";
@@ -292,6 +293,20 @@ if (args.trunk) process.env.CYCLE_TRUNK_BASED = "1";
 loadDotEnv(join(cwd, ".cycle", ".env"));
 const cfg = await loadConfig(cwd);
 
+// Validate the resolved `--workflow` exactly once, after a successful config
+// load and BEFORE engine.start/preflight/markInProgress, via the helper shared
+// with `cycle doctor` (src/cli/validate-workflow.ts). An unknown or value-less
+// `--workflow` writes the bad value + the available-workflows list to stderr and
+// exits non-zero with zero state mutation — no log line, no queue mutation, no
+// teardown/retry burn. The default (`feature`) and explicit-valid paths pass
+// through unchanged; on success args.workflow is the concrete validated name.
+const wf = validateWorkflowName(args.workflowExplicit, cfg.workflows.map((w) => w.name), "run");
+if (!wf.ok) {
+  console.error(wf.message);
+  process.exit(2);
+}
+args.workflow = wf.name;
+
 const skipCompletedOnRetry =
   args.noSkipCompleted ? false : (cfg?.engine?.skip_completed_on_retry ?? true);
 
@@ -427,6 +442,7 @@ let haltReason:
   | "max_consecutive_failures"
   | "triage_failed"
   | "failed_cycle_dirty_worktree"
+  | "unknown_workflow"
   | null = null;
 let lastHaltContext: HaltContext | undefined;
 // cyclesProcessed, pendingResidueContext, and engineStopEmitted are declared above
@@ -581,14 +597,20 @@ async function runResumeOnce(
     // fall back to tail.workflow / args.workflow
   }
 
-  const wfDef = cfg.workflows.find((w) => w.name === workflowName);
-  if (!wfDef) {
+  // Reject an unknown resolved workflow (e.g. introduced via fm.workflow) loud
+  // and cheap via the shared helper before markInProgress/spawn, rather than
+  // false-greening into the deep runCycle throw. workflowName is always a
+  // concrete non-empty string here, so only the unknown-name branch can fire.
+  const wfv = validateWorkflowName(workflowName, cfg.workflows.map((w) => w.name), "run");
+  if (!wfv.ok) {
+    process.stderr.write(wfv.message + "\n");
     await log.emit("engine.warning", {
       reason: "resume_workflow_missing",
       workflow: workflowName,
     });
     return { processed: 0, outcome: "skipped" };
   }
+  const wfDef = cfg.workflows.find((w) => w.name === wfv.name)!;
 
   const stepNames = wfDef.steps.map((s) => s.name);
   let startStepIndex = stepNames.length;
@@ -856,6 +878,24 @@ while (!halted) {
     // todo file missing or unparseable — fall back to CLI default
   }
 
+  // Reject an unknown resolved workflow (e.g. introduced via fm.workflow) loud
+  // and cheap via the shared helper BEFORE markInProgress/spawn, rather than
+  // false-greening into the deep runCycle throw and burning the attempt budget.
+  // The loop breaks before this row is marked in-progress (it stays pending).
+  const wfv = validateWorkflowName(workflowName, cfg!.workflows.map((w) => w.name), "run");
+  if (!wfv.ok) {
+    process.stderr.write(wfv.message + "\n");
+    await log.emit("engine.halted", {
+      reason: "unknown_workflow",
+      workflow: workflowName,
+      issue_id: row.id,
+    });
+    halted = true;
+    haltReason = "unknown_workflow";
+    activeCycleId = undefined;
+    break;
+  }
+
   const wfCfg = cfg?.workflows.find((w) => w.name === workflowName);
   const rawMax = wfCfg?.max_cycle_attempts ?? 3;
   const maxAttempts = rawMax < 1 ? 1 : rawMax;
@@ -1058,6 +1098,7 @@ if (!engineStopEmitted) {
     dry_run: false,
     cycles_processed: cyclesProcessed,
     ...(halted && haltReason === "triage_failed" ? { reason: "triage_failed" } : {}),
+    ...(halted && haltReason === "unknown_workflow" ? { reason: "unknown_workflow" } : {}),
     ...(halted && lastHaltContext
       ? { halted_at_issue: lastHaltContext.issueId, failing_step: lastHaltContext.failingStep }
       : {}),

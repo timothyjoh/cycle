@@ -139,6 +139,8 @@ Triage normally chooses the workflow. You can override it for a one-off command:
 
 That is useful when a parent agent or human already knows which production recipe should run.
 
+An unknown or value-less `--workflow` is rejected loud and cheap: `run --workflow <typo>` (or a trailing `--workflow` with no value) prints a one-line stderr message naming the bad value and listing the available workflow names, then exits non-zero **before any issue is marked in-progress** — no attempt is burned and nothing parks in `failed/`. This is the same validation `cycle doctor --workflow` performs (shared via one helper, so the two diagnostics cannot drift).
+
 ## Design guidance
 
 Create workflows around operational differences, not labels for their own sake.

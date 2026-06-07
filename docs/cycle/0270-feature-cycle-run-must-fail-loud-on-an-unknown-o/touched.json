@@ -1,0 +1,13 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "README.md",
+    "scripts/coverage-gate.mjs",
+    "src/cli.ts",
+    "src/cli/doctor.ts",
+    "src/cli/parse-args.ts",
+    "src/cli/validate-workflow.ts",
+    "tests/cli/parse-args.test.ts",
+    "tests/scripts/coverage-gate.test.ts"
+  ]
+}
