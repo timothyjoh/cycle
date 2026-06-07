@@ -99,6 +99,81 @@ test("anyChildAlive reflects liveness of registered pids", async () => {
   }
 });
 
+test("anyChildAlive probes the negated pid (group target) and reports alive", t => {
+  const pid = 999001;
+  const targets: number[] = [];
+  t.mock.method(process, "kill", (target: number, _sig: number | NodeJS.Signals) => {
+    targets.push(target);
+    return true; // group member alive — probe returns normally
+  });
+  registerActiveChild(pid);
+  try {
+    assert.equal(anyChildAlive(), true);
+    // Symmetric with killActiveChildren's `-pid` group-kill.
+    assert.ok(targets.includes(-pid), `expected probe target ${-pid}, got ${targets}`);
+  } finally {
+    unregisterActiveChild(pid);
+  }
+});
+
+test("anyChildAlive treats EPERM as alive and never throws", t => {
+  const pid = 999002;
+  t.mock.method(process, "kill", () => {
+    const err = new Error("operation not permitted") as NodeJS.ErrnoException;
+    err.code = "EPERM";
+    throw err;
+  });
+  registerActiveChild(pid);
+  try {
+    assert.doesNotThrow(() => anyChildAlive());
+    assert.equal(anyChildAlive(), true);
+  } finally {
+    unregisterActiveChild(pid);
+  }
+});
+
+test("anyChildAlive treats ESRCH as not-alive and never throws", t => {
+  const pid = 999003;
+  t.mock.method(process, "kill", () => {
+    const err = new Error("no such process") as NodeJS.ErrnoException;
+    err.code = "ESRCH";
+    throw err;
+  });
+  registerActiveChild(pid);
+  try {
+    assert.doesNotThrow(() => anyChildAlive());
+    assert.equal(anyChildAlive(), false);
+  } finally {
+    unregisterActiveChild(pid);
+  }
+});
+
+test("anyChildAlive on an empty registry returns false", () => {
+  assert.equal(activeChildCount(), 0, "precondition: no leaked registrations");
+  assert.equal(anyChildAlive(), false);
+});
+
+test("anyChildAlive on a mixed registry (one dead, one alive) returns true", t => {
+  const dead = 999004;
+  const alive = 999005;
+  t.mock.method(process, "kill", (target: number) => {
+    if (target === -dead) {
+      const err = new Error("no such process") as NodeJS.ErrnoException;
+      err.code = "ESRCH";
+      throw err;
+    }
+    return true; // -alive group still responds
+  });
+  registerActiveChild(dead);
+  registerActiveChild(alive);
+  try {
+    assert.equal(anyChildAlive(), true);
+  } finally {
+    unregisterActiveChild(dead);
+    unregisterActiveChild(alive);
+  }
+});
+
 test("WORKER_CHILD_KILL_GRACE_MS mirrors the 5s kill-grace convention", () => {
   assert.equal(WORKER_CHILD_KILL_GRACE_MS, 5000);
 });

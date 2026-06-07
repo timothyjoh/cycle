@@ -1,0 +1,8 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "docs/ENGINE.md",
+    "src/engine/active-child.ts",
+    "tests/engine/active-child.test.ts"
+  ]
+}
