@@ -173,19 +173,19 @@ These checks are useful, but many happen after work has already started.
 
 ## What cycle does not check yet
 
-cycle does not yet have a first-class `doctor` or `preflight` command. In particular, it does not proactively check all of the following at init time:
+`cycle doctor` (alias `cycle preflight`) now runs the engine-start preflight on demand — it confirms the configured coding-agent CLIs are installed (and resolves them honoring `CYCLE_<AGENT>_BIN`) and that required tools (`bash`/`git` plus bash-step heads) are on PATH. See [`doctor.md`](doctor.md). It does **not** yet proactively check all of the following:
 
 - Node.js version compatibility;
-- whether `git`, `gh`, or the configured coding agent CLIs are installed;
-- whether those CLIs are authenticated;
+- whether `gh` is installed;
+- whether the agent CLIs are authenticated;
 - whether push credentials work;
 - whether repo dependencies are installed;
 - whether the default branch/remote can be fetched;
 - whether all prompts and scripts are executable/readable before a run starts.
 
-## Planned direction: doctor mode
+## Planned direction: deeper doctor checks
 
-A future `cycle doctor` or `cycle preflight` command should run after `npx @cycleai/cli init` and be safe to run repeatedly. It should be read-only and report actionable checks, for example:
+`cycle doctor` ships today (agent-CLI + tool resolution, read-only, safe to re-run; see [`doctor.md`](doctor.md)). It does not yet cover the broader readiness checks below — a future expansion should report actionable results such as:
 
 ```txt
 ✓ Node.js >= 22.6

@@ -43,6 +43,7 @@ const FLOORS = {
   "src/engine/preflight.ts": 95,
   "src/cli/compress-output.ts": 70,
   "src/cli/compress-output-hook.ts": 70,
+  "src/cli/doctor.ts": 70,
 };
 
 const LCOV_PATH = process.argv[2] ?? ".cycle/coverage.lcov";

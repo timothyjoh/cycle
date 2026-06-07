@@ -1,2 +1,1 @@
-{"id":"feat-per-step-timeout-override","title":"Per-step and per-workflow timeout_ms override","status":"in_progress","attempt":0,"depends_on":[],"triaged_at":"2026-06-06T22:45:22.609Z","priority":"medium","cycle_id":"0262"}
-{"id":"feat-cycle-doctor-command","title":"cycle doctor — on-demand preflight / environment check command","status":"pending","attempt":0,"depends_on":[],"triaged_at":"2026-06-06T22:44:53.245Z","priority":"medium"}
+{"id":"feat-cycle-doctor-command","title":"cycle doctor — on-demand preflight / environment check command","status":"in_progress","attempt":0,"depends_on":[],"triaged_at":"2026-06-06T22:44:53.245Z","priority":"medium","cycle_id":"0263"}

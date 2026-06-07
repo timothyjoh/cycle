@@ -1,0 +1,10 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "README.md",
+    "scripts/coverage-gate.mjs",
+    "src/cli.ts",
+    "src/cli/doctor.ts",
+    "tests/scripts/coverage-gate.test.ts"
+  ]
+}

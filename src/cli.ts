@@ -109,6 +109,17 @@ if (argv[0] === "cleanup") {
   process.exit(result.exitCode);
 }
 
+if (argv[0] === "doctor" || argv[0] === "preflight") {
+  const { runDoctor } = await import("./cli/doctor.ts");
+  const rest = argv.slice(1);
+  const wfIdx = rest.indexOf("--workflow");
+  const workflow = wfIdx >= 0 && rest[wfIdx + 1] ? rest[wfIdx + 1] : "feature";
+  const result = await runDoctor({ cwd: process.cwd(), workflow });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr + String.fromCharCode(10));
+  process.exit(result.exitCode);
+}
+
 if (argv[0] === "compress-output") {
   const { runCompressOutput } = await import("./cli/compress-output.ts");
   const result = runCompressOutput(argv.slice(1));
@@ -140,6 +151,7 @@ Usage:
   cycle triage [--dry-run]      Re-run triage diagnostics
   cycle cleanup [--dry-run] [--yes] [--force]
                                 List or delete orphaned cycle/* branches
+  cycle doctor [--workflow <name>] Check agent CLIs + tools on demand (alias: preflight); read-only
   cycle compress-output -- <cmd>   Run <cmd> and density-filter its stdout (token saver)
   cycle upgrade [--overwrite-prompts] [--overwrite-workflows]
                 [--overwrite-scripts] [--overwrite-all]

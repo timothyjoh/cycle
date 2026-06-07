@@ -27,7 +27,7 @@ cycle installs a repo-local engine; it does **not** install the host environment
 - **Git credentials and remote access** when push is enabled.
 - **A POSIX shell** to run `agent: bash` steps: `/bin/bash` on Linux/macOS. The shell is resolvable. Native-Windows users can install git-bash (auto-discovered) or set `engine.shell` in `.cycle/workflows.yml` (or the `CYCLE_SHELL` env var) to a bash path. Full per-platform setup is deferred to a later phase.
 
-See [`docs/runtime-environment.md`](docs/runtime-environment.md) for setup guidance and the planned `cycle doctor` / `cycle preflight` direction.
+See [`docs/runtime-environment.md`](docs/runtime-environment.md) for setup guidance. Run `cycle doctor` (alias `cycle preflight`) to check your agent CLIs and required tools on demand — see [`docs/doctor.md`](docs/doctor.md).
 
 ## What cycle is
 
@@ -236,16 +236,17 @@ When every inbox issue fails triage in a single pass, the engine emits `engine.p
 - an authenticated coding-agent CLI for every agent referenced by `.cycle/workflows.yml` (`claude` for the default `claudecode` workflow)
 - repository dependencies needed by `.cycle/scripts/verify.sh`
 
-Credentials are the caller's responsibility: cycle ships no env-var contract and no bundled tracker SDKs. See [`docs/runtime-environment.md`](docs/runtime-environment.md) for the full setup checklist. A first-class `cycle doctor` / `cycle preflight` command is planned but not yet built.
+Credentials are the caller's responsibility: cycle ships no env-var contract and no bundled tracker SDKs. See [`docs/runtime-environment.md`](docs/runtime-environment.md) for the full setup checklist, and run `cycle doctor` (alias `cycle preflight`) to verify your agent CLIs and required tools resolve before starting the engine — see [`docs/doctor.md`](docs/doctor.md).
 
 ## Roadmap (not yet built)
 
-The engine today commits and pushes; the broader factory model is still landing. **Not yet implemented**: pull-request creation and auto-merge, stacked-branch / human-review mode, `cycle doctor` / `cycle preflight`, a detached daemon with `attach` / `stop` control, and the HTML/TUI progress viewer. The docs below describe the current shipped behavior, not these targets.
+The engine today commits and pushes; the broader factory model is still landing. **Not yet implemented**: pull-request creation and auto-merge, stacked-branch / human-review mode, a detached daemon with `attach` / `stop` control, and the HTML/TUI progress viewer. The docs below describe the current shipped behavior, not these targets.
 
 ## Design docs
 
 - [`BRIEF.md`](BRIEF.md): product brief: what cycle is and why.
-- [`docs/runtime-environment.md`](docs/runtime-environment.md): host prerequisites, setup checks, and future doctor/preflight direction.
+- [`docs/runtime-environment.md`](docs/runtime-environment.md): host prerequisites, setup checks, and remaining doctor/preflight direction.
+- [`docs/doctor.md`](docs/doctor.md): the on-demand `cycle doctor` / `cycle preflight` environment check.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): system architecture, state model, and integration surfaces.
 - [`docs/ENGINE.md`](docs/ENGINE.md): engine implementation reference for contributors.
 - [`docs/models.md`](docs/models.md): supported agent models per CLI, the `defaults:`/per-step `model` syntax, and the live-discovery commands.
