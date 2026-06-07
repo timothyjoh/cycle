@@ -9,6 +9,11 @@ export type InFlightCycle = {
   startTs: string;
   completedSteps: string[];
   lastStepStarted?: string;
+  /** True when this in-flight cycle's tail ends in a `cycle.killed` marker (a
+   * signal-suspend), distinguishing a resumable interruption from a genuine
+   * step-failure. Fail-closed: anything that is not an unambiguous `cycle.killed`
+   * for this cycle leaves it `false` ⇒ the existing residue-gated path. */
+  interrupted: boolean;
 };
 
 type LogEvent = {
@@ -39,10 +44,34 @@ export function parseLogTail(text: string): InFlightCycle | null {
   const start = events[lastStartIdx];
   const cycleId = typeof start.cycle_id === "string" ? start.cycle_id : "";
   if (!cycleId) return null;
+  // A terminal cycle.end for this cycle (if any).
+  let endIdx = -1;
   for (let i = lastStartIdx + 1; i < events.length; i++) {
     if (events[i].event === "cycle.end" && events[i].cycle_id === cycleId) {
-      return null;
+      endIdx = i;
+      break;
     }
+  }
+  // A cycle.killed marker (signal-suspend). cycle_id may be undefined when the
+  // signal arrived before activeCycleId was set — treat undefined as matching the
+  // single in-flight cycle.
+  let killedIdx = -1;
+  for (let i = events.length - 1; i > lastStartIdx; i--) {
+    const e = events[i];
+    if (e.event === "cycle.killed" && (e.cycle_id === cycleId || e.cycle_id === undefined)) {
+      killedIdx = i;
+      break;
+    }
+  }
+  // Interrupted when a kill marker interrupted a *running* cycle: either no
+  // cycle.end at all, or the kill preceded the (racy, orphaned) cycle.end that
+  // runCycle emitted while being torn down — the explicit kill marker takes
+  // precedence over that spurious terminal. Fail-closed: a cycle.end with no kill
+  // (normal completion) or a kill that *follows* a legit cycle.end (a between-cycles
+  // signal after the cycle already completed) ⇒ not in-flight.
+  const interrupted = killedIdx >= 0 && (endIdx < 0 || killedIdx < endIdx);
+  if (endIdx >= 0 && !interrupted) {
+    return null;
   }
   const completedSteps: string[] = [];
   for (let i = lastStartIdx + 1; i < events.length; i++) {
@@ -100,6 +129,7 @@ export function parseLogTail(text: string): InFlightCycle | null {
     startTs: start.ts,
     completedSteps,
     lastStepStarted,
+    interrupted,
   };
 }
 

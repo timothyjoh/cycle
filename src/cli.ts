@@ -225,21 +225,57 @@ try {
   process.exit(code);
 }
 process.on("exit", () => releaseLock(lockPath));
-process.on("SIGINT", () => process.exit(130));
-process.on("SIGTERM", () => process.exit(143));
 
 const log = await createLogger(cwd);
 const logPath = join(cwd, ".cycle", "log.jsonl");
 let activeCycleId: string | undefined;
-process.prependListener("SIGTERM", () => {
+// Tracks the in-flight run-one worker so a supervisor signal can reap it (and,
+// via the worker's own cascade, its detached agent/bash grandchild) before the
+// parent exits — no orphan keeps mutating the repo on a pause. Set in
+// spawnRunOne after spawn, cleared on close/error.
+let activeWorker: ReturnType<typeof spawn> | undefined;
+// Mirrors WALKTHROUGH_KILL_GRACE_MS / WORKER_CHILD_KILL_GRACE_MS.
+const WORKER_KILL_GRACE_MS = 5000;
+
+// Unified suspend handler: write the cycle.killed interrupted marker (best-effort,
+// matching the prior try/catch), then reap the active worker with a bounded
+// SIGTERM→grace→SIGKILL before exiting. Guarded so a double signal runs once. The
+// handler never throws and always exits: a reaped/absent worker exits immediately;
+// otherwise we exit as soon as the worker's `exit` fires, or after the grace
+// window's SIGKILL backstop, whichever is first.
+let signalHandled = false;
+function handleSupervisorSignal(sig: NodeJS.Signals, code: number): void {
+  if (signalHandled) return;
+  signalHandled = true;
   try {
     const line = JSON.stringify({ ts: new Date().toISOString(), event: "cycle.killed", cycle_id: activeCycleId });
     appendFileSync(logPath, line + "\n", "utf8");
   } catch {
     // write failure must not prevent exit
   }
-  process.exit(143);
-});
+  const worker = activeWorker;
+  if (!worker || worker.exitCode !== null || worker.signalCode !== null) {
+    process.exit(code);
+    return;
+  }
+  worker.once("exit", () => process.exit(code));
+  try {
+    worker.kill("SIGTERM");
+  } catch {
+    /* already gone */
+  }
+  const t = setTimeout(() => {
+    try {
+      worker.kill("SIGKILL");
+    } catch {
+      /* already gone */
+    }
+    process.exit(code);
+  }, WORKER_KILL_GRACE_MS);
+  t.unref?.();
+}
+process.on("SIGTERM", () => handleSupervisorSignal("SIGTERM", 143));
+process.on("SIGINT", () => handleSupervisorSignal("SIGINT", 130));
 
 const todoDir = join(cwd, "docs/cycle/issues/todo");
 const doneDir = join(cwd, "docs/cycle/issues/done");
@@ -467,8 +503,16 @@ function spawnRunOne(params: RunOneParams): Promise<number> {
       [process.argv[1], "run-one", ...args],
       { env: buildChildEnv(extra), stdio: "inherit", shell: false },
     );
-    child.on("close", (code) => resolve(code ?? 1));
-    child.on("error", reject);
+    // Track the worker so a supervisor signal can reap it; clear on settle.
+    activeWorker = child;
+    child.on("close", (code) => {
+      activeWorker = undefined;
+      resolve(code ?? 1);
+    });
+    child.on("error", (err) => {
+      activeWorker = undefined;
+      reject(err);
+    });
   });
 }
 
@@ -699,13 +743,25 @@ if (cfg) {
   if (tail) {
     activeCycleId = tail.cycleId;
     // Resume-path gating: a prior process may have left this in-flight cycle's
-    // tree dirty. Arm the guard from the log tail and check before resuming on
-    // top of it; a clean tree clears the context and resume proceeds unchanged.
-    pendingResidueContext = { cycleId: tail.cycleId, issueId: tail.issueId, failingStep: undefined };
-    if (await haltIfResidue()) {
+    // tree dirty. For a *genuine failure* tail, arm the guard from the log tail and
+    // check before resuming on top of it; a clean tree clears the context and
+    // resume proceeds unchanged. For a *signal-interrupted* tail (cycle.killed),
+    // the dirty tree is intentional WIP — bypass the residue halt and resume with
+    // no teardown so the partial work is preserved (suspend-and-resume).
+    if (!tail.interrupted) {
+      pendingResidueContext = { cycleId: tail.cycleId, issueId: tail.issueId, failingStep: undefined };
+    }
+    if (!tail.interrupted && await haltIfResidue()) {
       halted = true;
       haltReason = "failed_cycle_dirty_worktree";
     } else {
+      if (tail.interrupted) {
+        await log.emit("engine.resume", {
+          cycle_id: tail.cycleId,
+          issue_id: tail.issueId,
+          interrupted: true,
+        });
+      }
       const result = await runResumeOnce(cwd, log, cfg, args, tail, todoDir, doneDir, failedDir);
       cyclesProcessed += result.processed;
       if (result.outcome === "ok") {

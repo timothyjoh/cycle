@@ -1,0 +1,17 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "README.md",
+    "docs/ENGINE.md",
+    "src/cli.ts",
+    "src/cli/run-one.ts",
+    "src/engine/active-child.ts",
+    "src/engine/exec-bash.ts",
+    "src/engine/exec-spawn.ts",
+    "src/engine/log-tail.ts",
+    "tests/cli/failed-residue-guard.test.ts",
+    "tests/cli/run-one.test.ts",
+    "tests/engine/exec-bash.test.ts",
+    "tests/engine/log-tail.test.ts"
+  ]
+}

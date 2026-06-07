@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildChildEnv } from "./child-env.ts";
+import { registerActiveChild, unregisterActiveChild } from "./active-child.ts";
 import type { StepResult } from "./exec-types.ts";
 
 export interface RunAgentOptions {
@@ -41,6 +42,9 @@ export async function runAgent(opts: RunAgentOptions): Promise<StepResult> {
     const child = promptDelivery === "stdin"
       ? spawn(binary, finalArgv, base)
       : spawn(binary, finalArgv, { ...base, stdio: ["ignore", "pipe", "pipe"] });
+    // Register the group-leader pid so run-one's signal handler can reap this
+    // detached subtree on a suspend; unregistered in done() on close/error.
+    registerActiveChild(child.pid);
 
     let stdout = "";
     let stderr = "";
@@ -51,6 +55,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<StepResult> {
     const done = (r: StepResult) => {
       if (settled) return;
       settled = true;
+      unregisterActiveChild(child.pid);
       if (timer) clearTimeout(timer);
       if (killTimer) clearTimeout(killTimer);
       resolve(r);

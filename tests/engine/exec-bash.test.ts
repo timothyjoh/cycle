@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, writeFile, rm, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execBashStep } from "../../src/engine/exec-bash.ts";
+import { activeChildCount } from "../../src/engine/active-child.ts";
 
 test("runs script in cycleDir cwd, captures stdout, exits ok", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
@@ -55,6 +56,42 @@ test("spawns the resolved shell, not the literal /bin/bash", async () => {
     assert.equal(r.status, "ok");
     assert.match(r.stdout, /__SENTINEL_4f3a__/);
     assert.match(r.stdout, /hello/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("registers the child during the step and unregisters it after close", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    const scripts = join(root, ".cycle/scripts");
+    await mkdir(scripts, { recursive: true });
+    const script = join(scripts, "brief.sh");
+    await writeFile(script, "#!/bin/bash\nsleep 0.3\n", "utf8");
+    await chmod(script, 0o755);
+    const before = activeChildCount();
+    const p = execBashStep(root, "scripts/brief.sh", {});
+    // The child is registered synchronously after spawn, before close.
+    await new Promise(r => setTimeout(r, 100));
+    assert.equal(activeChildCount(), before + 1, "child registered during the step");
+    const r = await p;
+    assert.equal(r.status, "ok");
+    assert.equal(activeChildCount(), before, "child unregistered after close");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("unregisters the child on a spawn error path", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-test-"));
+  try {
+    const before = activeChildCount();
+    const r = await execBashStep(root, "scripts/never.sh", {}, {
+      ok: true,
+      path: "/nonexistent/definitely-not-a-shell",
+    });
+    assert.equal(r.status, "failed");
+    assert.equal(activeChildCount(), before, "child unregistered after error");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

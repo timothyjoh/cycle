@@ -266,6 +266,41 @@ test("residue guard: resume path halts before runResumeOnce", async () => {
   }
 });
 
+test("residue guard: interrupted (cycle.killed) tail bypasses the halt and resumes with WIP intact", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-residue-"));
+  try {
+    const dist = await ensureDist();
+    await bootstrapRepo(root, workflowYml(2, 1), { "verify.sh": "#!/bin/bash\nexit 0\n" });
+    // Pre-seed an in-flight cycle interrupted by a signal: cycle.start + cycle.killed,
+    // no cycle.end. Leave uncommitted non-engine residue (the WIP) in the worktree.
+    await appendFile(
+      join(root, ".cycle/log.jsonl"),
+      JSON.stringify({ ts: "2026-06-03T00:00:00.000Z", event: "cycle.start", cycle_id: "0007", issue_id: "A", workflow: "feature", title: "a task" }) + "\n" +
+      JSON.stringify({ ts: "2026-06-03T00:00:01.000Z", event: "cycle.killed", cycle_id: "0007" }) + "\n",
+      "utf8",
+    );
+    await mkdir(join(root, "src"), { recursive: true });
+    await writeFile(join(root, "src/residue.ts"), "work in progress");
+
+    const r = spawnSync("node", [dist, "run", "--skip-preflight"], { cwd: root, encoding: "utf8" });
+
+    const events = await readEvents(root);
+    assert.equal(
+      events.filter((e) => e.event === "engine.halted" && e.reason === "failed_cycle_dirty_worktree").length,
+      0,
+      "interrupted tail must not trip the residue guard",
+    );
+    const resumes = events.filter((e) => e.event === "engine.resume" && e.interrupted === true);
+    assert.equal(resumes.length, 1, "exactly one engine.resume{interrupted:true}");
+    // WIP is never auto-discarded on the interrupted path.
+    assert.equal(await readFile(join(root, "src/residue.ts"), "utf8"), "work in progress");
+    // Sanity: the supervisor did not residue-halt (exit 1 reason is residue).
+    assert.notEqual(r.status, 1, `must not residue-halt; stderr: ${r.stderr}`);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("residue guard: engine-owned-only residue does not trip the residue guard", async () => {
   const root = await mkdtemp(join(tmpdir(), "cycle-residue-"));
   try {

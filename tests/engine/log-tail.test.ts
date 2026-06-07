@@ -222,6 +222,90 @@ test("parseLogTail ignores step.skipped from a different cycle_id", () => {
   assert.ok(r);
   assert.deepEqual(r!.completedSteps, ["spec"]);
 });
+test("parseLogTail sets interrupted:false for a plain in-flight cycle", () => {
+  const text = ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "T", issue_id: "i" });
+  const r = parseLogTail(text);
+  assert.ok(r);
+  assert.equal(r!.interrupted, false);
+});
+
+test("parseLogTail sets interrupted:true for a tail ending in cycle.killed for the in-flight cycle", () => {
+  const text = [
+    ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "T", issue_id: "i" }),
+    ev("step.start", { cycle_id: "0001", step: "build" }),
+    ev("cycle.killed", { cycle_id: "0001" }),
+  ].join("\n");
+  const r = parseLogTail(text);
+  assert.ok(r);
+  assert.equal(r!.interrupted, true);
+});
+
+test("parseLogTail treats cycle.killed with undefined cycle_id as matching the in-flight cycle", () => {
+  const text = [
+    ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "T", issue_id: "i" }),
+    ev("cycle.killed", {}),
+  ].join("\n");
+  const r = parseLogTail(text);
+  assert.ok(r);
+  assert.equal(r!.interrupted, true);
+});
+
+test("parseLogTail sets interrupted:false for an in-flight step-failure tail (no cycle.killed)", () => {
+  const text = [
+    ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "T", issue_id: "i" }),
+    ev("step.end", { cycle_id: "0001", step: "build", status: "failed" }),
+  ].join("\n");
+  const r = parseLogTail(text);
+  assert.ok(r);
+  assert.equal(r!.interrupted, false);
+});
+
+test("parseLogTail ignores cycle.killed from a different cycle_id (fail-closed)", () => {
+  const text = [
+    ev("cycle.start", { cycle_id: "0002", workflow: "feature", title: "T", issue_id: "i" }),
+    ev("cycle.killed", { cycle_id: "0001" }),
+  ].join("\n");
+  const r = parseLogTail(text);
+  assert.ok(r);
+  assert.equal(r!.interrupted, false);
+});
+
+test("parseLogTail treats a malformed cycle.killed line as absent (interrupted:false)", () => {
+  const text = [
+    ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "T", issue_id: "i" }),
+    '{"event":"cycle.killed", broken',
+  ].join("\n");
+  const r = parseLogTail(text);
+  assert.ok(r);
+  assert.equal(r!.interrupted, false);
+});
+
+test("parseLogTail classifies interrupted when cycle.killed precedes a racy cycle.end", () => {
+  // On a signal-suspend the torn-down runCycle may race to emit cycle.end{failed}
+  // after the explicit cycle.killed marker; the kill takes precedence.
+  const text = [
+    ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "T", issue_id: "i" }),
+    ev("step.start", { cycle_id: "0001", step: "build" }),
+    ev("cycle.killed", { cycle_id: "0001" }),
+    ev("step.end", { cycle_id: "0001", step: "build", status: "failed" }),
+    ev("cycle.end", { cycle_id: "0001", status: "failed", failing_step: "build" }),
+  ].join("\n");
+  const r = parseLogTail(text);
+  assert.ok(r, "interrupted cycle is still resumable despite the racy cycle.end");
+  assert.equal(r!.cycleId, "0001");
+  assert.equal(r!.interrupted, true);
+  assert.deepEqual(r!.completedSteps, []);
+});
+
+test("parseLogTail returns null when cycle.killed follows a legit cycle.end (between-cycles signal)", () => {
+  const text = [
+    ev("cycle.start", { cycle_id: "0001", workflow: "feature", title: "T", issue_id: "i" }),
+    ev("cycle.end", { cycle_id: "0001", status: "ok" }),
+    ev("cycle.killed", {}),
+  ].join("\n");
+  assert.equal(parseLogTail(text), null);
+});
+
 test("parseLogTail counts step.end status:skipped as completed", () => {
   const r = parseLogTail(
     [

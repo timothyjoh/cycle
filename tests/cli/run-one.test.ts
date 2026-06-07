@@ -5,7 +5,89 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
-import { parseRunOneArgs } from "../../src/cli/run-one.ts";
+import { parseRunOneArgs, reapAndExit, type ReapDeps } from "../../src/cli/run-one.ts";
+
+// A fake timer that captures the scheduled callback so tests can fire it on demand.
+function fakeTimers() {
+  const fns: Array<() => void> = [];
+  const intervals: Array<() => void> = [];
+  const cleared: unknown[] = [];
+  return {
+    fns,
+    intervals,
+    cleared,
+    setTimeoutFn: (fn: () => void) => { fns.push(fn); return { unref() {} }; },
+    setIntervalFn: (fn: () => void) => { intervals.push(fn); return { unref() {} }; },
+    clearIntervalFn: (h: unknown) => { cleared.push(h); },
+  };
+}
+
+function baseDeps(overrides: Partial<ReapDeps> = {}): { deps: ReapDeps; exits: number[]; kills: NodeJS.Signals[]; writes: string[] } {
+  const exits: number[] = [];
+  const kills: NodeJS.Signals[] = [];
+  const writes: string[] = [];
+  const deps: ReapDeps = {
+    count: () => 1,
+    killChildren: (sig) => { kills.push(sig); },
+    anyAlive: () => true,
+    exit: (c) => { exits.push(c); },
+    write: (s) => { writes.push(s); },
+    graceMs: 5000,
+    ...overrides,
+  };
+  return { deps, exits, kills, writes };
+}
+
+test("reapAndExit exits immediately with no registered children (no kill, no write)", () => {
+  const { deps, exits, kills, writes } = baseDeps({ count: () => 0 });
+  reapAndExit("SIGTERM", 143, deps);
+  assert.deepEqual(exits, [143]);
+  assert.deepEqual(kills, []);
+  assert.deepEqual(writes, []);
+});
+
+test("reapAndExit SIGTERMs children, then exits via the fast poll once they are gone", () => {
+  const timers = fakeTimers();
+  let alive = true;
+  const { deps, exits, kills, writes } = baseDeps({
+    anyAlive: () => alive,
+    setTimeoutFn: timers.setTimeoutFn,
+    setIntervalFn: timers.setIntervalFn,
+    clearIntervalFn: timers.clearIntervalFn,
+  });
+  reapAndExit("SIGTERM", 143, deps);
+  // Children SIGTERMed and a diagnostic line written; no exit yet (still alive).
+  assert.deepEqual(kills, ["SIGTERM"]);
+  assert.equal(writes.length, 1);
+  assert.match(writes[0], /reaping 1 child group/);
+  assert.deepEqual(exits, []);
+  // First poll tick while alive: no exit.
+  timers.intervals[0]();
+  assert.deepEqual(exits, []);
+  // Children die; next poll tick clears the interval and exits.
+  alive = false;
+  timers.intervals[0]();
+  assert.deepEqual(exits, [143]);
+  assert.equal(timers.cleared.length, 1, "poll interval cleared on exit");
+});
+
+test("reapAndExit SIGKILL backstop fires after grace for a child ignoring SIGTERM", () => {
+  const timers = fakeTimers();
+  const { deps, exits, kills } = baseDeps({
+    anyAlive: () => true, // never dies on SIGTERM
+    setTimeoutFn: timers.setTimeoutFn,
+    setIntervalFn: timers.setIntervalFn,
+    clearIntervalFn: timers.clearIntervalFn,
+  });
+  reapAndExit("SIGINT", 130, deps);
+  assert.deepEqual(kills, ["SIGTERM"]);
+  assert.deepEqual(exits, []);
+  // Grace elapses: the kill timer SIGKILLs the group, clears the poll, and exits.
+  timers.fns[0]();
+  assert.deepEqual(kills, ["SIGTERM", "SIGKILL"]);
+  assert.deepEqual(exits, [130]);
+  assert.equal(timers.cleared.length, 1, "poll interval cleared by backstop");
+});
 
 const REPO = process.cwd();
 
