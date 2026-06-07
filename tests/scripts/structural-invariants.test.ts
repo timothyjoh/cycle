@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { runInvariants, INVARIANTS, validateActiveChildRegistration } from "../../scripts/structural-invariants.mjs";
+import { runInvariants, INVARIANTS, validateActiveChildRegistration, validateDetachedSpawn } from "../../scripts/structural-invariants.mjs";
 
 const SCRIPT = join(process.cwd(), "scripts/structural-invariants.mjs");
 const FIXTURES = join(process.cwd(), "tests/fixtures/structural-invariants");
@@ -47,14 +47,15 @@ async function setup(cwd: string, content: string, cliContent = "// stub\nconsec
     await writeFile(join(cwd, `tests/engine/exec-${agent}.test.ts`), "// hermetic stub: no PATH-stub here\n");
   }
 
-  // Exec-lane active-child-registration invariant targets (cycle 0267): the two
-  // spawning lanes must carry spawn( + both registry calls so the new relational
-  // entries pass against the synthetic tree. (The 6 agent stubs above have no
-  // spawn( and pass vacuously — no change needed.)
+  // Exec-lane active-child-registration (cycle 0267) + detached-spawn (cycle
+  // 0269) invariant targets: the two spawning lanes must carry spawn( + both
+  // registry calls + detached: true so the relational entries pass against the
+  // synthetic tree. (The 6 agent stubs above have no spawn( and pass vacuously —
+  // no change needed.)
   for (const f of ["exec-spawn", "exec-bash"]) {
     await writeFile(
       join(cwd, `src/engine/${f}.ts`),
-      `const child = spawn(bin, args);\nregisterActiveChild(child.pid);\nunregisterActiveChild(child.pid);\n`,
+      `const child = spawn(bin, args, { detached: true });\nregisterActiveChild(child.pid);\nunregisterActiveChild(child.pid);\n`,
     );
   }
 }
@@ -321,6 +322,81 @@ test("structural-invariants: active-child invariant present and passes against r
     (i) => i.file === "src/engine/exec-spawn.ts" && i.reason.includes("active-child"),
   );
   assert.ok(entry, "active-child registration invariant must be registered");
+  const cap = captureConsoleError();
+  let failed: number;
+  try {
+    failed = await runInvariants([entry], process.cwd());
+  } finally {
+    cap.restore();
+  }
+  assert.equal(failed, 0);
+});
+
+test("validateDetachedSpawn: spawn( with detached: true -> pass", () => {
+  const res = validateDetachedSpawn("const c = spawn(bin, argv, { detached: true });\n", "src/engine/exec-spawn.ts");
+  assert.equal(res.ok, true);
+  assert.equal(res.actual, "spawn( with detached: true");
+});
+
+test("validateDetachedSpawn: no spawn( -> vacuous pass", () => {
+  const res = validateDetachedSpawn("const x = 1;\n", "src/engine/exec-codex.ts");
+  assert.equal(res.ok, true);
+  assert.equal(res.actual, "no spawn( — vacuous");
+});
+
+test("validateDetachedSpawn: spawn( without detached: true -> fail naming file + remediation, does not throw", () => {
+  let res: ReturnType<typeof validateDetachedSpawn> | undefined;
+  assert.doesNotThrow(() => {
+    res = validateDetachedSpawn("const c = spawn(bin, argv, { stdio: 'inherit' });\n", "src/engine/exec-x.ts");
+  });
+  assert.equal(res?.ok, false);
+  assert.ok(res?.message?.includes("src/engine/exec-x.ts"));
+  assert.ok(res?.message?.includes("detached: true"));
+});
+
+test("validateDetachedSpawn: spawnSync( only -> vacuous pass (spawn anchor excludes spawnSync)", () => {
+  const res = validateDetachedSpawn("const r = spawnSync(bin, argv, { stdio: 'inherit' });\n", "src/engine/exec-codex.ts");
+  assert.equal(res.ok, true);
+  assert.equal(res.actual, "no spawn( — vacuous");
+});
+
+test("validateDetachedSpawn: whitespace tolerance in both probes -> pass", () => {
+  const res = validateDetachedSpawn("spawn ( bin ); detached : true", "f.ts");
+  assert.equal(res.ok, true);
+});
+
+test("structural-invariants: detached-spawn invariant fails via runInvariants when a spawning lane drops detached: true", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cycle-si-detached-fail-"));
+  try {
+    await mkdir(join(root, "src/engine"), { recursive: true });
+    // Synthetic lane: spawns but never passes detached: true.
+    await writeFile(
+      join(root, "src/engine/exec-x.ts"),
+      "const child = spawn(bin, args, { stdio: 'inherit' });\n",
+    );
+    const cap = captureConsoleError();
+    let failed: number;
+    try {
+      failed = await runInvariants(
+        [{ file: "src/engine/exec-x.ts", validate: validateDetachedSpawn, reason: "detached-spawn" }],
+        root,
+      );
+    } finally {
+      cap.restore();
+    }
+    assert.equal(failed, 1);
+    assert.ok(cap.lines.some((l) => l.includes("src/engine/exec-x.ts") && l.includes("FAIL")));
+    assert.ok(cap.lines.some((l) => l.includes("detached: true")));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("structural-invariants: detached-spawn invariant present and passes against real exec-spawn.ts", async () => {
+  const entry = INVARIANTS.find(
+    (i) => i.file === "src/engine/exec-spawn.ts" && i.reason.includes("detached-spawn"),
+  );
+  assert.ok(entry, "detached-spawn invariant must be registered for exec-spawn.ts");
   const cap = captureConsoleError();
   let failed: number;
   try {

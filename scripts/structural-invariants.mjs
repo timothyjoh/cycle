@@ -37,6 +37,13 @@ const SPAWN_CALL = /\bspawn\s*\(/;
 const REGISTER_CHILD = /\bregisterActiveChild\s*\(/;
 const UNREGISTER_CHILD = /\bunregisterActiveChild\s*\(/;
 
+// detached: true is the process-group-leader flag that makes -pid (the negated
+// pid) name the child's own group, so killActiveChildren's process.kill(-pid,sig)
+// and anyChildAlive's process.kill(-pid,0) reap/probe the whole subtree (cycle
+// 0265/0268). Scanned file-level (not line-adjacent) because exec-spawn.ts puts
+// detached: true in a shared `base` options object, not on the spawn( call line.
+const DETACHED_TRUE = /detached\s*:\s*true/;
+
 /**
  * One INVARIANTS table entry. Two mutually exclusive kinds share this shape:
  *   - count-based:  requires `pattern` + `expected`.
@@ -110,6 +117,34 @@ export function validateActiveChildRegistration(text, file) {
     };
   }
   return { ok: true, actual: 'spawn( paired with register/unregister' };
+}
+
+/**
+ * Every src/engine/exec-*.ts lane that calls spawn( must also pass detached:true
+ * so the spawned child is its own process-group leader and the reaper's -pid
+ * group-kill/-probe reaches the whole subtree (cycle 0265/0268). A lane with no
+ * spawn( passes vacuously. Returns a named { ok:false, message } (does not throw)
+ * for the genuine missing-detached case so the operator sees file + remediation.
+ * Scanned file-level: detached:true may live in a shared options object, not on
+ * the spawn( call line (exec-spawn.ts).
+ * @param {string} text
+ * @param {string} file
+ * @returns {{ ok: boolean, actual?: string, message?: string }}
+ */
+export function validateDetachedSpawn(text, file) {
+  if (!SPAWN_CALL.test(text)) return { ok: true, actual: 'no spawn( — vacuous' };
+  if (!DETACHED_TRUE.test(text)) {
+    return {
+      ok: false,
+      message:
+        `${file} calls spawn( but does not pass detached: true — every ` +
+        'active-child spawn site must be its own process-group leader so the ' +
+        'reaper\'s process.kill(-pid, …) group-kill/-probe reaches the whole ' +
+        'subtree on suspend (cycle 0265/0268). Add detached: true to the spawn ' +
+        'options.',
+    };
+  }
+  return { ok: true, actual: 'spawn( with detached: true' };
 }
 
 /** @type {Invariant[]} */
@@ -290,6 +325,21 @@ export const INVARIANTS = [
     validate: validateActiveChildRegistration,
     reason:
       'active-child registration: a spawn( lane must call registerActiveChild + unregisterActiveChild (cycle 0265 orphan-reap contract)',
+  })),
+
+  // --- Exec-lane detached-spawn (cycle 0269) ---
+  // Any src/engine/exec-*.ts lane that calls spawn( must pass detached:true so
+  // the child is its own process-group leader and the reaper's -pid group-kill
+  // (killActiveChildren) and group-probe (anyChildAlive) reach the whole subtree
+  // on suspend (cycle 0265/0268). One relational entry per current lane sharing
+  // validateDetachedSpawn; non-spawning lanes pass vacuously. Mirrors the
+  // active-child list above — when adding a new exec lane, register its entry here.
+  ...['exec-spawn', 'exec-bash', 'exec-auggie', 'exec-claudecode',
+    'exec-codex', 'exec-gemini', 'exec-opencode', 'exec-pi'].map((name) => ({
+    file: `src/engine/${name}.ts`,
+    validate: validateDetachedSpawn,
+    reason:
+      'detached-spawn: a spawn( lane must pass detached: true so the reaper can group-kill/-probe the subtree on suspend (cycle 0265/0268)',
   })),
 ];
 
