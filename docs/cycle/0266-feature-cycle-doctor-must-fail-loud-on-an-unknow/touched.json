@@ -1,0 +1,9 @@
+{
+  "files": [
+    "CLAUDE.md",
+    "docs/doctor.md",
+    "src/cli.ts",
+    "src/cli/doctor.ts",
+    "tests/cli/doctor.test.ts"
+  ]
+}

@@ -118,7 +118,11 @@ if (argv[0] === "doctor" || argv[0] === "preflight") {
   const { runDoctor } = await import("./cli/doctor.ts");
   const rest = argv.slice(1);
   const wfIdx = rest.indexOf("--workflow");
-  const workflow = wfIdx >= 0 && rest[wfIdx + 1] ? rest[wfIdx + 1] : "feature";
+  // No flag ⇒ undefined (defaults to "feature" in runDoctor). A trailing
+  // value-less flag ⇒ "" (distinct from undefined) so runDoctor rejects it
+  // rather than silently defaulting to "feature".
+  let workflow: string | undefined;
+  if (wfIdx >= 0) workflow = rest[wfIdx + 1] ?? "";
   const result = await runDoctor({ cwd: process.cwd(), workflow });
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr + String.fromCharCode(10));

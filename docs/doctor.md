@@ -15,6 +15,13 @@ cycle preflight [--workflow <name>]
 
 - `--workflow <name>` selects which workflow's agent set is probed. Default
   `feature`, matching `cycle run`.
+- An **unknown** `--workflow <name>` (not present in the loaded config) or a
+  **value-less** trailing `--workflow` (the flag with no following name) fails
+  loud: the command exits non-zero and prints a stderr message naming the bad
+  value and listing the available workflow names, **before** any agent/tool probe
+  runs. This is validated against the config's workflow set (not a hand-coded
+  list), so a typo surfaces immediately instead of a false `doctor: all checks
+  passed`. The no-arg path is unaffected — it still defaults to `feature`.
 - `doctor` and `preflight` are the same command; their output is byte-identical
   for the same repo and flags.
 
@@ -47,10 +54,11 @@ A clean run ends with `doctor: all checks passed`.
 
 - **0** — all checks passed. Warnings (e.g. `wsl_shadow`) are reported but do
   **not** flip the exit code.
-- **non-zero** — at least one check failed, or the config could not be loaded
-  (uninitialized repo / malformed `workflows.yml`). In the config-load case a
-  clear diagnostic is printed to stderr (run `cycle init` first) with no stack
-  trace.
+- **non-zero** — at least one check failed, the config could not be loaded
+  (uninitialized repo / malformed `workflows.yml`), or an explicit `--workflow`
+  value was unknown or value-less. In the config-load and workflow-validation
+  cases a clear diagnostic is printed to stderr (run `cycle init` first, or pick
+  one of the listed workflows) with no stack trace and no probe run.
 
 Because the exit code is 0 only when the environment is healthy, a setup script
 can gate on it:

@@ -39,6 +39,11 @@ workflows:
     steps:
       - name: build
         agent: codex
+  - name: e2e-tests
+    max_cycle_attempts: 1
+    steps:
+      - name: build
+        agent: gemini
 `;
 
 async function makeRepo(): Promise<string> {
@@ -145,6 +150,90 @@ test("doctor: doctor and preflight route to identical output for same opts", asy
     const b = await runDoctor(opts);
     assert.equal(a.stdout, b.stdout);
     assert.equal(a.exitCode, b.exitCode);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("doctor: unknown --workflow name fails loud, lists available, runs no probe", async () => {
+  const root = await makeRepo();
+  const bin = await mkdtemp(join(tmpdir(), "cycle-doctor-bin-"));
+  try {
+    const codex = await writeFake(bin, "codex", PASS);
+    const before = (await readdir(join(root, ".cycle"))).sort();
+    const r = await runDoctor({
+      cwd: root,
+      workflow: "no_such_wf",
+      env: { ...process.env, CYCLE_CODEX_BIN: codex },
+    });
+    assert.notEqual(r.exitCode, 0);
+    assert.equal(r.stdout, "");
+    assert.match(r.stderr, /no_such_wf/);
+    assert.match(r.stderr, /available workflows:/);
+    assert.match(r.stderr, /feature/);
+    assert.match(r.stderr, /e2e-tests/);
+    // Validation precedes probing: the error is the workflow-validation message,
+    // not a `check(s) failed` probe report — and no .cycle/ state was written.
+    assert.doesNotMatch(r.stderr, /check\(s\) failed/);
+    const after = (await readdir(join(root, ".cycle"))).sort();
+    assert.deepEqual(after, before);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("doctor: value-less --workflow flag fails loud, not a silent feature pass", async () => {
+  const root = await makeRepo();
+  try {
+    const r = await runDoctor({ cwd: root, workflow: "", env: { ...process.env } });
+    assert.notEqual(r.exitCode, 0);
+    assert.equal(r.stdout, "");
+    assert.match(r.stderr, /--workflow requires a value/);
+    assert.match(r.stderr, /available workflows:/);
+    assert.match(r.stderr, /feature/);
+    assert.doesNotMatch(r.stdout, /all checks passed/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("doctor: no-arg (undefined workflow) defaults to feature and probes it", async () => {
+  const root = await makeRepo();
+  const bin = await mkdtemp(join(tmpdir(), "cycle-doctor-bin-"));
+  try {
+    const codex = await writeFake(bin, "codex", PASS);
+    // Omit `workflow` entirely (undefined) — mirrors a bare `cycle doctor`.
+    const r = await runDoctor({
+      cwd: root,
+      env: { ...process.env, CYCLE_CODEX_BIN: codex },
+    });
+    assert.equal(r.exitCode, 0, r.stdout + r.stderr);
+    assert.match(r.stdout, /agent\s+codex\s+ok/);
+    assert.match(r.stdout, /doctor: all checks passed\n$/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(bin, { recursive: true, force: true });
+  }
+});
+
+test("doctor: valid explicit --workflow probes that workflow, not the feature default", async () => {
+  const root = await makeRepo();
+  const bin = await mkdtemp(join(tmpdir(), "cycle-doctor-bin-"));
+  try {
+    const codex = await writeFake(bin, "codex", PASS);
+    const gemini = await writeFake(bin, "gemini", PASS);
+    const r = await runDoctor({
+      cwd: root,
+      workflow: "e2e-tests",
+      env: { ...process.env, CYCLE_CODEX_BIN: codex, CYCLE_GEMINI_BIN: gemini },
+    });
+    assert.equal(r.exitCode, 0, r.stdout + r.stderr);
+    // e2e-tests uses gemini; its presence proves the explicit name resolved
+    // rather than the codex-only feature default.
+    assert.match(r.stdout, /agent\s+gemini\s+ok/);
+    assert.match(r.stdout, /doctor: all checks passed\n$/);
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(bin, { recursive: true, force: true });
