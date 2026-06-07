@@ -2,6 +2,12 @@
 
 Project conventions for cycle. Read before touching code or running the workflow.
 
+## Core thesis (non-negotiable)
+
+cycle exists to deliver working software and *demonstrate* it: every cycle must leave the app in a working state, shown to run locally (and when deployed) and to meet the issue's acceptance criteria. See [BRIEF.md](BRIEF.md) → *Core thesis*.
+
+Implication for anyone changing the engine or workflows: **no false greens.** Passing unit tests is not proof the app works. Verification that is skipped, degraded, or stubbed is not verification. A cycle that cannot demonstrate the running app meets its criteria must block or fail loudly, never drain to `done/`. Gates fail closed.
+
 ## Workflow style
 
 - **Trunk-based development.** All work goes directly on `master`. Commits land via fast-forward merge from local branches that are immediately deleted.
