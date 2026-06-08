@@ -818,12 +818,6 @@ export async function runCycle(repoRoot: string, opts: RunCycleOpts) {
               r.status = "failed";
               r.exitCode = r.exitCode || 1;
               r.stderr = proofError;
-            } else if (r.timedOut) {
-              // The step timed out, but its turn had completed and the declared
-              // artifact passed its proof — the process just hung on exit
-              // (claude -p exit hang). Accept the work instead of discarding it.
-              r.status = "ok";
-              await log.emit("step.timeout_salvaged", { cycle_id: cycleId, step: step.name, artifact: artifactPath });
             }
           }
           if (r.status === "ok" && (step.name === "build" || step.name === "fix")) {

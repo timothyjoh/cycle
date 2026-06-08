@@ -371,16 +371,15 @@ test("timeout override: workflow-level timeout_ms applies when step omits it", a
 });
 
 // ---------------------------------------------------------------------------
-// Regression (salvage): a timed-out step whose artifact is non-empty still
-// takes the step.timeout_salvaged accept path — the message branch must not
-// affect salvage.
+// Regression: a timed-out step whose artifact is non-empty still fails. Timeout
+// is stronger than artifact presence, so stale or partial work cannot pass.
 // ---------------------------------------------------------------------------
 
-test("completion-proof: timed-out review with non-empty artifact -> salvaged, cycle ok", async () => {
+test("completion-proof: timed-out review with non-empty artifact -> failed", async () => {
   // Write real content to stdout immediately, then hang. The captured stdout
-  // yields a non-empty REVIEW.md, so the proof passes and the timeout takes the
-  // salvage path. The artifact write is a single printf that completes well
-  // within the 200 ms timer before the sleep.
+  // yields a non-empty REVIEW.md, but the timeout still fails the step. The
+  // artifact write is a single printf that completes well within the 200 ms
+  // timer before the sleep.
   const { root, bin } = await setupRepo(
     SHEBANG + "\nprintf 'real artifact content\\n'\nsleep 30\n",
     [{ name: "review" }],
@@ -393,11 +392,11 @@ test("completion-proof: timed-out review with non-empty artifact -> salvaged, cy
       workflow: "feature",
       env: { PATH: bin + ":" + (process.env.PATH || ""), CYCLE_BASE: "main" },
     });
-    assert.equal(r.status, "ok");
+    assert.equal(r.status, "failed");
 
     const events = readEvents(await readFile(join(root, ".cycle/log.jsonl"), "utf8"));
 
-    // completion_check passed; salvage path accepted the work.
+    // completion_check passed, but timeout still wins over artifact presence.
     const checks = events.filter(
       (e) => e.event === "step.completion_check" && e.step === "review",
     );
@@ -407,13 +406,13 @@ test("completion-proof: timed-out review with non-empty artifact -> salvaged, cy
     const salvaged = events.filter(
       (e) => e.event === "step.timeout_salvaged" && e.step === "review",
     );
-    assert.equal(salvaged.length, 1, "step.timeout_salvaged must fire exactly once for review");
+    assert.equal(salvaged.length, 0, "timed-out review must not be salvaged");
 
-    // review ended ok (not failed) despite the timeout.
+    // review ended failed because timeout is terminal.
     assert.equal(
-      events.filter((e) => e.event === "step.end" && e.step === "review" && e.status === "ok").length,
+      events.filter((e) => e.event === "step.end" && e.step === "review" && e.status === "failed").length,
       1,
-      "review ended ok via salvage",
+      "review ended failed due to timeout",
     );
   } finally {
     await cleanup(root, bin);
