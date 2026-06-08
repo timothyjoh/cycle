@@ -101,33 +101,19 @@ See [docs/publishing.md](docs/publishing.md).
 <claude-mem-context>
 # Memory Context
 
-# [cycle] recent context, 2026-06-08 11:52am EDT
+# [cycle] recent context, 2026-06-08 12:15pm EDT
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 16 obs (7,614t read) | 208,098t work | 96% savings
+Stats: 50 obs (13,712t read) | 270,768t work | 95% savings
 
-### May 8, 2026
-115 8:58a ✅ Workflow Specification Document Created
-S31 Commit and push workflow specification changes to cycle repository (May 8 at 8:58 AM)
-S30 User requested commit and push of changes to the cycle repository (May 8 at 8:58 AM)
-116 8:59a ✅ Workflow Specification Committed and Pushed
-S34 Brainstorm/grill session on cycle tool architecture: repo-level only vs. user-level monitoring layer for cross-project visibility (May 8 at 8:59 AM)
-### May 11, 2026
-S117 Pull latest from repo - synced cycle project master branch with origin/master (May 11 at 11:26 AM)
 ### Jun 8, 2026
-533 10:22a ✅ Cycle v0.2.0 released with major engine refactoring and new features
-S118 Pull latest from repo and explore cycle project state - examined v0.2.0 release with engine refactoring and reviewed 275-cycle development archive. (Jun 8 at 10:22 AM)
-535 10:23a 🔵 Cycle engine processed 6 features (0270-0275) with full spec-through-documentation pipeline
 536 10:24a 🔵 Cycle project maintains 275 completed development cycles with structured artifact archive
-S119 Execute full npm test suite on v0.2.0 cycle engine to validate infrastructure after major refactoring (12,022+ line changes) (Jun 8 at 10:24 AM)
 537 10:25a 🔵 Test suite passes all 48 cases covering CLI, engine, locks, residue guards, and signal handling
 538 " 🔵 12 additional residue guard tests pass covering within-budget retry and startup re-check scenarios
 539 10:26a 🔵 Test suite completes with 200+ additional passing cases covering CLI, prompts, git, signals, and validation
-S120 Validate test correctness against stricter timeout behavior in run-cycle engine (Jun 8 at 10:28 AM)
-S121 Fix timeout salvage behavior: enforce stricter contract where timeout is always terminal and causes step failure, regardless of artifact completion status (Jun 8 at 11:11 AM)
 541 11:12a 🔵 Salvage behavior test found encoding old contract
 542 " ✅ Test updated to expect timeout-first contract
 543 " 🔵 Engine still implements salvage behavior despite updated test
@@ -136,15 +122,54 @@ S121 Fix timeout salvage behavior: enforce stricter contract where timeout is al
 546 " 🔵 Full test suite passes after timeout salvage removal
 547 11:49a 🔴 Remove timeout salvage path—timeouts now fail regardless of artifact completion
 548 11:50a ✅ Timeout salvage removal pushed to remote
-S122 Commit and push changes to master: remove timeout salvage path from engine cycle logic (Jun 8 at 11:50 AM)
-**Investigated**: Examined timeout handling in src/engine/run-cycle.ts and the completion-proof regression test. Identified the salvage path that was accepting timed-out steps when their artifacts passed completion proof, and the associated test expectations.
+549 11:52a 🟣 Add AGENTS.md—repository-specific agent and workflow conventions
+550 11:53a ✅ AGENTS.md documentation pushed to remote
+551 12:05p 🔵 Pre-release state: v0.3.0 tag missing, uncommitted AGENTS.md changes
+554 " 🔴 Fail timed-out artifact steps regardless of completion proof
+555 " ✅ Add AGENTS.md project conventions documentation
+556 " ✅ Create v0.3.0 release tag for automated npm deployment
+552 " 🔵 Tag creation failed: .git directory permission denied
+553 " 🟣 v0.3.0 release tag created and pushed to GitHub
+557 " 🔵 v0.3.0 tag confirmed live on GitHub
+558 12:08p 🔵 Cycle engine defaults inventory and downstream project preparation
+559 " 🔵 Build output generated with fresh dist/cycle.js and default templates bundled
+560 " ✅ Directory structure created for cycle engine distribution to downstream projects
+561 12:09p ✅ v0.3.0 cycle engine executable installed to blended project
+562 " ✅ v0.3.0 cycle engine and default workflows distributed to maestro and blended
+563 " ✅ v0.3.0 default prompts distributed to blended and maestro projects
+564 " 🔵 v0.3.0 distribution verified in blended project
+565 " 🔵 v0.3.0 complete distribution verified for blended and maestro
+S131 Push v0.3.0 release tag and distribute cycle engine v0.3.0 to blended and maestro projects (Jun 8 at 12:09 PM)
+566 12:10p 🔵 Version mismatch: v0.3.0 tag created but executable reports 0.2.0
+S133 Replace engine in local project with rebuilt v0.3.0 bundle (Jun 8 at 12:10 PM)
+567 " 🔵 package.json confirmed at version 0.2.0, not bumped to 0.3.0
+568 " ✅ package.json version bumped from 0.2.0 to 0.3.0
+569 " ✅ Rebuilt with correct v0.3.0 version embedded
+S134 Verify copied v0.3.0 binary with version flag check (Jun 8 at 12:11 PM)
+570 12:11p ✅ Rebuilt v0.3.0 executable installed to blended project
+571 " ✅ Rebuilt v0.3.0 executable installed to maestro project
+S135 Fix v0.3.0 release version mismatch and verify cycle engine distribution to downstream projects (Jun 8 at 12:11 PM)
+572 " 🔵 blended project verified running v0.3.0 cycle engine
+S136 Create local release tag on new release commit (Jun 8 at 12:11 PM)
+573 " ⚖️ Bumped to v0.3.1 instead of fixing v0.3.0 version mismatch
+574 12:12p ✅ dist/cycle.js rebuilt and verified with v0.3.1 version
+575 " ✅ Committed v0.3.1 version bump
+576 " ✅ Local master ahead of origin/master by 1 commit
+S137 Verify v0.3.1 tag push with Git metadata query (Jun 8 at 12:12 PM)
+577 " 🔵 Tag creation failed: .git directory permission denied again
+578 " ✅ v0.3.1 tag created locally with escalated permissions
+579 " ✅ v0.3.1 version bump commit pushed to GitHub master
+S138 Create v0.3.0 release tag and resolve version mismatch; establish corrected v0.3.1 release (Jun 8 at 12:13 PM)
+580 12:13p 🟣 v0.3.1 release tag pushed to GitHub
+581 " 🔵 v0.3.1 release verified live on GitHub
+S139 Action approved (tag push or release operation) (Jun 8 at 12:13 PM)
+582 " ✅ Created release-next-version skill for cycle project releases
+S140 Create project-local skill directory (Jun 8 at 12:13 PM)
+583 " 🔵 Cannot create .agents directory: permission denied
+584 12:14p ✅ Created .agents/skills/release-next-version directory with escalated permissions
+585 " ✅ release-next-version skill created and written to disk
+S141 Add project-local skill file (Jun 8 at 12:14 PM)
+586 " 🔵 release-next-version skill verified complete and persisted
 
-**Learned**: Timeout salvage was masking incomplete work: when a step timed out but produced a non-empty artifact, the engine was accepting it as "ok" rather than failing. This was intended to handle "exit hang" scenarios (process hung on exit but work completed), but allowed stale or partial work to ship. Timeouts should be terminal regardless of artifact presence.
-
-**Completed**: Removed the `else if (r.timedOut)` salvage block from run-cycle.ts (6 lines deleted). Updated completion-proof regression test to expect "failed" status instead of "ok" for timed-out steps with artifacts, and removed expectations for step.timeout_salvaged events. Commit 2fc2ebf ("fix(engine): fail timed-out artifact steps") created and pushed to origin/master. Test suite passed: 1285 tests, 0 failures. Working tree clean and synced.
-
-**Next Steps**: None—work is complete. Commit has been pushed to master and verified.
-
-
-Access 208k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 271k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
