@@ -101,75 +101,83 @@ See [docs/publishing.md](docs/publishing.md).
 <claude-mem-context>
 # Memory Context
 
-# [cycle] recent context, 2026-06-08 12:15pm EDT
+# [cycle] recent context, 2026-06-08 3:18pm EDT
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (13,712t read) | 270,768t work | 95% savings
+Stats: 50 obs (12,110t read) | 112,898t work | 89% savings
 
 ### Jun 8, 2026
-536 10:24a 🔵 Cycle project maintains 275 completed development cycles with structured artifact archive
-537 10:25a 🔵 Test suite passes all 48 cases covering CLI, engine, locks, residue guards, and signal handling
-538 " 🔵 12 additional residue guard tests pass covering within-budget retry and startup re-check scenarios
-539 10:26a 🔵 Test suite completes with 200+ additional passing cases covering CLI, prompts, git, signals, and validation
-541 11:12a 🔵 Salvage behavior test found encoding old contract
-542 " ✅ Test updated to expect timeout-first contract
-543 " 🔵 Engine still implements salvage behavior despite updated test
-544 11:13a 🔴 Removed timeout salvage branch from engine
-545 " 🔵 All tests pass after removing salvage logic
-546 " 🔵 Full test suite passes after timeout salvage removal
-547 11:49a 🔴 Remove timeout salvage path—timeouts now fail regardless of artifact completion
-548 11:50a ✅ Timeout salvage removal pushed to remote
-549 11:52a 🟣 Add AGENTS.md—repository-specific agent and workflow conventions
-550 11:53a ✅ AGENTS.md documentation pushed to remote
-551 12:05p 🔵 Pre-release state: v0.3.0 tag missing, uncommitted AGENTS.md changes
-554 " 🔴 Fail timed-out artifact steps regardless of completion proof
-555 " ✅ Add AGENTS.md project conventions documentation
-556 " ✅ Create v0.3.0 release tag for automated npm deployment
-552 " 🔵 Tag creation failed: .git directory permission denied
-553 " 🟣 v0.3.0 release tag created and pushed to GitHub
-557 " 🔵 v0.3.0 tag confirmed live on GitHub
-558 12:08p 🔵 Cycle engine defaults inventory and downstream project preparation
-559 " 🔵 Build output generated with fresh dist/cycle.js and default templates bundled
-560 " ✅ Directory structure created for cycle engine distribution to downstream projects
-561 12:09p ✅ v0.3.0 cycle engine executable installed to blended project
-562 " ✅ v0.3.0 cycle engine and default workflows distributed to maestro and blended
-563 " ✅ v0.3.0 default prompts distributed to blended and maestro projects
-564 " 🔵 v0.3.0 distribution verified in blended project
-565 " 🔵 v0.3.0 complete distribution verified for blended and maestro
-S131 Push v0.3.0 release tag and distribute cycle engine v0.3.0 to blended and maestro projects (Jun 8 at 12:09 PM)
-566 12:10p 🔵 Version mismatch: v0.3.0 tag created but executable reports 0.2.0
-S133 Replace engine in local project with rebuilt v0.3.0 bundle (Jun 8 at 12:10 PM)
-567 " 🔵 package.json confirmed at version 0.2.0, not bumped to 0.3.0
-568 " ✅ package.json version bumped from 0.2.0 to 0.3.0
-569 " ✅ Rebuilt with correct v0.3.0 version embedded
-S134 Verify copied v0.3.0 binary with version flag check (Jun 8 at 12:11 PM)
-570 12:11p ✅ Rebuilt v0.3.0 executable installed to blended project
-571 " ✅ Rebuilt v0.3.0 executable installed to maestro project
-S135 Fix v0.3.0 release version mismatch and verify cycle engine distribution to downstream projects (Jun 8 at 12:11 PM)
-572 " 🔵 blended project verified running v0.3.0 cycle engine
-S136 Create local release tag on new release commit (Jun 8 at 12:11 PM)
-573 " ⚖️ Bumped to v0.3.1 instead of fixing v0.3.0 version mismatch
-574 12:12p ✅ dist/cycle.js rebuilt and verified with v0.3.1 version
-575 " ✅ Committed v0.3.1 version bump
-576 " ✅ Local master ahead of origin/master by 1 commit
-S137 Verify v0.3.1 tag push with Git metadata query (Jun 8 at 12:12 PM)
-577 " 🔵 Tag creation failed: .git directory permission denied again
-578 " ✅ v0.3.1 tag created locally with escalated permissions
-579 " ✅ v0.3.1 version bump commit pushed to GitHub master
-S138 Create v0.3.0 release tag and resolve version mismatch; establish corrected v0.3.1 release (Jun 8 at 12:13 PM)
-580 12:13p 🟣 v0.3.1 release tag pushed to GitHub
-581 " 🔵 v0.3.1 release verified live on GitHub
-S139 Action approved (tag push or release operation) (Jun 8 at 12:13 PM)
-582 " ✅ Created release-next-version skill for cycle project releases
-S140 Create project-local skill directory (Jun 8 at 12:13 PM)
-583 " 🔵 Cannot create .agents directory: permission denied
-584 12:14p ✅ Created .agents/skills/release-next-version directory with escalated permissions
-585 " ✅ release-next-version skill created and written to disk
-S141 Add project-local skill file (Jun 8 at 12:14 PM)
-586 " 🔵 release-next-version skill verified complete and persisted
+600 12:41p 🔵 Cycle doctor verification passed for realtimechat with codex agent
+601 " ✅ Customized realtimechat verify.sh to support build-only verification
+602 " 🔵 Verified realtimechat Git state and verify.sh customization
+603 12:42p ✅ Installed npm dependencies in realtimechat project
+604 " 🔵 Verified realtimechat Astro build succeeds with 0 errors
+605 " ✅ Updated realtimechat .gitignore to exclude .vercel/ build output
+606 12:43p ✅ Staged realtimechat project files for initial commit
+607 " 🔵 Initial realtimechat commit staged: 144 files, 60,118 insertions
+608 " ✅ Created initial commit for realtimechat project
+609 " ✅ Created GitHub repository timothyjoh/realtimechat and pushed initial commit
+610 12:44p 🔵 Realtimechat cycle queue initialized and empty, ready to accept issues
+631 2:27p 🔵 Cycle issue workflow structure in realtimechat
+S172 Create two markdown issue files with acceptance criteria in realtimechat project's Cycle inbox; approved for execution (Jun 8 at 2:28 PM)
+632 2:28p 🔵 Cycle queue state clean before issue creation
+S173 Add two markdown issues to realtimechat Cycle tracker and verify Cycle system recognizes them in queue (Jun 8 at 2:28 PM)
+633 " 🟣 Created two expanded Cycle issues for real-time chat features
+S174 Verify realtimechat Cycle issue folder structure and confirm two markdown issues are present in correct locations (Jun 8 at 2:29 PM)
+634 2:29p 🔵 Cycle inbox files created but not auto-indexed into queue
+S175 Review staged diff of two markdown issue files before committing to realtimechat repository (Jun 8 at 2:29 PM)
+635 " 🔵 Cycle uses triage engine to load inbox issues from markdown files
+S176 Launch local Cycle engine to process queued issues in realtimechat project (Jun 8 at 2:29 PM)
+636 " ✅ Committed expanded realtime feature issues to realtimechat
+S177 Check status of running Cycle engine processing the two queued issues (Jun 8 at 2:30 PM)
+637 2:30p ✅ Pushed realtime feature issues to GitHub and started Cycle engine
+S178 Diagnose Cycle engine process by inspecting logs and directory state to verify execution (Jun 8 at 2:30 PM)
+638 " 🔵 Cycle background process exited; log empty
+S179 Re-run Cycle engine with diagnostics to troubleshoot and resolve startup failure (Jun 8 at 2:30 PM)
+639 " 🔵 Cycle log.jsonl not created; run.console.log empty
+S190 Add two expanded Cycle issues for real-time chat features to realtimechat; commit, push, and start Cycle engine to process them. (Jun 8 at 2:30 PM)
+640 2:31p 🔵 Cycle run succeeds in foreground; triage processing 2 inbox issues
+641 " 🔵 Cycle triage completed; realtime-chat-page cycle started with codex agent
+642 2:32p 🔵 Cycle spec step completed; SPEC.md generated; research step started
+643 2:33p 🔵 Cycle research step completed; RESEARCH.md generated; plan step started
+644 2:35p 🔵 Cycle plan step completed; PLAN.md generated; build step started
+645 2:37p 🔵 Build step failed; no code changes detected; cycle restarting on attempt 1
+652 2:38p 🔵 Retry cycle 0001 spec step completed; research step restarted
+653 2:39p 🔵 Retry cycle research step completed; plan step started
+654 2:41p 🔵 Retry cycle plan step completed; build step restarted (attempt to fix)
+655 2:43p 🔵 Build step failed again on retry attempt; cycle restarting on attempt 2 of 3
+656 2:45p 🔵 Third attempt cycle started; spec step completed
+666 2:46p 🔵 Third attempt research step completed; plan step started
+667 2:48p 🔵 Third attempt plan step completed; final build attempt starting
+668 2:50p 🔵 Build step failed all 3 attempts; realtime-chat-page marked permanently failed; cycle 0002 started on second issue
+669 2:52p 🔵 Cycle 0002 started for realtime-presence-homepage; spec step completed
+670 " 🔵 Cycle 0002 research step completed; plan step started
+671 2:55p 🔵 Cycle 0002 plan step completed; build step started for second feature
+672 2:57p 🔵 Cycle 0002 build failed identically; systemic codex agent issue confirmed
+673 " 🔵 Cycle 0002 retry started; spec step completed
+674 2:58p 🔵 Cycle 0002 retry research step completed; plan step started
+675 3:01p 🔵 Cycle 0002 retry plan step completed; second build attempt starting
+676 3:02p 🔵 Cycle 0002 second attempt build failed identically; third attempt starting
+677 3:03p 🔵 Cycle 0002 final attempt (3rd overall) started; spec step completed
+678 3:04p 🔵 Cycle 0002 final attempt research step completed; plan step started
+679 3:06p 🔵 Cycle 0002 final attempt plan step completed; third and final build attempt starting
+680 3:08p 🔵 Both cycles failed; Cycle engine halted after max consecutive failures threshold
+683 " 🔵 Codex agent in Cycle completes build step without generating source code
+684 " ✅ Cycle engine with Codex agent deployed to realtimechat test project
+681 " 🔵 Cycle engine final state: both issues in failed queue
+682 " 🔵 Final state confirmed: both issues in failed queue, cycle directories archived
+S191 Memory agent observing Codex session: integrated Codex with Cycle workflow engine in realtimechat test project, ran two feature issues through automated workflow, both failed at build step (Jun 8 at 3:10 PM)
+**Investigated**: Cycle + Codex integration architecture; feature workflow execution (spec → research → plan → build); post-condition validation mechanism; build step code generation; engine retry and halting policy; queue state after engine halt
 
-Access 271k tokens of past work via get_observations([IDs]) or mem-search skill.
+**Learned**: Codex agent completes workflow steps with passing validation but generates zero source code changes in build step; Cycle's git post-condition check (git status --porcelain) detects mismatch between reported success and actual file modifications; max_consecutive_failures=2 threshold triggers engine halt and blocks remaining queue; both cycles failed identically, suggesting systemic issue with codex build-step output generation rather than random failure
+
+**Completed**: Cycle + Codex integration deployed to ~/wrk/realtimechat; two feature issues (realtime-presence-homepage, chat-window) ingested and queued; full workflow execution captured across two cycles with detailed step logs; discovered gap between codex step-completion signals and actual code generation; engine halted cleanly after threshold reached
+
+**Next Steps**: User will likely investigate BUILD.md artifacts to understand what codex attempted; examine why codex doesn't actually modify source files despite reporting build success; may need to adjust codex prompts, build step context, or post-condition validation; second issue blocked until build-step gap resolved; approval request queued is read-only status check to confirm final queue state
+
+
+Access 113k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
